@@ -7,7 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, Play, GraduationCap, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand, Sparkles,
+  BookOpen, Award, X, Check, CheckCircle, Play, GraduationCap, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Briefcase, Hand, Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -775,6 +775,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
     return () => clearTimeout(timer);
   }, [celebrate]);
   const reduceMotion = useReducedMotion();
+  const toolIcon = useToolIcons();
   const totalItems    = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
@@ -799,6 +800,8 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
   // joins the numbered steps, and a line too faint to see there left the steps floating.
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
   const isLight = C.page === LIGHT_C.page;
+  // The public overview draws each step as an outlined card on the page's own card.
+  const stepEdge = isLight ? 'rgba(15,23,42,0.10)' : 'rgba(255,255,255,0.10)';
   // Until a track is chosen no path content is shown, not even the current step: the question
   // comes first.
   const awaitingTrack = !publicPreview && !path.locked && !!onChooseTrack && path.needs_track === true;
@@ -938,9 +941,6 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
           const href = `/${item.slug || item.id}`;
           const cover = item.cover_image;
           const inProgressPct = !done && typeof item.in_progress_pct === 'number' ? item.in_progress_pct : null;
-          // Explore's icon and colour per type, for the type label on the public overview.
-          const TypeIcon = isCert ? Award : isVE ? Briefcase : Film;
-          const typeAccent = isCert ? '#0891B2' : isVE ? '#00BF63' : C.cta;
 
           // Section headings count as steps in the drop-in, so each lands before its courses.
           const order = idx + (grouped ? (idx >= coreCount ? 2 : 1) : 0);
@@ -976,14 +976,14 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                 {items.length > 0 && (
                   // On the public overview the line stops short of each numbered step, above and
                   // below, instead of running into the circle.
-                  <span aria-hidden="true" className={`absolute left-1/2 w-0.5 -translate-x-1/2 ${publicPreview ? 'top-12 -bottom-5 sm:top-[52px] sm:-bottom-6' : 'top-10 -bottom-6 sm:top-11'}`}
-                    style={{ background: connectorColor }}/>
+                  <span aria-hidden="true" className={`absolute left-1/2 -translate-x-1/2 ${publicPreview ? 'w-0 top-12 -bottom-5 sm:top-[52px] sm:-bottom-6' : 'w-0.5 top-10 -bottom-6 sm:top-11'}`}
+                    style={publicPreview ? { borderLeft: `2px dashed ${connectorColor}` } : { background: connectorColor }}/>
                 )}
                 {/* On the public overview nobody has progress, so each step shows its place in the
                     order instead: identical dots said nothing about where to start. */}
                 {publicPreview && !done ? (
-                  <span className="mt-4 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold sm:h-7 sm:w-7 sm:text-xs"
-                    style={{ background: isLight ? '#e7f8ef' : 'rgba(0,191,99,0.16)', color: isLight ? '#0f7a4a' : '#86efac' }}>
+                  <span className="mt-4 flex h-6 w-6 items-center justify-center rounded-full border-2 text-[11px] font-extrabold sm:h-7 sm:w-7 sm:text-xs"
+                    style={{ background: C.card, borderColor: C.text, color: C.text }}>
                     {idx + 1}
                   </span>
                 ) : (
@@ -998,19 +998,34 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                 )}
               </div>
               <a href={path.locked ? undefined : href} target={path.locked ? undefined : '_blank'} rel={path.locked ? undefined : 'noreferrer'} aria-disabled={path.locked || undefined}
-                className="group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:h-[184px] sm:items-center sm:p-4"
+                className={`group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:items-center ${publicPreview ? 'sm:h-[132px] sm:p-3' : 'sm:h-[184px] sm:p-4'}`}
                 style={{
-                  // A soft fill with no border or shadow, in both views. Unfilled rows on the public
-                  // overview had nothing holding the cover and the text together.
-                  background: isCurrent
-                    ? 'rgba(34,197,94,0.055)'
-                    : isLight ? '#f8fafc' : C.pill,
+                  // The learner view: a soft fill with no border. The public overview: an outlined
+                  // card, since the steps sit on the overview's own card.
+                  background: publicPreview
+                    ? 'transparent'
+                    : isCurrent ? 'rgba(34,197,94,0.055)' : isLight ? '#f8fafc' : C.pill,
+                  border: publicPreview ? `1px solid ${stepEdge}` : undefined,
                   boxShadow: 'none',
                   cursor: path.locked ? 'default' : 'pointer',
                 }}>
                 <div className="flex flex-col gap-3 sm:w-full sm:flex-row sm:items-stretch sm:gap-4">
                   <div className="relative w-full flex-shrink-0 overflow-hidden rounded-lg aspect-video sm:w-40 sm:aspect-auto">
-                    <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} className="sm:h-full sm:aspect-auto"/>
+                    {publicPreview && !cover ? (
+                      // No cover: the tool's logo on grey, with the category label, as Explore shows it.
+                      <div className="grid h-full w-full place-items-center sm:h-full" style={{ background: C.pill }}>
+                        {item.category && toolIcon(item.category)
+                          ? <img src={toolIcon(item.category)!} alt="" className="h-9 w-9 object-contain" />
+                          : (() => { const StepIcon = isCert ? ShieldCheck : isVE ? Briefcase : BookOpen; return <StepIcon className="h-7 w-7" style={{ color: C.faint }} />; })()}
+                      </div>
+                    ) : (
+                      <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} className="sm:h-full sm:aspect-auto"/>
+                    )}
+                    {publicPreview && item.category && (
+                      <span className="absolute left-0 top-2 max-w-[80%] truncate px-2 py-0.5 text-[10.5px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                        {item.category}
+                      </span>
+                    )}
                     {done ? (
                       <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full shadow-sm" style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
                         <Check className="w-3 h-3" strokeWidth={3}/>
@@ -1021,15 +1036,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                   </div>
                   <div className="min-w-0 flex-1 sm:flex sm:h-full sm:flex-col">
                     {publicPreview ? (
-                      // The same tinted icon tile Explore puts on each type, so the type reads at a
-                      // glance rather than from a line of faint text.
-                      <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: C.muted }}>
-                        <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-md"
-                          style={{ background: `color-mix(in srgb, ${typeAccent} 12%, transparent)` }}>
-                          <TypeIcon className="h-3.5 w-3.5" style={{ color: typeAccent }}/>
-                        </span>
-                        {isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}
-                      </div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>
+                        {isCert ? 'Certification' : isVE ? 'Virtual experience' : 'Course'}
+                      </p>
                     ) : (
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: C.faint }}>
                       <span>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</span>
@@ -1037,8 +1046,8 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                     )}
                     {/* The public overview's card sets its own near-white text in dark; the theme's
                         softer text colour made the titles read dimmer than everything above them. */}
-                    <h4 className="mt-1 text-lg font-bold leading-snug sm:text-xl" style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{item.title}</h4>
-                    <div className="mt-1.5 sm:min-h-[63px]">
+                    <h4 className={`mt-1 font-bold leading-snug ${publicPreview ? 'text-base' : 'text-lg sm:text-xl'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{item.title}</h4>
+                    <div className={publicPreview ? 'mt-1' : 'mt-1.5 sm:min-h-[63px]'}>
                       {inProgressPct !== null ? (
                         <div className="flex h-[63px] max-w-md flex-col justify-center">
                           <div className="mb-1.5 flex items-center justify-between text-xs" style={{ color: C.faint }}>
@@ -1049,7 +1058,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                           </div>
                         </div>
                       ) : item.description ? (
-                        <p className="line-clamp-3 text-[15px] leading-relaxed" style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
+                        <p className={`leading-relaxed ${publicPreview ? 'line-clamp-2 text-sm' : 'line-clamp-3 text-[15px]'}`} style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
                       ) : null}
                     </div>
                   </div>
@@ -1062,21 +1071,30 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
         {!hideCredential && (
         <div className="relative flex gap-3 sm:gap-4">
           <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
+            {publicPreview ? (
+              // The finish line: a gold step with the award, after the numbered ones.
+              <span className="mt-4 flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </span>
+            ) : (
             <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: allDone ? '#16a34a' : '#d6b46c' }}/>
             </span>
+            )}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:p-5"
             style={{
               background: C.page === LIGHT_C.page ? '#fffcf5' : C.pill,
               borderColor: C.page === LIGHT_C.page ? '#efe1ba' : C.cardBorder,
             }}>
+            {!publicPreview && (
             <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: C.page === LIGHT_C.page ? '#fff4d8' : 'rgba(212,175,55,0.14)' }}>
               <Award className="h-8 w-8" style={{ color: '#c8962d' }}/>
             </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase" style={{ color: '#b08020' }}>Completion credential</p>
-              <h4 className="mt-1 text-lg font-bold" style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>Earn Your Certificate</h4>
+              <p className="text-xs font-semibold uppercase" style={{ color: '#b08020' }}>{publicPreview ? 'Finish line' : 'Completion credential'}</p>
+              <h4 className={`mt-1 font-bold ${publicPreview ? 'text-base' : 'text-lg'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{publicPreview ? 'Path certificate' : 'Earn Your Certificate'}</h4>
               <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
                 {allDone ? 'You have completed this learning path. Your credential is ready to celebrate and share.' : 'Complete every item in this learning path to unlock your completion credential.'}
               </p>

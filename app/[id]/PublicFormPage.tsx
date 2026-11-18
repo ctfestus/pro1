@@ -8,10 +8,9 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, BookOpen, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
-import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
 import dynamic from 'next/dynamic';
 // The players load in a second download, so they show the same spinner the course player shows
@@ -38,6 +37,7 @@ import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
+import { MoreLikeThis } from './MoreLikeThis';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel } from '@/lib/unlock-pricing';
@@ -361,6 +361,7 @@ function cataloguePathToPathRow(item: any) {
     slug: pathItem.slug,
     cover_image: pathItem.coverImage,
     description: pathItem.description,
+    category: pathItem.category ?? null,
     content_type: pathItem.type === 've' ? 'virtual_experience' : pathItem.type,
   }));
   const itemIds = Array.isArray(item.itemIds) && item.itemIds.length
@@ -386,33 +387,6 @@ function cataloguePathToPathRow(item: any) {
   };
 }
 
-/**
- * The yellow ribbon both public overviews carry: in the learning path hero, and in the course's
- * enrolment card. Every course and every path issues a certificate on completion, so it is
- * unconditional, and it is one definition so the two pages draw the same ribbon.
- */
-function CertificateTag({ textColor, label = 'Certificate available', compact = false }: { textColor: string; label?: string; compact?: boolean }) {
-  // A ribbon reads as a ribbon only on one line. Wrapped, the notch cut out of its right edge
-  // lands beside the second line and the shape stops making sense -- so it never wraps, and it
-  // gives back padding and type size on a narrow screen instead. Compact keeps the narrow-screen
-  // size at every width, for a narrow container such as the course enrolment card.
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 font-bold uppercase ${compact ? 'text-[12px]' : 'text-[12.5px] sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm'}`}
-      style={{
-        background: '#FFC000',
-        borderRadius: 6,
-        clipPath: 'polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%)',
-        color: textColor,
-        letterSpacing: 0,
-      }}
-    >
-      <BadgeCheck className={`h-4 w-4 flex-shrink-0 ${compact ? '' : 'sm:h-5 sm:w-5'}`} strokeWidth={2.2} />
-      {label}
-    </span>
-  );
-}
-
 /** A card lift that reads on either ground. A light shadow is invisible on a dark page. */
 const cardShadow = (isDark: boolean) =>
   isDark ? '0 2px 14px rgba(0,0,0,0.26)' : '0 2px 12px rgba(15,23,42,0.07)';
@@ -430,138 +404,6 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
     return <div className={`rich-preview ${className}`} style={style} dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) || '' }} />;
   }
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
-}
-
-/**
- * Other paths on the platform, after the contents.
- *
- * Read from publicly_offered_learning_paths, which is granted to anon -- a visitor who has not
- * signed in can see it, and that is the visitor this page is for. No new endpoint, and nothing
- * here that is not already offered publicly.
- */
-function ExploreMorePaths({ currentId, C }: { currentId: string; C: ReturnType<typeof useC> }) {
-  const isDark = C.page !== '#F2F5FA';
-  const [paths, setPaths] = useState<any[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // publicly_offered_learning_paths, NOT published_learning_paths: the latter lists every
-      // published path, including one built for a single client's private cohort. Showing those
-      // here would put their titles, covers and skills in front of anyone, which is precisely
-      // what the catalogue preview refuses to do.
-      const { data } = await supabase
-        .from('publicly_offered_learning_paths')
-        .select('id, title, description, cover_image, badge_image_url, skills')
-        .limit(4);
-      // One row of three. Four are fetched because the current path is among them and drops out.
-      const others = (data ?? []).filter((p: any) => p.id !== currentId).slice(0, 3);
-      if (!others.length) { if (!cancelled) setPaths([]); return; }
-
-      // What each path contains, counted by type. published_path_items is granted to anon, so a
-      // signed-out visitor sees the same counts a learner does.
-      const { data: contents } = await supabase
-        .from('published_path_items')
-        .select('path_id, type')
-        .in('path_id', others.map((p: any) => p.id));
-
-      const counts = new Map<string, { courses: number; experiences: number; certifications: number }>();
-      for (const row of contents ?? []) {
-        const tally = counts.get(row.path_id) ?? { courses: 0, experiences: 0, certifications: 0 };
-        if (row.type === 'course') tally.courses++;
-        else if (row.type === 've') tally.experiences++;
-        else if (row.type === 'certification') tally.certifications++;
-        counts.set(row.path_id, tally);
-      }
-      if (!cancelled) setPaths(others.map((p: any) => ({ ...p, counts: counts.get(p.id) })));
-    })();
-    return () => { cancelled = true; };
-  }, [currentId]);
-
-  if (!paths.length) return null;
-
-  return (
-    <section className="mx-auto w-full max-w-[1240px] px-4 pb-16 sm:px-7">
-      <div className="mb-5">
-        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: C.text }}>Explore more learning paths</h2>
-        <p className="mt-1.5 text-[15px]" style={{ color: C.muted }}>Other journeys you can take on the platform.</p>
-      </div>
-      {/* Three across on a wide screen, two on a tablet, one on a phone. A grid rather than a
-          scroller: with three visible at once there is nothing left to scroll past. */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {paths.map((other: any) => {
-          const tally = other.counts ?? { courses: 0, experiences: 0, certifications: 0 };
-          const contains = [
-            tally.courses > 0 ? { icon: MonitorPlay, label: `${tally.courses} Course${tally.courses === 1 ? '' : 's'}` } : null,
-            tally.experiences > 0 ? { icon: Building2, label: `${tally.experiences} Virtual Experience${tally.experiences === 1 ? '' : 's'}` } : null,
-            tally.certifications > 0 ? { icon: BadgeCheck, label: `${tally.certifications} Certification${tally.certifications === 1 ? '' : 's'}` } : null,
-          ].filter(Boolean) as { icon: any; label: string }[];
-          const skills: string[] = (other.skills ?? []).slice(0, 4);
-
-          return (
-            <Link key={other.id} href={`/${other.id}`}
-              className="group flex w-full flex-col overflow-hidden rounded-2xl transition-transform duration-200 hover:-translate-y-0.5"
-              style={{
-                background: C.card,
-                boxShadow: cardShadow(isDark),
-                textDecoration: 'none',
-                ['--cta' as string]: C.cta,
-                ['--cta-text' as string]: C.ctaText,
-                ['--btn-text' as string]: C.text,
-                ['--btn-border' as string]: C.cardBorder,
-              } as React.CSSProperties}>
-              {/* Cover, with the completion badge sitting on it the way the catalogue shows it. */}
-              <div className="relative aspect-video w-full overflow-hidden" style={{ background: '#101828' }}>
-                {other.cover_image
-                  ? <img src={resolveCoverUrl(other.cover_image)} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
-                  : <div className="grid h-full w-full place-items-center"><BookOpen className="h-7 w-7" style={{ color: 'rgba(255,255,255,0.5)' }} /></div>}
-                {other.badge_image_url && (
-                  <img src={resolveCoverUrl(other.badge_image_url)} alt="" className="absolute right-3 top-3 h-16 w-16 object-contain drop-shadow-lg" />
-                )}
-              </div>
-
-              <div className="flex flex-1 flex-col p-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: C.faint }}>Learning path</p>
-                <p className="mt-1 line-clamp-2 text-[19px] font-bold leading-snug" style={{ color: C.text }}>{other.title}</p>
-                {toPlainText(other.description) && (
-                  <p className="mt-2 line-clamp-3 text-[14px] leading-relaxed" style={{ color: C.muted }}>{toPlainText(other.description)}</p>
-                )}
-
-                {contains.length > 0 && (
-                  <div className="mt-4 space-y-2.5 border-t pt-3.5" style={{ borderColor: C.divider }}>
-                    {contains.map(({ icon: ContainsIcon, label }) => (
-                      <div key={label} className="flex items-center gap-2.5 text-[14px] font-semibold" style={{ color: C.text }}>
-                        <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full" style={{ background: 'rgba(0,191,99,0.12)', color: '#00bf63' }}>
-                          <ContainsIcon className="h-3.5 w-3.5" strokeWidth={2.2} />
-                        </span>
-                        {label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {skills.length > 0 && (
-                  <div className="mt-4 border-t pt-3.5" style={{ borderColor: C.divider }}>
-                    <p className="text-[13px] font-bold" style={{ color: C.text }}>Skills You will Learn</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {skills.map((skill: string) => (
-                        <span key={skill} className="rounded-full px-2.5 py-1 text-[12px] font-medium"
-                          style={{ background: C.pill, color: C.muted }}>{skill}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <span className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--btn-border)] px-4 py-2.5 text-[14px] font-bold text-[var(--btn-text)] transition-colors duration-200 group-hover:border-[var(--cta)] group-hover:bg-[var(--cta)] group-hover:text-[var(--cta-text)] motion-reduce:transition-none">
-                  View details
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
 }
 
 function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean }) {
@@ -584,10 +426,6 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   const href = path.locked ? '/pricing' : signedIn ? `/student?path=${encodeURIComponent(path.id)}#learning_paths` : authHref;
   const cta = path.locked ? enrollLabel(path.unlock) : signedIn ? 'Start path' : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
-  const panelBg = isDark ? 'rgba(30,31,38,0.96)' : '#ffffff';
-  const panelText = isDark ? '#f8fafc' : '#202124';
-  const panelMuted = isDark ? '#cbd5e1' : '#62666d';
-  const panelFaint = isDark ? '#94a3b8' : '#747474';
   const toolIcon = useToolIcons();
   const overview: string = (path.overview ?? '').trim();
   const skills: string[] = path.skills ?? [];
@@ -599,12 +437,20 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   // Authored as rich text, so it is rendered rather than stripped. The plain-text flattening
   // that used to live here silently dropped every list and emphasis an author had added.
   const description: string = (path.description ?? '').trim();
-  const statPillClass = 'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold';
-  const statPillStyle = {
-    background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.92)',
-    borderColor: isDark ? 'rgba(255,255,255,0.16)' : '#d0d5dd',
-    color: isDark ? '#e2e8f0' : '#344054',
-  };
+  // Laid out like the virtual experience page: a banner with the facts, the reading on the left,
+  // and one card on the right with the tools, the button and what the path includes.
+  const facts = [
+    ...(courseCount > 0 ? [{ Icon: MonitorPlay, label: `${courseCount} ${coreWord}course${courseCount !== 1 ? 's' : ''}` }] : []),
+    ...(specializationCount > 0 ? [{ Icon: ListChecks, label: `+ ${specializationCount} specialization${specializationCount !== 1 ? 's' : ''}` }] : []),
+    ...(virtualExperienceCount > 0 ? [{ Icon: Building2, label: `${virtualExperienceCount} ${coreWord}virtual experience${virtualExperienceCount !== 1 ? 's' : ''}` }] : []),
+  ];
+  const card = { background: C.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow(isDark) };
+  const heading = { fontSize: 16, fontWeight: 600, color: C.text, fontFamily: 'var(--font-display), sans-serif' };
+  const tick = (
+    <span className="mt-0.5 grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-[5px]" style={{ background: `color-mix(in srgb, ${C.cta} 14%, transparent)` }}>
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={C.cta} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    </span>
+  );
 
   return (
     <main style={{ minHeight: '100vh', background: C.page, color: C.text }}>
@@ -612,197 +458,129 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
           <img src={(!isDark ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
         </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.history.length > 1) window.history.back();
-              else window.location.href = '/';
-            }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 999, background: C.divider, color: C.muted, cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '7px 12px' }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) window.history.back();
+            else window.location.href = '/';
+          }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 999, background: C.divider, color: C.muted, cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '7px 12px' }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
       </nav>
-      {/* The cover is a band now, not a section the panel lives inside. The card below is lifted
-          onto it and carries on down the page, so the summary and the contents read as one card
-          rather than two panels that happen to meet at the hero's edge. */}
-      <section
-        className="relative h-[240px] overflow-hidden sm:h-[520px]"
-        style={{
-          background: cover
-            ? '#101828'
-            : `linear-gradient(135deg, ${C.cta} 0%, color-mix(in srgb, ${C.cta} 62%, #111827 38%) 48%, #101828 100%)`,
-        }}
-      >
-        {cover && (
-          <img
-            src={cover}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        )}
-        <div className="absolute inset-0" style={{ background: cover ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.12)' }} />
+
+      {/* Banner: the cover dimmed under a dark fade, white text at the bottom left. */}
+      <section style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
+        {cover
+          ? <img src={cover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
+          : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 40%, transparent) 0%, #0a0a0a 70%)` }} />}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 14 }}>Learning path</p>
+          <div style={{ maxWidth: 680 }}>
+            <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
+              {path.title}
+            </h1>
+            {description && (
+              <AuthoredText value={description} className="text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+            {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
+              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
+              </span>
+            ))}
+          </div>
+        </div>
       </section>
 
-      <div className="relative z-10 mx-auto -mt-[128px] w-full max-w-[1240px] px-4 pb-14 sm:-mt-[408px] sm:px-7 sm:pb-20">
-        <div
-          className="mx-auto w-full max-w-[1040px] overflow-hidden rounded-3xl"
-          style={{
-            // Shadow only. The border was invisible under the old heavy drop and turned into a
-            // hard outline the moment the shadow was lightened.
-            background: panelBg,
-            boxShadow: cardShadow(isDark),
-            color: panelText,
-            fontFamily: 'var(--font-lato, Lato, sans-serif)',
-          }}
-        >
-          <div className="px-5 py-7 text-center sm:px-12 sm:py-9">
-            <div className="mx-auto max-w-[840px]">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] sm:text-sm" style={{ color: panelFaint }}>Learning path</p>
-              <h1
-                className="mx-auto mt-2 max-w-5xl text-3xl font-black leading-tight sm:text-5xl"
-                style={{ color: panelText }}
-              >
-                {path.title}
-              </h1>
-              {description && (
-                <AuthoredText
-                  value={description}
-                  className="mx-auto mt-4 max-w-4xl text-base leading-relaxed sm:text-lg"
-                  style={{ color: panelMuted }}
-                />
-              )}
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-                <CertificateTag textColor={isDark ? '#111827' : '#202124'} />
-                {courseCount > 0 && (
-                  <span className={statPillClass} style={statPillStyle}>
-                    <span
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
-                      style={{ background: isDark ? 'rgba(62,147,255,0.18)' : '#eef4ff', color: isDark ? '#93c5fd' : '#344054' }}
-                    >
-                      <MonitorPlay className="h-4 w-4" strokeWidth={2.1} />
-                    </span>
-                    {courseCount} {coreWord}course{courseCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {specializationCount > 0 && (
-                  <span className={statPillClass} style={statPillStyle}>
-                    <span
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
-                      style={{ background: isDark ? 'rgba(62,147,255,0.18)' : '#eef4ff', color: isDark ? '#93c5fd' : '#344054' }}
-                    >
-                      <ListChecks className="h-4 w-4" strokeWidth={2.1} />
-                    </span>
-                    + {specializationCount} specialization{specializationCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {virtualExperienceCount > 0 && (
-                  <span className={statPillClass} style={statPillStyle}>
-                    <span
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
-                      style={{ background: isDark ? 'rgba(34,197,94,0.16)' : '#ecfdf3', color: isDark ? '#86efac' : '#256b48' }}
-                    >
-                      <Building2 className="h-4 w-4" strokeWidth={2.1} />
-                    </span>
-                    {virtualExperienceCount} {coreWord}virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <Link
-                href={href}
-                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-lg px-6 py-3.5 text-base font-bold sm:w-auto sm:px-8"
-                style={{ background: C.cta, color: C.ctaText }}
-              >
-                {path.locked && <Lock className="h-4 w-4" />}
-                {cta}
-                <ArrowRight className="h-5 w-5" />
-              </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]" style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 56px', gap: 20, alignItems: 'start' }}>
+        <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {overview && (
+            <div style={card}>
+              <h2 style={{ ...heading, marginBottom: 8 }}>Overview</h2>
+              <AuthoredText value={overview} className="text-[14.5px] leading-relaxed" style={{ color: C.muted }} />
             </div>
-          </div>
+          )}
 
-          {/* What the path is for, before what is in it. Overview runs full width because it is
-              prose; the two shorter lists sit side by side, and collapse to one column on a
-              phone. Each section is absent rather than empty when an author has not filled it. */}
-          {(overview || skills.length > 0 || whoShouldTake.length > 0 || tools.length > 0) && (
-            <div className="px-4 pb-2 sm:px-9">
-              {overview && (
-                <div className="mb-7">
-                  <h2 className="mb-2 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Overview</h2>
-                  <AuthoredText value={overview} className="text-[15px] leading-relaxed" style={{ color: panelMuted }} />
-                </div>
-              )}
-
-              {(skills.length > 0 || whoShouldTake.length > 0) && (
-                <div className="mb-7 grid gap-7 sm:grid-cols-2">
-                  {skills.length > 0 && (
-                    <div>
-                      <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Skills you will learn</h2>
-                      <div className="flex flex-wrap gap-2">
-                        {skills.map((skill: string) => (
-                          <span key={skill} className="rounded-full px-3 py-1.5 text-[13px] font-semibold"
-                            style={{ background: 'rgba(0,191,99,0.10)', color: isDark ? '#86efac' : '#0f7a4a' }}>
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {whoShouldTake.length > 0 && (
-                    <div>
-                      <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Who should take this path?</h2>
-                      <ul className="space-y-2">
-                        {whoShouldTake.map((who: string) => (
-                          <li key={who} className="flex items-start gap-2.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
-                            <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: '#00bf63' }} />
-                            {who}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {tools.length > 0 && (
-                <div className="mb-7">
-                  <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Tools</h2>
-                  <div className="flex flex-wrap gap-2.5">
-                    {tools.map((tool: string) => (
-                      <span key={tool} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold"
-                        style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f6f9', color: panelText }}>
-                        {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-4 w-4 object-contain" />}
-                        {tool}
-                      </span>
+          {(skills.length > 0 || whoShouldTake.length > 0) && (
+            <div className="grid gap-6 sm:grid-cols-2" style={card}>
+              {skills.length > 0 && (
+                <div>
+                  <h2 style={{ ...heading, marginBottom: 12 }}>Skills you will learn</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill: string) => (
+                      <span key={skill} className="rounded-lg px-2.5 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
                     ))}
                   </div>
+                </div>
+              )}
+              {whoShouldTake.length > 0 && (
+                <div>
+                  <h2 style={{ ...heading, marginBottom: 12 }}>Who should take this path</h2>
+                  <ul className="space-y-2.5">
+                    {whoShouldTake.map((who: string) => (
+                      <li key={who} className="flex items-start gap-2.5 text-[14px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
           )}
 
-          {/* Same card, continued. The rule closes off what the path IS and opens what is in it. */}
-          <div className="mx-4 border-t px-0 pb-7 pt-7 sm:mx-9 sm:pb-9" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }}>
-            <div className="mb-5 px-1 sm:mb-6">
-              <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>
-                {hasSpecializations ? 'Core courses' : 'Content in this learning path'}
-              </h2>
-              <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
-                {hasSpecializations
-                  ? 'Everyone builds essential skills through these core courses first.'
-                  : 'Level up your skills with this curated, hands-on content.'}
-              </p>
-            </div>
+          {/* The steps in order, numbered on a dashed line, ending at the certificate. */}
+          <div style={card}>
+            <h2 style={heading}>{hasSpecializations ? 'Core courses' : 'Your path, step by step'}</h2>
+            <p className="mb-4 mt-1 text-[13px]" style={{ color: C.faint }}>
+              {hasSpecializations
+                ? 'Everyone takes these first, then picks a specialization.'
+                : `${items.length} step${items.length !== 1 ? 's' : ''}, then the path certificate`}
+            </p>
             <PathRow path={pathCoreOnly(path)} C={C} publicPreview hideHeader hideCredential={hasSpecializations} />
-            <PathSpecializations path={path} C={C} textColor={panelText} mutedColor={panelMuted}
+            <PathSpecializations path={path} C={C} textColor={C.text} mutedColor={C.muted}
               tabIdle={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)'}/>
+          </div>
+        </div>
+
+        <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72 }}>
+          <div style={{ ...card, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {tools.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>Tools</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tools.map((tool: string) => (
+                    <span key={tool} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold" style={{ background: C.pill, color: C.text }}>
+                      {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-3.5 w-3.5 object-contain" />}
+                      {tool}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <Link href={href} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
+              style={{ background: C.cta, color: C.ctaText }}>
+              {path.locked && <Lock className="h-4 w-4" />}
+              {cta}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <div>
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
+              <ul className="flex flex-col gap-2.5">
+                {[...facts, { Icon: BadgeCheck, label: 'Path certificate' }].map(({ Icon, label }) => (
+                  <li key={label} className="flex items-center gap-2.5 text-[13.5px]" style={{ color: C.text }}>
+                    <Icon className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />{label}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
 
-      <ExploreMorePaths currentId={path.id} C={C} />
+      <MoreLikeThis kind="learning_path" currentId={path.id} palette={{ text: C.text, muted: C.faint, tile: C.pill }} />
     </main>
   );
 }
@@ -1747,6 +1525,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           </div>
         </div>
 
+        <MoreLikeThis kind="virtual_experience" currentId={form.id} category={config.industry ? String(config.industry) : null} palette={{ text: gp.title, muted: gp.muted, tile: gp.card }} />
+
         <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />
       </div>
     );
@@ -1770,16 +1550,27 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       : courseXpOnOffer(questions, config.pointsSystem);
     const lessonCount = questions.filter((q: any) => q.lesson?.title || q.lesson?.body || q.lesson?.doc).length;
 
+    // The virtual experience page's palette and card lift, so the two overviews read as one design.
     const cp = {
-      bg:      dark ? '#0d0d0d' : '#F5F5F3',
-      card:    dark ? '#161616' : '#ffffff',
-      border:  dark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)',
+      bg:      dark ? '#141414' : '#F2F5FA',
+      card:    dark ? '#1e1e1e' : '#ffffff',
+      border:  dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.09)',
       divider: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-      title:   dark ? '#f0f0f0' : '#0d0d0d',
-      body:    dark ? '#bbb'    : '#444',
-      muted:   dark ? '#666'    : '#888',
-      subtle:  dark ? '#1E1F26' : '#f4f5f7',
+      title:   dark ? '#f0f0f0' : '#111111',
+      body:    dark ? '#bbb'    : '#333',
+      muted:   dark ? '#888'    : '#666',
+      subtle:  dark ? '#242424' : '#F6F8FB',
     };
+    const courseCardShadow = dark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)';
+    const courseDisplayFont = 'var(--font-display), sans-serif';
+    // What the course contains, in the banner and again in the side card. Each appears only when
+    // there is something to count, so a course without exercises or XP shows fewer, never a zero.
+    const courseFacts = [
+      ...(lessonSlideCount > 0 ? [{ Icon: Video, label: `${lessonSlideCount} ${lessonSlideCount === 1 ? 'lesson' : 'lessons'}` }] : []),
+      ...(exerciseCount > 0 ? [{ Icon: ListChecks, label: `${exerciseCount} ${exerciseCount === 1 ? 'exercise' : 'exercises'}` }] : []),
+      ...(xpOnOffer > 0 ? [{ Icon: Zap, label: `${xpOnOffer.toLocaleString()} XP` }] : []),
+    ];
+    const courseCategory = config.category ? String(config.category) : '';
 
     return (
       <div style={{ minHeight: '100vh', background: cp.bg, color: cp.title, fontFamily: fontFace }}>
@@ -1810,38 +1601,19 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             }
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
             <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
-              {(() => {
-                // Borderless. The category carries the colour Explore gives it, so a learner who
-                // clicked an Excel card sees the same Excel colour here; the rest stay neutral.
-                const category = config.category ? String(config.category) : '';
-                const tags: { label: string; bg: string; color: string }[] = [
-                  { label: 'Course', bg: 'rgba(255,255,255,0.18)', color: '#ffffff' },
-                  ...(category ? [{ label: category, bg: categoryColor(category), color: CATEGORY_TEXT }] : []),
-                  ...(config.difficulty ? [{ label: String(config.difficulty), bg: 'rgba(255,255,255,0.18)', color: '#ffffff' }] : []),
-                ];
-                return (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {tags.map(tag => (
-                      <span
-                        key={tag.label}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999,
-                          background: tag.bg, color: tag.color,
-                          fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
-                          textTransform: 'capitalize' as const,
-                        }}
-                      >
-                        {tag.label}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}
+              {/* Kind, then the category and level on frosted chips, as the experience page shows
+                  its company and role. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Course</span>
+                {[courseCategory, config.difficulty ? String(config.difficulty) : ''].filter(Boolean).map(chip => (
+                  <span key={chip} style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
+                ))}
+              </div>
               {/* One text column at a reading width, so a long title or description wraps well
                   short of the far edge instead of running across the whole hero. The title
                   balances its lines, so a two-line title does not leave one word on the second. */}
               <div style={{ maxWidth: 680 }}>
-                <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+                <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: courseDisplayFont }}>
                   {config.title || form.title}
                 </h1>
                 {config.tagline && (
@@ -1852,6 +1624,14 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                     dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
                 )}
               </div>
+              {/* What it takes, at a glance */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+                {[...courseFacts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
+                  <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                    <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1859,18 +1639,18 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         {/* Main layout */}
         {!courseStarted && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]"
-            style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 80px', gap: 20, alignItems: 'start' }}>
+            style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 56px', gap: 20, alignItems: 'start' }}>
 
             {/* Left column */}
-            <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
               {/* The course description lives in the banner above, not in a card here. */}
 
               {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
                   unfilled outcome as an empty string, which rendered as a tick with no text. */}
               {courseOutcomes.length > 0 && (
-                <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', border: `1px solid ${cp.border}` }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: cp.title, marginBottom: 16, letterSpacing: '-0.01em' }}>What you&apos;ll learn</h2>
+                <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', boxShadow: courseCardShadow }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 14, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
                     {courseOutcomes.map((o: string, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
@@ -1901,49 +1681,23 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   }
                 });
                 if (cur && (cur as any).items.length > 0) sectionGroups.push(cur as any);
-                const hasSections = sectionGroups.some(g => g.id !== '__default__');
+                // Drawn like the experience's missions: numbers run on through every section.
+                const outlineGroups = sectionGroups.map(group => ({
+                  id: group.id,
+                  title: group.id === '__default__' ? '' : group.title,
+                  lessons: group.items.map((q: any) => ({ id: q.id, title: q.lesson?.title || q.question })),
+                }));
 
                 return (
-                  <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${cp.border}` }}>
-                    <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${cp.divider}` }}>
-                      <h2 style={{ fontSize: 14, fontWeight: 700, color: cp.title, margin: 0, letterSpacing: '-0.01em' }}>Course Outline</h2>
-                    </div>
-                    {hasSections ? sectionGroups.map((group, gi) => {
-                      const isCollapsed = collapsedSections.has(group.id);
-                      const toggleSection = () => setCollapsedSections(prev => {
-                        const s = new Set(prev); s.has(group.id) ? s.delete(group.id) : s.add(group.id); return s;
-                      });
-                      return (
-                        <div key={group.id} style={{ borderBottom: gi < sectionGroups.length - 1 ? `1px solid ${cp.divider}` : 'none' }}>
-                          {group.id !== '__default__' && (
-                            <button onClick={toggleSection} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 24px', background: cp.subtle, border: 'none', cursor: 'pointer', gap: 10 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: accentColor, textTransform: 'uppercase' as const, letterSpacing: '0.06em', textAlign: 'left' as const }}>{group.title}</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                <span style={{ fontSize: 11, color: cp.muted, fontWeight: 500 }}>{group.items.length} lesson{group.items.length !== 1 ? 's' : ''}</span>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={cp.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                                  <path d="M6 9l6 6 6-6"/>
-                                </svg>
-                              </div>
-                            </button>
-                          )}
-                          {!isCollapsed && group.items.map((q: any, i: number) => (
-                            <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 24px', borderTop: `1px solid ${cp.divider}`, background: 'transparent' }}>
-                              <div style={{ width: 22, height: 22, borderRadius: 7, background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: accentColor }}>{i + 1}</span>
-                              </div>
-                              <span style={{ fontSize: 13, fontWeight: 500, color: cp.title, flex: 1, lineHeight: 1.4 }}>{q.lesson?.title || q.question}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }) : questions.filter((q: any) => q.lesson?.title || q.lesson?.body || q.lesson?.doc).map((q: any, i: number, arr: any[]) => (
-                      <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 24px', borderBottom: i < arr.length - 1 ? `1px solid ${cp.divider}` : 'none', background: i % 2 === 0 ? 'transparent' : cp.subtle }}>
-                        <div style={{ width: 22, height: 22, borderRadius: 7, background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: accentColor }}>{i + 1}</span>
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: cp.title, flex: 1, lineHeight: 1.4 }}>{q.lesson?.title || q.question}</span>
-                      </div>
-                    ))}
+                  <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', boxShadow: courseCardShadow }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>Course outline</h2>
+                    <MissionOutline modules={outlineGroups} isDark={dark} text={cp.title} muted={cp.muted} divider={cp.divider}
+                      collapsed={collapsedSections}
+                      onToggle={groupId => setCollapsedSections(prev => {
+                        const next = new Set(prev);
+                        if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+                        return next;
+                      })} />
                   </div>
                 );
               })()}
@@ -1954,42 +1708,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Borderless, with a soft drop shadow instead of a hairline border. Heavier shadow
                   in dark mode, where a light one does not read at all. */}
-              <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', boxShadow: dark ? '0 18px 44px rgba(0,0,0,0.55)' : '0 18px 44px rgba(15,23,42,0.18)' }}>
-                {/* Cover thumbnail */}
-                {config.coverImage && (
-                  <div style={{ height: 140, overflow: 'hidden', position: 'relative' }}>
-                    <img src={resolveCoverUrl(config.coverImage)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 60%)' }} />
-                  </div>
-                )}
-                <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* What the course contains. Each line appears only when there is something to
-                      count, so a course without exercises or without XP simply shows fewer lines
-                      rather than a zero. The pass mark used to sit here: it is a marking rule
-                      rather than a reason to enrol, and on a locked preview it printed a fallback
-                      percentage the course had never set. */}
-                  {(lessonSlideCount > 0 || exerciseCount > 0 || xpOnOffer > 0) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {[
-                        ...(lessonSlideCount > 0 ? [{ icon: Video,      label: lessonSlideCount === 1 ? 'Lesson' : 'Lessons', value: String(lessonSlideCount) }] : []),
-                        ...(exerciseCount > 0 ? [{ icon: ListChecks, label: exerciseCount === 1 ? 'Exercise' : 'Exercises', value: String(exerciseCount) }] : []),
-                        ...(xpOnOffer     > 0 ? [{ icon: Zap,        label: 'Total XP', value: `${xpOnOffer.toLocaleString()} XP` }] : []),
-                      ].map(({ icon: StatIcon, label, value }) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                            <StatIcon style={{ width: 14, height: 14, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />
-                            <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>{label}</span>
-                          </span>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: accentColor, flexShrink: 0 }}>{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* The certificate sits with what the course gives you, beside the button that
-                      starts it, rather than in the hero. Always dark text on the yellow. */}
-                  <div>
-                    <CertificateTag textColor="#111827" label="Earn a verifiable certificate" compact />
-                  </div>
+              <div style={{ background: cp.card, borderRadius: 14, boxShadow: courseCardShadow }}>
+                <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* CTA */}
                   {form.locked ? (
                     <>
@@ -2015,12 +1735,25 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       Start Course <ArrowRight style={{ width: 15, height: 15 }} />
                     </button>
                   )}
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>This course includes</p>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
+                      {[...courseFacts.map(f => f.Icon === Zap ? { ...f, label: `${f.label} to earn` } : f), { Icon: BadgeCheck, label: 'Verifiable certificate' }].map(({ Icon, label }) => (
+                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: cp.title }}>
+                          <Icon style={{ width: 15, height: 15, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />{label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
               {/* Digital products the author recommends with this course (shows nothing if none). */}
               <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />
             </div>
           </div>
+        )}
+        {!courseStarted && (
+          <MoreLikeThis kind="course" currentId={form.id} category={courseCategory || null} palette={{ text: cp.title, muted: cp.muted, tile: cp.card }} />
         )}
 
         {/* CourseTaker */}

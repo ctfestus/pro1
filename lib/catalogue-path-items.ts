@@ -21,6 +21,8 @@ export interface CataloguePathItem {
   slug: string | null;
   coverImage: string | null;
   description: string | null;
+  /** A course's category or an experience's industry, as Explore labels it. */
+  category: string | null;
 }
 
 /** The published_path_items view says 've'; every surface that reads it says virtual_experience. */
@@ -28,17 +30,24 @@ export function normalizePathItemType(raw: unknown): PathItemType {
   return raw === 've' ? 'virtual_experience' : (raw as PathItemType);
 }
 
+/** The label Explore puts on an item: a course's category, or an experience's industry. */
+export function itemCategory(row: any): string | null {
+  if (row?.category) return row.category;
+  const industry = typeof row?.industry === 'string' ? row.industry.trim() : '';
+  return industry ? industry.charAt(0).toUpperCase() + industry.slice(1) : null;
+}
+
 /**
  * One content row as a path item.
  *
- * `description` is taken from the row when it carries one, or passed in when it was looked up
- * separately -- the two routes get it from different places, which is exactly how they came to
- * disagree about whether to include it at all.
+ * `description` and `category` are taken from the row when it carries them, or passed in when
+ * they were looked up separately -- the two routes get them from different places, which is
+ * exactly how they came to disagree about whether to include a description at all.
  */
 export function pathItemFromRow(
   row: any,
   type: PathItemType,
-  description?: string | null,
+  details?: PathItemDetails,
 ): CataloguePathItem {
   return {
     id: row?.id,
@@ -46,12 +55,19 @@ export function pathItemFromRow(
     title: row?.title ?? 'Untitled',
     slug: row?.slug ?? null,
     coverImage: row?.cover_image ?? row?.coverImage ?? null,
-    description: description !== undefined ? description : (row?.description ?? null),
+    description: details ? details.description : (row?.description ?? null),
+    category: details ? details.category : itemCategory(row),
   };
 }
 
-/** The three tables a path can draw from. */
-const ITEM_TABLES = ['courses', 'virtual_experiences', 'certifications'] as const;
+export type PathItemDetails = { description: string | null; category: string | null };
+
+/** The three tables a path can draw from, and the columns its details come from. */
+const ITEM_TABLES = [
+  ['courses', 'id, description, category'],
+  ['virtual_experiences', 'id, description, industry'],
+  ['certifications', 'id, description'],
+] as const;
 
 /**
  * Descriptions for a set of path items, whatever type each one is.
@@ -60,15 +76,15 @@ const ITEM_TABLES = ['courses', 'virtual_experiences', 'certifications'] as cons
  * to look in -- so all three are asked and the answers merged. Only published rows, so an item
  * that has been unpublished since it was added to the path contributes nothing.
  */
-export async function loadPathItemDescriptions(db: any, ids: string[]): Promise<Map<string, string | null>> {
-  const byId = new Map<string, string | null>();
+export async function loadPathItemDetails(db: any, ids: string[]): Promise<Map<string, PathItemDetails>> {
+  const byId = new Map<string, PathItemDetails>();
   if (!ids.length) return byId;
 
-  const results = await Promise.all(ITEM_TABLES.map(table =>
-    db.from(table).select('id, description').in('id', ids).eq('status', 'published'),
+  const results = await Promise.all(ITEM_TABLES.map(([table, columns]) =>
+    db.from(table).select(columns).in('id', ids).eq('status', 'published'),
   ));
   for (const { data } of results) {
-    for (const row of data ?? []) byId.set(row.id, row.description ?? null);
+    for (const row of data ?? []) byId.set(row.id, { description: row.description ?? null, category: itemCategory(row) });
   }
   return byId;
 }
