@@ -6,6 +6,7 @@
 
 import Link from 'next/link';
 import { ArrowRight, Lock } from 'lucide-react';
+import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
 import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlockMoney, type UnlockInfo } from '@/lib/unlock-pricing';
 
 type Kind = 'course' | 'virtual_experience' | 'learning_path';
@@ -56,10 +57,10 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         About{' '}
         <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
           {perDay}
-          {/* A hand-drawn swoosh under the figure: green, or the ocean blue in dark mode. */}
+          {/* A hand-drawn swoosh under the figure: the platform green of the Enroll buttons, or the ocean blue in dark mode. */}
           <svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none"
             style={{ position: 'absolute', left: 0, bottom: -3, width: '100%', height: 7, overflow: 'visible' }}>
-            <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={palette.dark ? '#3E93FF' : '#16a34a'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={palette.dark ? '#3E93FF' : DEFAULT_VE_ACCENT} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
         </span>{' '}
         a day. One payment, no automatic renewal.
