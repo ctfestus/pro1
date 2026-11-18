@@ -155,6 +155,21 @@ describe('GET /api/student/catalogue', () => {
     expect(byTitle(list, 'Path certification').locked).toBe(false);
   });
 
+  it('names an active partner and never an inactive one', async () => {
+    h.rows.mockImplementation((table) => table === 'courses' ? [
+      { id: 'c1', title: 'Partnered', cover_image: null, description: null, category: null, cohort_ids: [], available_to_everyone: true,
+        partner: { name: 'Acme Academy', logo_url: 'acme.png', is_active: true } },
+      { id: 'c2', title: 'Former partner', cover_image: null, description: null, category: null, cohort_ids: [], available_to_everyone: true,
+        partner: { name: 'Gone Ltd', logo_url: 'gone.png', is_active: false } },
+    ] : []);
+
+    const list = await items();
+
+    expect(byTitle(list, 'Partnered')).toMatchObject({ byline: 'Offered by Acme Academy', bylineLogo: 'acme.png' });
+    expect(byTitle(list, 'Former partner')).toMatchObject({ byline: null, bylineLogo: null });
+    expect(JSON.stringify(list)).not.toContain('Gone Ltd');
+  });
+
   // The guard that matters: this route bypasses RLS, so its projection is the only thing standing
   // between a locked course and its answers.
   it('returns display fields only, never course content', async () => {

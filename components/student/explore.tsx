@@ -72,8 +72,6 @@ const ROW_TITLE: Record<CatalogueType, string> = {
   book:               'Digital products',
 };
 
-// Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
-// still reads as its type rather than as a broken tile.
 const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification', 'book'];
 const INITIAL_VISIBLE = 8;
 const LOAD_MORE_STEP = 8;
@@ -315,9 +313,6 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
         </span>
       </div>
 
-      {/* Four across from lg, not three. The hover preview is a fixed 320px, so against a
-          three-column card on a wide screen it read as undersized -- a small panel floating over
-          a much larger tile. A narrower card puts the two closer in size. */}
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
         {visibleItems.map(item => (
           <div
