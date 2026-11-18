@@ -407,7 +407,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
 function LearningPathGrid({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_C; onOpen: (id: string) => void }) {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {paths.map((path: any) => {
         const totalItems = (path.item_ids ?? []).length;
         const completedIds: string[] = path.progress?.completed_item_ids ?? [];
@@ -1103,20 +1103,10 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
   );
 }
 
-// Courses grouped by their tool/category, named groups alphabetical. With no categories at all
-// there is one unnamed group; otherwise uncategorised courses come last as "More courses".
-function groupCourses(courses: any[]): [string | null, any[]][] {
-  const named = new Map<string, any[]>();
-  const rest: any[] = [];
-  for (const c of courses) {
-    const key = (c.form?.category ?? '').trim();
-    if (!key) { rest.push(c); continue; }
-    if (!named.has(key)) named.set(key, []);
-    named.get(key)!.push(c);
-  }
-  if (!named.size) return [[null, rest]];
-  const groups: [string | null, any[]][] = [...named.entries()].sort((x, y) => x[0].localeCompare(y[0]));
-  return rest.length ? [...groups, ['More courses', rest]] : groups;
+// Courses in one grid, the same tools side by side (alphabetical, uncategorised last).
+function byTool(courses: any[]): any[] {
+  const tool = (c: any) => (c.form?.category ?? '').trim();
+  return [...courses].sort((a, b) => (!tool(a) ? 1 : 0) - (!tool(b) ? 1 : 0) || tool(a).localeCompare(tool(b)));
 }
 
 function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8 h-8', children, className = '' }: {
@@ -1155,7 +1145,6 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
 
 // --- Courses section ---
 export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp, searchQuery = '' }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean; searchQuery?: string }) {
-  const toolIcon = useToolIcons();
   const [courses,   setCourses]   = useState<any[]>([]);
   const [deadlines, setDeadlines] = useState<Record<string, Date | null>>({});
   const [loading,   setLoading]   = useState(true);
@@ -1412,22 +1401,12 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
         </p>
       )}
 
-      {groupCourses(searchResults ?? courses).filter(([, list]) => list.length > 0).map(([label, list]) => (
-        <section key={label ?? 'all'} className="space-y-4">
-          {label && (
-            <div className="flex items-center gap-2.5">
-              {toolIcon(label) && <img src={toolIcon(label)!} alt="" className="h-6 w-6 object-contain" />}
-              <h3 className="text-lg font-bold" style={{ color: C.text }}>{label}</h3>
-            </div>
-          )}
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {list.map((c: any) => (
-              <CourseCard key={c.form_id} course={c} deadline={deadlines[c.form_id]} C={C}
-                onDetails={() => setDetailCourse(c)} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {byTool(searchResults ?? courses).map((c: any) => (
+          <CourseCard key={c.form_id} course={c} deadline={deadlines[c.form_id]} C={C}
+            onDetails={() => setDetailCourse(c)} />
+        ))}
+      </div>
 
       <AnimatePresence>
         {detailCourse && (

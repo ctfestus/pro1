@@ -1,8 +1,7 @@
 'use client';
 
 // Virtual Experiences section, extracted verbatim from app/student/page.tsx.
-// VirtualExperiencesSection is exported; VirtualExperienceDetailPane, groupVEsByIndustry and
-// VeCard are file-internal.
+// VirtualExperiencesSection is exported; VirtualExperienceDetailPane and VeCard are file-internal.
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -223,23 +222,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
 }
 
 // Group virtual experiences by industry; named industries alphabetical, "Other" last
-// Experiences grouped by industry, named groups alphabetical. With no industries at all there is
-// one unnamed group; otherwise the rest come last as "More experiences".
-function groupVEsByIndustry(items: any[]): [string | null, any[]][] {
-  const named = new Map<string, any[]>();
-  const rest: any[] = [];
-  for (const f of items) {
-    const raw = (f.industry ?? f.config?.industry ?? '').trim();
-    if (!raw) { rest.push(f); continue; }
-    const key = raw.replace(/\b\w/g, (c: string) => c.toUpperCase());
-    if (!named.has(key)) named.set(key, []);
-    named.get(key)!.push(f);
-  }
-  if (!named.size) return [[null, rest]];
-  const groups: [string | null, any[]][] = [...named.entries()].sort((x, y) => x[0].localeCompare(y[0]));
-  return rest.length ? [...groups, ['More experiences', rest]] : groups;
-}
-
 // Each module is a stage; the current one is the first not yet finished.
 function veStage(modules: any[], progress: any, completed: boolean): string {
   const total = modules.length;
@@ -400,17 +382,12 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
 
   return (
     <div className="space-y-6">
-      {groupVEsByIndustry(items).filter(([, list]) => list.length > 0).map(([label, list]) => (
-        <section key={label ?? 'all'} className="space-y-4">
-          {label && <h3 className="text-lg font-bold" style={{ color: C.text }}>{label}</h3>}
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {list.map((form: any) => (
-              <VeCard key={form.id} form={form} attempt={attempts[form.id]} deadline={deadlines[form.id]} C={C}
-                onDetails={() => setDetail(form)} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((form: any) => (
+          <VeCard key={form.id} form={form} attempt={attempts[form.id]} deadline={deadlines[form.id]} C={C}
+            onDetails={() => setDetail(form)} />
+        ))}
+      </div>
       <AnimatePresence>
         {detail && (
           <VirtualExperienceDetailPane

@@ -168,15 +168,15 @@ export default function StudentDashboard() {
         setActiveSection(hash);
         sessionStorage.setItem('student-section', hash);
       } else {
-        // No hash -- restore the last top-level destination. My Learning always opens
-        // on Learning Paths so students see their guided journey before the catalog.
+        // No hash -- restore the last top-level destination. My Learning always opens on
+        // Courses, its first tab.
         const saved = sessionStorage.getItem('student-section') as SectionId | null;
         const validSaved = saved && NAV_ITEMS.some(n => n.id === saved) ? saved : null;
         // A review link that survived signing in opens Virtual Experiences, where the review shows.
         const target: SectionId = hasPendingVeReview(window.location.search)
           ? 'virtual_experiences'
           : validSaved && MY_LEARNING_SECTIONS.includes(validSaved)
-            ? 'learning_paths'
+            ? 'courses'
             : validSaved ?? 'overview';
         setActiveSection(target);
         window.location.hash = target;
@@ -618,7 +618,7 @@ export default function StudentDashboard() {
                           : activeSection === item.id;
                         return (
                           <button key={item.id}
-                            onClick={() => { goSection(item.id === 'courses' ? 'learning_paths' : item.id); setSidebarOpen(false); }}
+                            onClick={() => { goSection(item.id); setSidebarOpen(false); }}
                             title={navCollapsed ? item.label : undefined}
                             className="w-full flex items-center gap-3 rounded-xl text-sm font-normal transition-all text-left"
                             style={{
