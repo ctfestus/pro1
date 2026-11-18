@@ -13,7 +13,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { CarouselSkeleton, EmptyState, ProgressBar } from '@/components/student/shared';
 import { LearningCard, deadlineTag } from '@/components/student/learning-card';
-import { toPlainText } from '@/lib/plain-text';
+import { matchesSearch, toPlainText } from '@/lib/plain-text';
 import { publicGuide, GuideCard } from '@/components/ve/guide';
 import VeInstructorReview from '@/components/VeInstructorReview';
 import { takeVeReviewTarget } from '@/lib/pending-ve-review';
@@ -252,7 +252,7 @@ function VeCard({ form, attempt, deadline, C, onDetails }: {
   );
 }
 
-export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: string; userEmail: string; C: typeof LIGHT_C }) {
+export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = '' }: { userId: string; userEmail: string; C: typeof LIGHT_C; searchQuery?: string }) {
   const [items,       setItems]       = useState<any[]>([]);
   const [attempts,    setAttempts]    = useState<Record<string, any>>({});
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
@@ -371,10 +371,15 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
     <EmptyState icon={Briefcase} title="No Virtual Experiences" body="Virtual experiences assigned to your cohort will appear here." />
   );
 
+  const shown = items.filter((f: any) => matchesSearch(searchQuery, f.title, f.tagline, f.role, f.company, f.industry ?? f.config?.industry));
+
   return (
     <div className="space-y-6">
+      {shown.length === 0 && (
+        <p className="py-6 text-center text-sm" style={{ color: C.muted }}>No experiences found for &ldquo;{searchQuery.trim()}&rdquo;</p>
+      )}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((form: any) => (
+        {shown.map((form: any) => (
           <VeCard key={form.id} form={form} attempt={attempts[form.id]} deadline={deadlines[form.id]} C={C}
             onDetails={() => setDetail(form)} />
         ))}

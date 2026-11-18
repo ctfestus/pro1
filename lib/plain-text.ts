@@ -42,3 +42,9 @@ export function hasRichContent(html: string | null | undefined): boolean {
 export function looksLikeHtml(value: string | null | undefined): boolean {
   return /<\/?[a-z][^>]*>/i.test(String(value ?? ''));
 }
+
+/** Whether any of the fields (rich text allowed) contains the search query, ignoring case. */
+export function matchesSearch(query: string, ...fields: (string | null | undefined)[]): boolean {
+  const q = query.trim().toLowerCase();
+  return !q || fields.some(f => toPlainText(f).toLowerCase().includes(q));
+}

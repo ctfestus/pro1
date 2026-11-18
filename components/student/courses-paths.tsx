@@ -16,7 +16,7 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C } from '@/lib/theme';
-import { toPlainText } from '@/lib/plain-text';
+import { matchesSearch, toPlainText } from '@/lib/plain-text';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
@@ -248,7 +248,7 @@ const LOAD_ERROR_NETWORK = "Couldn't load learning paths. Check your connection 
 const LOAD_ERROR_SERVER  = "Couldn't load learning paths right now. Try again.";
 
 // --- Learning Paths section (shown above courses) ---
-export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
+export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_C; searchQuery?: string }) {
   const [paths, setPaths]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
@@ -394,6 +394,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     </div>
   );
 
+  const shownPaths = paths.filter((p: any) => matchesSearch(searchQuery, p.title, p.description));
   const openPath = (pathId: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('path', pathId);
@@ -401,7 +402,9 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     setSelectedPathId(pathId);
   };
   return (
-    <LearningPathGrid paths={paths} C={C} onOpen={openPath}/>
+    shownPaths.length
+      ? <LearningPathGrid paths={shownPaths} C={C} onOpen={openPath}/>
+      : <p className="py-6 text-center text-sm" style={{ color: C.muted }}>No learning paths found for &ldquo;{searchQuery.trim()}&rdquo;</p>
   );
 }
 
@@ -1359,12 +1362,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return null;
-    return courses.filter((c: any) => {
-      const title    = (c.form?.title ?? '').toLowerCase();
-      const desc     = (c.form?.config?.description ?? c.form?.description ?? '').replace(/<[^>]*>/g, ' ').toLowerCase();
-      const category = (c.form?.category ?? '').toLowerCase();
-      return title.includes(q) || desc.includes(q) || category.includes(q);
-    });
+    return courses.filter((c: any) => matchesSearch(q, c.form?.title, c.form?.config?.description ?? c.form?.description, c.form?.category));
   }, [searchQuery, courses]);
 
   if (loading) return <CarouselSkeleton C={C}/>;

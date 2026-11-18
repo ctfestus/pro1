@@ -84,10 +84,10 @@ export function LearningCard({
           <h3 className="line-clamp-2 text-[17px] font-bold leading-snug" style={{ color: C.text }}>
             <button type="button" className="text-left" onClick={e => { e.stopPropagation(); onOpen(); }}>{title}</button>
           </h3>
-          {byline && <div className="mt-1 text-xs" style={{ color: C.faint }}>{byline}</div>}
+          {byline && <div className="mt-1 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>{byline}</div>}
         </div>
         {description && (
-          <p className="line-clamp-4 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{description}</p>
+          <p className="line-clamp-4 text-[14px] leading-relaxed" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>{description}</p>
         )}
 
         {/* Progress, figure and action sit at the bottom, so they line up across a row. */}

@@ -132,7 +132,7 @@ export default function StudentDashboard() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
-  const [courseSearch, setCourseSearch] = useState('');
+  const [learningSearch, setLearningSearch] = useState('');
   // A lighter, neutral background than the shared page grey, so the white cards read softly.
   const pageBg = theme === 'dark' ? C.page : '#F8F9FB';
   const [isOutstanding,        setIsOutstanding]        = useState(false);
@@ -779,7 +779,7 @@ export default function StudentDashboard() {
                         key={id}
                         role="tab"
                         aria-selected={selected}
-                        onClick={() => goSection(id)}
+                        onClick={() => { setLearningSearch(''); goSection(id); }}
                         className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm transition-colors ${selected ? 'font-semibold' : 'font-normal'}`}
                         style={{
                           background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
@@ -791,15 +791,13 @@ export default function StudentDashboard() {
                     );
                   })}
                 </div>
-                {activeSection === 'courses' && (
-                  <label className="flex w-full items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:w-64"
-                    style={{ background: C.card, ['--search-line' as string]: C.cardBorder, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
-                    {/* Focus shows as the same 1px border turning a darker neutral grey. */}
-                    <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
-                    <input value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses"
-                      aria-label="Search courses" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
-                  </label>
-                )}
+                <label className="flex w-full items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:w-64"
+                  style={{ background: C.card, ['--search-line' as string]: C.cardBorder, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
+                  {/* Focus shows as the same 1px border turning a darker neutral grey. */}
+                  <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+                  <input value={learningSearch} onChange={e => setLearningSearch(e.target.value)} placeholder={activeSection === 'courses' ? 'Search courses' : activeSection === 'learning_paths' ? 'Search learning paths' : 'Search experiences'}
+                    aria-label="Search My Learning" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
+                </label>
               </div>
             )}
 
@@ -810,10 +808,10 @@ export default function StudentDashboard() {
               <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>
             )}
             {activeSection === 'courses' && user && (
-              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={courseSearch}/>
+              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={learningSearch}/>
             )}
             {activeSection === 'learning_paths' && user && (
-              <LearningPathsSection C={C}/>
+              <LearningPathsSection C={C} searchQuery={learningSearch}/>
             )}
             {activeSection === 'events' && user && (
               <EventsSection userId={effectiveId} C={C}/>
@@ -831,7 +829,7 @@ export default function StudentDashboard() {
               <AnnouncementsSection userId={effectiveId} C={C}/>
             )}
             {activeSection === 'virtual_experiences' && user && (
-              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
+              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C} searchQuery={learningSearch}/>
             )}
             {activeSection === 'certifications' && user && (
               <CertificationsSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
