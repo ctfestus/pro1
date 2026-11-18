@@ -348,8 +348,8 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
           style={{ borderBottom: `1px solid ${C.divider}` }}>
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)' }}>
-              <Users className="w-3.5 h-3.5" style={{ color: '#6366f1' }}/>
+              style={{ background: `${C.cta}1f` }}>
+              <Users className="w-3.5 h-3.5" style={{ color: C.cta }}/>
             </div>
             <span className="text-xs font-black uppercase tracking-widest" style={{ color: C.text }}>
               {cohort.name}
@@ -362,7 +362,7 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
         {rankings.map((r, idx) => {
           const isMe  = r.isMe === true;
           const pct   = maxXP > 0 ? Math.max((r.xp / maxXP) * 100, r.xp > 0 ? 2 : 0) : 0;
-          const barColor = r.rank === 1 ? '#f59e0b' : r.rank === 2 ? '#9ca3af' : r.rank === 3 ? '#cd7c2f' : (isDark ? '#4f6ef7' : '#6366f1');
+          const barColor = r.rank === 1 ? '#f59e0b' : r.rank === 2 ? '#9ca3af' : r.rank === 3 ? '#cd7c2f' : C.cta;
           const TOP_TITLES: Record<number, { emoji: string; title: string; color: string }> = {
             1: { emoji: '🔥', title: 'Trailblazer', color: '#f59e0b' },
             2: { emoji: '⚡', title: 'Innovator',   color: '#9ca3af' },

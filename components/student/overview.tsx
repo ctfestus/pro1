@@ -3,9 +3,10 @@
 // Overview (dashboard home) section, extracted verbatim from app/student/page.tsx.
 // OverviewSection is exported; inProgressProgress and InProgressRow are file-internal.
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
+import { useScrollRow } from '@/lib/use-scroll-row';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
@@ -33,33 +34,37 @@ function inProgressProgress(form: any, attempt: any, isProject: boolean) {
   return { done: counts.done, total: counts.total, pct: courseProgressPct(questions, answers) };
 }
 
-// "In Progress" carousel
-function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
+// Scroll buttons for a card row, shown only when the row has more cards than fit.
+function RowArrows({ row, C }: { row: { overflows: boolean; scrollBy: (dir: number) => void }; C: typeof LIGHT_C }) {
+  if (!row.overflows) return null;
+  const btn = 'w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70';
+  return (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <button onClick={() => row.scrollBy(-1)} aria-label="Scroll left" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
+        <ChevronLeft className="w-4 h-4"/>
+      </button>
+      <button onClick={() => row.scrollBy(1)} aria-label="Scroll right" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
+        <ChevronRight className="w-4 h-4"/>
+      </button>
+    </div>
+  );
+}
+
+// "In progress" carousel
+function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Record<string, Date | null>; C: typeof LIGHT_C }) {
+  const { attach: rowRef, ...row } = useScrollRow();
 
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>In Progress</h3>
+          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>In progress</h3>
           <p className="text-sm mt-1" style={{ color: C.muted }}>Pick up where you left off</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronLeft className="w-4 h-4"/>
-          </button>
-          <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronRight className="w-4 h-4"/>
-          </button>
-        </div>
+        <RowArrows row={row} C={C} />
       </div>
 
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
+      <div ref={rowRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {items.map(({ form, attempt, isProject }: any, idx: number) => {
           const { pct } = inProgressProgress(form, attempt, isProject);
@@ -74,7 +79,14 @@ function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
                   <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}</div>
                   {cover && <img src={resolveCoverUrl(cover)} alt="" loading={isLcp ? undefined : 'lazy'} fetchPriority={isLcp ? 'high' : undefined} className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                  <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
+                  {(() => {
+                    // The deadline when there is one, as Upcoming showed it; otherwise "In progress".
+                    const dl = deadlines[form.id];
+                    const days = dl ? Math.ceil((dl.getTime() - Date.now()) / 86400000) : null;
+                    const label = days === null ? 'In progress' : days < 0 ? 'Overdue' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
+                    const bg = days === null ? '#22c55e' : days < 0 ? '#D93025' : days <= 3 ? '#ea580c' : '#16a34a';
+                    return <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: bg, color: '#ffffff' }}>{label}</span>;
+                  })()}
                 </div>
                 <p className="text-xs mt-2" style={{ color: C.faint }}>{isProject ? 'Virtual Experience' : 'Course'}</p>
                 <p className="text-[15px] font-bold leading-snug mt-0.5 mb-2.5 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
@@ -115,12 +127,9 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   const [allBadges, setAllBadges]             = useState<{ id: string; name: string; description: string; icon: string; color: string; image_url: string | null }[]>([]);
   const [earnedBadgeIds, setEarnedBadgeIds]   = useState<Set<string>>(new Set());
   const [streak, setStreak]                   = useState<{ current_streak: number; longest_streak: number } | null>(null);
-  const recScrollRef = useRef<HTMLDivElement>(null);
-  const recScrollBy = (dir: number) => recScrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-  const statScrollRef = useRef<HTMLDivElement>(null);
-  const statScrollBy = (dir: number) => statScrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-  const upScrollRef = useRef<HTMLDivElement>(null);
-  const upScrollBy = (dir: number) => upScrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
+  const { attach: recRef, ...recRow } = useScrollRow();
+  const { attach: statRef, ...statRow } = useScrollRow();
+  const { attach: upRef, ...upRow } = useScrollRow();
 
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') setRefreshKey(k => k + 1); };
@@ -376,7 +385,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
         if (!form) return null;
         const proj = isProjForm(form);
         const a    = proj ? gpAttempts[formId] : courseAttempts[formId];
-        if (isEffectivelyDone(form, a, proj)) return null;
+        // Started work is listed once, in In progress, with its deadline on the card.
+        if (a || isEffectivelyDone(form, a, proj)) return null;
         const daysLeft = Math.ceil((dl.getTime() - now) / 86400000);
         if (daysLeft > 14) return null;
         return { title: form.title, daysLeft, type: proj ? 'project' : 'course', cover: form.config?.coverImage ?? form.cover_image ?? null } as const;
@@ -434,25 +444,14 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>Statistics</h3>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => statScrollBy(-1)} aria-label="Scroll left"
-              className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronLeft className="w-4 h-4"/>
-            </button>
-            <button onClick={() => statScrollBy(1)} aria-label="Scroll right"
-              className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronRight className="w-4 h-4"/>
-            </button>
-          </div>
+          <RowArrows row={statRow} C={C} />
         </div>
 
-        <div ref={statScrollRef} className="flex gap-5 overflow-x-auto pb-1 mt-4 snap-x"
+        <div ref={statRef} className="flex gap-5 overflow-x-auto pb-1 mt-4 snap-x"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {([
-            { icon: Zap,         color: '#eab308', bg: 'rgba(234,179,8,0.12)',  value: totalXP.toLocaleString(), label: 'XP Earned',        nav: 'badges'       },
-            { icon: CheckCircle, color: '#16a34a', bg: 'rgba(22,163,74,0.12)',  value: completedCount,           label: 'Courses Completed', nav: 'courses'      },
+            { icon: Zap,         color: '#eab308', bg: 'rgba(234,179,8,0.12)',  value: totalXP.toLocaleString(), label: 'XP earned',        nav: 'badges'       },
+            { icon: CheckCircle, color: '#16a34a', bg: 'rgba(22,163,74,0.12)',  value: completedCount,           label: 'Courses completed', nav: 'courses'      },
             { icon: Award,       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', value: certs.length,             label: 'Certificates',      nav: 'certificates' },
             { icon: Medal,       color: '#14b8a6', bg: 'rgba(20,184,166,0.12)', value: earnedBadgeIds.size,      label: 'Badges',            nav: 'badges'       },
           ] as const).map(({ icon: Icon, color, bg, value, label, nav }) => (
@@ -471,26 +470,13 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       </section>
 
       {/* In Progress carousel */}
-      {inProgressItems.length > 0 && <InProgressRow items={inProgressItems} C={C} />}
+      {inProgressItems.length > 0 && <InProgressRow items={inProgressItems} deadlines={deadlines} C={C} />}
 
       {/* Upcoming -- deadlines + events, carousel */}
       <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>Upcoming</h3>
-          {upcomingDeadlines.length > 0 && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => upScrollBy(-1)} aria-label="Scroll left"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronLeft className="w-4 h-4"/>
-              </button>
-              <button onClick={() => upScrollBy(1)} aria-label="Scroll right"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronRight className="w-4 h-4"/>
-              </button>
-            </div>
-          )}
+          <RowArrows row={upRow} C={C} />
         </div>
 
         {upcomingDeadlines.length === 0 ? (
@@ -500,7 +486,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
             <p className="text-xs" style={{ color: C.faint }}>No deadlines or events in the next 14 days.</p>
           </div>
         ) : (
-          <div ref={upScrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
+          <div ref={upRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {upcomingDeadlines.map(({ title, daysLeft, type, cover }, idx) => {
               const col = daysLeft < 0 ? '#ef4444' : daysLeft <= 3 ? '#f59e0b' : daysLeft <= 7 ? '#f97316' : '#16a34a';
@@ -529,24 +515,13 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-2 min-w-0">
               <TrendingUp className="w-5 h-5 flex-shrink-0" style={{ color: C.green }}/>
-              <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>Recommended for You</h3>
+              <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>Recommended for you</h3>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => recScrollBy(-1)} aria-label="Scroll left"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronLeft className="w-4 h-4"/>
-              </button>
-              <button onClick={() => recScrollBy(1)} aria-label="Scroll right"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronRight className="w-4 h-4"/>
-              </button>
-            </div>
+            <RowArrows row={recRow} C={C} />
           </div>
           <p className="text-sm mt-1" style={{ color: C.muted }}>Topics you haven&apos;t explored yet</p>
 
-          <div ref={recScrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
+          <div ref={recRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {gaps.map((gap: any) => {
               const isVE = gap.course.contentType === 'virtual_experience' || gap.course.contentType === 'guided_project';

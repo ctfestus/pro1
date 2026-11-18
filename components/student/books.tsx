@@ -241,9 +241,6 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
 
   return (
     <div className="space-y-6">
-      {/* The page header already names the section ("My Products"), so only the explanation here. */}
-      <p className="text-sm" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Open or download them any time.</p>
-
       {banner}
       {(loadError || downloadError) && (
         <div className="text-sm px-4 py-3 rounded-xl" style={{ background: C.errorBg, color: C.errorText }}>{downloadError || loadError}</div>

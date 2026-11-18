@@ -1331,7 +1331,7 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
                 </span>
               : item._sub.status === 'submitted'
               ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(124,58,237,0.12)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
+                  style={{ background: '#ffffff', color: '#16a34a', border: '1px solid rgba(22,163,74,0.25)' }}>
                   Submitted
                 </span>
               : item._sub.status === 'draft'
@@ -1360,7 +1360,7 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
             : item._sub.status === 'graded'
             ? <span className="text-[11px] font-semibold" style={{ color: item._sub.score >= passMark ? '#10b981' : '#ef4444' }}>Graded · {item._sub.score}%</span>
             : item._sub.status === 'submitted'
-            ? <span className="text-[11px] font-semibold" style={{ color: '#7c3aed' }}>Submitted</span>
+            ? <span className="text-[11px] font-semibold" style={{ color: '#16a34a' }}>Submitted</span>
             : <span className="text-[11px] font-medium" style={{ color: C.muted }}>Not Submitted</span>}
           <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl" style={{ background: C.cta, color: C.ctaText }}>
             {!item._sub || item._sub.status === 'draft' ? <Play className="w-3 h-3" fill="currentColor"/> : <ArrowRight className="w-3.5 h-3.5"/>}
@@ -1384,15 +1384,7 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
 
   return (
     <div className="space-y-8">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 5px ${C.green}14` }}/>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: C.green }}>My workspace</p>
-          </div>
-          <h1 className="text-[24px] font-bold tracking-tight" style={{ color: C.text }}>Assignments</h1>
-          <p className="text-xs mt-1" style={{ color: C.faint }}>Continue your work, track deadlines, and review feedback.</p>
-        </div>
+      <div className="flex justify-end">
         <span className="text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.pill, color: C.muted }}>{items.length} total</span>
       </div>
       {courseKeys.map(key => (

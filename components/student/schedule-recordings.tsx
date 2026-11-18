@@ -38,7 +38,6 @@ export function DataCenterSection({ C }: { C: typeof LIGHT_C }) {
       C={C}
       isDark={theme === 'dark'}
       fetchHeaders={getDataCenterAuthHeaders}
-      intro="Explore real-world datasets and sharpen your skills in data analysis, visualization, and storytelling. Each dataset comes with business questions designed to challenge how you think with data."
       loadingCardCount={3}
       emptyNoDatasetsMessage="Datasets will appear here once published by instructors."
       emptyNoMatchMessage="No datasets match your search."

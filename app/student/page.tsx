@@ -7,7 +7,7 @@ import {
   Settings, Sun, Moon, Menu, X,
   AlertTriangle,
   Loader2, ChevronRight, ChevronLeft,
-  FileText, Film, Layers, Briefcase,
+  FileText, Search,
   Zap, RefreshCw,
   Check,
 } from 'lucide-react';
@@ -97,13 +97,33 @@ function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCoh
   return true;
 }
 
+// The line under each section's title. My Learning, overview, my program, certifications and the
+// AI toolkit open with their own introduction instead.
+const SECTION_LINES: Partial<Record<SectionId, string>> = {
+  explore:       'Explore the full catalogue. Purchase access or enroll to unlock more learning.',
+  products:      'Digital products you have bought, or that your program gives you. Open or download them any time.',
+  data_center:   'Explore real-world datasets and sharpen your skills in data analysis, visualization, and storytelling. Each dataset comes with business questions designed to challenge how you think with data.',
+  events:        'Upcoming sessions for your cohort. Join from here when they start.',
+  assignments:   'Continue your work, track deadlines, and review feedback.',
+  calendar:      'Live sessions and assignment deadlines, by month, week or list.',
+  schedule:      'Study plans your instructors publish for your cohort.',
+  recordings:    'Recordings for your courses, once your instructors publish them.',
+  community:     'Discussion groups for your cohort.',
+  announcements: 'Posts from your instructors and admins.',
+  leaderboard:   'How your XP compares with others in your cohort.',
+  certificates:  'Certificates you have earned. Download them or add them to LinkedIn.',
+  badges:        'Badges you have earned, and the ones still to earn.',
+  payments:      'Your plan, your payments and what is due next.',
+};
+
 export default function StudentDashboard() {
   const [mounted, setMounted] = useState(false);
   const C = useC();
   const { toggle: toggleTheme, theme } = useTheme();
-  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, primaryColor } = useTenant();
+  const { logoUrl, logoDarkUrl, emailBannerUrl, appName } = useTenant();
   // Dark mode keeps the ocean accent; light mode uses the tenant's primary color.
-  const navAccent = theme === 'dark' ? '#3E93FF' : (primaryColor || '#3E93FF');
+  // The selected menu item: the ocean blue in both themes (the tenant's deep primary read too heavy).
+  const navAccent = '#3E93FF';
   const router = useRouter();
   const [user, setUser]       = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -112,6 +132,9 @@ export default function StudentDashboard() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
+  const [learningSearch, setLearningSearch] = useState('');
+  // A lighter, neutral background than the shared page grey, so the white cards read softly.
+  const pageBg = theme === 'dark' ? C.page : '#F8F9FB';
   const [isOutstanding,        setIsOutstanding]        = useState(false);
   const [enrollmentStatus,     setEnrollmentStatus]     = useState<string | null>(null);
   const [showOutstandingModal, setShowOutstandingModal] = useState(false);
@@ -148,15 +171,15 @@ export default function StudentDashboard() {
         setActiveSection(hash);
         sessionStorage.setItem('student-section', hash);
       } else {
-        // No hash -- restore the last top-level destination. My Learning always opens
-        // on Learning Paths so students see their guided journey before the catalog.
+        // No hash -- restore the last top-level destination. My Learning always opens on
+        // Courses, its first tab.
         const saved = sessionStorage.getItem('student-section') as SectionId | null;
         const validSaved = saved && NAV_ITEMS.some(n => n.id === saved) ? saved : null;
         // A review link that survived signing in opens Virtual Experiences, where the review shows.
         const target: SectionId = hasPendingVeReview(window.location.search)
           ? 'virtual_experiences'
           : validSaved && MY_LEARNING_SECTIONS.includes(validSaved)
-            ? 'learning_paths'
+            ? 'courses'
             : validSaved ?? 'overview';
         setActiveSection(target);
         window.location.hash = target;
@@ -497,13 +520,13 @@ export default function StudentDashboard() {
   );
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: C.page }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: pageBg }}>
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.green }}/>
     </div>
   );
 
   return (
-    <div className="min-h-screen" style={{ background: C.page }}>
+    <div className="min-h-screen" style={{ background: pageBg }}>
       {viewingAs && <StudentModeBanner context={viewingAs} />}
       <PromoCard placement="student" />
       {/* -- Top nav -- */}
@@ -598,7 +621,7 @@ export default function StudentDashboard() {
                           : activeSection === item.id;
                         return (
                           <button key={item.id}
-                            onClick={() => { goSection(item.id === 'courses' ? 'learning_paths' : item.id); setSidebarOpen(false); }}
+                            onClick={() => { goSection(item.id); setSidebarOpen(false); }}
                             title={navCollapsed ? item.label : undefined}
                             className="w-full flex items-center gap-3 rounded-xl text-sm font-normal transition-all text-left"
                             style={{
@@ -611,16 +634,8 @@ export default function StudentDashboard() {
                             <div className="relative w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                               style={{ background: isActive ? `${navAccent}18` : C.pill }}>
                               <item.Icon className="w-4 h-4" style={{ color: isActive ? navAccent : theme === 'dark' ? 'rgba(255,255,255,0.35)' : '#9ca3af' }}/>
-                              {navCollapsed && 'badge' in item && item.badge && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 2px ${C.card}` }}/>
-                              )}
                             </div>
                             {!navCollapsed && <span className="truncate">{item.label}</span>}
-                            {!navCollapsed && 'badge' in item && item.badge && (
-                              <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ background: C.green, color: '#fff' }}>
-                                {item.badge}
-                              </span>
-                            )}
                           </button>
                         );
                       })}
@@ -649,10 +664,12 @@ export default function StudentDashboard() {
         <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
           {hasBootcampCohort && effectiveId && <NextSessionBanner userId={effectiveId} C={C}/>}
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {/* Section header -- hidden on overview (has its own greeting), my program (titled by the cohort) and assignments (manages its own title) */}
-            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
-              <div className="flex items-center justify-between mb-6">
+            {/* Section header: the menu name and one line. Hidden on overview (its own greeting), my
+                program (titled by the cohort) and certifications (its own landing). */}
+            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'certifications' && (
+              <div className="mb-6">
                 <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isMyLearning ? 'My Learning' : activeItem.label}</h1>
+                {SECTION_LINES[activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[activeSection]}</p>}
               </div>
             )}
 
@@ -747,34 +764,40 @@ export default function StudentDashboard() {
             )}
 
             {isMyLearning && user && (
-              <div
-                role="tablist"
-                aria-label="My Learning sections"
-                className="flex gap-1 overflow-x-auto rounded-xl p-1 mb-6"
-                style={{ background: C.card }}>
-                {([
-                  { id: 'learning_paths', label: 'Learning Paths', Icon: Layers },
-                  { id: 'courses', label: 'Courses', Icon: Film },
-                  { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase },
-                ] as const).map(({ id, label, Icon }) => {
-                  const selected = activeSection === id;
-                  return (
-                    <button
-                      key={id}
-                      role="tab"
-                      aria-selected={selected}
-                      onClick={() => goSection(id)}
-                      className="flex min-w-max flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all"
-                      style={{
-                        background: selected ? C.page : 'transparent',
-                        color: selected ? navAccent : C.muted,
-                        boxShadow: selected ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
-                      }}>
-                      <Icon className="w-4 h-4" />
-                      {label}
-                    </button>
-                  );
-                })}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                {/* Grey pill track, the open tab in white. */}
+                <div role="tablist" aria-label="My Learning sections" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl p-1"
+                  style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#E8EBF0' }}>
+                  {([
+                    { id: 'courses', label: 'Courses' },
+                    { id: 'learning_paths', label: 'Learning paths' },
+                    { id: 'virtual_experiences', label: 'Virtual experiences' },
+                  ] as const).map(({ id, label }) => {
+                    const selected = activeSection === id;
+                    return (
+                      <button
+                        key={id}
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => { setLearningSearch(''); goSection(id); }}
+                        className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm transition-colors ${selected ? 'font-semibold' : 'font-normal'}`}
+                        style={{
+                          background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
+                          color: selected ? C.text : C.muted,
+                          boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.08), 0 1px 6px rgba(15,23,42,0.06)' : 'none',
+                        }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="flex w-full items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:w-64"
+                  style={{ background: C.card, ['--search-line' as string]: C.cardBorder, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
+                  {/* Focus shows as the same 1px border turning a darker neutral grey. */}
+                  <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+                  <input value={learningSearch} onChange={e => setLearningSearch(e.target.value)} placeholder={activeSection === 'courses' ? 'Search courses' : activeSection === 'learning_paths' ? 'Search learning paths' : 'Search experiences'}
+                    aria-label="Search My Learning" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
+                </label>
               </div>
             )}
 
@@ -785,10 +808,10 @@ export default function StudentDashboard() {
               <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>
             )}
             {activeSection === 'courses' && user && (
-              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding}/>
+              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={learningSearch}/>
             )}
             {activeSection === 'learning_paths' && user && (
-              <LearningPathsSection C={C}/>
+              <LearningPathsSection C={C} searchQuery={learningSearch}/>
             )}
             {activeSection === 'events' && user && (
               <EventsSection userId={effectiveId} C={C}/>
@@ -806,7 +829,7 @@ export default function StudentDashboard() {
               <AnnouncementsSection userId={effectiveId} C={C}/>
             )}
             {activeSection === 'virtual_experiences' && user && (
-              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
+              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C} searchQuery={learningSearch}/>
             )}
             {activeSection === 'certifications' && user && (
               <CertificationsSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>

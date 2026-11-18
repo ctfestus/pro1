@@ -8,6 +8,7 @@ import {
   Clock, MapPin, ClipboardList, ExternalLink, Video,
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useC as usePlatformC } from '@/lib/theme';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 
@@ -70,7 +71,8 @@ interface CalItem {
 
 /* --- kind metadata --- */
 const KIND_META: Record<ItemKind, { bg: string; border: string; text: string; dot: string; label: string }> = {
-  event:      { bg: 'rgba(99,102,241,0.11)',  border: '#6366f1', text: '#6366f1', dot: '#6366f1', label: 'Live Session'  },
+  // --cal-live is the platform colour, set on the calendar's root.
+  event:      { bg: 'color-mix(in srgb, var(--cal-live) 11%, transparent)', border: 'var(--cal-live)', text: 'var(--cal-live)', dot: 'var(--cal-live)', label: 'Live Session' },
   assignment: { bg: 'rgba(245,158,11,0.12)',  border: '#f59e0b', text: '#d97706', dot: '#f59e0b', label: 'Assignment'    },
 };
 
@@ -680,6 +682,7 @@ export default function CalendarSection({ userId, onNavigate }: {
   userId: string;
   onNavigate: (section: string) => void;
 }) {
+  const platformColor = usePlatformC().cta;
   const C       = useColors();
   const isMobile = useIsMobile();
   const today   = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -857,7 +860,7 @@ export default function CalendarSection({ userId, onNavigate }: {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", ['--cal-live' as string]: platformColor }}>
 
       {/* Toolbar -- stacks on mobile */}
       <div className={`flex mb-5 gap-2 ${isMobile ? 'flex-col' : 'items-center justify-between flex-wrap'}`}>

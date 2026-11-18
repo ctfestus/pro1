@@ -1,10 +1,9 @@
 'use client';
 
 // Virtual Experiences section, extracted verbatim from app/student/page.tsx.
-// VirtualExperiencesSection is exported; VirtualExperienceDetailPane, groupVEsByIndustry and
-// IndustryRow are file-internal.
+// VirtualExperiencesSection is exported; VirtualExperienceDetailPane and VeCard are file-internal.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -12,12 +11,14 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
-import { CarouselSkeleton, EmptyState, ProgressBar, DeadlineNote } from '@/components/student/shared';
+import { CarouselSkeleton, EmptyState, ProgressBar } from '@/components/student/shared';
+import { LearningCard, deadlineTag } from '@/components/student/learning-card';
+import { matchesSearch, toPlainText } from '@/lib/plain-text';
 import { publicGuide, GuideCard } from '@/components/ve/guide';
 import VeInstructorReview from '@/components/VeInstructorReview';
 import { takeVeReviewTarget } from '@/lib/pending-ve-review';
 import {
-  Briefcase, Check, CheckCircle, ChevronLeft, ChevronRight, Play, RefreshCw, X, Zap,
+  Briefcase, CheckCircle, Play, RefreshCw, X, Zap,
 } from 'lucide-react';
 
 // --- Virtual Experience Detail Pane ---
@@ -221,96 +222,37 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
 }
 
 // Group virtual experiences by industry; named industries alphabetical, "Other" last
-function groupVEsByIndustry(items: any[]): [string, any[]][] {
-  const groups = new Map<string, any[]>();
-  for (const f of items) {
-    const key = (f.industry ?? f.config?.industry ?? '').trim() || 'Other';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(f);
-  }
-  return [...groups.entries()].sort((a, b) => {
-    if (a[0] === 'Other') return 1;
-    if (b[0] === 'Other') return -1;
-    return a[0].localeCompare(b[0]);
-  });
-}
-
-// One industry group rendered as a titled carousel of VE cards
-function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
-  industry: string; items: any[]; attempts: Record<string, any>; deadlines: Record<string, Date | null>;
-  C: typeof LIGHT_C; onDetails: (f: any) => void;
+function VeCard({ form, attempt, deadline, C, onDetails }: {
+  form: any; attempt: any; deadline?: Date | null; C: typeof LIGHT_C; onDetails: () => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-
-
+  const completed = !!attempt?.completed_at;
+  const modules = form.config?.modules || form.modules || [];
+  const pct = completed ? 100 : veProgressPct(modules, attempt?.progress ?? {});
+  const role = [form.role, form.company].filter(Boolean).join(' at ');
+  // Missions are the lessons, grouped under the experience's modules.
+  const missions = modules.reduce((n: number, m: any) => n + (m.lessons?.length ?? 0), 0);
+  const industry = (form.industry ?? form.config?.industry ?? '').trim().replace(/\b\w/g, (ch: string) => ch.toUpperCase());
   return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>{industry.replace(/\b\w/g, c => c.toUpperCase())}</h3>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronLeft className="w-4 h-4"/>
-          </button>
-          <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronRight className="w-4 h-4"/>
-          </button>
-        </div>
-      </div>
-
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {items.map((form: any) => {
-          const attempt     = attempts[form.id];
-          const isCompleted = !!attempt?.completed_at;
-          const isStarted   = !!attempt && !isCompleted;
-          const status      = isCompleted ? 'Completed' : isStarted ? 'In progress' : null;
-          const cover       = form.config?.coverImage ?? form.cover_image;
-          const pct         = isCompleted ? 100 : veProgressPct(form.config?.modules || [], attempt?.progress ?? {});
-          return (
-            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
-              <button onClick={() => onDetails(form)} className="block w-full text-left transition-transform hover:-translate-y-0.5">
-                <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
-                  <div className="absolute inset-0 flex items-center justify-center"><Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/></div>
-                  {cover && <img src={resolveCoverUrl(cover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                  {isCompleted ? (
-                    <span className="absolute top-2 left-2 flex items-center justify-center w-5 h-5 rounded-full shadow-sm"
-                      style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
-                      <Check className="w-3 h-3" strokeWidth={3}/>
-                    </span>
-                  ) : status && (
-                    <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
-                      style={{ background: '#22c55e', color: '#ffffff' }}>
-                      {status}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs mt-2" style={{ color: C.faint }}>Virtual Experience</p>
-                <p className="text-[15px] font-bold leading-snug mt-0.5 mb-2.5 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
-                <ProgressBar value={pct} color="#22c55e"/>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[11px]" style={{ color: C.faint }}>
-                    {isCompleted ? 'Completed' : isStarted ? `${pct}% complete` : 'Not started'}
-                  </p>
-                  <DeadlineNote deadline={deadlines[form.id]} done={isCompleted}/>
-                </div>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-    </section>
+    <LearningCard
+      C={C}
+      cover={form.config?.coverImage ?? form.cover_image}
+      fallbackIcon={Briefcase}
+      tag={completed ? { label: 'Completed', tone: 'green' } : deadlineTag(deadline, false)}
+      title={form.title}
+      byline={role || null}
+      description={toPlainText(form.tagline)}
+      progress={pct}
+      done={completed}
+      figure={missions}
+      figureLabel={missions === 1 ? 'Mission' : 'Missions'}
+      chip={industry ? { label: industry } : null}
+      action={{ label: completed ? 'Review' : attempt ? 'Continue' : 'Start', href: `/${form.slug || form.id}`, quiet: completed }}
+      onOpen={onDetails}
+    />
   );
 }
 
-export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: string; userEmail: string; C: typeof LIGHT_C }) {
+export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = '' }: { userId: string; userEmail: string; C: typeof LIGHT_C; searchQuery?: string }) {
   const [items,       setItems]       = useState<any[]>([]);
   const [attempts,    setAttempts]    = useState<Record<string, any>>({});
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
@@ -429,19 +371,19 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
     <EmptyState icon={Briefcase} title="No Virtual Experiences" body="Virtual experiences assigned to your cohort will appear here." />
   );
 
+  const shown = items.filter((f: any) => matchesSearch(searchQuery, f.title, f.tagline, f.role, f.company, f.industry ?? f.config?.industry));
+
   return (
     <div className="space-y-6">
-      {groupVEsByIndustry(items).map(([industry, list]) => (
-        <IndustryRow
-          key={industry}
-          industry={industry}
-          items={list}
-          attempts={attempts}
-          deadlines={deadlines}
-          C={C}
-          onDetails={setDetail}
-        />
-      ))}
+      {shown.length === 0 && (
+        <p className="py-6 text-center text-sm" style={{ color: C.muted }}>No experiences found for &ldquo;{searchQuery.trim()}&rdquo;</p>
+      )}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {shown.map((form: any) => (
+          <VeCard key={form.id} form={form} attempt={attempts[form.id]} deadline={deadlines[form.id]} C={C}
+            onDetails={() => setDetail(form)} />
+        ))}
+      </div>
       <AnimatePresence>
         {detail && (
           <VirtualExperienceDetailPane
