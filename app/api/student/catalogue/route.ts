@@ -21,7 +21,7 @@ import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
-import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
+import { itemCategory, pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { isLicenseExpired } from '@/lib/books/schema';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
@@ -225,7 +225,7 @@ export async function GET(req: NextRequest) {
         coverImage: r.cover_image ?? null,
         description: r.description ?? null,
         // An experience is grouped by its industry, the way the landing page shows it.
-        category: r.category ?? (r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : null),
+        category: itemCategory(r),
         // Who it is from, as My Learning shows it: a course's partner, an experience's role.
         byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : ([r.role, r.company].filter(Boolean).join(', ')
           || (cleanList(r.authors).length ? `By ${cleanList(r.authors).join(', ')}` : null)),

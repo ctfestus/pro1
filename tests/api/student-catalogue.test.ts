@@ -198,7 +198,7 @@ describe('GET /api/student/catalogue', () => {
       }];
       if (table === 'virtual_experiences') return [{
         id: 'v6', title: 'Nested VE', slug: 'nested-ve', cover_image: 've.jpg',
-        description: 'What this experience covers',
+        description: 'What this experience covers', industry: 'fintech',
         cohort_ids: [],
         scenario: { answerKey: 'Hidden VE answer' },
       }];
@@ -215,12 +215,12 @@ describe('GET /api/student/catalogue', () => {
     // preview of the same page, and leaving it out told a signed-in learner LESS about the path
     // than an anonymous visitor was told. What must never appear is the material itself.
     expect(path.pathItems.map((item: any) => Object.keys(item).sort())).toEqual([
-      ['coverImage', 'description', 'id', 'slug', 'title', 'type'],
-      ['coverImage', 'description', 'id', 'slug', 'title', 'type'],
+      ['category', 'coverImage', 'description', 'id', 'slug', 'title', 'type'],
+      ['category', 'coverImage', 'description', 'id', 'slug', 'title', 'type'],
     ]);
     expect(path.pathItems).toEqual([
-      { id: 'c6', type: 'course', title: 'Nested course', slug: 'nested-course', coverImage: 'course.jpg', description: 'What this course covers' },
-      { id: 'v6', type: 'virtual_experience', title: 'Nested VE', slug: 'nested-ve', coverImage: 've.jpg', description: 'What this experience covers' },
+      { id: 'c6', type: 'course', title: 'Nested course', slug: 'nested-course', coverImage: 'course.jpg', description: 'What this course covers', category: 'AI' },
+      { id: 'v6', type: 'virtual_experience', title: 'Nested VE', slug: 'nested-ve', coverImage: 've.jpg', description: 'What this experience covers', category: 'Fintech' },
     ]);
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden answer');
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden VE answer');

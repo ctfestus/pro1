@@ -1,17 +1,26 @@
 'use client';
 
+import { ChevronDown } from 'lucide-react';
+
 /**
  * The experience's missions before it starts, drawn like the player's mission list (week groups,
  * numbered markers, a dashed line between missions) so a learner recognises it once inside.
  * Read-only. A locked preview carries titles only, so every field past the title is optional.
+ *
+ * The course overview draws its outline the same way, with groups that fold: pass `collapsed` and
+ * `onToggle`. Numbers keep counting through a folded group.
  */
-export function MissionOutline({ modules, isDark, text, muted, divider }: {
+export function MissionOutline({ modules, isDark, text, muted, divider, collapsed, onToggle, itemWord = 'lesson' }: {
   modules: Array<{ id: string; title?: string; lessons?: Array<{ id: string; title?: string; requirements?: unknown[] }> }>;
   isDark: boolean;
   text: string;
   muted: string;
   /** Hairline between weeks. */
   divider: string;
+  collapsed?: Set<string>;
+  onToggle?: (groupId: string) => void;
+  /** What a group counts in its folding header. */
+  itemWord?: string;
 }) {
   const faint = isDark ? '#6b6b6b' : '#8a929e';
   let n = 0;
@@ -24,8 +33,19 @@ export function MissionOutline({ modules, isDark, text, muted, divider }: {
     <div className="flex flex-col">
       {numbered.map((mod, mi) => (
         <div key={mod.id} style={mi ? { borderTop: `1px solid ${divider}`, marginTop: 14, paddingTop: 16 } : undefined}>
-          <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-2.5" style={{ color: muted }}>{mod.title}</p>
-          {mod.lessons.map((les, li) => {
+          {onToggle && mod.title ? (
+            <button type="button" onClick={() => onToggle(mod.id)} aria-expanded={!collapsed?.has(mod.id)}
+              className="mb-2.5 flex w-full items-center justify-between gap-3 text-left">
+              <span className="truncate text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: muted }}>{mod.title}</span>
+              <span className="flex flex-shrink-0 items-center gap-1.5 text-[11.5px]" style={{ color: faint }}>
+                {mod.lessons.length} {itemWord}{mod.lessons.length === 1 ? '' : 's'}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed?.has(mod.id) ? '-rotate-90' : ''}`} />
+              </span>
+            </button>
+          ) : mod.title ? (
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-2.5" style={{ color: muted }}>{mod.title}</p>
+          ) : null}
+          {!collapsed?.has(mod.id) && mod.lessons.map((les, li) => {
             const tasks = les.requirements?.length || 0;
             const hasNext = li < mod.lessons.length - 1;
             return (

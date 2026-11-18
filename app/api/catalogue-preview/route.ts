@@ -25,7 +25,7 @@ import { findPublicCatalogueItem } from '@/lib/public-catalogue-item';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
-import { loadPathItemDescriptions, normalizePathItemType, pathItemFromRow } from '@/lib/catalogue-path-items';
+import { loadPathItemDetails, normalizePathItemType, pathItemFromRow } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
           .eq('path_id', record.id)
           .order('position');
         if (pathItemsError) throw pathItemsError;
-        const descriptionById = await loadPathItemDescriptions(
+        const detailsById = await loadPathItemDetails(
           db,
           (pathItems ?? []).map((pathItem: any) => pathItem.id),
         );
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
             pathItems: (pathItems ?? []).map((pathItem: any) => pathItemFromRow(
               pathItem,
               normalizePathItemType(pathItem.type),
-              descriptionById.get(pathItem.id) ?? null,
+              detailsById.get(pathItem.id) ?? { description: null, category: null },
             )),
           },
         });
