@@ -24,13 +24,15 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
   palette: { card: string; text: string; muted: string; line: string; accent: string; shadow: string };
 }) {
   // One offer: the best value (lowest a month) among every length of every plan that opens the
-  // item, with any running discount already applied. Lead with what is charged; the monthly figure
-  // follows as what it works out to. Every other option is on the pricing page the button opens.
+  // item, with any running discount already applied. Lead with what is charged, then what that
+  // comes to a day. Every other option is on the pricing page the button opens.
   const offers = sellablePlans(unlock).flatMap(plan => (plan.prices ?? []).map(price => ({ plan, price })));
   if (!offers.length) return null;
   const { plan, price: best } = offers.reduce((cheapest, offer) =>
     offer.price.amount / offer.price.durationMonths < cheapest.price.amount / cheapest.price.durationMonths ? offer : cheapest);
   const planName = (plan.name ?? '').trim();
+  // The price a day, a month counted as 30 days, always to the cent ("GHS 0.50", not "GHS 0.5").
+  const perDay = `${best.currency || 'GHS'} ${(best.amount / (best.durationMonths * 30)).toFixed(2)}`;
 
   return (
     <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px 20px 20px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -50,8 +52,7 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         for {unlockDurationLabel(best.durationMonths)}
       </p>
       <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
-        {best.durationMonths > 1 && `Works out to ${unlockMoney(best.currency, best.amount / best.durationMonths)} a month. `}
-        One payment, no automatic renewal.
+        About {perDay} a day. One payment, no automatic renewal.
       </p>
       <Link href={pricingHrefFor(itemId, kind)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 13, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
