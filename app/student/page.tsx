@@ -132,6 +132,8 @@ export default function StudentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [courseSearch, setCourseSearch] = useState('');
+  // A lighter, neutral background than the shared page grey, so the white cards read softly.
+  const pageBg = theme === 'dark' ? C.page : '#F8F9FB';
   const [isOutstanding,        setIsOutstanding]        = useState(false);
   const [enrollmentStatus,     setEnrollmentStatus]     = useState<string | null>(null);
   const [showOutstandingModal, setShowOutstandingModal] = useState(false);
@@ -517,13 +519,13 @@ export default function StudentDashboard() {
   );
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: C.page }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: pageBg }}>
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.green }}/>
     </div>
   );
 
   return (
-    <div className="min-h-screen" style={{ background: C.page }}>
+    <div className="min-h-screen" style={{ background: pageBg }}>
       {viewingAs && <StudentModeBanner context={viewingAs} />}
       <PromoCard placement="student" />
       {/* -- Top nav -- */}
