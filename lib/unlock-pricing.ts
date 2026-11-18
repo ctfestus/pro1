@@ -15,6 +15,8 @@ export interface UnlockPrice {
   durationMonths: number;
   amount: number;
   currency: string;
+  /** Before a running discount; equal to amount when there is none. */
+  listAmount?: number;
 }
 
 export interface UnlockPlan {

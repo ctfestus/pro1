@@ -51,6 +51,11 @@ export interface PricingPageClientProps extends PricingPageData {
   navEvents?: NavBook[];
 }
 
+/** The catalogue's item types, as the purchase records name their tables. */
+const CONTENT_TABLE: Record<string, string> = {
+  course: 'courses', virtual_experience: 'virtual_experiences', learning_path: 'learning_paths', certification: 'certifications',
+};
+
 export function PricingPageClient(props: PricingPageClientProps) {
   const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds,
     paystackEnabled, programmes, navBooks, navEvents } = props;
@@ -68,7 +73,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
   // Arrived from a locked item (?ref=&type=, see pricingHrefFor): show only the plans that open
   // it, and say so. The item's public preview already names those plans, so this asks it rather
   // than the server, and the page itself stays cached for everyone.
-  const [forItem, setForItem] = useState<{ title: string; planIds: Set<string> } | null>(null);
+  const [forItem, setForItem] = useState<{ title: string; contentTable: string; contentId: string; planIds: Set<string> } | null>(null);
   const plans = useMemo(
     () => (forItem ? props.plans.filter(plan => forItem.planIds.has(plan.id)) : props.plans),
     [forItem, props.plans],
@@ -99,7 +104,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
         const planIds = new Set<string>((json?.item?.unlock?.plans ?? []).map((plan: any) => plan.id));
         const itemPlans = props.plans.filter(plan => planIds.has(plan.id));
         if (cancelled || !json?.item?.title || !itemPlans.length) return;
-        setForItem({ title: json.item.title, planIds });
+        setForItem({ title: json.item.title, contentTable: CONTENT_TABLE[json.item.type] ?? '', contentId: json.item.id, planIds });
         // Start on a length these plans sell, the same pick the page makes for all plans.
         setSelectedDuration(featuredOffer(itemPlans)?.price.durationMonths ?? null);
       })
@@ -189,7 +194,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           durationOptions={billingDurationOptions}
           selectedDuration={selectedDuration}
           onSelectDuration={setSelectedDuration}
-          forItem={forItem && { title: forItem.title, onShowAll: showAllPlans }}
+          forItem={forItem && { title: forItem.title, contentTable: forItem.contentTable, contentId: forItem.contentId, onShowAll: showAllPlans }}
         />
 
         <PricingFaq

@@ -45,7 +45,12 @@ describe('the purchase moment', () => {
     // Paths are granted by plans but have no route of their own. A link would be a dead end,
     // so those fall back to My Learning where a path can actually be opened.
     expect(component).toContain("'/student#learning_paths'");
-    expect(component).toContain('const openable = contents.find');
+    expect(component).toContain('contents.find(row => CATALOGUE_TYPE[row.contentTable])');
+  });
+
+  it('opens the item the plan was bought for, when the plan includes it', () => {
+    expect(component).toContain('const cameFor = purchaseItem();');
+    expect(component).toContain('const openable = wanted || contents.find');
   });
 
   it('carries the content type in the link, since slugs are not unique across tables', () => {
