@@ -13,15 +13,19 @@ const ORDER = ['whatsapp', 'linkedin', 'twitter', 'facebook'] as const;
 const BUTTON_SHADOW = '0 1px 2px rgba(15,23,42,0.06), 0 8px 20px -12px rgba(15,23,42,0.2)';
 const noop = () => () => {};
 
-export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex flex-wrap items-center gap-2' }: {
+export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex flex-wrap items-center gap-2', compact = false }: {
   url: string;
   title: string;
   blurb: string;
   className?: string;
+  /** One row in a narrow card: smaller buttons, copy link as an icon, and the device's share
+   *  sheet only on a touch screen, where it reaches apps the four buttons do not. */
+  compact?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   // Read once on the client; false on the server, so the first render matches.
-  const canNativeShare = useSyncExternalStore(noop, () => typeof navigator !== 'undefined' && typeof navigator.share === 'function', () => false);
+  const canNativeShare = useSyncExternalStore(noop, () => typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+    && (!compact || window.matchMedia('(pointer: coarse)').matches), () => false);
   // The server passes the tenant's address; without one configured, the address being viewed.
   const pageUrl = useSyncExternalStore(noop, () => givenUrl || window.location.href.split(/[?#]/)[0], () => givenUrl);
   if (!pageUrl) return null;
@@ -42,7 +46,7 @@ export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex fl
     try { await navigator.share({ title, text: `${title}\n${blurb}`, url: pageUrl }); } catch { /* closed by the person */ }
   }
 
-  const btn = 'w-10 h-10 rounded-full inline-flex items-center justify-center transition-transform hover:-translate-y-0.5';
+  const btn = `${compact ? 'w-9 h-9 flex-shrink-0' : 'w-10 h-10'} rounded-full inline-flex items-center justify-center transition-transform hover:-translate-y-0.5`;
   const style = { background: 'var(--ev-surface,#ffffff)', color: 'var(--ev-text,#0f172a)', boxShadow: BUTTON_SHADOW };
   return (
     <div className={className}>
@@ -59,9 +63,9 @@ export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex fl
         </a>
       ))}
       <button type="button" onClick={copy} aria-label={copied ? 'Link copied' : 'Copy link'} title={copied ? 'Copied' : 'Copy link'}
-        className="h-10 px-4 rounded-full inline-flex items-center gap-2 text-sm font-semibold transition-transform hover:-translate-y-0.5"
+        className={compact ? btn : 'h-10 px-4 rounded-full inline-flex items-center gap-2 text-sm font-semibold transition-transform hover:-translate-y-0.5'}
         style={{ ...style, color: copied ? '#16a34a' : 'var(--ev-text,#0f172a)' }}>
-        {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copied ? 'Copied' : 'Copy link'}
+        {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}{!compact && (copied ? ' Copied' : ' Copy link')}
       </button>
     </div>
   );

@@ -456,7 +456,7 @@ function ShareCard({ title, blurb, colors }: {
       background: colors.card, borderRadius: 14, padding: '16px 18px', boxShadow: colors.shadow,
       ['--ev-surface' as string]: colors.button, ['--ev-text' as string]: colors.text, ['--ev-muted' as string]: colors.muted,
     } as React.CSSProperties}>
-      <ShareButtons url={url} title={title} blurb={blurb} />
+      <ShareButtons url={url} title={title} blurb={blurb} compact className="flex flex-nowrap items-center gap-2" />
     </div>
   );
 }
