@@ -6,7 +6,7 @@
 
 import Link from 'next/link';
 import { ArrowRight, Lock } from 'lucide-react';
-import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlockMoney, unlockPlanName, type UnlockInfo } from '@/lib/unlock-pricing';
+import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlockMoney, type UnlockInfo } from '@/lib/unlock-pricing';
 
 type Kind = 'course' | 'virtual_experience' | 'learning_path';
 const NOUN: Record<Kind, string> = { course: 'course', virtual_experience: 'experience', learning_path: 'path' };
@@ -23,25 +23,14 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
   /** The page's own colours; accent is the page's button colour. */
   palette: { card: string; text: string; muted: string; line: string; accent: string; shadow: string };
 }) {
-  const plans = sellablePlans(unlock);
-  const prices = plans.flatMap(plan => plan.prices ?? []);
-  if (!prices.length) return null;
-
-  // Lead with a price someone can actually pay: the best value (lowest a month) among every length
-  // of every plan that opens the item, with any running discount already applied. The monthly
-  // figure only follows it, as what it works out to -- shown alone, it read as a second price
-  // beside the real one-month price.
-  const best = prices.reduce((cheapest, price) =>
-    price.amount / price.durationMonths < cheapest.amount / cheapest.durationMonths ? price : cheapest);
-  const planName = unlockPlanName(unlock);
-  const single = plans.length === 1;
-  const others = single ? prices.filter(price => price !== best) : [];
-  const detail = [
-    best.durationMonths > 1 ? `Works out to ${unlockMoney(best.currency, best.amount / best.durationMonths)} a month.` : '',
-    others.length ? `Or ${others.map(price => `${unlockMoney(price.currency, price.amount)} for ${unlockDurationLabel(price.durationMonths)}`).join(', or ')}.` : '',
-    single ? '' : `Included in ${plans.length} plans.`,
-  ].filter(Boolean).join(' ');
-  const ribbon = single && planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Plans';
+  // One offer: the best value (lowest a month) among every length of every plan that opens the
+  // item, with any running discount already applied. Lead with what is charged; the monthly figure
+  // follows as what it works out to. Every other option is on the pricing page the button opens.
+  const offers = sellablePlans(unlock).flatMap(plan => (plan.prices ?? []).map(price => ({ plan, price })));
+  if (!offers.length) return null;
+  const { plan, price: best } = offers.reduce((cheapest, offer) =>
+    offer.price.amount / offer.price.durationMonths < cheapest.price.amount / cheapest.price.durationMonths ? offer : cheapest);
+  const planName = (plan.name ?? '').trim();
 
   return (
     <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px 20px 20px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -51,7 +40,7 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         background: `color-mix(in srgb, ${palette.accent} 24%, ${palette.card})`, color: palette.text,
         fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
       }}>
-        {ribbon}
+        {planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Best value'}
       </span>
       <p style={{ display: 'flex', alignItems: 'center', gap: 9, margin: 0, fontSize: 16, fontWeight: 700, color: palette.text }}>
         <Lock style={{ width: 18, height: 18 }} /> Unlock this {NOUN[kind]}
@@ -61,14 +50,15 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         for {unlockDurationLabel(best.durationMonths)}
       </p>
       <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
-        {detail} One payment, no automatic renewal.
+        {best.durationMonths > 1 && `Works out to ${unlockMoney(best.currency, best.amount / best.durationMonths)} a month. `}
+        One payment, no automatic renewal.
       </p>
       <Link href={pricingHrefFor(itemId, kind)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 13, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
-        {enrollLabel(unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
+        {planName ? `Enroll with ${planName}` : enrollLabel(unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
       </Link>
       <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: palette.muted }}>
-        Opens every course, path and experience in {single ? 'the plan' : 'each plan'}.{' '}
+        Opens every course, path and experience in the plan.{' '}
         <Link href="/pricing" style={{ color: palette.accent, fontWeight: 700, textDecoration: 'none' }}>Compare plans</Link>
       </p>
     </div>
