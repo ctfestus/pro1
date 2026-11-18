@@ -65,15 +65,47 @@ export function PricingPageClient(props: PricingPageClientProps) {
   // navLinkHref is for: they become links home instead of scroll targets.
   const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks, navEvents), [programmes, user, navBooks, navEvents]);
 
+  // Arrived from a locked item (?ref=&type=, see pricingHrefFor): show only the plans that open
+  // it, and say so. The item's public preview already names those plans, so this asks it rather
+  // than the server, and the page itself stays cached for everyone.
+  const [forItem, setForItem] = useState<{ title: string; planIds: Set<string> } | null>(null);
+  const plans = useMemo(
+    () => (forItem ? props.plans.filter(plan => forItem.planIds.has(plan.id)) : props.plans),
+    [forItem, props.plans],
+  );
+  const showAllPlans = () => {
+    setForItem(null);
+    window.history.replaceState(null, '', '/pricing');
+  };
+
   const durations = useMemo(() => {
     const all = new Set<number>();
-    props.plans.forEach(plan => plan.prices.forEach(price => all.add(price.durationMonths)));
+    plans.forEach(plan => plan.prices.forEach(price => all.add(price.durationMonths)));
     return [...all].sort((a, b) => a - b);
-  }, [props.plans]);
-  const defaultOffer = useMemo(() => featuredOffer(props.plans), [props.plans]);
+  }, [plans]);
+  const defaultOffer = useMemo(() => featuredOffer(plans), [plans]);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(() =>
     defaultOffer?.price.durationMonths ?? durations[durations.length - 1] ?? null,
   );
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    const type = params.get('type');
+    if (!ref || !type) return;
+    let cancelled = false;
+    fetch(`/api/catalogue-preview?ref=${encodeURIComponent(ref)}&type=${encodeURIComponent(type)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        const planIds = new Set<string>((json?.item?.unlock?.plans ?? []).map((plan: any) => plan.id));
+        const itemPlans = props.plans.filter(plan => planIds.has(plan.id));
+        if (cancelled || !json?.item?.title || !itemPlans.length) return;
+        setForItem({ title: json.item.title, planIds });
+        // Start on a length these plans sell, the same pick the page makes for all plans.
+        setSelectedDuration(featuredOffer(itemPlans)?.price.durationMonths ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [props.plans]);
   const billingDurationOptions = useMemo(() => {
     const planDurations = defaultOffer
       ? [...new Set(defaultOffer.plan.prices.map(price => price.durationMonths))].sort((a, b) => a - b)
@@ -87,8 +119,8 @@ export function PricingPageClient(props: PricingPageClientProps) {
     return longDuration === shortDuration ? [shortDuration] : [shortDuration, longDuration];
   }, [defaultOffer, durations]);
   const selectedOffer = useMemo(
-    () => featuredOfferForDuration(props.plans, selectedDuration),
-    [props.plans, selectedDuration],
+    () => featuredOfferForDuration(plans, selectedDuration),
+    [plans, selectedDuration],
   );
 
   useEffect(() => {
@@ -144,7 +176,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
         <PricingSection
-          plans={props.plans}
+          plans={plans}
           free={props.free}
           primaryColor={primaryColor}
           accentColor={accentColor}
@@ -157,13 +189,14 @@ export function PricingPageClient(props: PricingPageClientProps) {
           durationOptions={billingDurationOptions}
           selectedDuration={selectedDuration}
           onSelectDuration={setSelectedDuration}
+          forItem={forItem && { title: forItem.title, onShowAll: showAllPlans }}
         />
 
         <PricingFaq
           headingFont={headingFont}
           bodyFont={bodyFont}
           supportEmail={supportEmail}
-          paidPlanName={props.plans.length === 1 ? props.plans[0].name : undefined}
+          paidPlanName={plans.length === 1 ? plans[0].name : undefined}
         />
 
         <section className="relative mt-16 overflow-hidden rounded-[30px] px-6 py-10 text-center sm:px-10 sm:py-12" style={{ background: primaryColor }}>
