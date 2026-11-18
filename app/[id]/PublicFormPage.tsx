@@ -481,7 +481,7 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
 }
 
-function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean }) {
+function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   // On a path with specializations no learner takes every item: count the core, and name the
@@ -642,7 +642,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
             )}
           </div>
           {hasPriceCard(path.locked, path.unlock) && (
-            <PriceCard kind="learning_path" itemId={path.id} unlock={path.unlock}
+            <PriceCard kind="learning_path" itemId={path.id} unlock={path.unlock} paystackEnabled={paystackEnabled}
               palette={{ card: C.card, text: C.text, muted: C.muted, line: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)', accent: C.cta, shadow: cardShadow(isDark), dark: isDark }} />
           )}
           {whoShouldTake.length > 0 && (
@@ -667,7 +667,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -1223,7 +1223,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     if (pathPreview) {
       return (
         <>
-          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} />
           <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
         </>
       );
@@ -1607,7 +1607,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             )}
 
             {vePriced && (
-              <PriceCard kind="virtual_experience" itemId={form.id} unlock={form.unlock}
+              <PriceCard kind="virtual_experience" itemId={form.id} unlock={form.unlock} paystackEnabled={paystackEnabled}
                 palette={{ card: gp.card, text: gp.title, muted: gp.muted, line: gp.border, accent: indColor, shadow: cardShadow, dark: !isLight }} />
             )}
 
@@ -1842,7 +1842,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 </div>
               </div>
               {hasPriceCard(form.locked, form.unlock) && (
-                <PriceCard kind="course" itemId={form.id} unlock={form.unlock}
+                <PriceCard kind="course" itemId={form.id} unlock={form.unlock} paystackEnabled={paystackEnabled}
                   palette={{ card: cp.card, text: cp.title, muted: cp.muted, line: cp.border, accent: accentColor, shadow: courseCardShadow, dark }} />
               )}
               {/* Digital products the author recommends with this course (shows nothing if none). */}

@@ -62,7 +62,7 @@ export interface PricingSectionProps extends PricingPageData {
   selectedDuration: number | null;
   onSelectDuration: (months: number) => void;
   /** Arrived from a locked item: only its plans are listed, so say which item, and offer the rest. */
-  forItem?: { title: string; onShowAll: () => void } | null;
+  forItem?: { title: string; contentTable: string; contentId: string; onShowAll: () => void } | null;
 }
 
 export function PricingSection({
@@ -94,6 +94,7 @@ export function PricingSection({
       paystackEnabled,
       quotedAmount: price.amount,
       quotedCurrency: price.currency,
+      forItem: forItem && { contentTable: forItem.contentTable, contentId: forItem.contentId },
     });
     if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
   };

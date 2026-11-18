@@ -15,7 +15,7 @@
  * an error and left on a page with nothing to do next.
  */
 import { supabase } from '@/lib/supabase';
-import { rememberPurchaseIntent } from '@/lib/pending-purchase';
+import { rememberPurchaseIntent, rememberPurchaseItem } from '@/lib/pending-purchase';
 
 export type CheckoutOutcome =
   /** The browser is already navigating to the payment provider. */
@@ -32,8 +32,13 @@ export function paymentsHrefFor(priceId: string): string {
 
 export async function startPlanCheckout(
   priceId: string,
-  options: { paystackEnabled: boolean; quotedAmount?: number; quotedCurrency?: string },
+  options: {
+    paystackEnabled: boolean; quotedAmount?: number; quotedCurrency?: string;
+    /** The locked item the buyer came from, so they are taken back to it once they have paid. */
+    forItem?: { contentTable: string; contentId: string } | null;
+  },
 ): Promise<CheckoutOutcome> {
+  if (options.forItem) rememberPurchaseItem(options.forItem.contentTable, options.forItem.contentId);
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
 

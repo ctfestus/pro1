@@ -123,3 +123,30 @@ export function purchaseIntentHref(intent: PurchaseIntent): string {
   if (intent.priceId && ID.test(intent.priceId)) params.set('priceId', intent.priceId);
   return `/student?${params.toString()}#payments`;
 }
+
+const ITEM_KEY = 'purchase-for-item';
+// A week, not a day: a bank transfer or mobile money payment waits for an admin to confirm it.
+const ITEM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The item a purchase was started for, so the "You are in" screen opens it rather than the
+ * plan's first item. Kept apart from the intent above, which is single use and drives a redirect
+ * on sign-in; this one is only read, and is replaced by the next purchase or expires.
+ */
+export function rememberPurchaseItem(contentTable: string, contentId: string): void {
+  const item = { contentTable, contentId } as PurchaseIntent;
+  if (!hasContent(item) || !ID.test(contentId)) return;
+  try {
+    window.localStorage.setItem(ITEM_KEY, JSON.stringify({ ...item, at: Date.now() }));
+  } catch { /* storage unavailable: the success screen opens the plan's first item, as before */ }
+}
+
+export function purchaseItem(): { contentTable: PurchasableContentTable; contentId: string } | null {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(ITEM_KEY) ?? 'null') as (PurchaseIntent & { at?: number }) | null;
+    if (!stored || typeof stored.at !== 'number' || Date.now() - stored.at > ITEM_TTL_MS) return null;
+    return hasContent(stored) && ID.test(stored.contentId!) ? { contentTable: stored.contentTable!, contentId: stored.contentId! } : null;
+  } catch {
+    return null;
+  }
+}

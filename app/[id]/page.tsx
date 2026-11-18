@@ -4,6 +4,7 @@ import { getPricingPageData } from '@/lib/get-pricing-page-data';
 import { planPromotions, type PromotionTeaser } from '@/lib/pricing-offer';
 import { publicEventRedirect } from '@/lib/events/store';
 import PublicFormPage from './PublicFormPage';
+import { paystackIsConfigured } from '@/lib/paystack';
 
 // Server wrapper so link previews can read ?catalogueType= (a layout never receives search
 // params). The page itself is the client component in PublicFormPage.tsx.
@@ -37,5 +38,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   const [publicEvent, promotions] = await Promise.all([publicEventRedirect(id), currentPromotions()]);
   const publicEventPath = publicEvent ? `/events/${encodeURIComponent(publicEvent.slug)}` : null;
-  return <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} />;
+  return <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} paystackEnabled={paystackIsConfigured()} />;
 }

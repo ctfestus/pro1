@@ -13,6 +13,7 @@ import { PaymentsSection } from '@/components/student/payments';
 import { Sk } from '@/components/student/shared';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { promotionHeading } from '@/lib/subscription-discount';
+import { purchaseItem } from '@/lib/pending-purchase';
 
 type Tab = 'pay' | 'confirm' | 'history';
 const PAYSTACK_RETURN_REFERENCE_KEY = 'paystack:return-reference';
@@ -781,7 +782,10 @@ function PurchaseSuccess({ planName, until, contents, C }: {
     courses: 'course', virtual_experiences: 'virtual_experience', certifications: 'certification',
     learning_paths: 'learning_path',
   };
-  const openable = contents.find(row => CATALOGUE_TYPE[row.contentTable]);
+  // The item they bought the plan for, when it is in the plan; otherwise the plan's first item.
+  const cameFor = purchaseItem();
+  const wanted = cameFor && contents.find(row => row.contentTable === cameFor.contentTable && row.contentId === cameFor.contentId);
+  const openable = wanted || contents.find(row => CATALOGUE_TYPE[row.contentTable]);
   const startHref = openable
     ? `/${openable.contentId}?catalogueType=${CATALOGUE_TYPE[openable.contentTable]}`
     : '/student#learning_paths';
@@ -804,7 +808,7 @@ function PurchaseSuccess({ planName, until, contents, C }: {
           {rest > 0 && <li className="text-xs pl-5.5" style={{ color: C.faint }}>and {rest} more</li>}
         </ul>}
         <a href={startHref} className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>
-          Start learning <ArrowRight className="w-4 h-4"/>
+          {wanted ? `Start ${wanted.title}` : 'Start learning'} <ArrowRight className="w-4 h-4"/>
         </a>
       </div>
     </div>

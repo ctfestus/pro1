@@ -8,6 +8,8 @@ import {
   rememberPurchaseIntent,
   takePurchaseIntent,
   purchaseIntentHref,
+  rememberPurchaseItem,
+  purchaseItem,
 } from '@/lib/pending-purchase';
 
 function fakeStorage() {
@@ -124,6 +126,39 @@ describe('a plan length chosen before signing in', () => {
   it('survives the round trip through storage', () => {
     rememberPurchaseIntent(`?priceId=${PRICE}`);
     expect(takePurchaseIntent()).toEqual({ priceId: PRICE });
+    expect(takePurchaseIntent()).toBeNull();
+  });
+});
+
+// The item a plan was bought for, so the "You are in" screen opens it rather than the plan's first.
+describe('purchase item', () => {
+  const COURSE = '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c';
+
+  it('is read back, and stays readable (it is not single use)', () => {
+    rememberPurchaseItem('courses', COURSE);
+    expect(purchaseItem()).toEqual({ contentTable: 'courses', contentId: COURSE });
+    expect(purchaseItem()).toEqual({ contentTable: 'courses', contentId: COURSE });
+  });
+
+  it('refuses an unknown table or an id that is not one', () => {
+    rememberPurchaseItem('students', COURSE);
+    expect(purchaseItem()).toBeNull();
+    rememberPurchaseItem('courses', '../../admin');
+    expect(purchaseItem()).toBeNull();
+  });
+
+  it('expires after a week', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-01T00:00:00Z'));
+    rememberPurchaseItem('virtual_experiences', COURSE);
+    vi.setSystemTime(new Date('2026-11-07T23:00:00Z'));
+    expect(purchaseItem()).not.toBeNull();
+    vi.setSystemTime(new Date('2026-11-08T01:00:00Z'));
+    expect(purchaseItem()).toBeNull();
+  });
+
+  it('does not disturb the sign-in intent', () => {
+    rememberPurchaseItem('courses', COURSE);
     expect(takePurchaseIntent()).toBeNull();
   });
 });
