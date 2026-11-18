@@ -20,13 +20,15 @@
 import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Package, Play } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Package, Play, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { matchesSearch } from '@/lib/plain-text';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
@@ -64,10 +66,10 @@ const TYPE_LABEL: Record<CatalogueType, string> = {
 
 const ROW_TITLE: Record<CatalogueType, string> = {
   course:             'Courses',
-  learning_path:      'Learning Paths',
-  virtual_experience: 'Virtual Experiences',
+  learning_path:      'Learning paths',
+  virtual_experience: 'Virtual experiences',
   certification:      'Certifications',
-  book:               'Digital Products',
+  book:               'Digital products',
 };
 
 // Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
@@ -103,10 +105,10 @@ const ACCESS_FILTERS: { value: ExploreAccess; label: string }[] = [
 const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'all',                label: 'All content' },
   { value: 'course',             label: 'Courses' },
-  { value: 'learning_path',      label: 'Learning Paths' },
-  { value: 'virtual_experience', label: 'Virtual Experiences' },
+  { value: 'learning_path',      label: 'Learning paths' },
+  { value: 'virtual_experience', label: 'Virtual experiences' },
   { value: 'certification',      label: 'Certifications' },
-  { value: 'book',               label: 'Digital Products' },
+  { value: 'book',               label: 'Digital products' },
 ];
 
 function CategoryPill({ category }: { category: string }) {
@@ -160,6 +162,7 @@ export function ExploreSection({ C }: {
   const [error,   setError]   = useState('');
   const [filter,  setFilter]  = useState<'all' | CatalogueType>('all');
   const [access,  setAccess]  = useState<ExploreAccess>('all');
+  const [search,  setSearch]  = useState('');
 
   const { hover, open: openPreview, scheduleClose, cancelClose, close: closeHover } = useHoverPreview<CatalogueItem>();
 
@@ -187,13 +190,17 @@ export function ExploreSection({ C }: {
   // for a subscriber, who has everything unlocked, and hid the rest from everyone else. Anyone
   // who only wants what they can start now picks Free above, which is a choice they can see.
   const grouped = useMemo(
-    () => groupCatalogue(items, TYPE_ORDER, filter, access) as Map<CatalogueType, CatalogueItem[]>,
-    [items, filter, access],
+    () => groupCatalogue(items.filter(i => matchesSearch(search, i.title, i.description, i.category)), TYPE_ORDER, filter, access) as Map<CatalogueType, CatalogueItem[]>,
+    [items, filter, access, search],
   );
 
-  const pillStyle = C.page === LIGHT_C.page
-    ? { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }
-    : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
+  const isLight = C.page === LIGHT_C.page;
+  // White fields with a thin border that darkens on focus, like My Learning's search.
+  const fieldStyle = {
+    background: C.card,
+    ['--explore-line' as string]: C.cardBorder,
+    ['--explore-focus' as string]: isLight ? '#b6bcc6' : 'rgba(255,255,255,0.28)',
+  };
 
   const open = (item: CatalogueItem) => {
     closeHover();
@@ -215,41 +222,40 @@ export function ExploreSection({ C }: {
             says "these are not the same" without a word of explanation, and on a narrow screen
             it wraps below while still looking like its own thing. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
-          {FILTERS.map(f => {
-            const active = filter === f.value;
-            return (
-              <button
-                key={f.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => { setFilter(f.value); closeHover(); }}
-                className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
-                style={active
-                  ? { background: C.cta, color: C.ctaText }
-                  : pillStyle}
-              >
-                {f.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <label className="flex items-center gap-2 text-sm" style={{ color: C.muted }}>
-          <span className="font-semibold">Show</span>
+        {/* Type and access as two dropdowns on the left, search on the right. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={filter}
+            onChange={e => { setFilter(e.target.value as 'all' | CatalogueType); closeHover(); }}
+            aria-label="Content type"
+            className="cursor-pointer rounded-xl border border-[var(--explore-line)] px-3 py-2 text-sm outline-none focus-visible:!outline-none focus:border-[var(--explore-focus)]"
+            style={{ ...fieldStyle, color: C.text }}
+          >
+            {FILTERS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
           <select
             value={access}
             onChange={e => { setAccess(e.target.value as ExploreAccess); closeHover(); }}
-            className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
-            // The same resting style as the pills beside it, so it follows the mode rather than
-            // staying white on a dark page.
-            style={pillStyle}
+            aria-label="Show by access"
+            className="cursor-pointer rounded-xl border border-[var(--explore-line)] px-3 py-2 text-sm outline-none focus-visible:!outline-none focus:border-[var(--explore-focus)]"
+            style={{ ...fieldStyle, color: C.text }}
           >
             {ACCESS_FILTERS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
             ))}
           </select>
-        </label>
+        </div>
+
+        <div className="flex w-full items-center sm:w-auto">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--explore-line)] px-3 py-2 transition-colors focus-within:border-[var(--explore-focus)] sm:w-60 sm:flex-none"
+            style={fieldStyle}>
+            <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+            <input value={search} onChange={e => { setSearch(e.target.value); closeHover(); }} placeholder="Search the catalogue"
+              aria-label="Search the catalogue" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
+          </label>
+        </div>
         </div>
       </div>
 
@@ -322,6 +328,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   onHoverLeave: () => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const toolIcon = useToolIcons();
   const Icon = TYPE_ICON[type];
   const visibleItems = items.slice(0, visibleCount);
   const remaining = Math.max(0, items.length - visibleItems.length);
@@ -359,33 +366,34 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                 <>
                   <div
                     className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                    style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}
+                    style={{ background: coverUrl ? '#0b0b0d' : C.pill }}
                   >
                     {coverUrl
                       ? <img src={coverUrl} alt={item.title} loading="lazy"
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
-                      : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
-                          style={{ background: TYPE_GRAD[type] }}>
-                          {(() => { const Icon = TYPE_ICON[type]; return <Icon className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
+                      : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]">
+                          {/* No cover: the tool's logo on soft grey, or the type's icon. */}
+                          {item.category && toolIcon(item.category)
+                            ? <img src={toolIcon(item.category)!} alt="" className="h-12 w-12 object-contain" />
+                            : (() => { const Icon = TYPE_ICON[type]; return <Icon className="w-8 h-8" style={{ color: C.faint }} />; })()}
                         </div>
                     }
 
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                       style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
 
-                    {item.locked && (
-                      <span
-                        aria-label="Locked"
-                        className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
-                        style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
-                        <Lock className="w-3.5 h-3.5" />
+                    {item.category && (
+                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold"
+                        style={{ background: '#111111', color: '#ffffff' }}>
+                        {item.category}
                       </span>
                     )}
-
-                    <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
-                      style={{ background: 'white', color: '#101828' }}>
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
+                    {item.locked && (
+                      <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold"
+                        style={{ background: '#ffffff', color: '#111111' }}>
+                        <Lock className="h-3 w-3" /> Locked
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
@@ -394,11 +402,6 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   {item.locked && item.prices?.length ? (
                     <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
                   ) : null}
-                  {item.category && (
-                    <div className="mt-2">
-                      <CategoryPill category={item.category} />
-                    </div>
-                  )}
                 </>
               );
               return (
