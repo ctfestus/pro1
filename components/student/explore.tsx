@@ -20,7 +20,8 @@
 import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Package, Play, Search } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search } from 'lucide-react';
+import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
@@ -32,7 +33,6 @@ import { useToolIcons } from '@/lib/use-tool-icons';
 import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
-import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { formatMoney } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 
@@ -50,19 +50,9 @@ interface CatalogueItem {
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
   prices?: { currency: string; amount: number; original?: number }[];
-  /** Books only: the kind of product, e.g. "Template". */
-  productTypeLabel?: string;
   /** Books only: listed in the public store; otherwise the learner's copy is in My Books. */
   inStore?: boolean;
 }
-
-const TYPE_LABEL: Record<CatalogueType, string> = {
-  course:             'Course',
-  learning_path:      'Learning Path',
-  virtual_experience: 'Virtual Experience',
-  certification:      'Certification',
-  book:               'Digital Product',
-};
 
 const ROW_TITLE: Record<CatalogueType, string> = {
   course:             'Courses',
@@ -96,6 +86,8 @@ const TYPE_ICON: Record<CatalogueType, ElementType> = {
 
 // What a learner can open now, versus what a plan would open. Two different questions from the
 // type filter, so a separate control rather than more entries in the same row.
+const ACCESS_ICON: Record<ExploreAccess, ElementType> = { all: Globe, free: Gift, paid: Lock };
+
 const ACCESS_FILTERS: { value: ExploreAccess; label: string }[] = [
   { value: 'all',  label: 'All access' },
   { value: 'free', label: 'Free' },
@@ -110,18 +102,6 @@ const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'certification',      label: 'Certifications' },
   { value: 'book',               label: 'Digital products' },
 ];
-
-function CategoryPill({ category }: { category: string }) {
-  const color = categoryColor(category);
-  return (
-    <span
-      className="inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-bold leading-none"
-      style={{ background: color, color: CATEGORY_TEXT }}
-    >
-      <span className="truncate">{category}</span>
-    </span>
-  );
-}
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
 // Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
@@ -222,30 +202,14 @@ export function ExploreSection({ C }: {
             says "these are not the same" without a word of explanation, and on a narrow screen
             it wraps below while still looking like its own thing. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Type and access as two dropdowns on the left, search on the right. */}
+        {/* Type and access as two menus on the left, search on the right. */}
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={filter}
-            onChange={e => { setFilter(e.target.value as 'all' | CatalogueType); closeHover(); }}
-            aria-label="Content type"
-            className="cursor-pointer rounded-xl border border-[var(--explore-line)] px-3 py-2 text-sm outline-none focus-visible:!outline-none focus:border-[var(--explore-focus)]"
-            style={{ ...fieldStyle, color: C.text }}
-          >
-            {FILTERS.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-          <select
-            value={access}
-            onChange={e => { setAccess(e.target.value as ExploreAccess); closeHover(); }}
-            aria-label="Show by access"
-            className="cursor-pointer rounded-xl border border-[var(--explore-line)] px-3 py-2 text-sm outline-none focus-visible:!outline-none focus:border-[var(--explore-focus)]"
-            style={{ ...fieldStyle, color: C.text }}
-          >
-            {ACCESS_FILTERS.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
+          <MenuSelect label="Content type" value={filter} C={C}
+            options={FILTERS.map(f => ({ ...f, icon: f.value === 'all' ? LayoutGrid : TYPE_ICON[f.value] }))}
+            onChange={v => { setFilter(v); closeHover(); }} />
+          <MenuSelect label="Show by access" value={access} C={C}
+            options={ACCESS_FILTERS.map(f => ({ ...f, icon: ACCESS_ICON[f.value] }))}
+            onChange={v => { setAccess(v); closeHover(); }} />
         </div>
 
         <div className="flex w-full items-center sm:w-auto">
@@ -384,7 +348,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
 
                     {item.category && (
                       <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold"
-                        style={{ background: '#111111', color: '#ffffff' }}>
+                        style={{ background: '#3E93FF', color: '#ffffff' }}>
                         {item.category}
                       </span>
                     )}
@@ -569,9 +533,11 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             {(() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
           </div>
         )}
-        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
-          {item.type === 'book' && item.productTypeLabel ? item.productTypeLabel : TYPE_LABEL[item.type]}
-        </span>
+        {item.category && (
+          <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#3E93FF', color: '#ffffff' }}>
+            {item.category}
+          </span>
+        )}
         {item.locked && (
           <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
             <Lock className="w-3.5 h-3.5" />
@@ -588,11 +554,6 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: C.muted }}>
             {desc}
           </p>
-        )}
-        {item.category && (
-          <div className="mb-3">
-            <CategoryPill category={item.category} />
-          </div>
         )}
 
         {item.locked ? (
