@@ -35,6 +35,8 @@ export interface PlanPrice {
   discountValue: number | null;
   discountLabel: string | null;
   discountAmount: number;
+  /** When the running offer stops (ISO time); null with no offer or no end date. */
+  discountEndsAt: string | null;
   currency: string;
 }
 
@@ -48,6 +50,8 @@ export interface PlanWithPrices {
   id: string;
   name: string;
   description: string | null;
+  /** The one plan the seller puts in front of people (Best Value). */
+  recommended: boolean;
   prices: PlanPrice[];
   /** Present only when contents were requested. Capped; `contentCount` is the true total. */
   contents?: PlanContentItem[];
@@ -173,7 +177,7 @@ export async function loadPlansForContent(
 
   let priceQuery = db
     .from('subscription_plan_prices')
-    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at, discount_label)')
+    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id, recommended, discount_type, discount_value, discount_starts_at, discount_ends_at, discount_label)')
     .eq('is_active', true);
   if (allowedPlanIds) priceQuery = priceQuery.in('plan_id', allowedPlanIds);
   const { data: prices, error } = await priceQuery.order('sort_order').order('duration_months');
@@ -196,6 +200,7 @@ export async function loadPlansForContent(
       id: plan.id,
       name: plan.name,
       description: plan.description ?? null,
+      recommended: plan.recommended === true,
       prices: [],
     };
     const effective = effectiveSubscriptionPrice(row.amount, plan);
@@ -208,6 +213,7 @@ export async function loadPlansForContent(
       discountValue: effective.discountValue,
       discountLabel: effective.discountLabel,
       discountAmount: effective.discountAmount,
+      discountEndsAt: effective.discountType ? plan.discount_ends_at ?? null : null,
       currency: row.currency || 'GHS',
     });
     byPlan.set(plan.id, current);

@@ -28,6 +28,16 @@ export function formatMoney(currency: string, amount: number): string {
   return `${currency || 'GHS'} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
+/** When a running offer ends, if that is still ahead of `now`; null with no offer, no end date or no clock yet. */
+export function offerEndsAt(
+  price: { amount: number; listAmount?: number | null; discountEndsAt?: string | null } | null | undefined,
+  now: number | null,
+): number | null {
+  if (!price?.discountEndsAt || now === null || !(price.listAmount && price.listAmount > price.amount)) return null;
+  const end = Date.parse(price.discountEndsAt);
+  return Number.isFinite(end) && end > now ? end : null;
+}
+
 export function durationLabel(months: number): string {
   if (months === 12) return '1 year';
   return `${months} month${months > 1 ? 's' : ''}`;
