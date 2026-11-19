@@ -1,5 +1,7 @@
 import 'server-only';
+import { cache } from 'react';
 import type { Metadata } from 'next';
+import type { StoreInstructor } from '@/lib/books/store';
 import { adminClient } from '@/lib/admin-client';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { IMG_SOCIAL, socialImageUrl } from '@/lib/cloudinary-url';
@@ -44,15 +46,18 @@ export function shareImage(content: Pick<ShareContent, 'id' | 'type' | 'coverIma
   return brand;
 }
 
+/**
+ * The public item for a page, once per request: the link preview and the search data below both
+ * need it. A failed lookup must not take the page down with it; it just gets neither.
+ */
+const findSharedItem = cache((id: string, catalogueType: string | null) =>
+  findPublicCatalogueItem(adminClient(), id, catalogueType).catch(error => {
+    console.error('[share-metadata] lookup failed', error?.message ?? error);
+    return null;
+  }));
+
 export async function buildShareMetadata(id: string, catalogueType?: string | null): Promise<Metadata> {
-  // A failed lookup must not take the page down with it; it just gets no preview.
-  const [found, tenant] = await Promise.all([
-    findPublicCatalogueItem(adminClient(), id, catalogueType).catch(error => {
-      console.error('[share-metadata] lookup failed', error?.message ?? error);
-      return null;
-    }),
-    getTenantSettings(),
-  ]);
+  const [found, tenant] = await Promise.all([findSharedItem(id, catalogueType ?? null), getTenantSettings()]);
   // A missing public preview does not mean the route itself is missing. A signed-in learner may
   // still be allowed to open cohort-only content, and the client will replace this generic title
   // with the content title once that access-controlled row loads. Keep private metadata private,
@@ -107,5 +112,44 @@ export async function buildShareMetadata(id: string, catalogueType?: string | nu
       description: plainDescription,
       images: [image.url],
     },
+  };
+}
+
+/**
+ * schema.org Course data for a course or learning path page, so search results can show it with
+ * its provider, price and instructor. Built from the same public lookup as the link preview, so a
+ * crawler learns nothing a signed-out visitor is not shown; anything else gets none.
+ */
+export async function buildContentJsonLd(
+  id: string,
+  catalogueType: string | null,
+  instructor: StoreInstructor | null,
+): Promise<Record<string, unknown> | null> {
+  if (catalogueType !== 'course' && catalogueType !== 'learning_path') return null;
+  const [found, tenant] = await Promise.all([findSharedItem(id, catalogueType), getTenantSettings()]);
+  if (!found) return null;
+  const appUrl = normalizeAbsoluteBaseUrl(tenant.appUrl, process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL);
+  const record = found.record;
+  const description = String(record.description ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500);
+  // The same best value the page's price card leads with: lowest a month across the plans.
+  const prices = found.plans.flatMap(plan => plan.prices);
+  const best = prices.length
+    ? prices.reduce((a, b) => (b.amount / b.durationMonths < a.amount / a.durationMonths ? b : a))
+    : null;
+  const image = appUrl ? shareImage({ id: record.id, type: found.type, coverImage: record.cover_image ?? null }, appUrl).url : undefined;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: record.title ?? 'Untitled',
+    description: description || record.title || undefined,
+    url: appUrl ? `${appUrl}/${encodeURIComponent(id)}?catalogueType=${catalogueType}` : undefined,
+    image,
+    provider: { '@type': 'Organization', name: tenant.appName || undefined, sameAs: appUrl || undefined },
+    offers: found.locked
+      ? (best ? [{ '@type': 'Offer', category: 'Subscription', price: best.amount, priceCurrency: best.currency }] : undefined)
+      : [{ '@type': 'Offer', category: 'Free', price: 0, priceCurrency: best?.currency ?? 'GHS' }],
+    hasCourseInstance: instructor
+      ? [{ '@type': 'CourseInstance', courseMode: 'Online', instructor: [{ '@type': 'Person', name: instructor.name }] }]
+      : undefined,
   };
 }
