@@ -16,6 +16,8 @@ import {
 } from '@/lib/pricing-contract';
 import type { PurchasableContentTable } from '@/lib/subscription-plan-access';
 
+const RECOMMENDED_BORDER = '#FF9933';
+
 const KIND_LABEL: Record<PurchasableContentTable, string> = {
   courses: 'Courses',
   learning_paths: 'Learning paths',
@@ -95,7 +97,6 @@ export function PricingSection({
   plans,
   free,
   primaryColor,
-  accentColor,
   headingFont,
   bodyFont,
   signedIn,
@@ -158,7 +159,6 @@ export function PricingSection({
             now={now}
             hFont={hFont}
             primaryColor={primaryColor}
-            accentColor={accentColor}
             busy={busyPriceId}
             onBuy={buy}
           />
@@ -225,7 +225,7 @@ function OfferCountdown({ plan, price, end, now, hFont }: {
   );
 }
 
-function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, accentColor, busy, onBuy }: {
+function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onBuy }: {
   plan: PricingPlan;
   months: number | null;
   /** The Starter card is shown first, so this card lists what it adds to it. */
@@ -233,8 +233,6 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, accentCol
   now: number | null;
   hFont?: string;
   primaryColor: string;
-  /** The site's secondary accent: the recommended plan's border. */
-  accentColor: string;
   busy: string;
   onBuy: (price: PricingPlan['prices'][number]) => void;
 }) {
@@ -252,7 +250,8 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, accentCol
     <article
       className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7"
       style={plan.recommended
-        ? { borderTop: `4px solid ${accentColor}`, boxShadow: `inset 0 0 0 2px ${accentColor}, 0 18px 48px rgba(16,24,40,0.14)` }
+        // The recommended plan's border: a fixed orange, so it stands apart from the primary-coloured button.
+        ? { borderTop: `4px solid ${RECOMMENDED_BORDER}`, boxShadow: `inset 0 0 0 2px ${RECOMMENDED_BORDER}, 0 18px 48px rgba(16,24,40,0.14)` }
         : { borderTop: '4px solid #E4E7EC' }}
     >
       {plan.recommended && (
