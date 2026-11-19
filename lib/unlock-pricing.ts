@@ -24,6 +24,8 @@ export interface UnlockPlan {
   name: string;
   description?: string | null;
   prices?: UnlockPrice[];
+  /** How many courses, paths, experiences and certifications the plan opens. */
+  coverage?: Partial<Record<'courses' | 'learning_paths' | 'virtual_experiences' | 'certifications', number>>;
 }
 
 export type UnlockInfo = { plans?: UnlockPlan[] } | null | undefined;

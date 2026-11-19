@@ -53,6 +53,8 @@ export interface PlanWithPrices {
   /** The one plan the seller puts in front of people (Best Value). */
   recommended: boolean;
   prices: PlanPrice[];
+  /** How much of each kind the plan opens, from the pricing view. Present when only sellable plans were asked for. */
+  coverage?: Record<PurchasableContentTable, number>;
   /** Present only when contents were requested. Capped; `contentCount` is the true total. */
   contents?: PlanContentItem[];
   contentCount?: number;
@@ -224,10 +226,20 @@ export async function loadPlansForContent(
   if (options?.sellableOnly && plans.length) {
     const { data: sellable, error: sellableError } = await db
       .from('public_pricing_plans')
-      .select('plan_id')
+      .select('plan_id, courses, learning_paths, virtual_experiences, certifications')
       .in('plan_id', plans.map(plan => plan.id));
     if (sellableError) throw sellableError;
     const onSale = new Set((sellable ?? []).map((row: any) => row.plan_id));
+    // The same counts the pricing page shows, so the two never describe a plan differently.
+    for (const row of (sellable ?? []) as any[]) {
+      const plan = plans.find(item => item.id === row.plan_id);
+      if (plan) plan.coverage = {
+        courses: Number(row.courses ?? 0),
+        learning_paths: Number(row.learning_paths ?? 0),
+        virtual_experiences: Number(row.virtual_experiences ?? 0),
+        certifications: Number(row.certifications ?? 0),
+      };
+    }
     const keep = new Set(options.keepPlanIds ?? []);
     plans = plans.filter(plan => onSale.has(plan.id) || keep.has(plan.id));
   }
