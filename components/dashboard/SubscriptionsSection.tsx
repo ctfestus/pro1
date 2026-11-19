@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -37,6 +37,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { durationLabel, formatMoney } from "@/lib/pricing-offer";
 import {
   applyPlanContentChanges,
   describePlanContentResult,
@@ -160,6 +161,21 @@ async function authFetch(url: string, init?: RequestInit) {
   });
 }
 
+/** Live access: marked active and not past its end date. Used for every count and pill on the page. */
+function isLive(sub: any) {
+  return sub.status === "active" && daysRemaining(sub.current_period_end) >= 0;
+}
+
+/** What the page shows for a subscription: an active one past its end date has ended. */
+function shownStatus(sub: any) {
+  return sub.status === "active" && !isLive(sub) ? "expired" : sub.status;
+}
+
+/** Whether a payment request's deadline (a calendar date) has passed, judged in UTC as the server does. */
+function pastDeadline(dueDate?: string | null) {
+  return Boolean(dueDate) && new Date(`${dueDate}T23:59:59Z`).getTime() < Date.now();
+}
+
 function daysRemaining(value?: string | null) {
   return value
     ? Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000)
@@ -176,9 +192,8 @@ function dateLabel(value?: string | null) {
     : "--";
 }
 
-function money(currency: string, amount: number | string) {
-  return `${currency || "GHS"} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
+// The shared formatter, so this page and the pricing pages write amounts the same way.
+const money = (currency: string, amount: number | string) => formatMoney(currency, Number(amount));
 
 function planIsReady(plan: any) {
   return (
@@ -619,12 +634,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [bulkDefaults, setBulkDefaults] = useState(freshPayment);
   const [bulkResult, setBulkResult] = useState<any>(null);
   const [bulkError, setBulkError] = useState("");
+  const planContentTicket = useRef(0);
+  const [collected, setCollected] = useState<{ currency: string; online: number; recorded: number }[]>([]);
 
   async function loadPlanContent(id: string) {
+    const ticket = ++planContentTicket.current;
     const res = await authFetch(
       `/api/payments?action=subscription-plan-content&planId=${id}`,
     );
     const data = await res.json();
+    // Clicking between plans quickly: only the latest plan's answer may fill the picker.
+    if (ticket !== planContentTicket.current) return;
     if (!res.ok) throw new Error(data.error || "Failed to load plan content");
     setPlanContent(data.content ?? []);
     setSelectedContentKeys(
@@ -650,11 +670,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         listRes.json(),
         plansRes.json(),
         requestsRes.json(),
-        reviewRes.json(),
+        reviewRes.json().catch(() => null),
       ]);
       // Deliberately not fatal. The review list is a safety net, and failing to load it must not
       // take down the page an admin uses to run subscriptions.
-      if (reviewRes.ok) {
+      if (reviewRes.ok && reviewData) {
         setReviewQueue(reviewData.items ?? []);
         setSweepHeartbeat(reviewData.heartbeat ?? null);
       }
@@ -667,6 +687,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           requestsData.error || "Failed to load payment requests",
         );
       setSubscriptions(listData.subscriptions ?? []);
+      setCollected(listData.collected ?? []);
       setEligibleStudents(listData.eligibleStudents ?? []);
       setPlans(plansData.plans ?? []);
       setPaymentRequests(requestsData.requests ?? []);
@@ -692,6 +713,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     if (resolutionNote === null) return;
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -730,7 +752,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           .eq("status", "published")
           .order("title"),
       ),
-    ).then((results) =>
+    ).then((results) => {
+      const failed = results.find((result) => result.error);
+      if (failed) setError(`Could not load the content list: ${failed.error?.message}`);
       setContentOptions(
         results.flatMap((result, index) =>
           (result.data ?? []).map((item) => ({
@@ -738,22 +762,19 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             content_table: CONTENT_TYPES[index].value,
           })),
         ),
-      ),
-    );
+      );
+    });
   }, [tab]);
 
   const activePlans = plans.filter((p) => p.status === "active");
-  const active = subscriptions.filter(
-    (s) => s.status === "active" && daysRemaining(s.current_period_end) >= 0,
-  );
+  const active = subscriptions.filter(isLive);
   const awaitingReview = paymentRequests.filter(
     (r) => r.status === "confirmation_submitted",
   );
   const awaitingStudent = paymentRequests.filter((r) => r.status === "pending");
   const overdue = paymentRequests.filter(
     (r) =>
-      ["pending", "confirmation_submitted"].includes(r.status) &&
-      new Date(`${r.due_date}T23:59:59`).getTime() < Date.now(),
+      ["pending", "confirmation_submitted"].includes(r.status) && pastDeadline(r.due_date),
   );
   const expiring = active
     .filter((s) => daysRemaining(s.current_period_end) <= 30)
@@ -761,20 +782,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       (a, b) =>
         +new Date(a.current_period_end) - +new Date(b.current_period_end),
     );
-  const collectedByCurrency = paymentRequests
-    .filter((r) => r.status === "paid")
-    .reduce((totals: Record<string, number>, row) => {
-      const currency = String(row.currency || "GHS").toUpperCase();
-      totals[currency] = (totals[currency] || 0) + Number(row.amount);
-      return totals;
-    }, {});
-  const collectedEntries = Object.entries(collectedByCurrency);
-  const collectedValue = collectedEntries.length === 1
-    ? money(collectedEntries[0][0], collectedEntries[0][1])
-    : collectedEntries.length > 1 ? `${collectedEntries.length} currencies` : money("GHS", 0);
-  const collectedDetail = collectedEntries.length > 1
-    ? collectedEntries.map(([currency, amount]) => money(currency, amount)).join(" | ")
-    : "Approved requests";
+  // Every payment recorded this month (online checkouts and recorded payments), from the server.
+  const collectedValue = collected.length === 1
+    ? money(collected[0].currency, collected[0].online + collected[0].recorded)
+    : collected.length > 1 ? `${collected.length} currencies` : "None yet";
+  const collectedDetail = collected.length === 1
+    ? `Online ${money(collected[0].currency, collected[0].online)}, recorded ${money(collected[0].currency, collected[0].recorded)}`
+    : collected.length > 1
+      ? collected.map((row) => money(row.currency, row.online + row.recorded)).join(" | ")
+      : "Payments received this month";
   const filtered = useMemo(
     () =>
       subscriptions.filter((sub) => {
@@ -782,7 +798,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           `${sub.students?.full_name || ""} ${sub.students?.email || ""}`.toLowerCase();
         return (
           (!search || term.includes(search.toLowerCase())) &&
-          (statusFilter === "all" || sub.status === statusFilter) &&
+          (statusFilter === "all" || shownStatus(sub) === statusFilter) &&
           (planFilter === "all" || sub.plan_id === planFilter)
         );
       }),
@@ -884,7 +900,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   ) {
     setError("");
     setManageSub(sub);
-    setChangePlanId(sub.plan_id);
+    setChangePlanId("");
     setManageAction(action);
     setSubscriberMenu(null);
     resetPayment();
@@ -1092,9 +1108,13 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       reviewTarget.request.subscription_payment_confirmations?.find(
         (r: any) => r.status === "pending",
       );
-    if (!confirmation) return;
+    if (!confirmation) {
+      setError("This payment has no confirmation waiting for review. Reload the page to see its current state.");
+      return;
+    }
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1132,6 +1152,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       return;
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1164,6 +1185,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       return;
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1185,9 +1207,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   }
 
   async function changePlan() {
-    if (!manageSub || changePlanId === manageSub.plan_id) return;
+    if (!manageSub || !changePlanId || changePlanId === manageSub.plan_id) return;
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1222,6 +1245,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       return;
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1260,6 +1284,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/admin/delete-user", {
         method: "DELETE",
@@ -1282,16 +1307,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
   async function showHistory(sub: any) {
     setSubscriberMenu(null);
-    const res = await authFetch(
-      `/api/payments?action=subscription-history&studentId=${sub.student_id}`,
-    );
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || "Failed to load history");
-      return;
+    setError("");
+    try {
+      const res = await authFetch(
+        `/api/payments?action=subscription-history&studentId=${sub.student_id}`,
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load history");
+      setHistory(data.payments ?? []);
+      setHistoryOpen(true);
+    } catch (err: any) {
+      setError(err.message || "Could not load the payment history. Check your connection and try again.");
     }
-    setHistory(data.payments ?? []);
-    setHistoryOpen(true);
   }
 
   function openPlanBuilder() {
@@ -1313,7 +1340,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       newPlanDescription.trim() ||
       newPlanContentKeys.length ||
       newPlanDraftId ||
-      newPlanPrices.some((price) => price.amount || price.isActive || price.currency !== "GHS"),
+      newPlanPrices.some((price) => price.amount || price.isActive || price.currency !== "GHS") ||
+      JSON.stringify(newPlanDiscount) !== JSON.stringify(freshPlanDiscount()),
     );
   }
 
@@ -1538,6 +1566,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setUnsavedPlanDialog(null);
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -1808,6 +1837,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   async function savePlanContentSelection() {
     if (!selectedPlan) return;
     setBusy(true);
+    setError("");
+    setSuccess("");
     try {
       const current = new Set(
         planContent.map((item) => `${item.content_table}:${item.content_id}`),
@@ -1898,7 +1929,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         <input
           value={payment.currency}
           onChange={(e) =>
-            updatePayment((v) => ({ ...v, currency: e.target.value }))
+            updatePayment((v) => ({ ...v, currency: e.target.value.toUpperCase() }))
           }
           className={`${fieldClass} mt-2`}
           style={inputStyle}
@@ -2129,7 +2160,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     "#0284c7",
                   ],
                   [
-                    "Collected",
+                    "Collected this month",
                     collectedValue,
                     collectedDetail,
                     CircleDollarSign,
@@ -2200,9 +2231,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     {awaitingReview.slice(0, 5).map((request) => (
                       <button
                         key={request.id}
-                        onClick={() =>
-                          setReviewTarget({ request, decision: "approve" })
-                        }
+                        onClick={() => {
+                          setReviewNotes("");
+                          setReviewTarget({ request, decision: "approve" });
+                        }}
                         className="w-full flex items-center gap-3 rounded-xl p-3 text-left transition-colors"
                         style={{ background: C.page }}
                       >
@@ -2438,7 +2470,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           {sub.subscription_plans?.name}
                         </td>
                         <td className="px-5 py-4">
-                          <StatusPill status={sub.status} C={C} />
+                          <StatusPill status={shownStatus(sub)} C={C} />
                         </td>
                         <td className="px-5 py-4">
                           <p style={{ color: C.text }}>
@@ -2453,18 +2485,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             className="font-bold"
                             style={{
                               color:
-                                daysRemaining(sub.current_period_end) <= 7
+                                isLive(sub) && daysRemaining(sub.current_period_end) <= 7
                                   ? "#dc2626"
                                   : C.text,
                             }}
                           >
-                            {sub.status === "active"
-                              ? `${Math.max(0, daysRemaining(sub.current_period_end))} days`
+                            {isLive(sub)
+                              ? `${daysRemaining(sub.current_period_end)} days`
                               : "--"}
                           </span>
                         </td>
                         <td className="px-5 py-4" style={{ color: C.muted }}>
-                          {sub.duration_months} months
+                          {durationLabel(Number(sub.duration_months))}
                           <br />
                           <span className="text-xs">
                             {money(sub.currency, sub.amount)}
@@ -2510,7 +2542,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           {sub.subscription_plans?.name}
                         </p>
                       </div>
-                      <StatusPill status={sub.status} C={C} />
+                      <StatusPill status={shownStatus(sub)} C={C} />
                     </div>
                     <div
                       className="grid grid-cols-2 gap-3 mt-4 pt-4"
@@ -2769,8 +2801,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             className="text-xs mt-2"
                             style={{ color: C.muted }}
                           >
-                            {cart.plan_name} - {cart.duration_months} month
-                            {cart.duration_months === 1 ? "" : "s"} -{" "}
+                            {cart.plan_name} - {durationLabel(Number(cart.duration_months))} -{" "}
                             {money(cart.currency, cart.amount)}
                           </p>
                           <p
@@ -2807,9 +2838,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   const isOverdue =
                     ["pending", "confirmation_submitted"].includes(
                       request.status,
-                    ) &&
-                    new Date(`${request.due_date}T23:59:59`).getTime() <
-                      Date.now();
+                    ) && pastDeadline(request.due_date);
                   return (
                     <article
                       key={request.id}
@@ -3298,10 +3327,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
                               <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
                               <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
-                                {
-                                subscriptions.filter((s) => s.plan_id === plan.id)
-                                  .length
-                                }
+                                {subscriptions.filter((s) => s.plan_id === plan.id && isLive(s)).length}
                               </p>
                             </div>
                             <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
@@ -3937,7 +3963,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value.toUpperCase() }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 {bulkMode === "request" ? (
                   <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" min={earliestDeadline()} value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 ) : (
@@ -4622,13 +4648,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 className={fieldClass}
                 style={inputStyle}
               >
-                {activePlans.map((p) => (
+                <option value="" disabled>
+                  Choose a plan (now on {manageSub.subscription_plans?.name || "another plan"})
+                </option>
+                {activePlans.filter((p) => p.id !== manageSub.plan_id).map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
               <button
                 onClick={changePlan}
-                disabled={busy || changePlanId === manageSub.plan_id}
+                disabled={busy || !changePlanId || changePlanId === manageSub.plan_id}
                 className={`${primary} w-full`}
                 style={{ background: C.cta, color: C.ctaText }}
               >
@@ -4702,7 +4731,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               : "Reject payment confirmation"
           }
           eyebrow="Financial review"
-          onClose={() => setReviewTarget(null)}
+          onClose={() => {
+            setReviewTarget(null);
+            setReviewNotes("");
+          }}
           C={C}
           error={error}
         >
@@ -4732,7 +4764,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               >
                 <span>{reviewTarget.request.plan_name}</span>
                 <span className="text-right">
-                  {reviewTarget.request.duration_months} months
+                  {durationLabel(Number(reviewTarget.request.duration_months))}
                 </span>
               </div>
             </div>
@@ -4818,7 +4850,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     className="text-xs mt-2 capitalize"
                     style={{ color: C.muted }}
                   >
-                    {row.plan_name} - {row.duration_months} months - {row.kind}
+                    {row.plan_name} - {durationLabel(Number(row.duration_months))} - {row.kind}
                   </p>
                   {row.payment_reference && (
                     <p className="text-xs mt-1" style={{ color: C.faint }}>

@@ -34,6 +34,7 @@ import {
   createSubscriptionPaymentRequest,
   createSubscriptionPlan,
   deleteSubscriptionPlan,
+  getCollectedThisMonth,
   getEligibleSubscriptionStudents,
   getSubscriptionForStudent,
   getSubscriptionHistory,
@@ -319,7 +320,8 @@ export async function GET(req: NextRequest) {
         getSubscriptions(db, planIds),
         getEligibleSubscriptionStudents(db),
       ]);
-      return NextResponse.json({ subscriptions, eligibleStudents });
+      const collected = await getCollectedThisMonth(db, planIds === null ? null : subscriptions.map((row: any) => row.id));
+      return NextResponse.json({ subscriptions, eligibleStudents, collected });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscriptions' }, { status: 500 });
     }

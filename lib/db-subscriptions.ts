@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { provisionIndividualStudent } from '@/lib/provision-individual-student';
 import { notifySubscriptionActivatedBatch } from '@/lib/notify-subscription-activated';
 import { addToResendAudience } from '@/lib/resend-audience';
@@ -148,6 +149,36 @@ export async function getSubscriptions(db: SupabaseClient, planIds: string[] | n
   const { data, error } = await query.order('current_period_end', { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+export type CollectedTotal = { currency: string; online: number; recorded: number };
+
+/**
+ * Money received this calendar month (UTC), per currency, from every recorded subscription
+ * payment: Paystack checkouts (method "Paystack ...") count as online, everything else (approved
+ * confirmations, "Already paid", bulk) as recorded. `subscriptionIds` scopes it the way the
+ * subscription list is scoped; null means every subscription (an admin).
+ */
+export async function getCollectedThisMonth(db: SupabaseClient, subscriptionIds: string[] | null): Promise<CollectedTotal[]> {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  type Row = { amount: number | string; currency: string | null; payment_method: string | null };
+  const columns = 'amount, currency, payment_method';
+  const rows = subscriptionIds === null
+    ? await fetchAllRows<Row>((from, to) => db.from('subscription_payments').select(columns, { count: 'exact' })
+        .gte('paid_at', monthStart).order('id').range(from, to))
+    : await fetchAllRowsByIds<Row>(subscriptionIds, (ids, from, to) => db.from('subscription_payments').select(columns, { count: 'exact' })
+        .in('subscription_id', ids).gte('paid_at', monthStart).order('id').range(from, to));
+  const totals = new Map<string, CollectedTotal>();
+  for (const row of rows) {
+    const currency = String(row.currency || '').toUpperCase();
+    if (!currency) continue;
+    const total = totals.get(currency) ?? { currency, online: 0, recorded: 0 };
+    if (/^paystack/i.test(row.payment_method ?? '')) total.online += Number(row.amount) || 0;
+    else total.recorded += Number(row.amount) || 0;
+    totals.set(currency, total);
+  }
+  return [...totals.values()];
 }
 
 export async function getEligibleSubscriptionStudents(db: SupabaseClient) {
