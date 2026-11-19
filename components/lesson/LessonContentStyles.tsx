@@ -62,7 +62,9 @@ export function LessonContentStyles() {
 /* Sizes follow the Material 3 type scale: body large 16/24 for lesson text, headline medium,
    headline small and title large for headings, title medium 16 for block titles, and body medium
    14, label medium 12 and label small 11 for everything smaller. */
-.lesson-content { font-size: 16px; line-height: 24px; color: #3f3f46; }
+/* A ratio, not 24px: smaller text inside lesson blocks inherits this, and a fixed 24px gave 12px
+   labels double-height lines. 1.5 is 24px on the 16px body and scales down with the text. */
+.lesson-content { font-size: 16px; line-height: 1.5; color: #3f3f46; }
 .lesson-content.dark { color: #d4d4d8; }
 /* Brand accent for decorative interactive chrome (timeline dot, stepper marker/line/
    button, carousel check, glossary underline). --lesson-accent-base is set from the
