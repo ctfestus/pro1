@@ -119,7 +119,7 @@ export function ProjectPlan({
                     </span>
                     <span className={`flex-1 min-w-0 pt-2 ${hasNext ? 'pb-4' : 'pb-2'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                       <span className="block text-[13px] font-semibold leading-snug truncate"
-                        style={{ color: isCurr ? accentColor : locked ? faint : text }}>
+                        style={{ color: isCurr ? accentColor : locked ? faint : text, fontFamily: "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif" }}>
                         {lesson.title}
                       </span>
                       <span className="flex items-center gap-1 text-[11px] mt-px min-w-0"
