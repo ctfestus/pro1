@@ -743,26 +743,26 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
           color: ${phColor};
           pointer-events: none;
         }
-        .rich-editor { font-size: 1rem; line-height: 1.4; }
+        .rich-editor { font-size: 1rem; line-height: 1.5; }
         .rich-editor p { margin: 0 0 0.75rem; }
         .rich-editor p:last-child { margin-bottom: 0; }
-        .rich-editor ul { list-style: disc; padding-left: 1.4rem; margin: 0.4rem 0 0.75rem; }
-        .rich-editor ol { list-style: decimal; padding-left: 1.4rem; margin: 0.4rem 0 0.75rem; }
-        .rich-editor li { margin: 0.2rem 0; }
+        .rich-editor ul { list-style: disc; padding-left: 1.5rem; margin: 0.5rem 0 0.75rem; }
+        .rich-editor ol { list-style: decimal; padding-left: 1.5rem; margin: 0.5rem 0 0.75rem; }
+        .rich-editor li { margin: 0.25rem 0; }
         .rich-editor b, .rich-editor strong { font-weight: 700; }
         .rich-editor i, .rich-editor em { font-style: italic; }
         .rich-editor u { text-decoration: underline; }
         .rich-editor a { color: ${linkColor}; text-decoration: underline; }
         .rich-editor a:hover { opacity: 0.75; }
-        .rich-editor h2 { font-size: 1.75rem; font-weight: 700; margin: 1.25rem 0 0.4rem; letter-spacing: -0.02em; }
-        .rich-editor h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.3rem; letter-spacing: -0.01em; }
+        .rich-editor h2 { font-size: 1.375rem; line-height: 1.75rem; font-weight: 700; margin: 1.5rem 0 0.5rem; letter-spacing: -0.01em; }
+        .rich-editor h3 { font-size: 1rem; line-height: 1.5rem; font-weight: 600; margin: 1rem 0 0.5rem; }
         .rich-editor h2:first-child, .rich-editor h3:first-child { margin-top: 0; }
         .rich-editor code { font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.85em; background: ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}; color: ${dark ? '#86efac' : '#166534'}; border-radius: 4px; padding: 1px 5px; }
         .rich-editor pre { font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.85em; background: ${dark ? '#0f1120' : '#f1f3f8'}; color: ${dark ? '#c9d1d9' : '#1a1d2e'}; border-radius: 6px; padding: 12px 16px; margin: 0.75rem 0; overflow-x: auto; white-space: pre; }
         .rich-editor pre code { background: none; padding: 0; border-radius: 0; color: inherit; font-size: inherit; }
-        .rich-editor blockquote { border-left: 3px solid #10b981; padding-left: 0.875rem; margin: 0.75rem 0; color: ${dark ? '#a1a1aa' : '#444444'}; font-style: normal; }
+        .rich-editor blockquote { border-left: 3px solid #10b981; padding-left: 1rem; margin: 0.75rem 0; color: ${dark ? '#a1a1aa' : '#444444'}; font-style: normal; }
         .rich-editor table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
-        .rich-editor th, .rich-editor td { border: 1px solid ${dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}; padding: 6px 10px; text-align: left; min-width: 40px; }
+        .rich-editor th, .rich-editor td { border: 1px solid ${dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}; padding: 8px 12px; text-align: left; min-width: 40px; }
         .rich-editor th { font-weight: 700; background: ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}; }
         .rich-editor a.email-button { display: inline-block; background: ${buttonColor}; color: ${textOn(buttonColor)}; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 8px; cursor: default; }
         .rich-editor a.email-button:hover { opacity: 1; }
