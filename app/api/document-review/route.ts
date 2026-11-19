@@ -5,9 +5,9 @@ import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions, taskInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
-import { resolveReviewItem, reviewMinScore, reviewRubric, reviewText } from '@/lib/review-target';
+import { resolveReviewItem, reviewMinScore, reviewRubric, reviewTask, reviewText } from '@/lib/review-target';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
 import { withTimeout, EXTRACTION_TIMEOUT_MS } from '@/lib/excel-workbook-extract';
 
@@ -27,29 +27,24 @@ const SUPPORTED_MIME: Record<string, string> = {
 const FINDINGS = { key: 'sections', fields: ['name', 'severity', 'title', 'detail', 'recommendation'] };
 
 
-const SYSTEM_PROMPT = `You are a panel of senior business consultants and strategy advisors -- a Strategy Partner, a Management Consultant, a Corporate Finance Director, a Market Research Lead, and a Business Writing Coach -- each with 15+ years of experience reviewing strategy and business reports across African markets including banking, fintech, FMCG, telecoms, retail, healthcare, manufacturing, agriculture, and public sector.
+const SYSTEM_PROMPT = `You are an experienced reviewer of professional and academic documents and a patient mentor. You review student-submitted documents in whatever subject they are written in.
 
-You review student-submitted business and strategy reports with the rigour of a senior consultant and the clarity of a patient mentor who understands real-world African business contexts.
+Review the document across four categories (score each 0-100):
 
-Review the document across five categories (score each 0-100):
+1. Meets the brief
+   Does the document do what the task and context ask, completely and for the intended reader?
 
-1. Strategic Analysis Quality
-   Depth and accuracy of the situation analysis, SWOT/PESTEL/Porter's or equivalent frameworks. Are insights specific and evidence-based or generic and superficial? Does the student show command of the strategic environment?
+2. Accuracy and evidence
+   Are facts, figures and claims correct and supported, rather than assumed?
 
-2. Market Research & Evidence
-   Quality of data cited, research rigor, relevance to the African/local context, use of credible sources. Are claims backed by facts or assumed?
+3. Analysis and reasoning
+   Does it go beyond description, with sound logic and conclusions that follow from what it shows?
 
-3. Recommendations & Actionability
-   Are the recommendations specific, prioritised, financially grounded, and implementable? Do they follow logically from the analysis? Are risks and trade-offs considered?
-
-4. Financial Viability (if applicable)
-   Soundness of any financial projections, cost-benefit analysis, or valuation. If no financials are present, score this category based on whether the student addresses resource requirements and budget implications.
-
-5. Structure, Clarity & Professionalism
-   Report organisation (executive summary, body, conclusion), flow of argument, use of headings, grammar, tone, and overall presentation quality.
+4. Structure and clarity
+   Organisation, flow of argument, headings, grammar and tone suited to the reader.
 
 For each section-level issue provide:
-- name: which section it falls under (e.g. "Executive Summary", "Market Analysis", "Financial Projections")
+- name: which section it falls under (e.g. "Introduction", "Section 2", "Conclusion")
 - severity: "critical" (major gap that undermines the report), "improvement" (notable weakness), or "suggestion" (refinement opportunity)
 - title: short specific issue name
 - detail: 1-2 sentences explaining the problem
@@ -128,7 +123,7 @@ export async function POST(req: NextRequest) {
     // the rubric, and most rubrics are not about a strategy report at all.
     const instructions = rubric.length > 0
       ? `You are an experienced instructor marking a student's submitted document against the instructor's rubric.\n${contextBlock}\n${rubricInstructions(rubric, 'the section or page of the document')}`
-      : `${SYSTEM_PROMPT}${contextBlock}`;
+      : `${SYSTEM_PROMPT}${contextBlock}\n${taskInstructions(reviewTask(resolved.item))}`;
     const promptText = `${instructions}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nReview the attached document.`;
     const schema = reviewSchema({ findings: FINDINGS, hasRubric: rubric.length > 0 });
 

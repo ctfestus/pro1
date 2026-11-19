@@ -1,14 +1,14 @@
 
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS, RUBRIC_GRADES, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, RUBRIC_GRADES, reviewSchema, rubricInstructions, taskInstructions } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation } from '@/lib/ai-feature-gate';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
 import { UNGRADED_COMMENT, collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
-import { loadReviewItem } from '@/lib/review-target';
+import { loadReviewItem, reviewTask } from '@/lib/review-target';
 import {
   normalizeExcelReviewConfig,
   parseExcelReviewTarget,
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 // A review on a thinking model can run past the platform default; without this it is cut off mid-call.
 export const maxDuration = 120;
 
-async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget): Promise<ExcelReviewConfig | NextResponse> {
+async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget): Promise<(ExcelReviewConfig & { task: string }) | NextResponse> {
   const item = await loadReviewItem(auth, target, 'excel_review');
   if (!item) return NextResponse.json({ error: 'Excel review activity not found.' }, { status: 404 });
 
@@ -29,7 +29,7 @@ async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget):
   if (config.sheetNameError) {
     return NextResponse.json({ error: `The instructor's worksheet configuration is invalid: ${config.sheetNameError}` }, { status: 400 });
   }
-  return config;
+  return { ...config, task: reviewTask(item) };
 }
 
 
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
     const storedConfig = await resolveReviewConfig(auth, reviewTarget);
     if (storedConfig instanceof NextResponse) return storedConfig;
-    const { context, rubric, minScore, reviewSheetNames } = storedConfig;
+    const { context, rubric, minScore, reviewSheetNames, task } = storedConfig;
 
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     const hasRubric = rubric.length > 0;
     const instructions = hasRubric
       ? `${RUBRIC_PROMPT}\n${contextBlock}${sheetBlock}\n${rubricInstructions(rubric, 'the cell or range, e.g. "B5" or "Sheet1!C12:C20"')}\n\n${RUBRIC_EVIDENCE}\n`
-      : `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}`;
+      : `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}\n${taskInstructions(task)}`;
     const prompt = `${instructions}${truncationBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
     const schema = reviewSchema({ findings: FINDINGS, hasRubric });
