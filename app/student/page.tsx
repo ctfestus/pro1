@@ -766,7 +766,8 @@ export default function StudentDashboard() {
             {isMyLearning && user && (
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 {/* Grey pill track, the open tab in white. */}
-                <div role="tablist" aria-label="My Learning sections" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl p-1"
+                {/* On a phone the three tabs share the width, so none sits off-screen. */}
+                <div role="tablist" aria-label="My Learning sections" className="grid w-full grid-cols-3 gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto sm:max-w-full sm:overflow-x-auto"
                   style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#E8EBF0' }}>
                   {([
                     { id: 'courses', label: 'Courses' },
@@ -780,7 +781,7 @@ export default function StudentDashboard() {
                         role="tab"
                         aria-selected={selected}
                         onClick={() => { setLearningSearch(''); goSection(id); }}
-                        className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm transition-colors ${selected ? 'font-semibold' : 'font-normal'}`}
+                        className={`rounded-lg px-2 py-2 text-center text-sm leading-5 transition-colors sm:whitespace-nowrap sm:px-4 ${selected ? 'font-semibold' : 'font-normal'}`}
                         style={{
                           background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
                           color: selected ? C.text : C.muted,

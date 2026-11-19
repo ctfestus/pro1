@@ -2021,7 +2021,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       </section>
 
       <nav
-        className="grid grid-cols-5 gap-1 p-2 rounded-2xl w-full"
+        className="grid grid-cols-3 sm:grid-cols-5 gap-1 p-2 rounded-2xl w-full"
         style={{ background: C.card }}
       >
         {(
@@ -2036,7 +2036,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="relative min-w-0 inline-flex items-center justify-center gap-2 sm:gap-2 rounded-xl px-2 sm:px-4 py-3 text-[11px] sm:text-sm font-bold transition-all"
+            className="relative min-w-0 inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl px-2 sm:px-4 py-3 text-[11px] sm:text-sm font-bold transition-all"
             style={{
               background: tab === id ? C.pill : "transparent",
               color: tab === id ? C.text : C.muted,

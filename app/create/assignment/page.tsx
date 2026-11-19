@@ -690,8 +690,9 @@ export default function CreateAssignmentPage() {
 
       <main style={{ maxWidth: 1040, margin: '0 auto', padding: '28px 24px 120px' }}>
         <section style={{ ...studioPanelStyle, padding: 0, overflow: 'hidden', marginBottom: 0, borderRadius: '20px 20px 0 0', borderBottom: 'none', boxShadow: 'none' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '20px 24px 14px' }}>
-            <div style={{ minWidth: 0 }}>
+          {/* Wraps on a phone: the actions drop under the title instead of squeezing it to a few letters. */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '20px 24px 14px' }}>
+            <div style={{ minWidth: 0, flex: '1 1 220px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ position: 'relative', width: 10, height: 10, display: 'grid', placeItems: 'center' }} aria-hidden="true">
                   <span className="animate-ping" style={{ position: 'absolute', width: 10, height: 10, borderRadius: '50%', background: C.cta, opacity: .2 }}/>
