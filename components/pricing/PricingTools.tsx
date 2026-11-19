@@ -1,30 +1,21 @@
 'use client';
 
-// "The tools you will learn": the site's hero image beside a tile for each tool the published
-// catalogue teaches. A tool gets a tile when it has a logo (the built-in set or one uploaded in
-// Tool icons) and its name appears in a published course's or path's title or category. Each tile
-// opens the list of those courses and paths, linked the way the home page links them.
+// "The tools you will learn": the site's hero image beside two rows of tool tiles. A tile whose tool
+// is named in a published course's or path's title or category opens the list of those items,
+// linked the way the home page links them; the others are shown as tools on the programme.
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useToolIconMap } from '@/lib/use-tool-icons';
-import { resolveToolIcon } from '@/lib/tool-icons';
+import { Eye } from 'lucide-react';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import { landingHref } from '@/lib/landing-href';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 
-type Tile = { key: string; label: string; icon: string; items: ProgrammeItem[] };
+// The data tools, then the AI tools. Logos come from Tool icons, so an uploaded one replaces the default.
+const TOOLS = ['Excel', 'Power BI', 'SQL', 'ChatGPT', 'Claude', 'Perplexity AI'];
 
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function countLabel(items: ProgrammeItem[]) {
-  const courses = items.filter(item => item.type === 'course').length;
-  const paths = items.filter(item => item.type === 'path').length;
-  return [
-    courses ? `${courses} ${courses === 1 ? 'course' : 'courses'}` : '',
-    paths ? `${paths} ${paths === 1 ? 'path' : 'paths'}` : '',
-  ].filter(Boolean).join(', ');
 }
 
 export function PricingTools({ programmes, imageUrl, user, hFont }: {
@@ -33,36 +24,23 @@ export function PricingTools({ programmes, imageUrl, user, hFont }: {
   user: unknown;
   hFont?: string;
 }) {
-  const icons = useToolIconMap();
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const toolIcon = useToolIcons();
+  const [openName, setOpenName] = useState<string | null>(null);
 
   const tiles = useMemo(() => {
     const items = programmes.filter(item => item.type === 'course' || item.type === 'path');
-    const seenIcons = new Set<string>();
-    const found: Tile[] = [];
-    for (const key of Object.keys(icons)) {
-      const icon = resolveToolIcon(icons, key);
-      // Two names can share one logo ("azure" and "microsoft azure"); one tile is enough.
-      if (!icon || seenIcons.has(icon)) continue;
-      const pattern = new RegExp(`(^|[^a-z0-9])(${escapeRegExp(key).replace(/ /g, '\\s+')})(?![a-z0-9])`, 'i');
-      const matches = items.map(item => ({ item, match: pattern.exec(`${item.title} ${item.category ?? ''}`) }))
-        .filter(row => row.match);
-      if (!matches.length) continue;
-      seenIcons.add(icon);
-      // Named as the catalogue writes it ("SQL", "Claude"), from the first title that mentions it.
-      found.push({ key, label: matches[0].match![2], icon, items: matches.map(row => row.item) });
-    }
-    // Most taught first, so the strongest tools lead.
-    return found.sort((a, b) => b.items.length - a.items.length || a.label.localeCompare(b.label));
-  }, [programmes, icons]);
+    return TOOLS.map(name => {
+      const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(name).replace(/ /g, '\\s+')}(?![a-z0-9])`, 'i');
+      return { name, icon: toolIcon(name), items: items.filter(item => pattern.test(`${item.title} ${item.category ?? ''}`)) };
+    });
+  }, [programmes, toolIcon]);
 
-  if (!tiles.length) return null;
-  const open = tiles.find(tile => tile.key === openKey) ?? null;
+  const open = tiles.find(tile => tile.name === openName && tile.items.length) ?? null;
 
   return (
     <section className="mt-14 grid gap-4 lg:grid-cols-2" aria-labelledby="pricing-tools-heading">
       {imageUrl && (
-        <div className="relative min-h-64 overflow-hidden rounded-[26px]" style={{ background: '#E8ECF1' }}>
+        <div className="relative min-h-72 overflow-hidden rounded-[26px]" style={{ background: '#E8ECF1' }}>
           <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         </div>
       )}
@@ -73,22 +51,35 @@ export function PricingTools({ programmes, imageUrl, user, hFont }: {
         <p className="mt-2 text-sm" style={{ color: '#667085' }}>Pick a tool to see the courses and paths that teach it.</p>
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {tiles.map(tile => {
-            const selected = tile.key === openKey;
+            const selected = tile.name === openName;
+            const body = <>
+              {tile.icon
+                ? <img src={tile.icon} alt="" className="h-14 w-14 object-contain" loading="lazy" />
+                : <span className="h-14 w-14" />}
+              <span className="text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{tile.name}</span>
+            </>;
+            const tileClass = 'flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl px-3 py-5 text-center';
+            // A tool with nothing published to open yet is shown, not offered as a link.
+            if (!tile.items.length) {
+              // The empty line keeps every name on the same row as the tiles that say Learn more.
+              return <div key={tile.name} className={tileClass} style={{ background: '#F7F9FB' }}>{body}<span aria-hidden="true" className="h-5" /></div>;
+            }
             return (
-              <button key={tile.key} type="button" aria-expanded={selected} aria-controls="pricing-tool-list"
-                onClick={() => setOpenKey(selected ? null : tile.key)}
-                className="flex flex-col items-center gap-2 rounded-2xl px-3 py-4 text-center transition-colors"
+              <button key={tile.name} type="button" aria-expanded={selected} aria-controls="pricing-tool-list"
+                onClick={() => setOpenName(selected ? null : tile.name)}
+                className={`${tileClass} transition-colors`}
                 style={{ background: selected ? '#EEF1F5' : '#F7F9FB', boxShadow: selected ? 'inset 0 0 0 2px #101828' : 'none' }}>
-                <img src={tile.icon} alt="" className="h-10 w-10 object-contain" loading="lazy" />
-                <span className="text-sm font-black" style={{ color: '#101828' }}>{tile.label}</span>
-                <span className="text-xs" style={{ color: '#667085' }}>{countLabel(tile.items)}</span>
+                {body}
+                <span className="inline-flex items-center gap-1 text-sm font-bold" style={{ color: '#475467' }}>
+                  <Eye className="h-4 w-4" /> Learn more
+                </span>
               </button>
             );
           })}
         </div>
         {open && (
           <div id="pricing-tool-list" className="mt-4 rounded-2xl p-4" style={{ background: '#F7F9FB' }}>
-            <p className="text-sm font-black" style={{ color: '#101828' }}>{open.label}</p>
+            <p className="text-sm font-black" style={{ color: '#101828' }}>{open.name}</p>
             <ul className="mt-2 space-y-2">
               {open.items.map(item => (
                 <li key={`${item.type}:${item.id}`}>
