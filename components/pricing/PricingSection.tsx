@@ -16,7 +16,7 @@ import {
 } from '@/lib/pricing-contract';
 import type { PurchasableContentTable } from '@/lib/subscription-plan-access';
 
-// The Best Value gold: the ribbon, the recommended plan's border and the offer countdown's edge.
+// The Best Value gold: the ribbon, the recommended plan's border and the offer strip's edge.
 const BEST_VALUE_GOLD = '#F5D77A';
 
 const KIND_LABEL: Record<PurchasableContentTable, string> = {
@@ -122,24 +122,21 @@ export function PricingSection({
     if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
   };
 
-  // The countdown follows the first plan (recommended first) whose chosen length is on an offer
-  // that ends at a known time.
-  const countdown = plans
+  // The offer strip follows the first plan (recommended first) whose chosen length is on an offer.
+  // It shows whenever one runs; the countdown joins it when the offer has an end date.
+  const offer = plans
     .map(plan => {
       const price = priceForLength(plan.prices, selectedDuration);
-      const end = offerEnd(price, now);
-      return price && end ? { plan, price, end } : null;
+      return price && price.listAmount && price.listAmount > price.amount ? { plan, price, end: offerEnd(price, now) } : null;
     })
     .find(Boolean) ?? null;
 
   return (
     <section id="pricing-plans" className="relative z-20 -mt-16 scroll-mt-24" style={{ fontFamily: bFont }}>
-      {countdown && now !== null && (
-        <OfferCountdown plan={countdown.plan} price={countdown.price} end={countdown.end} now={now} hFont={hFont} />
-      )}
+      {offer && <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} hFont={hFont} />}
 
       {forItem && (
-        <p className={`${countdown ? 'mt-4' : ''} rounded-2xl bg-white px-5 py-4 text-sm leading-6`} style={{ color: '#5F6B7A' }}>
+        <p className={`${offer ? 'mt-4' : ''} rounded-2xl bg-white px-5 py-4 text-sm leading-6`} style={{ color: '#5F6B7A' }}>
           {plans.length === 1 ? 'The plan that includes' : 'Plans that include'}{' '}
           <span className="font-bold" style={{ color: '#101828' }}>{forItem.title}</span>.{' '}
           <button type="button" onClick={forItem.onShowAll} className="font-bold underline-offset-4 hover:underline" style={{ color: primaryColor }}>
@@ -148,7 +145,7 @@ export function PricingSection({
         </p>
       )}
 
-      <div className={`${countdown || forItem ? 'mt-4' : ''} grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3`}>
+      <div className={`${offer || forItem ? 'mt-4' : ''} grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3`}>
         {/* The free tier does not open a locked item, so it is not offered as one of its plans. */}
         {!forItem && <FreePlanCard free={free} signedIn={signedIn} hFont={hFont} />}
         {plans.map(plan => (
@@ -184,14 +181,15 @@ export function PricingSection({
   );
 }
 
-function OfferCountdown({ plan, price, end, now, hFont }: {
+function OfferStrip({ plan, price, end, now, hFont }: {
   plan: PricingPlan;
   price: PricingPlan['prices'][number];
-  end: number;
-  now: number;
+  /** When the offer stops, or null when it has no end date (or the clock has not been read yet). */
+  end: number | null;
+  now: number | null;
   hFont?: string;
 }) {
-  const left = Math.max(0, end - now);
+  const left = end !== null && now !== null ? Math.max(0, end - now) : 0;
   const parts = [
     { value: Math.floor(left / 86_400_000), unit: 'days' },
     { value: Math.floor(left / 3_600_000) % 24, unit: 'hrs' },
@@ -213,7 +211,7 @@ function OfferCountdown({ plan, price, end, now, hFont }: {
           <span className="font-bold" style={{ color: '#101828' }}>{money(price.currency, price.amount)}</span> for {durationLabel(price.durationMonths)}
         </p>
       </div>
-      <div className="flex items-center gap-2" role="timer" aria-label={`Offer ends in ${parts[0].value} days ${parts[1].value} hours`}>
+      {end !== null && <div className="flex items-center gap-2" role="timer" aria-label={`Offer ends in ${parts[0].value} days ${parts[1].value} hours`}>
         <span className="mr-1 text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: '#667085' }}>Ends in</span>
         {parts.map(part => (
           <span key={part.unit} className="min-w-12 rounded-lg px-2 py-1 text-center" style={{ background: '#101828', color: '#FFFFFF' }}>
@@ -221,7 +219,7 @@ function OfferCountdown({ plan, price, end, now, hFont }: {
             <span className="block text-[11px]" style={{ color: 'rgba(255,255,255,0.72)' }}>{part.unit}</span>
           </span>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
