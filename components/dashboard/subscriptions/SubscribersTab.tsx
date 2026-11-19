@@ -1,6 +1,7 @@
 'use client';
 
 import { MoreHorizontal, Search } from 'lucide-react';
+import { MenuSelect } from '@/components/MenuSelect';
 import { durationLabel } from '@/lib/pricing-offer';
 import type { ThemeColors } from '@/lib/theme';
 import {
@@ -105,18 +106,13 @@ export function SubscribersTab({
             );
           })}
           {plans.length > 1 && (
-            <select
+            <MenuSelect
+              label="Filter by plan"
               value={planFilter}
-              onChange={(event) => setPlanFilter(event.target.value)}
-              aria-label="Filter by plan"
-              className="h-8 px-3 rounded-full text-xs font-semibold outline-none"
-              style={{ background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` }}
-            >
-              <option value="all">All plans</option>
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>{plan.name}</option>
-              ))}
-            </select>
+              options={[{ value: 'all', label: 'All plans' }, ...plans.map((plan) => ({ value: plan.id as string, label: plan.name as string }))]}
+              onChange={setPlanFilter}
+              C={C}
+            />
           )}
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import {
-  Archive, Award, BookOpen, Briefcase, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus, Route, Search,
+  Archive, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus, Search,
   ShieldCheck, Star, Tag, Trash2,
 } from 'lucide-react';
 import type { ThemeColors } from '@/lib/theme';
@@ -11,11 +11,11 @@ import {
 } from './ui';
 import type { PlanSummary } from './types';
 
-const TYPES: { table: string; label: string; plural: string; icon: ReactNode }[] = [
-  { table: 'courses', label: 'Course', plural: 'Courses', icon: <BookOpen className="w-4 h-4" /> },
-  { table: 'virtual_experiences', label: 'Virtual experience', plural: 'Virtual experiences', icon: <Briefcase className="w-4 h-4" /> },
-  { table: 'certifications', label: 'Certification', plural: 'Certifications', icon: <Award className="w-4 h-4" /> },
-  { table: 'learning_paths', label: 'Learning path', plural: 'Learning paths', icon: <Route className="w-4 h-4" /> },
+const TYPES: { table: string; label: string; plural: string }[] = [
+  { table: 'courses', label: 'Course', plural: 'Courses' },
+  { table: 'virtual_experiences', label: 'Virtual experience', plural: 'Virtual experiences' },
+  { table: 'certifications', label: 'Certification', plural: 'Certifications' },
+  { table: 'learning_paths', label: 'Learning path', plural: 'Learning paths' },
 ];
 
 function planStatus(plan: any, C: ThemeColors) {
@@ -266,17 +266,19 @@ export function PlansTab({
 
               {!pickerOpen && (
                 planContent.length ? (
-                  <div className="grid md:grid-cols-2 gap-2">
-                    {planContent.map((item) => {
+                  <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+                    {planContent.map((item, index) => {
                       const type = TYPES.find((row) => row.table === item.content_table);
                       return (
-                        <div key={`${item.content_table}:${item.content_id}`} className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.page }}>
-                          <IconChip color={C.cta} background={P.ctaSoft}>{type?.icon ?? <Layers3 className="w-4 h-4" />}</IconChip>
-                          <Lines
-                            C={C}
-                            title={<span className="truncate">{titles.get(`${item.content_table}:${item.content_id}`) ?? 'Unpublished item'}</span>}
-                            sub={type?.label ?? 'Content'}
-                          />
+                        <div
+                          key={`${item.content_table}:${item.content_id}`}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                          style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}
+                        >
+                          <span className="text-sm font-semibold truncate" style={{ color: C.text }}>
+                            {titles.get(`${item.content_table}:${item.content_id}`) ?? 'Unpublished item'}
+                          </span>
+                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{type?.label ?? 'Content'}</span>
                         </div>
                       );
                     })}
@@ -332,8 +334,8 @@ export function PlansTab({
                             {allSelected ? 'Clear group' : 'Select all'}
                           </button>
                         </div>
-                        <div className="grid md:grid-cols-2 gap-2">
-                          {items.map((item) => {
+                        <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+                          {items.map((item, index) => {
                             const key = `${item.content_table}:${item.id}`;
                             const selected = selectedContentKeys.includes(key);
                             return (
@@ -342,8 +344,8 @@ export function PlansTab({
                                 type="button"
                                 onClick={() => toggleContentKey(key)}
                                 aria-pressed={selected}
-                                className="flex items-center gap-3 rounded-xl px-3 py-3 text-left"
-                                style={{ background: selected ? P.ctaSoft : C.page, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                                style={{ background: selected ? P.ctaSoft : 'transparent', borderTop: index ? `1px solid ${C.divider}` : undefined }}
                               >
                                 <span
                                   className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"

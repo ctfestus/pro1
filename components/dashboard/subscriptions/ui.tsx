@@ -231,3 +231,32 @@ export function reviewTitle(item: any) {
   const reason = String(item.reason || 'review required').replaceAll('_', ' ');
   return reason.charAt(0).toUpperCase() + reason.slice(1);
 }
+
+/** A choice drawn as a card with an icon, a title, a line of detail and a radio mark. */
+export function OptionCard({ selected, onClick, icon, title, sub, C }: {
+  selected: boolean; onClick: () => void; icon: ReactNode; title: string; sub: string; C: ThemeColors;
+}) {
+  const P = palette(C);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onClick}
+      className="flex items-start gap-3 rounded-2xl p-4 text-left"
+      style={{ background: selected ? P.ctaSoft : C.page, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}
+    >
+      <IconChip color={selected ? C.cta : C.muted} background={selected ? C.card : C.pill}>{icon}</IconChip>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold" style={{ color: C.text }}>{title}</span>
+        <span className="block text-xs mt-1" style={{ color: C.muted }}>{sub}</span>
+      </span>
+      <span
+        className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0"
+        style={{ background: selected ? C.cta : C.card, boxShadow: `inset 0 0 0 1px ${selected ? C.cta : C.divider}` }}
+      >
+        {selected && <span className="w-2 h-2 rounded-full" style={{ background: '#FFFFFF' }} />}
+      </span>
+    </button>
+  );
+}

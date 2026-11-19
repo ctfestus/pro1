@@ -49,8 +49,9 @@ import { SubscribersTab } from "@/components/dashboard/subscriptions/Subscribers
 import { PaymentsTab } from "@/components/dashboard/subscriptions/PaymentsTab";
 import { PlansTab } from "@/components/dashboard/subscriptions/PlansTab";
 import type { PlanSummary, SubsTab } from "@/components/dashboard/subscriptions/types";
+import { MenuSelect } from "@/components/MenuSelect";
 import {
-  Count, DISPLAY_FONT, IconChip, btnClass, btnStyle, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
+  Count, DISPLAY_FONT, IconChip, OptionCard, btnClass, btnStyle, learnerName, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
   shortDate, subscriberBucket,
 } from "@/components/dashboard/subscriptions/ui";
 
@@ -79,6 +80,7 @@ const freshPayment = () => ({
 });
 
 const PLAN_PRICE_DURATIONS = [1, 3, 6, 12] as const;
+const DURATION_OPTIONS = PLAN_PRICE_DURATIONS.map((months) => ({ value: String(months), label: durationLabel(months) }));
 
 function freshPlanPrices() {
   return PLAN_PRICE_DURATIONS.map((durationMonths) => ({
@@ -198,29 +200,29 @@ function Modal({
       }}
     >
       <div
-        className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} max-h-[92vh] overflow-hidden rounded-[28px] flex flex-col`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} max-h-[92vh] overflow-hidden rounded-[20px] flex flex-col`}
         style={modalStyle(C)}
       >
         <div
           className="flex items-start justify-between gap-4 px-6 py-5"
           style={{ borderBottom: `1px solid ${C.divider}` }}
         >
-          <div>
+          <div className="min-w-0">
+            <h3 className="text-[22px] font-bold leading-7" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+              {title}
+            </h3>
             {eyebrow && (
-              <p
-                className="text-[11px] font-bold uppercase tracking-[0.2em] mb-1"
-                style={{ color: C.cta }}
-              >
+              <p className="text-sm mt-1" style={{ color: C.muted }}>
                 {eyebrow}
               </p>
             )}
-            <h3 className="text-base font-bold leading-6" style={{ color: C.text }}>
-              {title}
-            </h3>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
+            className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0 transition-opacity hover:opacity-70"
             style={{ background: C.pill }}
             aria-label="Close"
           >
@@ -413,16 +415,20 @@ function PlanDiscountFields({
         </label>
         <label className="text-xs font-bold" style={{ color: C.muted }}>
           Offer type
-          <select
-            value={discount.type}
-            onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))}
-            className={`${fieldClass} mt-2`}
-            style={controlStyle}
-          >
-            <option value="">No promotion</option>
-            <option value="percentage">Percentage off</option>
-            <option value="fixed">Fixed amount off</option>
-          </select>
+          <div className="mt-2">
+            <MenuSelect
+              field
+              label="Offer type"
+              value={discount.type}
+              options={[
+                { value: "", label: "No promotion" },
+                { value: "percentage", label: "Percentage off" },
+                { value: "fixed", label: "Fixed amount off" },
+              ] as const}
+              onChange={(type) => setDiscount((value) => ({ ...value, type }))}
+              C={C}
+            />
+          </div>
         </label>
         <label className="text-xs font-bold" style={{ color: C.muted }}>
           {discount.type === "percentage" ? "Percentage off" : "Amount off"}
@@ -765,12 +771,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const inputStyle = {
     background: C.input,
     color: C.text,
-    border: `1px solid ${C.cardBorder}`,
+    border: `1px solid ${C.inputBorder}`,
   };
   const fieldClass =
-    "w-full rounded-xl px-4 py-3 text-sm outline-none transition-shadow focus:ring-2";
+    "w-full rounded-[10px] px-3 py-3 text-sm outline-none transition-shadow focus:ring-2";
   const primary =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-2 h-10 rounded-xl px-4 text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-90 disabled:opacity-50";
 
   function resetPayment() {
     setPayment(freshPayment());
@@ -1851,20 +1857,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     <div className={`grid ${showDeadline ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-3`}>
       <label className="text-xs font-bold" style={{ color: C.muted }}>
         Access duration
-        <select
-          value={payment.durationMonths}
-          onChange={(e) =>
-            updatePayment((v) => ({ ...v, durationMonths: e.target.value }))
-          }
-          className={`${fieldClass} mt-2`}
-          style={inputStyle}
-        >
-          {[1, 3, 6, 12].map((m) => (
-            <option key={m} value={m}>
-              {m} month{m > 1 ? "s" : ""}
-            </option>
-          ))}
-        </select>
+        <div className="mt-2">
+          <MenuSelect
+            field
+            label="Access duration"
+            value={payment.durationMonths}
+            options={DURATION_OPTIONS}
+            onChange={(value) => updatePayment((v) => ({ ...v, durationMonths: value }))}
+            C={C}
+          />
+        </div>
       </label>
       <label className="text-xs font-bold" style={{ color: C.muted }}>
         Amount
@@ -2282,7 +2284,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {bulkPlan && (
         <Modal
           title="Bulk add learners"
-          eyebrow="CSV or pasted learners"
+          eyebrow="Paste emails or a CSV for one plan"
           onClose={() => setBulkPlan(null)}
           C={C}
           wide
@@ -2290,27 +2292,23 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           <div className="space-y-6">
             <label className="text-xs font-bold" style={{ color: C.muted }}>
               Access plan
-              <select
-                value={bulkPlan.id}
-                onChange={(event) => {
-                  const nextPlan = activePlans.find(
-                    (plan) => plan.id === event.target.value,
-                  );
-                  if (nextPlan) {
-                    setBulkPlan(nextPlan);
-                    setBulkResult(null);
-                    setBulkError("");
-                  }
-                }}
-                className={`${fieldClass} mt-2`}
-                style={inputStyle}
-              >
-                {activePlans.map((plan) => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-2">
+                <MenuSelect
+                  field
+                  label="Access plan"
+                  value={bulkPlan.id as string}
+                  options={activePlans.map((plan) => ({ value: plan.id as string, label: plan.name as string }))}
+                  onChange={(id) => {
+                    const nextPlan = activePlans.find((plan) => plan.id === id);
+                    if (nextPlan) {
+                      setBulkPlan(nextPlan);
+                      setBulkResult(null);
+                      setBulkError("");
+                    }
+                  }}
+                  C={C}
+                />
+              </div>
               <span className="block font-normal mt-2" style={{ color: C.faint }}>
                 Every learner in this import will be assigned to this plan.
               </span>
@@ -2331,48 +2329,21 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     title: "Already paid",
                     description: "Record verified payments and activate access immediately.",
                   },
-                ]).map(({ value, title, description }) => {
-                  const selected = bulkMode === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setBulkMode(value);
-                        setBulkResult(null);
-                        setBulkError("");
-                      }}
-                      className="flex items-start gap-3 rounded-2xl p-4 text-left"
-                      style={{
-                        background: selected ? `${C.cta}12` : C.card,
-                        border: `1.5px solid ${selected ? C.cta : C.divider}`,
-                      }}
-                    >
-                      <span
-                        className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full"
-                        style={{
-                          background: selected ? C.cta : C.card,
-                          border: `1.5px solid ${selected ? C.cta : C.divider}`,
-                        }}
-                      >
-                        {selected && (
-                          <Check
-                            className="h-3 w-3"
-                            style={{ color: "#ffffff" }}
-                          />
-                        )}
-                      </span>
-                      <span>
-                        <span className="block text-sm font-bold" style={{ color: C.text }}>
-                          {title}
-                        </span>
-                        <span className="mt-1 block text-xs leading-relaxed" style={{ color: C.faint }}>
-                          {description}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
+                ]).map(({ value, title, description }) => (
+                  <OptionCard
+                    key={value}
+                    selected={bulkMode === value}
+                    onClick={() => {
+                      setBulkMode(value);
+                      setBulkResult(null);
+                      setBulkError("");
+                    }}
+                    icon={value === "request" ? <Clock3 className="w-4 h-4" /> : <BadgeCheck className="w-4 h-4" />}
+                    title={title}
+                    sub={description}
+                    C={C}
+                  />
+                ))}
               </div>
             </div>
             <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
@@ -2426,7 +2397,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             <div>
               <p className="text-sm font-bold mb-3" style={{ color: C.text }}>2. Default payment terms</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<div className="mt-2"><MenuSelect field label="Duration" value={bulkDefaults.durationMonths} options={DURATION_OPTIONS} onChange={(months) => setBulkDefaults(value => ({ ...value, durationMonths: months }))} C={C} /></div></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value.toUpperCase() }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 {bulkMode === "request" ? (
@@ -2467,7 +2438,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {createPlanOpen && (
         <Modal
           title="Create a subscription plan"
-          eyebrow="Plan builder"
+          eyebrow="Name it, choose its content, then set its prices"
           onClose={requestClosePlanBuilder}
           C={C}
           error={error}
@@ -2735,7 +2706,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {editPlan && (
         <Modal
           title="Plan details"
-          eyebrow="Subscription setup"
+          eyebrow="Name, prices and offer"
           onClose={requestCloseEditPlan}
           C={C}
           error={error}
@@ -2820,7 +2791,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {unsavedPlanDialog && (
         <Modal
           title="Save your changes?"
-          eyebrow="Unsaved plan setup"
+          eyebrow="This plan has changes that are not saved yet"
           onClose={() => setUnsavedPlanDialog(null)}
           C={C}
         >
@@ -2883,7 +2854,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {enrolOpen && (
         <Modal
           title="Assign a subscription"
-          eyebrow="New learner access"
+          eyebrow="Give access now or send a payment request"
           onClose={() => setEnrolOpen(false)}
           C={C}
           error={error}
@@ -2901,23 +2872,19 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     ["new", "New learner", "Create the account and assign the plan", UserPlus],
                   ] as const
                 ).map(([id, title, body, Icon]) => (
-                  <button
+                  <OptionCard
                     key={id}
+                    selected={learnerMode === id}
                     onClick={() => {
                       setLearnerMode(id);
                       setPaidAttemptKey("");
                       setError("");
                     }}
-                    className="rounded-2xl p-4 text-left"
-                    style={{
-                      background: learnerMode === id ? `${C.cta}10` : C.page,
-                      outline: learnerMode === id ? `2px solid ${C.cta}` : "2px solid transparent",
-                    }}
-                  >
-                    <Icon className="w-5 h-5 mb-3" style={{ color: learnerMode === id ? C.cta : C.faint }} />
-                    <p className="text-sm font-bold" style={{ color: C.text }}>{title}</p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>{body}</p>
-                  </button>
+                    icon={<Icon className="w-4 h-4" />}
+                    title={title}
+                    sub={body}
+                    C={C}
+                  />
                 ))}
               </div>
             </div>
@@ -2925,19 +2892,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               {learnerMode === "existing" ? (
                 <label className="text-xs font-bold" style={{ color: C.muted }}>
                   Learner
-                  <select
-                    value={studentId}
-                    onChange={(e) => { setStudentId(e.target.value); setPaidAttemptKey(""); }}
-                    className={`${fieldClass} mt-2`}
-                    style={inputStyle}
-                  >
-                    <option value="">Choose an eligible student</option>
-                    {eligibleStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name || s.email} ({s.email})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-2">
+                    <MenuSelect
+                      field
+                      label="Learner"
+                      placeholder="Choose an eligible student"
+                      value={studentId}
+                      options={eligibleStudents.map((s) => ({ value: s.id as string, label: `${s.full_name || s.email} (${s.email})` }))}
+                      onChange={(id) => { setStudentId(id); setPaidAttemptKey(""); }}
+                      C={C}
+                    />
+                  </div>
                 </label>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3 sm:col-span-2">
@@ -2967,19 +2932,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               )}
               <label className="text-xs font-bold" style={{ color: C.muted }}>
                 Access plan
-                <select
-                  value={planId}
-                  onChange={(e) => { setPlanId(e.target.value); setPaidAttemptKey(""); }}
-                  className={`${fieldClass} mt-2`}
-                  style={inputStyle}
-                >
-                  <option value="">Choose an active plan</option>
-                  {activePlans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-2">
+                  <MenuSelect
+                    field
+                    label="Access plan"
+                    placeholder="Choose an active plan"
+                    value={planId}
+                    options={activePlans.map((p) => ({ value: p.id as string, label: p.name as string }))}
+                    onChange={(id) => { setPlanId(id); setPaidAttemptKey(""); }}
+                    C={C}
+                  />
+                </div>
               </label>
             </div>
             <div>
@@ -3003,29 +2966,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     ],
                   ] as const
                 ).map(([id, title, body, Icon]) => (
-                  <button
+                  <OptionCard
                     key={id}
+                    selected={enrolMode === id}
                     onClick={() => { setEnrolMode(id); setPaidAttemptKey(""); }}
-                    className="rounded-2xl p-4 text-left"
-                    style={{
-                      background: enrolMode === id ? `${C.cta}10` : C.page,
-                      outline:
-                        enrolMode === id
-                          ? `2px solid ${C.cta}`
-                          : "2px solid transparent",
-                    }}
-                  >
-                    <Icon
-                      className="w-5 h-5 mb-3"
-                      style={{ color: enrolMode === id ? C.cta : C.faint }}
-                    />
-                    <p className="text-sm font-bold" style={{ color: C.text }}>
-                      {title}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      {body}
-                    </p>
-                  </button>
+                    icon={<Icon className="w-4 h-4" />}
+                    title={title}
+                    sub={body}
+                    C={C}
+                  />
                 ))}
               </div>
             </div>
@@ -3107,19 +3056,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <p className="text-xs -mt-4" style={{ color: C.faint }}>
                 Price, duration and expiry remain unchanged.
               </p>
-              <select
+              <MenuSelect
+                field
+                label="New plan"
+                placeholder={`Choose a plan (now on ${manageSub.subscription_plans?.name || "another plan"})`}
                 value={changePlanId}
-                onChange={(e) => setChangePlanId(e.target.value)}
-                className={fieldClass}
-                style={inputStyle}
-              >
-                <option value="" disabled>
-                  Choose a plan (now on {manageSub.subscription_plans?.name || "another plan"})
-                </option>
-                {activePlans.filter((p) => p.id !== manageSub.plan_id).map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                options={activePlans.filter((p) => p.id !== manageSub.plan_id).map((p) => ({ value: p.id as string, label: p.name as string }))}
+                onChange={setChangePlanId}
+                C={C}
+              />
               <button
                 onClick={changePlan}
                 disabled={busy || !changePlanId || changePlanId === manageSub.plan_id}
@@ -3195,7 +3140,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               ? "Approve payment confirmation"
               : "Reject payment confirmation"
           }
-          eyebrow="Financial review"
+          eyebrow={learnerName(reviewTarget.request.students)}
           onClose={() => {
             setReviewTarget(null);
             setReviewNotes("");
@@ -3281,59 +3226,45 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {historyOpen && (
         <Modal
           title="Subscription payment history"
-          eyebrow="Immutable ledger"
+          eyebrow="Every payment and request, kept as recorded"
           onClose={() => setHistoryOpen(false)}
           C={C}
           error={error}
         >
-          <div className="relative pl-5">
-            {history.map((row, index) => (
-              <div key={row.id} className="relative pb-6">
-                <span
-                  className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full"
-                  style={{
-                    background: C.cta,
-                    boxShadow: `0 0 0 4px ${C.page}`,
-                  }}
-                />
-                {index < history.length - 1 && (
-                  <span
-                    className="absolute -left-[16px] top-4 h-full w-px"
-                    style={{ background: C.divider }}
-                  />
-                )}
-                <div className="rounded-xl p-4" style={{ background: C.page }}>
-                  <div className="flex justify-between gap-3">
-                    <p className="font-black" style={{ color: C.text }}>
+          {history.length ? (
+            <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+              {history.map((row, index) => (
+                <div
+                  key={row.id}
+                  className="flex items-start justify-between gap-3 px-4 py-3"
+                  style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}
+                >
+                  <div className="min-w-0">
+                    <p className="text-base font-bold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                       {money(row.currency, row.amount)}
                     </p>
-                    <p className="text-xs" style={{ color: C.faint }}>
-                      {dateLabel(row.paid_at)}
+                    <p className="text-xs mt-1" style={{ color: C.muted }}>
+                      {[row.plan_name, durationLabel(Number(row.duration_months)), row.kind && String(row.kind).replaceAll("_", " ")]
+                        .filter(Boolean)
+                        .join(", ")}
                     </p>
+                    {row.payment_reference && (
+                      <p className="text-xs mt-1" style={{ color: C.faint }}>
+                        Reference {row.payment_reference}
+                      </p>
+                    )}
                   </div>
-                  <p
-                    className="text-xs mt-2 capitalize"
-                    style={{ color: C.muted }}
-                  >
-                    {row.plan_name} - {durationLabel(Number(row.duration_months))} - {row.kind}
+                  <p className="text-xs whitespace-nowrap" style={{ color: C.muted }}>
+                    {dateLabel(row.paid_at)}
                   </p>
-                  {row.payment_reference && (
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Reference: {row.payment_reference}
-                    </p>
-                  )}
                 </div>
-              </div>
-            ))}
-            {history.length === 0 && (
-              <p
-                className="text-sm text-center py-8"
-                style={{ color: C.faint }}
-              >
-                No payments recorded.
-              </p>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-center py-8" style={{ color: C.muted }}>
+              No payments recorded.
+            </p>
+          )}
         </Modal>
       )}
 
