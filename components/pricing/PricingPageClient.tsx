@@ -209,7 +209,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           <div aria-hidden="true" className="absolute -bottom-28 -right-10 h-72 w-72 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, ${accentColor} 32%, transparent)` }} />
           <div className="relative">
             <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: 'rgba(255,255,255,0.66)' }}>Ready when you are</p>
-            <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+            <h2 className="mx-auto mt-3 max-w-2xl text-[28px] leading-9 font-black tracking-[-0.035em] sm:text-4xl sm:leading-[44px]" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
               Start free, then unlock more when your ambition asks for it.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.72)' }}>

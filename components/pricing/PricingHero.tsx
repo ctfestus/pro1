@@ -99,7 +99,7 @@ export function PricingHero({
       <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
         <HeroFlourish accentColor={accentColor} />
         <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-24 pt-12 text-center sm:px-8 sm:pb-28 sm:pt-14">
-          <h1 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+          <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
             Learn the skills you need to move your career forward
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base" style={{ color: 'rgba(255,255,255,0.82)' }}>
@@ -133,10 +133,10 @@ export function PricingHero({
       <HeroFlourish accentColor={accentColor} />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.15fr_0.85fr]">
         <div>
-          <span className="inline-block rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ background: '#FFFFFF', color: '#101828' }}>
+          <span className="inline-block rounded px-3 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ background: '#FFFFFF', color: '#101828' }}>
             {plan.name}
           </span>
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance', lineHeight: 1.02 }}>
+          <h1 className="mt-5 text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
             {promotion
               ? `Get ${durationLabel(price.durationMonths)} of full access at a better price`
               : saving
@@ -165,7 +165,7 @@ export function PricingHero({
 
         <div className="w-full max-w-sm lg:justify-self-end">
           <div className="flex items-center gap-9 sm:gap-11">
-            <div className="min-w-0 max-w-[240px] flex-1 space-y-2.5">
+            <div className="min-w-0 max-w-[240px] flex-1 space-y-3">
               {promotion && (
                 <div className="ticket-cutout relative rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
@@ -183,7 +183,7 @@ export function PricingHero({
                 </div>
               )}
               <div className="rounded-2xl bg-white px-5 py-5 text-center">
-                <p className="whitespace-nowrap font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(28px,3vw,38px)', lineHeight: 1.1 }}>
+                <p className="whitespace-nowrap text-[28px] leading-9 font-black tracking-tight sm:text-4xl sm:leading-[44px]" style={{ color: '#101828', fontFamily: hFont }}>
                   {formatMoney(price.currency, price.amount)}
                 </p>
                 <p className="mt-1 text-sm font-bold" style={{ color: '#344054' }}>
@@ -201,7 +201,7 @@ export function PricingHero({
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col gap-2.5">
+            <div className="flex shrink-0 flex-col gap-2">
               {HERO_TOOLS.map(tool => {
                 const icon = toolIcon(tool.name);
                 if (!icon) return null;
