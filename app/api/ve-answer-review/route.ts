@@ -3,6 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { collectRubricGrades, rubricPassRate } from '@/lib/review-gate';
+import { reviewMinScore } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
@@ -160,6 +161,8 @@ export async function POST(req: NextRequest) {
   const taskLabel   = question || description || 'this task';
   const lessonLine  = [moduleTitle, lessonTitle].filter(Boolean).join(' > ');
 
+  // The step's own pass score; 60 when the instructor left it blank.
+  const passMark = reviewMinScore(target) ?? PASS_MARK;
   const criteria: string[] = Array.isArray(rubric) ? rubric.filter(c => typeof c === 'string' && c.trim()).map((c: string) => c.trim()) : [];
   const contextLine  = context       ? `Context: ${context}` : '';
   const modelLine    = expectedAnswer ? `Strong answer covers: ${expectedAnswer}` : '';
@@ -170,7 +173,7 @@ export async function POST(req: NextRequest) {
   const instructions = criteria.length > 0
     ? rubricInstructions(criteria, 'the part of the answer, e.g. "Second sentence"')
     : `Return:
-- score: 0-100 (${PASS_MARK}+ passes).
+- score: 0-100 (${passMark}+ passes).
 - feedback: one sentence giving your overall verdict on the response.
 - strength: one sentence naming one specific thing the response does well, pointing to what they wrote. Return "" if there is nothing.
 - improvement: one sentence saying precisely what to add or change, and why it matters on the job. Return "" when the response needs no change.`;
@@ -200,12 +203,13 @@ ${REVIEW_GRADING_INSTRUCTIONS}`;
     if (criteria.length > 0) {
       const { grades } = collectRubricGrades(criteria, parsed?.rubricGrades);
       const score = Math.round(rubricPassRate(grades, criteria) ?? 0);
-      return NextResponse.json({ passed: score >= PASS_MARK, score, feedback: String(parsed?.executiveSummary ?? ''), rubricGrades: grades });
+      return NextResponse.json({ passed: score >= passMark, score, minScore: passMark, feedback: String(parsed?.executiveSummary ?? ''), rubricGrades: grades });
     }
     const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.score))) : 0;
     return NextResponse.json({
-      passed: score >= PASS_MARK,
+      passed: score >= passMark,
       score,
+      minScore: passMark,
       feedback: String(parsed.feedback ?? ''),
       strength: String(parsed.strength ?? ''),
       improvement: String(parsed.improvement ?? ''),

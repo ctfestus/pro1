@@ -2923,12 +2923,33 @@ function VirtualExperienceCreatePageInner() {
                                                     <span style={{ width: 26, height: 14, borderRadius: 7, background: req.aiReview ? '#00b95c' : '#ccc', display: 'inline-flex', alignItems: 'center', padding: '0 2px', transition: 'background 0.2s', flexShrink: 0 }}>
                                                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff', marginLeft: req.aiReview ? 'auto' : 0, transition: 'margin 0.2s', display: 'block' }} />
                                                     </span>
-                                                    AI Review {req.aiReview ? 'on -- Gemini will grade student answers' : 'off -- using exact match'}
+                                                    AI Review {req.aiReview ? 'on -- AI will grade student answers' : 'off -- using exact match'}
                                                   </button>
-                                                  {req.aiReview ? (
+                                                  {req.aiReview ? (<>
                                                     <input value={req.context || ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
                                                       style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Rubric / grading guidance for AI (e.g. 'Award points for mentioning X and Y...')..." />
-                                                  ) : (
+                                                    <div className="flex items-center gap-3">
+                                                      <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
+                                                      <input
+                                                        type="number" min={0} max={100} step={5}
+                                                        value={req.minScore ?? ''}
+                                                        onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                                                        placeholder="60"
+                                                        className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
+                                                        style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
+                                                      />
+                                                      <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for 60</p>
+                                                    </div>
+                                                    <RubricBuilder
+                                                      criteria={req.rubric ?? []}
+                                                      onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                      onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
+                                                      C={C}
+                                                      inp={inp}
+                                                      sessionToken={sessionToken}
+                                                      note="With criteria set, the answer is marked met or not met on each one, and the score is the share of criteria met."
+                                                    />
+                                                  </>) : (
                                                     <input value={req.expectedAnswer || ''} onChange={e => updateReq(mod.id, les.id, req.id, { expectedAnswer: e.target.value })}
                                                       style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Expected answer for exact match (optional -- leave blank to accept any response)..." />
                                                   )}

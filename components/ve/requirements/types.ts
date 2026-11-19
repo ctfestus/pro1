@@ -91,7 +91,7 @@ export interface ProjectConfig {
   dataset?: Dataset;
 }
 
-export type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
+export type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiPassMark?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
 
 // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
 // network) - it is shown as a neutral "could not review" state, never a pass/fail grade.

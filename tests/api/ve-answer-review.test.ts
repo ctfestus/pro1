@@ -241,7 +241,7 @@ describe('POST /api/ve-answer-review - grading', () => {
     }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      passed: true, score: 100, feedback: 'Good point on double counting.',
+      passed: true, score: 100, minScore: 60, feedback: 'Good point on double counting.',
       rubricGrades: [{ criterion: 'Mentions double counting', passed: true, comment: 'Names double counting.' }],
     });
     const prompt = mockGenerateJSON.mock.calls[0][0] as string;
@@ -271,10 +271,23 @@ describe('POST /api/ve-answer-review - result structure', () => {
     const res = await post(answerBody());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      passed: false, score: 55, feedback: 'Close, but the cause is missing.',
+      passed: false, score: 55, minScore: 60, feedback: 'Close, but the cause is missing.',
       strength: 'You spotted the duplicate rows.', improvement: 'Say why duplicates inflate totals.',
     });
     expect((mockGenerateJSON.mock.calls[0][1] as any).required).toEqual(['score', 'feedback', 'strength', 'improvement']);
+  });
+});
+
+describe('POST /api/ve-answer-review - the step\'s pass score', () => {
+  it('grades with the pass score set on the step', async () => {
+    const strict = structuredClone(VE_ROW);
+    Object.assign(strict.modules[0].lessons[0].requirements[0], { rubric: [], minScore: 80 });
+    const auth = await mockRequireUser.getMockImplementation()?.({} as any);
+    mockRequireUser.mockResolvedValue({ ...(auth as any), getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: strict } }) as any });
+    mockGenerateJSON.mockResolvedValue({ score: 70, feedback: 'Solid.', strength: '', improvement: 'Add the cause.' });
+    const json = await (await post(answerBody())).json();
+    expect(json).toMatchObject({ score: 70, minScore: 80, passed: false });
+    expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('(80+ passes)');
   });
 });
 
