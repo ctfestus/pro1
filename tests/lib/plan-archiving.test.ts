@@ -70,10 +70,9 @@ describe('archiving a plan', () => {
 
   it('refuses to switch an archived plan back on', () => {
     expect(route).toContain('This plan is archived. Restore it before switching it back on.');
-    const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
-    // Both controls that could do it: the card menu and the detail panel.
-    expect(dashboard).toContain('busy || !!plan.archived_at');
-    expect(dashboard).toContain('busy || !!selectedPlan.archived_at');
+    // The one control that could do it: Activate in the plan's More menu.
+    const plansTab = read('components/dashboard/subscriptions/PlansTab.tsx');
+    expect(plansTab).toContain('busy || !!plan.archived_at');
   });
 
   it('is mirrored into the fresh schema, so a new database matches a migrated one', () => {

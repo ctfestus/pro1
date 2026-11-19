@@ -72,6 +72,8 @@ describe('ordering and marking', () => {
   const schema = read('festman-fresh-schema.sql');
   const route = read('app/api/payments/route.ts');
   const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+  // The plan controls live in the Plans tab.
+  const plansTab = read('components/dashboard/subscriptions/PlansTab.tsx');
 
   it('puts the recommended plan first, then the rest by name', () => {
     // The free tier renders before any of these, so first here is the middle card.
@@ -137,7 +139,7 @@ describe('ordering and marking', () => {
       expect(sql).toMatch(/v_target\.status <> 'active'[\s\S]{0,120}'inactive'/);
     }
     expect(route).toContain('Activate this plan before marking it as best value.');
-    expect(dashboard).toContain('Activate this plan before marking it as best value.');
+    expect(plansTab).toContain('Activate this plan before marking it as best value.');
   });
 
   it('drops the mark when a plan is switched off', () => {
@@ -170,11 +172,11 @@ describe('ordering and marking', () => {
 
   it('gives staff somewhere to set it', () => {
     expect(dashboard).toContain('set-subscription-plan-recommended');
-    expect(dashboard).toContain('Mark as best value');
+    expect(plansTab).toContain('Mark as best value');
     // Neither an archived plan nor a switched-off one reaches the pricing page, so neither can
     // hold the mark. Un-marking stays available, or a plan could get stuck holding it.
-    const control = dashboard.slice(dashboard.indexOf('setPlanRecommended(plan, !plan.recommended)'));
-    expect(control.slice(0, 600)).toMatch(/!plan\.recommended[\s\S]{0,160}archived_at[\s\S]{0,120}status !== "active"/);
+    const control = plansTab.slice(plansTab.indexOf('onRecommend(plan, !plan.recommended)'));
+    expect(control.slice(0, 600)).toMatch(/!plan\.recommended[\s\S]{0,160}archived_at[\s\S]{0,120}status !== 'active'/);
   });
 
   it('does not let one instructor quietly unmark a plan they do not own', () => {
