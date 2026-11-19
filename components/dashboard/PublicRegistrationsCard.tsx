@@ -67,7 +67,7 @@ export function PublicRegistrationsCard({ eventId, slug, title, isDark, onCount 
   const textMut = isDark ? 'text-zinc-500' : 'text-[#888]';
   const textSub = isDark ? 'text-zinc-300' : 'text-[#555]';
   const pill = isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]';
-  const btn = `inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-70 ${textSub}`;
+  const btn = `inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-70 ${textSub}`;
   const btnBg = { background: isDark ? 'rgba(255,255,255,0.05)' : '#f5f6f7' };
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/events/${encodeURIComponent(slug)}` : `/events/${slug}`;
 
@@ -149,14 +149,14 @@ export function PublicRegistrationsCard({ eventId, slug, title, isDark, onCount 
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {r.first_joined_at && (
-                    <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: '#ffffff', color: '#15803d' }}>Joined</span>
+                    <span className="rounded-full px-3 py-0.5 text-[11px] font-semibold" style={{ background: '#ffffff', color: '#15803d' }}>Joined</span>
                   )}
                   <span className={`text-xs font-medium ${textMut}`}>
                     {new Date(r.registered_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                   <button type="button" onClick={() => remove(r)} disabled={removing === r.id}
                     aria-label={`Remove ${r.name}`} title="Remove registration"
-                    className={`rounded-lg p-1.5 transition-opacity hover:opacity-70 disabled:opacity-40 ${textMut}`}>
+                    className={`rounded-lg p-2 transition-opacity hover:opacity-70 disabled:opacity-40 ${textMut}`}>
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>

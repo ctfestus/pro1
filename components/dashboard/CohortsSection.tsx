@@ -666,7 +666,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
 
       {/* Toast */}
       {toast && createPortal(
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg"
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg"
           style={{ background: toast.ok ? '#16a34a' : '#dc2626', color: '#fff', minWidth: 220, maxWidth: 360 }}>
           {toast.ok ? <Check className="w-4 h-4 flex-shrink-0"/> : <X className="w-4 h-4 flex-shrink-0"/>}
           {toast.text}
@@ -680,16 +680,16 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
             <div>
-              <h2 className="text-lg font-bold leading-none" style={{ color: C.text }}>Cohorts</h2>
+              <h2 className="text-base font-bold leading-none" style={{ color: C.text }}>Cohorts</h2>
             </div>
             {!isStaff && <div className="flex items-center gap-2 flex-shrink-0">
               <Link href="/admin/groups"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold no-underline transition-opacity hover:opacity-80"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold no-underline transition-opacity hover:opacity-80"
                 style={{ background: C.pill, color: C.muted }}>
                 <Users className="w-4 h-4"/> Groups
               </Link>
               <button onClick={() => setShowCreate(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
                 style={{ background: C.cta, color: C.ctaText }}>
                 <Plus className="w-4 h-4"/> New Cohort
               </button>
@@ -697,10 +697,10 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
           </div>
 
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_48px] sm:grid-cols-[1fr_100px_100px_48px] px-5 py-3.5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.07em]" style={{ color: C.faint }}>Cohort</span>
-            <span className="hidden sm:block text-[10px] font-semibold uppercase tracking-[0.07em] text-center" style={{ color: C.faint }}>Students</span>
-            <span className="hidden sm:block text-[10px] font-semibold uppercase tracking-[0.07em] text-center" style={{ color: C.faint }}>Courses</span>
+          <div className="grid grid-cols-[1fr_48px] sm:grid-cols-[1fr_100px_100px_48px] px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.07em]" style={{ color: C.faint }}>Cohort</span>
+            <span className="hidden sm:block text-[11px] font-semibold uppercase tracking-[0.07em] text-center" style={{ color: C.faint }}>Students</span>
+            <span className="hidden sm:block text-[11px] font-semibold uppercase tracking-[0.07em] text-center" style={{ color: C.faint }}>Courses</span>
             <div/>
           </div>
 
@@ -715,7 +715,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
             const cCount = cohortCourseCount(c.id);
             return (
               <div key={c.id}
-                className="grid grid-cols-[1fr_48px] sm:grid-cols-[1fr_100px_100px_48px] items-center px-5 py-3.5"
+                className="grid grid-cols-[1fr_48px] sm:grid-cols-[1fr_100px_100px_48px] items-center px-5 py-4"
                 style={{ borderBottom: i < cohorts.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
                 {/* Name + description */}
                 <div className="min-w-0 pr-4">
@@ -738,13 +738,13 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                     <div className="absolute right-0 top-9 z-50 rounded-xl overflow-hidden w-40"
                       style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isLight ? '0 12px 32px rgba(0,0,0,0.16)' : '0 4px 16px rgba(0,0,0,0.35)' }}>
                       <button onClick={e => { e.stopPropagation(); openEdit(c); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
                         style={{ color: C.text }}>
                         <ChevronRight className="w-3.5 h-3.5 flex-shrink-0"/> Open
                       </button>
                       {!isStaff && (
                         <button onClick={e => { e.stopPropagation(); setMenuOpenId(null); deleteCohort(c.id); }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
                           style={{ color: '#ef4444' }}>
                           {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
                           Delete
@@ -765,7 +765,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
           {/* Detail header with back button */}
           <div className="px-5 py-4 border-b flex items-center gap-3" style={{ borderColor: C.divider }}>
             <button onClick={() => { setViewMode('list'); setMenuOpenId(null); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex-shrink-0"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex-shrink-0"
               style={{ background: C.pill, color: C.muted }}>
               <ArrowLeft className="w-3.5 h-3.5"/> Back
             </button>
@@ -774,7 +774,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               {selectedCohort.description && <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>{selectedCohort.description}</p>}
             </div>
             <button onClick={() => openEditMeta(selectedCohort)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex-shrink-0"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex-shrink-0"
               style={{ background: C.pill, color: C.muted }}>
               <Edit2 className="w-3.5 h-3.5"/> Edit Details
             </button>
@@ -785,7 +785,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                 {visibleTabs.map(t => (
                   <button key={t.id}
                     onClick={() => { setActiveTab(t.id as any); setSearch(''); setSelected(new Set()); setReassignId(null); setCourseSearch(''); }}
-                    className="px-4 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors relative flex-shrink-0"
+                    className="px-4 py-3 text-sm font-semibold whitespace-nowrap transition-colors relative flex-shrink-0"
                     style={{ color: activeTab === t.id ? C.green : C.muted }}>
                     {t.label}
                     {activeTab === t.id && <span className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: C.green }}/>}
@@ -822,17 +822,17 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                               </div>
                               {!isStaff && <div className="flex items-center gap-1 transition-all">
                                 <button onClick={() => setReassignId(reassignId === s.id ? null : s.id)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-blue-500/10"
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-blue-500/10"
                                   style={{ color: '#3b82f6' }}>
                                   <ArrowRight className="w-3.5 h-3.5"/> Move
                                 </button>
                                 <button onClick={async () => { if (!window.confirm(`Remove ${s.full_name || s.email} from this bootcamp cohort? Their bootcamp payment history will be preserved, and they will become eligible for an individual subscription.`)) return; if (await assignStudent(s.id, null)) showToast(true, `${s.full_name || s.email} removed and eligible for individual subscription`); setReassignId(null); }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10"
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10"
                                   style={{ color: '#ef4444' }}>
                                   <UserMinus className="w-3.5 h-3.5"/> Remove
                                 </button>
                                 <button onClick={() => handleDeleteUser(s.id, s.full_name || s.email)} disabled={deletingUserId === s.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 disabled:opacity-40"
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 disabled:opacity-40"
                                   style={{ color: '#dc2626' }}>
                                   {deletingUserId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
                                   Delete
@@ -852,7 +852,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                                   </button>
                                 </div>
                                 {cohorts.filter(c => c.id !== selectedCohort?.id).length === 0 ? (
-                                  <div className="flex flex-col items-center py-6 gap-1.5">
+                                  <div className="flex flex-col items-center py-6 gap-2">
                                     <Users className="w-6 h-6 opacity-20" style={{ color: C.faint }}/>
                                     <p className="text-xs" style={{ color: C.faint }}>No other cohorts available</p>
                                   </div>
@@ -863,7 +863,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                                       return (
                                         <button key={c.id}
                                           onClick={async () => { if (await assignStudent(s.id, c.id)) showToast(true, `${s.full_name || s.email} moved to "${c.name}"`); setReassignId(null); }}
-                                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                                          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all"
                                           style={{ background: isLight ? '#f7f8f9' : '#1c1c1c' }}
                                           onMouseEnter={e => (e.currentTarget.style.background = isLight ? '#e8f5ee' : '#0d2016')}
                                           onMouseLeave={e => (e.currentTarget.style.background = isLight ? '#f7f8f9' : '#1c1c1c')}>
@@ -909,7 +909,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                   </div>
                   <div className="max-h-[500px] overflow-y-auto">
                     {unassigned.length > 0 && (
-                      <div className="flex items-center gap-3 px-5 py-2.5" style={{ background: isLight ? '#fafafa' : '#161616' }}>
+                      <div className="flex items-center gap-3 px-5 py-3" style={{ background: isLight ? '#fafafa' : '#161616' }}>
                         <input type="checkbox"
                           checked={unassigned.length > 0 && unassigned.every(s => selected.has(s.id))}
                           onChange={e => setSelected(e.target.checked ? new Set(unassigned.map(s => s.id)) : new Set())}
@@ -939,7 +939,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <button onClick={e => { e.stopPropagation(); handleDeleteUser(s.id, s.full_name || s.email); }}
                           disabled={deletingUserId === s.id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 disabled:opacity-40"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 disabled:opacity-40"
                           style={{ color: '#dc2626' }}>
                           {deletingUserId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
                           Delete
@@ -990,15 +990,15 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.title || 'Untitled'}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
                                 style={{ background: meta.bg, color: meta.color }}>
                                 {meta.label}
                               </span>
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {item.status ?? 'draft'}
                               </span>
                               {item._type === 'course' && item.available_to_everyone === true && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium" style={{ background: C.pill, color: C.muted }}>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: C.pill, color: C.muted }}>
                                   Everyone
                                 </span>
                               )}
@@ -1029,7 +1029,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                         <input type={f.type} value={(paymentSettings as any)[f.key]} placeholder={f.placeholder}
                           min={(f as any).min}
                           onChange={e => setPaymentSettings(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                          className="w-full rounded-lg px-3 py-3 text-sm outline-none"
                           style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
                       </div>
                     ))}
@@ -1037,7 +1037,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                       <label className="block text-xs font-semibold mb-1" style={{ color: C.faint }}>Plan</label>
                       <select value={paymentSettings.payment_plan}
                         onChange={e => setPaymentSettings(prev => ({ ...prev, payment_plan: e.target.value }))}
-                        className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                        className="w-full rounded-lg px-3 py-3 text-sm outline-none"
                         style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}>
                         <option value="flexible">Flexible</option>
                         <option value="full">Full</option>
@@ -1052,7 +1052,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                         <label className="block text-xs font-semibold mb-1" style={{ color: C.faint }}>{f.label}</label>
                         <input type="date" value={(paymentSettings as any)[f.key]}
                           onChange={e => setPaymentSettings(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                          className="w-full rounded-lg px-3 py-3 text-sm outline-none"
                           style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
                       </div>
                     ))}
@@ -1107,7 +1107,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                       </div>
                       <textarea value={admissionsCsv} onChange={e => { setAdmissionsCsv(e.target.value); parseAdmissionsCsv(e.target.value); }}
                         rows={5} placeholder={`email,full_name,total_fee,payment_plan,amount_paid\nstudent@example.com,Jane Doe,3000,flexible,1500`}
-                        className="w-full rounded-xl px-3 py-2.5 text-xs font-mono resize-none focus:outline-none"
+                        className="w-full rounded-xl px-3 py-3 text-xs font-mono resize-none focus:outline-none"
                         style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
                       {admissionsError && <p className="text-xs" style={{ color: '#dc2626' }}>{admissionsError}</p>}
                       {admissionsRows.length > 0 && (
@@ -1143,7 +1143,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                           className="flex-1 py-2 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
                         <button onClick={handleAdmissionsImport} disabled={admissionsSaving || admissionsRows.length === 0}
                           className="flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-40" style={{ background: C.cta, color: C.ctaText }}>
-                          {admissionsSaving ? <span className="flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin"/> Importing...</span>
+                          {admissionsSaving ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin"/> Importing...</span>
                             : `Import ${admissionsRows.length > 0 ? admissionsRows.length + ' ' : ''}Student${admissionsRows.length !== 1 ? 's' : ''}`}
                         </button>
                       </div>
@@ -1151,7 +1151,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                   )}
                   {/* Admissions history */}
                   <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.cardBorder}` }}>
-                    <div className="px-4 py-3 flex items-center gap-2.5 border-b" style={{ borderColor: C.divider }}>
+                    <div className="px-4 py-3 flex items-center gap-2 border-b" style={{ borderColor: C.divider }}>
                       <Mail className="w-4 h-4" style={{ color: C.muted }}/>
                       <p className="text-sm font-semibold" style={{ color: C.text }}>Admissions History</p>
                       <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: C.pill, color: C.muted }}>{admissionsList.length}</span>
@@ -1159,7 +1159,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                     {admissionsLoading ? (
                       <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: C.faint }}/></div>
                     ) : admissionsList.length === 0 ? (
-                      <div className="flex flex-col items-center py-10 gap-1.5">
+                      <div className="flex flex-col items-center py-10 gap-2">
                         <Mail className="w-8 h-8 opacity-20" style={{ color: C.faint }}/>
                         <p className="text-sm" style={{ color: C.faint }}>No admissions yet</p>
                         <p className="text-xs" style={{ color: C.faint }}>Add or import students to create accounts and send setup emails.</p>
@@ -1192,7 +1192,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                                     <p style={{ margin: '2px 0 0', fontSize: 11 }}>{row.payment_plan ?? 'flexible'}</p>
                                   </td>
                                   <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: status.bg, color: status.color }}>{status.label}</span>
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold" style={{ background: status.bg, color: status.color }}>{status.label}</span>
                                     <p style={{ margin: '4px 0 0', color: C.faint, fontSize: 11 }}>{formatAdmissionDate(status.at)}</p>
                                   </td>
                                   <td style={{ padding: '10px 12px', color: C.muted, whiteSpace: 'nowrap' }}>
@@ -1233,31 +1233,31 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Name *</label>
                 <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createCohort()}
-                  placeholder="e.g. Cohort 3" autoFocus className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                  placeholder="e.g. Cohort 3" autoFocus className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Description</label>
                 <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional description"
-                  className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                  className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Start Date *</label>
                   <input type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>End Date</label>
                   <input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
                 </div>
               </div>
               <ClassesEndField value={newClassesEndDate} onChange={setNewClassesEndDate} C={C} input={input}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
               <button onClick={createCohort} disabled={saving || !newName.trim() || !newStartDate}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
                 style={{ background: C.cta, color: C.ctaText }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>}
                 Create Cohort
@@ -1286,31 +1286,31 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Name *</label>
                 <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Cohort name" autoFocus className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                  placeholder="Cohort name" autoFocus className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
               </div>
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Description</label>
                 <input value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Optional description" className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                  placeholder="Optional description" className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Start Date</label>
                   <input type="date" value={editForm.start_date} onChange={e => setEditForm(p => ({ ...p, start_date: e.target.value }))}
-                    className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>End Date</label>
                   <input type="date" value={editForm.end_date} onChange={e => setEditForm(p => ({ ...p, end_date: e.target.value }))}
-                    className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
                 </div>
               </div>
               <ClassesEndField value={editForm.classes_end_date} onChange={v => setEditForm(p => ({ ...p, classes_end_date: v }))} C={C} input={input}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
-              <button onClick={() => setEditOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={() => setEditOpen(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
               <button onClick={saveEdit} disabled={editSaving || !editForm.name.trim()}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
                 style={{ background: C.cta, color: C.ctaText }}>
                 {editSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
                 Save Changes
@@ -1340,7 +1340,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                 {deleteTarget.losses.length > 0 ? (
                   <>
                     <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>This permanently destroys:</p>
-                    <ul className="list-disc pl-5 space-y-1.5">
+                    <ul className="list-disc pl-5 space-y-2">
                       {deleteTarget.losses.map(item => (
                         <li key={item} className="text-sm" style={{ color: C.muted }}>{item}</li>
                       ))}
@@ -1359,7 +1359,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               </div>
 
               {deleteTarget.members > 0 && (
-                <div className="rounded-xl p-3.5" style={{ background: C.pill }}>
+                <div className="rounded-xl p-4" style={{ background: C.pill }}>
                   <label className="flex gap-3 items-start cursor-pointer">
                     <input type="checkbox" checked={deleteMembers} onChange={e => setDeleteMembers(e.target.checked)}
                       className="mt-0.5 w-4 h-4 flex-shrink-0" style={{ accentColor: C.cta }}/>
@@ -1376,7 +1376,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                           : ''}
                       </span>
                       {!deleteMembers && deleteTarget.holdWarning && (
-                        <span className="block text-xs mt-1.5 font-semibold" style={{ color: '#dc2626' }}>
+                        <span className="block text-xs mt-2 font-semibold" style={{ color: '#dc2626' }}>
                           {deleteTarget.holdWarning}
                         </span>
                       )}
@@ -1387,9 +1387,9 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
 
             <div className="px-6 pb-5 flex gap-2">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
               <button onClick={() => deleteCohort(deleteTarget.id, true, deleteMembers, deleteTarget.fingerprint)} disabled={deletingId === deleteTarget.id}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: '#dc2626' }}>
                 {deletingId === deleteTarget.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
                 {deleteMembers ? 'Delete Cohort and Students' : 'Delete Cohort'}
@@ -1411,7 +1411,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                 <h3 className="text-base font-bold" style={{ color: C.text }}>Add Student</h3>
                 <p className="text-xs mt-0.5" style={{ color: C.muted }}>{selectedCohort.name}</p>
               </div>
-              <button onClick={() => { setAddAdmissionOpen(false); setAddAdmissionLog([]); }} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ background: C.pill, color: C.muted }}>Close</button>
+              <button onClick={() => { setAddAdmissionOpen(false); setAddAdmissionLog([]); }} className="text-xs font-semibold px-3 py-1 rounded-lg" style={{ background: C.pill, color: C.muted }}>Close</button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
               <div className="space-y-3">
@@ -1502,12 +1502,12 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             <div className="px-6 py-4 flex gap-2 flex-shrink-0" style={{ borderTop: `1px solid ${C.divider}` }}>
               <button onClick={() => handleAddAdmission(false)} disabled={addAdmissionSaving || !addAdmissionForm.email.trim()}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
                 style={{ background: C.pill, color: C.text }}>
                 {addAdmissionSaving ? 'Saving...' : 'Save & Add Another'}
               </button>
               <button onClick={() => handleAddAdmission(true)} disabled={addAdmissionSaving || !addAdmissionForm.email.trim()}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-40"
                 style={{ background: C.cta, color: C.ctaText }}>
                 {addAdmissionSaving ? 'Saving...' : 'Save & Close'}
               </button>
@@ -1528,7 +1528,7 @@ function ClassesEndField({ value, onChange, C, input }: {
     <div>
       <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Classes End Date</label>
       <input type="date" value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+        className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
       <p className="text-[11px] mt-1 leading-relaxed" style={{ color: C.faint }}>
         Last day of teaching. The time from here to the end date is the catch-up period students get to finish their work. Leave blank if there is none.
       </p>

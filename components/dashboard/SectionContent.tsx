@@ -120,7 +120,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
           {section === 'courses' ? (
             <CreateCourseMenu C={C} />
           ) : (
-            <Link href={href} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
+            <Link href={href} className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
               style={{ background: C.cta, color: C.ctaText }}>
               <Plus className="w-4 h-4"/> New {label}
             </Link>

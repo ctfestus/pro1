@@ -146,7 +146,7 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
   const rowUploadButton = (key: string, label: string) => (
     <button onClick={() => pickFor(key)} disabled={busy}
       aria-label={`${label} logo for ${key}`}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-50 transition-opacity hover:opacity-70"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold disabled:opacity-50 transition-opacity hover:opacity-70"
       style={{ background: C.card, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
       {busyFor === key
         ? <Loader2 className="w-3 h-3 animate-spin"/>
@@ -166,7 +166,7 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
         </p>
         {/* A Save button sits above this panel and covers only the fields above it. Without
             saying so, an upload here looks unsaved until someone clicks that button. */}
-        <p className="text-[11px] mt-1.5 font-semibold" style={{ color: C.muted }}>
+        <p className="text-[11px] mt-2 font-semibold" style={{ color: C.muted }}>
           Each upload saves straight away. The Save button above applies only to the settings
           above it, not to these logos.
         </p>
@@ -205,7 +205,7 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
       </div>
 
       {msg && (
-        <div className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
+        <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
           style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
           {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
           {msg.text}
@@ -223,22 +223,22 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
               : 'Could not load the tool logos right now. Try again.'}
           </p>
           <button onClick={load}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+            className="px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
             style={{ background: C.cta, color: C.ctaText }}>Retry</button>
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {rows.map(row => (
             <div key={row.name} className="flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-xl"
               style={{ background: C.pill }}>
               {preview(row.name, row.image)}
               <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{row.name}</span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
                 style={{ background: '#10b981', color: '#ffffff' }}>UPLOADED</span>
               {rowUploadButton(row.name, 'Replace')}
               <button onClick={() => remove(row.name)} disabled={removing === row.name || busy}
                 aria-label={`Remove ${row.name} logo`}
-                className="p-1.5 rounded-lg disabled:opacity-50 transition-opacity hover:opacity-70">
+                className="p-2 rounded-lg disabled:opacity-50 transition-opacity hover:opacity-70">
                 {removing === row.name
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: C.faint }}/>
                   : <Trash2 className="w-3.5 h-3.5 text-red-500"/>}
@@ -251,7 +251,7 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
               style={{ background: C.pill }}>
               {preview(key)}
               <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{key}</span>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
                 style={{ background: C.cardBorder, color: C.muted }}>BUILT IN</span>
               {rowUploadButton(key, 'Replace')}
             </div>

@@ -58,37 +58,37 @@ export function ProfileMenu({ user, profile, onSignOut }: { user: any; profile: 
             className="absolute right-0 top-full mt-2 w-56 rounded-2xl overflow-hidden z-50"
             style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', fontFamily: PROFILE_MENU_FONT }}
           >
-            <div className="px-4 py-3.5 border-b" style={{ borderColor: C.divider }}>
+            <div className="px-4 py-4 border-b" style={{ borderColor: C.divider }}>
               <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{name}</p>
               {username
                 ? <p className="text-xs mt-0.5" style={{ color: C.faint }}>@{username}</p>
                 : <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>{user?.email}</p>
               }
             </div>
-            <div className="py-1.5">
+            <div className="py-2">
               {profile?.role === 'staff' && (
                 <Link href="/student" onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ff-hover"
+                  className="flex items-center gap-3 px-4 py-3 text-sm transition-colors ff-hover"
                   style={{ color: C.text }}>
                   <GraduationCap className="w-4 h-4" style={{ color: C.text }}/> My Learning
                 </Link>
               )}
               {username && (
                 <Link href={`/u/${username}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ff-hover"
+                  className="flex items-center gap-3 px-4 py-3 text-sm transition-colors ff-hover"
                   style={{ color: C.text }}>
                   <User className="w-4 h-4" style={{ color: C.text }}/> View public profile
                 </Link>
               )}
               <Link href="/settings" onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ff-hover"
+                className="flex items-center gap-3 px-4 py-3 text-sm transition-colors ff-hover"
                 style={{ color: C.text }}>
                 <Settings className="w-4 h-4" style={{ color: C.text }}/> Settings
               </Link>
             </div>
-            <div className="border-t py-1.5" style={{ borderColor: C.divider }}>
+            <div className="border-t py-2" style={{ borderColor: C.divider }}>
               <button onClick={() => { setOpen(false); onSignOut(); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors"
                 style={{ color: C.deleteText }}
                 onMouseEnter={e => (e.currentTarget.style.background = C.signOutHover)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>

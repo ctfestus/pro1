@@ -109,7 +109,7 @@ function ProgressList({ C, heading, rows, showStatus = true }: {
       {rows.map(({ key, title, sub, progress: p }) => {
         const sc = statusColors(C, p.status);
         return (
-          <div role="row" key={key} className={`${grid} py-2.5`} style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <div role="row" key={key} className={`${grid} py-3`} style={{ borderBottom: `1px solid ${C.divider}` }}>
             <div role="cell" className="min-w-0">
               <p className="font-semibold truncate" style={{ color: C.text }}>{title}</p>
               {sub && <p className="text-xs truncate" style={{ color: C.faint }}>{sub}</p>}
@@ -266,7 +266,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
           )}
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Path report</p>
-            <h2 className="text-xl font-bold tracking-tight truncate" style={{ color: C.text }}>{report.path.title}</h2>
+            <h2 className="text-[22px] font-bold tracking-tight truncate leading-7" style={{ color: C.text }}>{report.path.title}</h2>
             <p className="text-xs mt-0.5" style={{ color: C.faint }}>
               {items.length} item{items.length === 1 ? '' : 's'} - {learners.length} learner{learners.length === 1 ? '' : 's'}
               {report.path.available_to_everyone ? ' - open to everyone' : ''}
@@ -280,7 +280,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}/>
           </button>
           <button onClick={exportCsv} disabled={!filtered.length}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold hover:opacity-80 transition-opacity disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold hover:opacity-80 transition-opacity disabled:opacity-50"
             style={{ background: C.cta, color: C.ctaText }}>
             <Download className="w-4 h-4"/> Export CSV
           </button>
@@ -334,7 +334,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                     style={{ background: active ? `${C.green}10` : C.page, boxShadow: active ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}>
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="text-sm font-semibold" style={{ color: C.text }}>{SOURCE_LABEL[source]}</span>
-                      <span className="text-xl font-bold" style={{ color: C.text }}>{s.total}</span>
+                      <span className="text-[22px] font-bold leading-7" style={{ color: C.text }}>{s.total}</span>
                     </div>
                     <div className="flex items-center gap-3 mt-3">
                       <Bar C={C} pct={s.avg}/>
@@ -375,7 +375,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                     style={{ background: open ? `${C.green}08` : 'transparent' }}>
                     {open ? <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: C.faint }}/> : <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: C.faint }}/>}
                     <span className="text-[11px] font-bold w-6 h-6 rounded-full grid place-items-center flex-shrink-0" style={{ color: C.green, background: `${C.green}16` }}>{idx + 1}</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
                     <span className="flex-1 min-w-0 truncate text-sm font-semibold" style={{ color: C.text }}>{item.title}</span>
                     <span className="hidden sm:flex items-center gap-3 w-56 flex-shrink-0"><Bar C={C} pct={pct}/><span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{pct}%</span></span>
                     <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done} of {rows.length} done</span>
@@ -403,15 +403,15 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.faint }}/>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email"
-                className="w-full pl-10 pr-3 py-2.5 rounded-xl text-sm outline-none" style={selectStyle}/>
+                className="w-full pl-10 pr-3 py-3 rounded-xl text-sm outline-none" style={selectStyle}/>
             </div>
             <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value as any); setCohortFilter('all'); }}
-              className="px-3 py-2.5 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by enrollment">
+              className="px-3 py-3 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by enrollment">
               <option value="all">All enrollments</option>
               {sourcesPresent.map(s => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}
             </select>
             <select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by cohort or plan">
+              className="px-3 py-3 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by cohort or plan">
               <option value="all">All cohorts and plans</option>
               {report.cohorts.filter(c => sourceFilter === 'all' || c.source === sourceFilter
                 // Lapsed learners are filed under the plan they held.
@@ -420,7 +420,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
               ))}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}
-              className="px-3 py-2.5 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by status">
+              className="px-3 py-3 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by status">
               <option value="all">All statuses</option>
               {(Object.keys(STATUS_LABEL) as PathLearnerStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
@@ -455,7 +455,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                             </div>
                           </td>
                           <td className="px-4 py-3 min-w-[170px]">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>{SOURCE_LABEL[l.source]}</span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>{SOURCE_LABEL[l.source]}</span>
                             <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>{enrollmentLabel(l) || '-'}</p>
                             {l.subscription_status && (l.source === 'subscriber' || l.source === 'former') && (
                               <p className="text-[11px]" style={{ color: C.faint }}>

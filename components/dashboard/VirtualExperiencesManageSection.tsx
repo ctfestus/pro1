@@ -74,10 +74,10 @@ function VECard({ form, handleDuplicate, setFormToDelete, C }: {
       </div>
       <div className="p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>{cfg.industry || 'Project'}</span>
-          <span className="text-[10px]" style={{ color: C.faint }}>{cfg.difficulty}</span>
+          <span className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>{cfg.industry || 'Project'}</span>
+          <span className="text-[11px]" style={{ color: C.faint }}>{cfg.difficulty}</span>
           {form.status === 'draft' && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>Draft</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>Draft</span>
           )}
         </div>
         <Link href={`/dashboard/${form.id}`} className="block">
@@ -98,7 +98,7 @@ function VEIndustryRow({ industry, forms, handleDuplicate, setFormToDelete, C }:
   return (
     <section className="rounded-2xl p-5 sm:p-6 mb-6" style={{ ...cardStyle(C) }}>
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="text-lg sm:text-xl font-bold truncate" style={{ color: C.text }}>{industry.replace(/\b\w/g, c => c.toUpperCase())}</h2>
+        <h2 className="text-base sm:text-[22px] font-bold truncate leading-6" style={{ color: C.text }}>{industry.replace(/\b\w/g, c => c.toUpperCase())}</h2>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
             className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
@@ -207,7 +207,7 @@ export function VirtualExperiencesManageSection({ C, forms, setFormToDelete, onD
         <p className="font-semibold text-base mb-1" style={{ color: C.text }}>No virtual experiences yet</p>
         <p className="text-sm mb-6" style={{ color: C.faint }}>Create your first AI-generated industry project.</p>
         <Link href="/create/guided-project"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold"
           style={{ background: C.cta, color: C.ctaText }}>
           <Plus className="w-4 h-4" /> New Virtual Experience
         </Link>
@@ -222,7 +222,7 @@ export function VirtualExperiencesManageSection({ C, forms, setFormToDelete, onD
         <div className="flex items-center gap-2">
           {gpForms.length > 0 && (
             <button onClick={() => exportAllInSection(gpForms, 'virtual_experience', 'virtual_experiences_bulk')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
               style={{ background: C.pill, color: C.muted }}>
               <Download className="w-3.5 h-3.5" /> Export All
             </button>

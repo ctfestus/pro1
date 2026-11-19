@@ -70,14 +70,14 @@ function AnswerBody({ a, mcq, C, isDark }: { a: TaskAnswer; mcq: Record<string, 
     if (a.selectedOption == null || a.selectedOption === '') return empty('Not answered.');
     const g = mcq[a.taskId];
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <p className="text-sm" style={{ color: C.text }}>
           <span style={{ color: C.faint }}>Selected: </span><span style={{ fontWeight: 600 }}>{a.selectedOption}</span>
         </p>
         {g && (
           g.isCorrect
             ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}><Check className="w-3 h-3"/> Correct</span>
-            : <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444' }}>
+            : <span className="inline-flex items-center gap-2 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444' }}>
                 Incorrect{g.correctOption ? <span style={{ fontWeight: 600, opacity: 0.85 }}>correct answer: {g.correctOption}</span> : null}
               </span>
         )}
@@ -106,7 +106,7 @@ function TaskGradeFields({ a, draft, onChange, C }: { a: TaskAnswer; draft: Task
 
   const chip = (label: string, onClick: () => void, accent?: boolean) => (
     <button type="button" onClick={onClick}
-      className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg hover:opacity-75 transition-opacity"
+      className="text-[11px] font-semibold px-3 py-2 rounded-lg hover:opacity-75 transition-opacity"
       style={{ background: accent ? 'rgba(16,185,129,0.10)' : C.pill, color: accent ? '#10b981' : C.muted, border: 'none', cursor: 'pointer' }}>
       {label}
     </button>
@@ -116,7 +116,7 @@ function TaskGradeFields({ a, draft, onChange, C }: { a: TaskAnswer; draft: Task
     <div className="mt-4 pt-4" style={{ borderTop: `1px dashed ${C.divider}` }}>
       <div className="flex items-center flex-wrap gap-2">
         <span className="text-[11px] font-bold uppercase tracking-wider mr-1" style={{ color: C.faint }}>Score</span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <input type="number" min={0} max={100} value={draft.score} onChange={e => onChange({ score: e.target.value })}
             placeholder="--"
             style={{ width: 78, padding: '8px 10px', borderRadius: 10, border: `1px solid ${valid ? C.cardBorder : '#ef4444'}`, background: C.input, color: C.text, fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}/>
@@ -128,20 +128,20 @@ function TaskGradeFields({ a, draft, onChange, C }: { a: TaskAnswer; draft: Task
         {draft.score !== '' && chip('Clear', () => onChange({ score: '' }))}
         {!showComment && (
           <button type="button" onClick={() => setShowComment(true)}
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg ml-auto hover:opacity-75 transition-opacity"
+            className="inline-flex items-center gap-2 text-[11px] font-semibold px-3 py-2 rounded-lg ml-auto hover:opacity-75 transition-opacity"
             style={{ background: 'none', color: C.green, border: 'none', cursor: 'pointer' }}>
             <MessageSquare className="w-3 h-3"/> Add comment
           </button>
         )}
       </div>
       {!valid && (
-        <p className="flex items-center gap-1.5 text-[11px] mt-2" style={{ color: '#ef4444' }}>
+        <p className="flex items-center gap-2 text-[11px] mt-2" style={{ color: '#ef4444' }}>
           <AlertCircle className="w-3 h-3"/> Score must be between 0 and 100.
         </p>
       )}
       {showComment && (
         <div className="mt-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: C.faint }}>Comment on this task</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: C.faint }}>Comment on this task</p>
           <div style={{ borderRadius: 10, border: `1px solid ${C.cardBorder}`, overflow: 'hidden' }}>
             <RichTextEditor value={draft.feedback} onChange={html => onChange({ feedback: html })}
               placeholder="What was strong, what to fix. The student sees this beside this task."
@@ -177,14 +177,14 @@ export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark 
               style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
               <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform" style={{ color: C.faint, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}/>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: C.faint }}>Scenario {gi + 1}</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: C.faint }}>Scenario {gi + 1}</p>
                 <p className="text-sm font-bold truncate" style={{ color: C.text }}>{group.title || 'Scenario'}</p>
               </div>
-              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
+              <span className="text-[11px] font-semibold px-3 py-1 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
                 {scores.length}/{group.answers.length} scored
               </span>
               {avg != null && (
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>
+                <span className="text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>
                   Avg {avg}%
                 </span>
               )}
@@ -204,10 +204,10 @@ export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark 
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold" style={{ color: C.text }}>{a.taskTitle || `Task ${ti + 1}`}</p>
-                          <p className="text-[10.5px] font-bold uppercase tracking-wider mt-0.5" style={{ color: C.faint }}>{TASK_TYPE_LABEL[a.type]}</p>
+                          <p className="text-[11px] font-bold uppercase tracking-wider mt-0.5" style={{ color: C.faint }}>{TASK_TYPE_LABEL[a.type]}</p>
                         </div>
                         {value != null && (
-                          <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: value >= 50 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.10)', color: value >= 50 ? '#16a34a' : '#ef4444' }}>
+                          <span className="text-xs font-bold px-3 py-1 rounded-full flex-shrink-0" style={{ background: value >= 50 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.10)', color: value >= 50 ? '#16a34a' : '#ef4444' }}>
                             {value}/100
                           </span>
                         )}

@@ -250,7 +250,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     <div className="space-y-5 max-w-3xl">
       {/* One row of tabs rather than one long page. Scrolls sideways on a phone instead of
           wrapping into a block that pushes the settings themselves below the fold. */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {TABS.map(t => {
           const active = tab === t.id;
           return (
@@ -258,7 +258,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className="flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
               style={{
                 // C.card, not C.pill: white in light mode and the dark surface in dark, so an
                 // unselected tab reads as a raised control rather than a sunken grey chip.
@@ -301,11 +301,11 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
             ) : (
               <div className="h-10 w-16 rounded-lg flex items-center justify-center"
                 style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[10px]" style={{ color: C.faint }}>No logo</span>
+                <span className="text-[11px]" style={{ color: C.faint }}>No logo</span>
               </div>
             )}
             <button type="button" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
               style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
               {logoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
               {logoUploading ? 'Uploading…' : form.logoUrl ? 'Replace' : 'Upload Logo'}
@@ -325,11 +325,11 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
             ) : (
               <div className="h-10 w-16 rounded-lg flex items-center justify-center"
                 style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[10px]" style={{ color: C.faint }}>No logo</span>
+                <span className="text-[11px]" style={{ color: C.faint }}>No logo</span>
               </div>
             )}
             <button type="button" onClick={() => logoDarkInputRef.current?.click()} disabled={logoDarkUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
               style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
               {logoDarkUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
               {logoDarkUploading ? 'Uploading…' : form.logoDarkUrl ? 'Replace' : 'Upload Dark Logo'}
@@ -356,11 +356,11 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
             ) : (
               <div className="h-8 w-8 rounded flex items-center justify-center"
                 style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[10px]" style={{ color: C.faint }}>None</span>
+                <span className="text-[11px]" style={{ color: C.faint }}>None</span>
               </div>
             )}
             <button type="button" onClick={() => faviconInputRef.current?.click()} disabled={faviconUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
               style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
               {faviconUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
               {faviconUploading ? 'Uploading…' : form.faviconUrl ? 'Replace' : 'Upload Favicon'}
@@ -422,19 +422,19 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
             ) : (
               <div className="rounded-lg flex items-center justify-center"
                 style={{ width: 160, height: 48, background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[10px]" style={{ color: C.faint }}>No banner</span>
+                <span className="text-[11px]" style={{ color: C.faint }}>No banner</span>
               </div>
             )}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <button type="button" onClick={() => emailBannerInputRef.current?.click()} disabled={emailBannerUploading}
-                className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
                 style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
                 {emailBannerUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                 {emailBannerUploading ? 'Uploading…' : form.emailBannerUrl ? 'Replace' : 'Upload Banner'}
               </button>
               {form.emailBannerUrl && (
                 <button type="button" onClick={() => setForm(prev => ({ ...prev, emailBannerUrl: '' }))}
-                  className="px-3 py-1.5 rounded-xl text-xs transition-opacity hover:opacity-80"
+                  className="px-3 py-2 rounded-xl text-xs transition-opacity hover:opacity-80"
                   style={{ background: C.deleteBg, color: C.deleteText, border: 'none' }}>
                   Remove
                 </button>
@@ -485,7 +485,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
         </div>
 
         {form.publicSignupEnabled && (
-          <div className="text-[11px] leading-relaxed px-3 py-2.5 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', color: '#047857' }}>
+          <div className="text-[11px] leading-relaxed px-3 py-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', color: '#047857' }}>
             Signups are open once you save. New accounts must confirm their email address before
             they can sign in.
           </div>
@@ -522,7 +522,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
       {SAVE_TABS[tab] && (
         <div className="space-y-3">
           {msg && (
-            <div className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
+            <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
               style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
               {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
               {msg.text}
@@ -532,7 +532,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           <button
             onClick={() => handleSave(SAVE_TABS[tab]!)}
             disabled={saving}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
+            className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
             style={{ background: C.cta, color: C.ctaText }}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save changes'}
           </button>

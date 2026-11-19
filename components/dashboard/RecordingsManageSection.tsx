@@ -69,13 +69,13 @@ export function RecordingsManageSection({ C }: { C: typeof LIGHT_C }) {
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs px-2 py-1 rounded-lg capitalize" style={{ background: C.pill, color: C.muted }}>{item.status}</span>
               <Link href={`/create/recording?edit=${item.id}`}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: C.pill, color: C.muted, textDecoration: 'none' }}>
                 <Edit2 className="w-3.5 h-3.5"/> Edit
               </Link>
               {!isStaff && (
                 <button onClick={() => handleDelete(item.id)} disabled={deletingId === item.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                   style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`,
                     cursor: deletingId === item.id ? 'not-allowed' : 'pointer', opacity: deletingId === item.id ? 0.6 : 1 }}>
                   <Trash2 className="w-3.5 h-3.5"/> {deletingId === item.id ? 'Deleting…' : 'Delete'}

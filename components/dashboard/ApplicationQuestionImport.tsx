@@ -91,7 +91,7 @@ export function ApplicationQuestionImport({ C, typeLabels, existingCount, canRep
               <p className="text-xs font-semibold" style={{ color: C.text }}>Columns: Question, Type, Required, Options, Help text</p>
               <p className="mt-1 text-[11px] leading-4" style={{ color: C.muted }}>Separate options with semicolons. Add {'"'}Other (please specify){'"'} to give applicants their own answer box.</p>
             </div>
-            <button type="button" onClick={downloadTemplate} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Download className="h-3.5 w-3.5" /> Download template</button>
+            <button type="button" onClick={downloadTemplate} className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Download className="h-3.5 w-3.5" /> Download template</button>
           </div>
 
           <input ref={fileInput} type="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={event => void chooseFile(event.target.files?.[0])} />
@@ -99,13 +99,13 @@ export function ApplicationQuestionImport({ C, typeLabels, existingCount, canRep
             {reading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {reading ? 'Reading file...' : fileName ? 'Choose a different file' : 'Choose CSV or Excel file'}
           </button>
-          {fileName && !reading && <p className="flex items-center gap-1.5 text-[11px]" style={{ color: C.muted }}><FileSpreadsheet className="h-3.5 w-3.5" /> {fileName}</p>}
+          {fileName && !reading && <p className="flex items-center gap-2 text-[11px]" style={{ color: C.muted }}><FileSpreadsheet className="h-3.5 w-3.5" /> {fileName}</p>}
 
-          {error && <p role="alert" className="rounded-xl px-3 py-2.5 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{error}</p>}
+          {error && <p role="alert" className="rounded-xl px-3 py-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{error}</p>}
 
           {result && (errors.length > 0 || warnings.length > 0) && (
             <div className="rounded-xl p-3 text-xs" style={{ background: errors.length ? C.errorBg : C.input, color: errors.length ? C.errorText : C.muted }} role="status">
-              <p className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> {errors.length ? `${errors.length} ${errors.length === 1 ? 'row was' : 'rows were'} skipped` : 'Imported with changes'}</p>
+              <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> {errors.length ? `${errors.length} ${errors.length === 1 ? 'row was' : 'rows were'} skipped` : 'Imported with changes'}</p>
               <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto">
                 {[...errors, ...warnings].map((issue, index) => <li key={index}>{issue.row ? `Row ${issue.row}: ` : ''}{issue.message}</li>)}
               </ul>
@@ -115,7 +115,7 @@ export function ApplicationQuestionImport({ C, typeLabels, existingCount, canRep
           {questions.length > 0 && <>
             <div className="p-3" style={box}>
               <p className="text-xs font-bold" style={{ color: C.text }}>{questions.length} {questions.length === 1 ? 'question' : 'questions'} ready</p>
-              <ol className="mt-2 max-h-64 space-y-1.5 overflow-y-auto">
+              <ol className="mt-2 max-h-64 space-y-2 overflow-y-auto">
                 {questions.map((question, index) => (
                   <li key={question.id} className="flex items-start justify-between gap-3 rounded-lg px-3 py-2 text-xs" style={{ background: C.card }}>
                     <span className="min-w-0 break-words" style={{ color: C.text }}>{index + 1}. {question.label}{question.required && <span style={{ color: C.errorText }}> *</span>}</span>
@@ -137,8 +137,8 @@ export function ApplicationQuestionImport({ C, typeLabels, existingCount, canRep
           </>}
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-            <button type="button" disabled={reading} onClick={onClose} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>
-            <button type="button" disabled={reading || questions.length === 0} onClick={() => onImport(questions, existingCount > 0 && canReplace ? mode : 'append')} className="rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>
+            <button type="button" disabled={reading} onClick={onClose} className="rounded-lg px-4 py-3 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>
+            <button type="button" disabled={reading || questions.length === 0} onClick={() => onImport(questions, existingCount > 0 && canReplace ? mode : 'append')} className="rounded-lg px-4 py-3 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>
               {questions.length === 0 ? 'Import questions' : mode === 'replace' && canReplace && existingCount > 0 ? `Replace with ${questions.length}` : `Add ${questions.length} ${questions.length === 1 ? 'question' : 'questions'}`}
             </button>
           </div>

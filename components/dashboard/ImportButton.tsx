@@ -101,12 +101,12 @@ export function ImportButton({ types, onImported, onBulkDone, C }: {
     <div className="relative">
       <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleFile} />
       <button onClick={() => { setState({ status: 'idle' }); fileRef.current?.click(); }} disabled={busy}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
+        className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
         style={{ background: C.card, color: state.status === 'done' ? C.green : state.status === 'warning' ? '#f59e0b' : C.muted }}>
         <Upload className="w-3.5 h-3.5" /> {label}
       </button>
       {(state.status === 'error' || state.status === 'warning') && (
-        <p className="absolute top-full left-0 mt-1 text-xs px-2.5 py-1.5 rounded-xl z-10 whitespace-nowrap"
+        <p className="absolute top-full left-0 mt-1 text-xs px-3 py-2 rounded-xl z-10 whitespace-nowrap"
           style={state.status === 'error'
             ? { background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}` }
             : { background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.30)' }}>

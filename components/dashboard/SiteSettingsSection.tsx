@@ -63,7 +63,7 @@ function SitePreview({ config, template, C }: { config: Record<string, string>; 
     <div className="w-full rounded-2xl overflow-hidden"
       style={{ border: `1px solid ${C.cardBorder}`, boxShadow: 'none', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)' }}>
       {/* Clean header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0" style={{ background: C.card, borderBottom: `1px solid ${C.divider}` }}>
+      <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ background: C.card, borderBottom: `1px solid ${C.divider}` }}>
         <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
         <span className="text-[11px] font-semibold" style={{ color: C.text }}>Live preview</span>
         <span className="text-[11px]" style={{ color: C.faint }}>updates as you type</span>
@@ -208,7 +208,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
       e.target.value = '';
     };
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
         {url && (
           <div className="relative rounded-lg overflow-hidden" style={{ height: 90 }}>
@@ -236,7 +236,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   const fontPicker = (key: string, label: string, fallback: string) => (
     <div className="space-y-2">
       <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-2">
         {FONT_OPTIONS.map(f => {
           loadFont(f);
           const active = (view[key] || fallback) === f;
@@ -294,9 +294,9 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   // Ad-card image layout toggle -- only shown once an image is uploaded
   const imgLayout = (key: string) => {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label className="text-xs font-semibold" style={{ color: C.muted }}>Image layout</label>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {([['', 'Full background'], ['side', 'Beside text']] as const).map(([val, lbl]) => {
             const active = (view[key] || '') === val;
             return (
@@ -316,7 +316,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   // Accordion section wrapper
   const Sec = (id: string, label: string, preview: React.ReactNode, children: React.ReactNode) => (
     <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-      <button onClick={() => toggleSec(id)} className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-opacity hover:opacity-70">
+      <button onClick={() => toggleSec(id)} className="w-full flex items-center gap-3 px-4 py-4 text-left transition-opacity hover:opacity-70">
         <span className="flex-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: C.text }}>{label}</span>
         {preview && <span className="flex items-center gap-1">{preview}</span>}
         <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${openSections.has(id) ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
@@ -334,7 +334,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   );
   // Sub-label divider inside a section
   const Sub = (t: string) => (
-    <p className="text-[10px] font-bold uppercase tracking-[0.08em] mt-1 pb-1 border-b" style={{ color: C.faint, borderColor: C.cardBorder }}>{t}</p>
+    <p className="text-[11px] font-bold uppercase tracking-[0.08em] mt-1 pb-1 border-b" style={{ color: C.faint, borderColor: C.cardBorder }}>{t}</p>
   );
 
   const handleOpenPreview = () => {
@@ -357,7 +357,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
 
         {/* Template selector -- always visible */}
         <div className="rounded-2xl p-4" style={{ ...cardStyle(C) }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: C.faint }}>Template</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.faint }}>Template</p>
           <div className="flex gap-2 flex-wrap">
             {SITE_TEMPLATES.map(t => (
               <button key={t.id} onClick={() => { setTemplate(t.id); setOpenSections(new Set(['brand','hero'])); }}
@@ -735,7 +735,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
         <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
           <button
             onClick={() => setPanelOpen(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all hover:opacity-80"
+            className="flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-all hover:opacity-80"
             style={{ background: C.pill, color: C.text }}
           >
             {panelOpen
@@ -746,13 +746,13 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
           <div className="flex-1" />
           <button
             onClick={handleOpenPreview}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all hover:opacity-80"
+            className="flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-all hover:opacity-80"
             style={{ background: C.pill, color: C.text }}
           >
             <ExternalLink className="w-3.5 h-3.5" /> Open in new tab
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 px-4 py-2 rounded text-xs font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
             style={{ background: C.cta, color: C.ctaText }}>
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Save</>}
           </button>

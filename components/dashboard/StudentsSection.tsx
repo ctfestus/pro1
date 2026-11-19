@@ -57,7 +57,7 @@ function CreateIndividualStudent({ onCreated, C }: { onCreated: () => void; C: t
   }
 
   return <>
-    <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}><UserPlus className="w-3.5 h-3.5"/>Individual student</button>
+    <button onClick={() => setOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}><UserPlus className="w-3.5 h-3.5"/>Individual student</button>
     {open && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
       <div className="w-full max-w-md rounded-xl p-5 space-y-3" style={{ background: C.card }}>
         <div className="flex justify-between"><div><p className="font-semibold" style={{ color: C.text }}>Create individual student</p><p className="text-xs" style={{ color: C.muted }}>No bootcamp cohort is required.</p></div><button onClick={() => setOpen(false)}><X className="w-4 h-4" style={{ color: C.muted }}/></button></div>
@@ -122,7 +122,7 @@ function StudentDetailPanel({ student, cohortName, detail, loading, error, onRet
 
         <div className="p-5">
           <a href={`/student?viewAs=${student.id}`} target="_blank" rel="noreferrer"
-            className="flex items-center justify-center gap-2 w-full text-sm font-semibold py-2.5 rounded-lg mb-5"
+            className="flex items-center justify-center gap-2 w-full text-sm font-semibold py-3 rounded-lg mb-5"
             style={{ background: C.cta, color: C.ctaText }}>
             <ExternalLink className="w-4 h-4"/>
             Open Student Dashboard
@@ -177,7 +177,7 @@ function StudentDetailPanel({ student, cohortName, detail, loading, error, onRet
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                       {c.hasCert && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
                           style={{ background: `${C.green}18`, color: C.green }}>Cert</span>
                       )}
                       <span className="text-xs font-semibold" style={{ color: statusColor(c.status) }}>
@@ -345,8 +345,8 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
           <div>
-            <h2 className="text-lg font-bold leading-none" style={{ color: C.text }}>Students</h2>
-            <p className="text-xs mt-1.5" style={{ color: C.muted }}>
+            <h2 className="text-base font-bold leading-none" style={{ color: C.text }}>Students</h2>
+            <p className="text-xs mt-2" style={{ color: C.muted }}>
               {students.length} student{students.length !== 1 ? 's' : ''} across {cohorts.filter(cohort => !isIndividualCohort(cohort.cohort_kind)).length} bootcamp cohort{cohorts.filter(cohort => !isIndividualCohort(cohort.cohort_kind)).length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -374,7 +374,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
               }),
               'students.csv',
             )}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0 transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold flex-shrink-0 transition-opacity hover:opacity-80"
             style={{ background: C.pill, color: C.text }}>
             <Download className="w-3.5 h-3.5" />
             Export CSV
@@ -390,11 +390,11 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: C.faint }}/>
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search name or email..."
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none"
+                className="w-full pl-9 pr-3 py-3 rounded-lg text-sm outline-none"
                 style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
             </div>
             <select value={filterCohort} onChange={e => setFilterCohort(e.target.value)}
-              className="px-3 py-2.5 rounded-lg text-sm outline-none"
+              className="px-3 py-3 rounded-lg text-sm outline-none"
               style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}>
               <option value="">All Cohorts</option>
               {cohorts.filter(c => !isIndividualCohort(c.cohort_kind)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -403,7 +403,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
 
           {/* Clean table -- borderless, header divider + row hairlines */}
           <div className="overflow-x-auto">
-            <div className="grid gap-3 px-4 py-3.5 text-[10px] font-semibold uppercase tracking-[0.07em] grid-cols-[1fr_auto] sm:grid-cols-[2fr_1.3fr_110px_80px_90px_90px_48px]"
+            <div className="grid gap-3 px-4 py-4 text-[11px] font-semibold uppercase tracking-[0.07em] grid-cols-[1fr_auto] sm:grid-cols-[2fr_1.3fr_110px_80px_90px_90px_48px]"
               style={{ color: C.faint, borderBottom: `1px solid ${C.divider}` }}>
               <span>Student</span>
               <span className="hidden sm:inline">Cohort</span>
@@ -427,7 +427,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
             ) : visible.map((s, i) => {
               const access = accessInfo(s, C);
               return (
-                <div key={s.id} className="grid gap-3 px-4 py-3.5 items-center grid-cols-[1fr_auto] sm:grid-cols-[2fr_1.3fr_110px_80px_90px_90px_48px]"
+                <div key={s.id} className="grid gap-3 px-4 py-4 items-center grid-cols-[1fr_auto] sm:grid-cols-[2fr_1.3fr_110px_80px_90px_90px_48px]"
                   style={{ borderBottom: i < visible.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{s.full_name || 'No name'}</p>
@@ -435,8 +435,8 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                   </div>
                   <span className="hidden sm:block text-sm truncate" style={{ color: C.muted }}>{cohortMap[s.cohort_id] || '--'}</span>
                   <span className="hidden sm:flex flex-col items-start gap-0.5">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: access.bg, color: access.color }}>{access.label}</span>
-                    <span className="text-[10px]" style={{ color: C.faint }}>{access.at ? shortDate(access.at) : ''}</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: access.bg, color: access.color }}>{access.label}</span>
+                    <span className="text-[11px]" style={{ color: C.faint }}>{access.at ? shortDate(access.at) : ''}</span>
                   </span>
                   <span className="hidden sm:block text-sm tabular-nums text-center" style={{ color: C.text }}>{statsError ? '' : s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '--'}</span>
                   <span className="hidden sm:block text-sm tabular-nums font-semibold text-center" style={{ color: C.green }}>{statsError ? '' : completedCounts[s.id] ?? 0}</span>
@@ -454,7 +454,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                           setMenuRow(s);
                         }
                       }}
-                      className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
+                      className="p-2 rounded-lg transition-opacity hover:opacity-70"
                       style={{ color: C.muted, background: menuRow?.id === s.id ? C.pill : 'transparent' }}>
                       <MoreVertical className="w-4 h-4"/>
                     </button>
@@ -470,16 +470,16 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
       {menuRow && menuPos && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setMenuRow(null); setMenuPos(null); }}/>
-          <div className="fixed z-50 w-44 rounded-lg py-1.5"
+          <div className="fixed z-50 w-44 rounded-lg py-2"
             style={{ top: menuPos.top, bottom: menuPos.bottom, right: menuPos.right, background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.35)' : '0 12px 32px rgba(0,0,0,0.16)' }}
             onClick={e => e.stopPropagation()}>
             <button onClick={() => { const st = menuRow; setMenuRow(null); setMenuPos(null); openDetail(st); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70" style={{ color: C.text }}>
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70" style={{ color: C.text }}>
               <Eye className="w-3.5 h-3.5 flex-shrink-0"/> View details
             </button>
             <a href={`/student?viewAs=${menuRow.id}`} target="_blank" rel="noreferrer"
               onClick={() => { setMenuRow(null); setMenuPos(null); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70" style={{ color: C.text }}>
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70" style={{ color: C.text }}>
               <ExternalLink className="w-3.5 h-3.5 flex-shrink-0"/> Login as student
             </a>
           </div>

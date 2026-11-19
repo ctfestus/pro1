@@ -86,12 +86,12 @@ export function ApplicationFormQrDialog({ title, slug, url, C, onClose }: {
           <p className="text-center text-[11px] leading-4" style={{ color: C.muted }}>Applicants scan this to open the form. Print it on posters or flyers, or add it to slides.</p>
           <div className="flex items-center gap-2 rounded-xl p-2 pl-3" style={{ background: C.input }}>
             <span className="min-w-0 flex-1 truncate text-xs" style={{ color: C.text }}>{url}</span>
-            <button type="button" onClick={() => void copyLink()} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold" style={{ background: C.card, color: copied ? C.successText : C.cta }}>{copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy link</>}</button>
+            <button type="button" onClick={() => void copyLink()} className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: C.card, color: copied ? C.successText : C.cta }}>{copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy link</>}</button>
           </div>
-          {error && <p role="alert" className="rounded-xl px-3 py-2.5 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{error}</p>}
+          {error && <p role="alert" className="rounded-xl px-3 py-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{error}</p>}
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" disabled={!png} onClick={() => save(png, 'png')} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Download className="h-3.5 w-3.5" /> Download PNG</button>
-            <button type="button" disabled={!svg} onClick={saveSvg} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}><Download className="h-3.5 w-3.5" /> Download SVG</button>
+            <button type="button" disabled={!png} onClick={() => save(png, 'png')} className="flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Download className="h-3.5 w-3.5" /> Download PNG</button>
+            <button type="button" disabled={!svg} onClick={saveSvg} className="flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-xs font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}><Download className="h-3.5 w-3.5" /> Download SVG</button>
           </div>
         </div>
       </section>

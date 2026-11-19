@@ -105,7 +105,7 @@ export function CertificationsManageSection({ C }: { C: typeof LIGHT_C }) {
         </Link>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-2xl" style={{ ...cardStyle(C) }}>
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.faint }}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search certifications..." className="w-full rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none" style={{ background: C.input, color: C.text }}/></div>
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.faint }}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search certifications..." className="w-full rounded-xl pl-10 pr-4 py-3 text-sm outline-none" style={{ background: C.input, color: C.text }}/></div>
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: C.pill }}>{(['all','published','draft'] as const).map(filter => <button key={filter} onClick={() => setStatusFilter(filter)} className="px-3 py-2 rounded-lg text-xs font-semibold capitalize" style={{ background: statusFilter === filter ? C.card : 'transparent', color: statusFilter === filter ? C.green : C.faint }}>{filter}</button>)}</div>
       </div>
       <div className="space-y-4">
@@ -161,7 +161,7 @@ function CertRow({ item, C, deleting, onDelete }: { item: any; C: typeof LIGHT_C
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="font-bold text-base truncate" style={{ color: C.text }}>{item.title}</p>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: item.status === 'published' ? `${C.green}14` : 'rgba(251,191,36,0.12)', color: item.status === 'published' ? C.green : '#f59e0b' }}>{item.status}</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: item.status === 'published' ? `${C.green}14` : 'rgba(251,191,36,0.12)', color: item.status === 'published' ? C.green : '#f59e0b' }}>{item.status}</span>
           </div>
           {item.description && <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>{item.description}</p>}
           <div className="flex flex-wrap items-center gap-3 mt-2 text-xs" style={{ color: C.faint }}>
@@ -173,11 +173,11 @@ function CertRow({ item, C, deleting, onDelete }: { item: any; C: typeof LIGHT_C
         </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={toggle} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: open ? C.cta : C.pill, color: open ? C.ctaText : C.muted }} title="Analytics">
+          <button onClick={toggle} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: open ? C.cta : C.pill, color: open ? C.ctaText : C.muted }} title="Analytics">
             <BarChart3 className="w-3.5 h-3.5" /> Analytics {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
-          <Link href={`/${item.slug || item.id}`} target="_blank" className="p-2.5 rounded-xl" style={{ background: C.pill, color: C.muted }} title="Preview"><ExternalLink className="w-3.5 h-3.5" /></Link>
-          <Link href={`/create/certification?id=${item.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><Edit2 className="w-3.5 h-3.5" /> Edit</Link>
+          <Link href={`/${item.slug || item.id}`} target="_blank" className="p-3 rounded-xl" style={{ background: C.pill, color: C.muted }} title="Preview"><ExternalLink className="w-3.5 h-3.5" /></Link>
+          <Link href={`/create/certification?id=${item.id}`} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><Edit2 className="w-3.5 h-3.5" /> Edit</Link>
           <button onClick={onDelete} disabled={deleting} aria-label={`Delete ${item.title}`} title="Delete certification"
             className="w-9 h-9 grid place-items-center rounded-xl"
             style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`, opacity: deleting ? 0.6 : 1 }}>
@@ -232,15 +232,15 @@ function AnalyticsPanel({ a, C, title }: { a: Analytics; C: typeof LIGHT_C; titl
     <div className="mt-3 space-y-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs" style={{ color: C.faint }}>Range {a.minScore}% to {a.maxScore}%, std dev {a.stdDev}, pass mark {a.passmark}%</p>
-        <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0" style={{ background: C.pill, color: C.text }}>
+        <button onClick={exportCsv} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0" style={{ background: C.pill, color: C.text }}>
           <Download className="w-3.5 h-3.5" /> Export CSV
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {tiles.map(t => (
           <div key={t.label} className="rounded-xl p-3" style={{ background: C.pill }}>
-            <div className="text-lg font-bold" style={{ color: C.text }}>{t.value}</div>
+            <div className="text-base font-bold leading-6" style={{ color: C.text }}>{t.value}</div>
             <div className="text-[11px]" style={{ color: C.faint }}>{t.label}</div>
           </div>
         ))}
@@ -266,14 +266,14 @@ function AnalyticsPanel({ a, C, title }: { a: Analytics; C: typeof LIGHT_C; titl
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: C.faint }}>Item analysis (hardest first)</p>
         {/* Header row */}
-        <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider pb-1.5" style={{ color: C.faint, borderBottom: `1px solid ${C.cardBorder}` }}>
+        <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider pb-2" style={{ color: C.faint, borderBottom: `1px solid ${C.cardBorder}` }}>
           <span className="flex-shrink-0" style={{ width: 20 }}>#</span>
           <span className="flex-1 min-w-0">Question</span>
           <span className="flex-shrink-0" style={{ width: 44, textAlign: 'right' }}>Corr.</span>
           <span className="flex-shrink-0" style={{ width: 40, textAlign: 'right' }}>Rate</span>
           <span className="flex-shrink-0" style={{ width: 52, textAlign: 'right' }}>Disc.</span>
         </div>
-        <div className="space-y-1.5 mt-1.5">
+        <div className="space-y-2 mt-2">
           {questions.map((q, i) => (
             <div key={q.id} className="flex items-center gap-3 text-xs">
               <span className="flex-shrink-0 tabular-nums" style={{ width: 20, color: C.faint }}>{i + 1}</span>

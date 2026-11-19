@@ -223,13 +223,13 @@ function Modal({
           <div>
             {eyebrow && (
               <p
-                className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1"
+                className="text-[11px] font-bold uppercase tracking-[0.2em] mb-1"
                 style={{ color: C.cta }}
               >
                 {eyebrow}
               </p>
             )}
-            <h3 className="text-lg font-bold" style={{ color: C.text }}>
+            <h3 className="text-base font-bold leading-6" style={{ color: C.text }}>
               {title}
             </h3>
           </div>
@@ -266,7 +266,7 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
           : C.muted;
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold capitalize"
       style={{ background: `${tone}14`, color: tone }}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }} />
@@ -301,7 +301,7 @@ function PlanPriceFields({
             <p className="text-xs mt-0.5" style={{ color: C.faint }}>Choose what learners can buy and set each total price.</p>
           </div>
         </div>
-        <span className="text-[11px] font-bold rounded-full px-3 py-1.5 flex-shrink-0" style={{ background: C.card, color: C.text }}>
+        <span className="text-[11px] font-bold rounded-full px-3 py-2 flex-shrink-0" style={{ background: C.card, color: C.text }}>
           {activePriceCount} active
         </span>
       </div>
@@ -320,7 +320,7 @@ function PlanPriceFields({
             >
               <label className="flex items-start justify-between gap-3 cursor-pointer">
                 <span>
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
+                  <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? C.cta : C.faint }} />
                     {active ? "Available" : "Hidden"}
                   </span>
@@ -341,7 +341,7 @@ function PlanPriceFields({
                 />
               </label>
               <div className="mt-4">
-                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1.5" style={{ color: C.faint }}>Total price</span>
+                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: C.faint }}>Total price</span>
                 <div className="grid grid-cols-[1fr_78px] gap-2">
                   <input
                     type="number"
@@ -353,7 +353,7 @@ function PlanPriceFields({
                       : row))}
                     placeholder="0.00"
                     aria-label={`${price.durationMonths} month price`}
-                    className={`${fieldClass} text-lg font-black`}
+                    className={`${fieldClass} text-base font-black leading-6`}
                     style={{ ...inputStyle, background: C.page, borderColor: "transparent" }}
                   />
                   <input
@@ -407,7 +407,7 @@ function PlanDiscountFields({
           <p className="text-xs mt-0.5" style={{ color: C.faint }}>Optional discount across every active duration.</p>
         </div>
         {status && (
-          <span className="rounded-full px-3 py-1.5 text-[10px] font-bold flex-shrink-0" style={{ background: C.card, color: statusTone }}>
+          <span className="rounded-full px-3 py-2 text-[11px] font-bold flex-shrink-0" style={{ background: C.card, color: statusTone }}>
             {status}
           </span>
         )}
@@ -422,7 +422,7 @@ function PlanDiscountFields({
             maxLength={PROMOTION_NAME_MAX}
             onChange={(e) => setDiscount((value) => ({ ...value, label: e.target.value }))}
             placeholder="Black Friday"
-            className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+            className={`${fieldClass} mt-2 disabled:opacity-50`}
             style={controlStyle}
           />
         </label>
@@ -431,7 +431,7 @@ function PlanDiscountFields({
           <select
             value={discount.type}
             onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))}
-            className={`${fieldClass} mt-1.5`}
+            className={`${fieldClass} mt-2`}
             style={controlStyle}
           >
             <option value="">No promotion</option>
@@ -441,7 +441,7 @@ function PlanDiscountFields({
         </label>
         <label className="text-xs font-bold" style={{ color: C.muted }}>
           {discount.type === "percentage" ? "Percentage off" : "Amount off"}
-          <div className="relative mt-1.5">
+          <div className="relative mt-2">
             <input
               type="number"
               min="0.01"
@@ -451,7 +451,7 @@ function PlanDiscountFields({
               disabled={!discount.type}
               onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))}
               placeholder={discount.type === "percentage" ? "15" : "50.00"}
-              className={`${fieldClass} pr-14 text-lg font-black disabled:opacity-50`}
+              className={`${fieldClass} pr-14 text-base font-black disabled:opacity-50 leading-6`}
               style={controlStyle}
             />
             {promotionEnabled && (
@@ -466,18 +466,18 @@ function PlanDiscountFields({
       {preview?.discountActive && example && (
         <div className="rounded-2xl p-4 mt-4 flex items-center justify-between gap-4" style={{ background: C.card }}>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Price preview</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Price preview</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm line-through" style={{ color: C.faint }}>{money(example.currency, preview.listAmount)}</span>
               <ArrowRight className="w-3.5 h-3.5" style={{ color: C.muted }} />
-              <span className="text-xl font-black" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
+              <span className="text-[22px] font-black leading-7" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
             </div>
           </div>
           <div className="min-w-0 text-right">
-            <span className="rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
+            <span className="rounded-full px-3 py-2 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
               Save {money(example.currency, preview.discountAmount)}
             </span>
-            <p className="text-[10px] mt-1.5 break-words" style={{ color: C.faint }}>
+            <p className="text-[11px] mt-2 break-words" style={{ color: C.faint }}>
               Learners see: {promotionHeading(discount.label, "Special offer").toUpperCase()},
               then {discount.type === "percentage"
                 ? `${preview.discountValue}% off`
@@ -503,7 +503,7 @@ function PlanDiscountFields({
               value={discount.startsAt}
               disabled={!discount.type}
               onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))}
-              className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+              className={`${fieldClass} mt-2 disabled:opacity-50`}
               style={controlStyle}
             />
           </label>
@@ -514,7 +514,7 @@ function PlanDiscountFields({
               value={discount.endsAt}
               disabled={!discount.type}
               onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))}
-              className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+              className={`${fieldClass} mt-2 disabled:opacity-50`}
               style={controlStyle}
             />
           </label>
@@ -795,9 +795,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     border: `1px solid ${C.cardBorder}`,
   };
   const fieldClass =
-    "w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-shadow focus:ring-2";
+    "w-full rounded-xl px-4 py-3 text-sm outline-none transition-shadow focus:ring-2";
   const primary =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0";
 
   function resetPayment() {
     setPayment(freshPayment());
@@ -1868,7 +1868,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           onChange={(e) =>
             updatePayment((v) => ({ ...v, durationMonths: e.target.value }))
           }
-          className={`${fieldClass} mt-1.5`}
+          className={`${fieldClass} mt-2`}
           style={inputStyle}
         >
           {[1, 3, 6, 12].map((m) => (
@@ -1889,7 +1889,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             updatePayment((v) => ({ ...v, amount: e.target.value }))
           }
           placeholder="0.00"
-          className={`${fieldClass} mt-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+          className={`${fieldClass} mt-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
           style={inputStyle}
         />
       </label>
@@ -1900,7 +1900,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           onChange={(e) =>
             updatePayment((v) => ({ ...v, currency: e.target.value }))
           }
-          className={`${fieldClass} mt-1.5`}
+          className={`${fieldClass} mt-2`}
           style={inputStyle}
         />
       </label>
@@ -1914,7 +1914,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             onChange={(e) =>
               updatePayment((v) => ({ ...v, dueDate: e.target.value }))
             }
-            className={`${fieldClass} mt-1.5`}
+            className={`${fieldClass} mt-2`}
             style={inputStyle}
           />
         </label>
@@ -1932,7 +1932,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             updatePayment((v) => ({ ...v, paymentMethod: e.target.value }))
           }
           placeholder="Mobile Money, bank transfer..."
-          className={`${fieldClass} mt-1.5`}
+          className={`${fieldClass} mt-2`}
           style={inputStyle}
         />
       </label>
@@ -1944,7 +1944,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             updatePayment((v) => ({ ...v, paymentReference: e.target.value }))
           }
           placeholder="Transaction ID"
-          className={`${fieldClass} mt-1.5`}
+          className={`${fieldClass} mt-2`}
           style={inputStyle}
         />
       </label>
@@ -1956,7 +1956,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         <textarea
           value={payment.notes}
           onChange={(e) => updatePayment((v) => ({ ...v, notes: e.target.value }))}
-          className={`${fieldClass} mt-1.5 min-h-20`}
+          className={`${fieldClass} mt-2 min-h-20`}
           style={inputStyle}
         />
       </label>
@@ -1981,7 +1981,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
             <h2
-              className="text-2xl sm:text-3xl font-black tracking-tight"
+              className="text-2xl sm:text-[28px] font-black tracking-tight"
               style={{ color: "#ffffff" }}
             >
               Access, revenue and renewals.
@@ -2021,7 +2021,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       </section>
 
       <nav
-        className="grid grid-cols-5 gap-1 p-1.5 rounded-2xl w-full"
+        className="grid grid-cols-5 gap-1 p-2 rounded-2xl w-full"
         style={{ background: C.card }}
       >
         {(
@@ -2036,7 +2036,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="relative min-w-0 inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-1.5 sm:px-4 py-2.5 text-[10px] sm:text-sm font-bold transition-all"
+            className="relative min-w-0 inline-flex items-center justify-center gap-2 sm:gap-2 rounded-xl px-2 sm:px-4 py-3 text-[11px] sm:text-sm font-bold transition-all"
             style={{
               background: tab === id ? C.pill : "transparent",
               color: tab === id ? C.text : C.muted,
@@ -2046,7 +2046,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             <span className="truncate">{label}</span>
             {id === "review" && reviewQueue.length > 0 && (
               <span
-                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[10px] text-white"
+                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[11px] text-white"
                 style={{ background: "#dc2626" }}
               >
                 {reviewQueue.length}
@@ -2054,7 +2054,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             )}
             {id === "payments" && awaitingReview.length > 0 && (
               <span
-                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[10px] text-white"
+                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[11px] text-white"
                 style={{ background: "#f97316" }}
               >
                 {awaitingReview.length}
@@ -2404,7 +2404,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       ].map((h) => (
                         <th
                           key={h}
-                          className="text-left px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider"
+                          className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-wider"
                         >
                           {h}
                         </th>
@@ -2518,7 +2518,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     >
                       <div>
                         <p
-                          className="text-[10px] uppercase font-bold"
+                          className="text-[11px] uppercase font-bold"
                           style={{ color: C.faint }}
                         >
                           Expires
@@ -2529,7 +2529,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       </div>
                       <div>
                         <p
-                          className="text-[10px] uppercase font-bold"
+                          className="text-[11px] uppercase font-bold"
                           style={{ color: C.faint }}
                         >
                           Terms
@@ -2612,7 +2612,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span
-                                className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white"
+                                className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white"
                                 style={{
                                   background:
                                     item.kind === "stalled" ? "#d97706" : "#0ea5e9",
@@ -2624,7 +2624,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 {item.studentName || item.studentEmail || item.reference || "Unmatched payment"}
                               </p>
                             </div>
-                            <p className="text-xs mt-1.5" style={{ color: C.muted }}>
+                            <p className="text-xs mt-2" style={{ color: C.muted }}>
                               {(item.reason || "review required").replaceAll("_", " ")}
                               {item.planName ? ` on ${item.planName}` : ""}
                             </p>
@@ -2650,7 +2650,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                               })}
                             </p>
                             {!item.notifiedAt && item.kind !== "stalled" && (
-                              <p className="text-[10px] mt-1 uppercase tracking-wider font-bold" style={{ color: "#d97706" }}>
+                              <p className="text-[11px] mt-1 uppercase tracking-wider font-bold" style={{ color: "#d97706" }}>
                                 Not yet emailed
                               </p>
                             )}
@@ -2658,7 +2658,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                               <button
                                 onClick={() => resolveIncident(item)}
                                 disabled={busy}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold disabled:opacity-50"
+                                className="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold disabled:opacity-50"
                                 style={{ background: C.pill, color: C.cta }}
                               >
                                 <Check className="w-3.5 h-3.5" />
@@ -2766,7 +2766,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             {cart.students?.email}
                           </p>
                           <p
-                            className="text-xs mt-1.5"
+                            className="text-xs mt-2"
                             style={{ color: C.muted }}
                           >
                             {cart.plan_name} - {cart.duration_months} month
@@ -2851,7 +2851,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       >
                         <div>
                           <p
-                            className="text-[10px] font-bold uppercase"
+                            className="text-[11px] font-bold uppercase"
                             style={{ color: C.faint }}
                           >
                             Plan
@@ -2865,7 +2865,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <div>
                           <p
-                            className="text-[10px] font-bold uppercase"
+                            className="text-[11px] font-bold uppercase"
                             style={{ color: C.faint }}
                           >
                             Amount
@@ -2879,7 +2879,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <div>
                           <p
-                            className="text-[10px] font-bold uppercase"
+                            className="text-[11px] font-bold uppercase"
                             style={{ color: C.faint }}
                           >
                             Deadline
@@ -3010,7 +3010,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       <Sparkles className="w-5 h-5" />
                     </span>
                     <div>
-                      <p className="text-lg font-black" style={{ color: C.text }}>Build an offer learners understand</p>
+                      <p className="text-base font-black leading-6" style={{ color: C.text }}>Build an offer learners understand</p>
                       <p className="text-sm mt-1 max-w-2xl" style={{ color: C.muted }}>
                         Bring the plan story, included learning and purchase options together in one guided flow.
                       </p>
@@ -3037,8 +3037,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     </p>
                   </div>
                   <div className="hidden sm:flex items-center gap-2 text-xs font-bold" style={{ color: C.faint }}>
-                    <span className="rounded-full px-2.5 py-1" style={{ background: C.page }}>{plans.length} total</span>
-                    <span className="rounded-full px-2.5 py-1" style={{ background: C.page }}>{activePlans.length} active</span>
+                    <span className="rounded-full px-3 py-1" style={{ background: C.page }}>{plans.length} total</span>
+                    <span className="rounded-full px-3 py-1" style={{ background: C.page }}>{activePlans.length} active</span>
                   </div>
                 </div>
                 {(() => {
@@ -3101,7 +3101,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             >
                               <ShieldCheck className="w-5 h-5" />
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <StatusPill status={plan.status} C={C} />
                               <div className="relative">
                                 <button
@@ -3126,7 +3126,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     <button
                                       onClick={() => openEditPlan(plan)}
                                       disabled={busy}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
                                       style={{ color: C.text }}
                                     >
                                       <span
@@ -3150,7 +3150,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                           ? "Restore this plan before switching it back on."
                                           : undefined
                                       }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
                                       style={{ color: C.text }}
                                     >
                                       <span
@@ -3169,7 +3169,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     <button
                                       onClick={() => openBulkImport(plan)}
                                       disabled={busy || plan.status !== "active"}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
                                       style={{ color: C.text }}
                                     >
                                       <span
@@ -3199,7 +3199,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                             ? "Activate this plan before marking it as best value."
                                             : undefined
                                       }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
                                       style={{ color: C.text }}
                                     >
                                       <span
@@ -3218,7 +3218,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                           ? "Deactivate this plan first, so nobody loses a plan that is still on sale."
                                           : undefined
                                       }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
                                       style={{ color: C.text }}
                                     >
                                       <span
@@ -3232,7 +3232,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     <button
                                       onClick={() => deletePlan(plan)}
                                       disabled={busy}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
                                       style={{ color: C.deleteText }}
                                     >
                                       <span
@@ -3253,18 +3253,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                               {plan.name}
                             </p>
                             <p
-                              className="text-xs mt-1.5 leading-relaxed line-clamp-2 min-h-9"
+                              className="text-xs mt-2 leading-relaxed line-clamp-2 min-h-9"
                               style={{ color: C.faint }}
                             >
                               {plan.description ||
                                 "Reusable subscription access plan"}
                             </p>
-                            <div className="mt-4 rounded-2xl p-3.5" style={{ background: C.card }}>
+                            <div className="mt-4 rounded-2xl p-4" style={{ background: C.card }}>
                             {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
                               <>
-                                <p className="text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
+                                <p className="text-[11px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
                                 <div className="flex items-end justify-between gap-3 mt-1">
-                                  <p className="text-xl font-black" style={{ color: C.text }}>
+                                  <p className="text-[22px] font-black leading-7" style={{ color: C.text }}>
                                     {money(
                                       startingPrice?.currency,
                                       startingPrice?.amount,
@@ -3275,7 +3275,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                   </p>
                                 </div>
                                 {promotionStatus && (
-                                  <div className="flex items-center gap-2 mt-2 text-[10px] font-bold" style={{ color: discountStatusTone(promotionStatus, C) }}>
+                                  <div className="flex items-center gap-2 mt-2 text-[11px] font-bold" style={{ color: discountStatusTone(promotionStatus, C) }}>
                                     {startingPrice?.discountActive && <span className="line-through">{money(startingPrice.currency, startingPrice.listAmount)}</span>}
                                     <span>{(plan.discount_label || "Promotion")} {promotionStatus.toLowerCase()}</span>
                                   </div>
@@ -3286,7 +3286,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                                 <div>
                                   <p className="text-xs font-bold">Pricing needed</p>
-                                  <p className="text-[10px] mt-0.5">Add a price before publishing.</p>
+                                  <p className="text-[11px] mt-0.5">Add a price before publishing.</p>
                                 </div>
                               </div>
                             )}
@@ -3295,8 +3295,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           <div
                             className="grid grid-cols-2 gap-2 mt-3"
                           >
-                            <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
-                              <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
+                            <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
+                              <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
                               <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
                                 {
                                 subscriptions.filter((s) => s.plan_id === plan.id)
@@ -3304,8 +3304,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 }
                               </p>
                             </div>
-                            <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
-                              <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
+                            <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
+                              <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
                               <p className="text-sm font-black mt-0.5" style={{ color: planIsReady(plan) ? C.green : "#b45309" }}>
                                 {planIsReady(plan) ? "Ready" : "Needs setup"}
                               </p>
@@ -3364,14 +3364,14 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         <div className="flex items-center gap-2 mb-2">
                           <StatusPill status={selectedPlan.status} C={C} />
                           <span
-                            className="text-[10px] uppercase tracking-widest font-bold"
+                            className="text-[11px] uppercase tracking-widest font-bold"
                             style={{ color: C.faint }}
                           >
                             Reusable access blueprint
                           </span>
                         </div>
                         <h3
-                          className="text-xl font-black"
+                          className="text-[22px] font-black leading-7"
                           style={{ color: C.text }}
                         >
                           {selectedPlan.name}
@@ -3436,7 +3436,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <div className="flex items-center gap-3">
                           <span
-                            className="text-xs font-bold px-3 py-1.5 rounded-full"
+                            className="text-xs font-bold px-3 py-2 rounded-full"
                             style={{ background: `${C.cta}12`, color: C.cta }}
                           >
                             {selectedContentKeys.length} selected
@@ -3510,7 +3510,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     {type.label.endsWith("s") ? "" : "s"}
                                   </p>
                                   <p
-                                    className="text-[10px] mt-0.5"
+                                    className="text-[11px] mt-0.5"
                                     style={{ color: C.faint }}
                                   >
                                     {
@@ -3730,7 +3730,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <button
                   onClick={onClick}
                   title={tooltip}
-                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
                   style={{ color: C.text }}
                 >
                   <Icon className="w-4 h-4" style={{ color: C.cta }} />
@@ -3751,7 +3751,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <button
                   onClick={() => cancelSubscription(subscriberMenu.sub)}
                   title="Cancel the subscription but keep the learner account."
-                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
                   style={{ color: C.deleteText }}
                 >
                   <XCircle className="w-4 h-4" />
@@ -3770,7 +3770,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <button
                 onClick={() => deleteSubscriberAccount(subscriberMenu.sub)}
                 title="Permanently delete the learner while retaining anonymized financial history."
-                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
                 style={{ color: C.deleteText }}
               >
                 <Trash2 className="w-4 h-4" />
@@ -3811,7 +3811,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     setBulkError("");
                   }
                 }}
-                className={`${fieldClass} mt-1.5`}
+                className={`${fieldClass} mt-2`}
                 style={inputStyle}
               >
                 {activePlans.map((plan) => (
@@ -3820,7 +3820,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   </option>
                 ))}
               </select>
-              <span className="block font-normal mt-1.5" style={{ color: C.faint }}>
+              <span className="block font-normal mt-2" style={{ color: C.faint }}>
                 Every learner in this import will be assigned to this plan.
               </span>
             </label>
@@ -3935,35 +3935,35 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             <div>
               <p className="text-sm font-bold mb-3" style={{ color: C.text }}>2. Default payment terms</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 {bulkMode === "request" ? (
-                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" min={earliestDeadline()} value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" min={earliestDeadline()} value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 ) : (
-                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment method<input value={bulkDefaults.paymentMethod} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentMethod: event.target.value }))} placeholder="Bank transfer" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment method<input value={bulkDefaults.paymentMethod} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentMethod: event.target.value }))} placeholder="Bank transfer" className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 )}
               </div>
               {bulkMode === "paid" && (
                 <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment reference<input value={bulkDefaults.paymentReference} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentReference: event.target.value }))} placeholder="Optional shared reference" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
-                  <label className="text-xs font-bold" style={{ color: C.muted }}>Notes<input value={bulkDefaults.notes} onChange={(event) => setBulkDefaults(value => ({ ...value, notes: event.target.value }))} placeholder="Optional internal note" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment reference<input value={bulkDefaults.paymentReference} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentReference: event.target.value }))} placeholder="Optional shared reference" className={`${fieldClass} mt-2`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Notes<input value={bulkDefaults.notes} onChange={(event) => setBulkDefaults(value => ({ ...value, notes: event.target.value }))} placeholder="Optional internal note" className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 </div>
               )}
             </div>
 
             {bulkRows.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.divider}` }}>
-                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-2.5 py-1" style={{ background: `${C.cta}14`, color: C.cta }}>{bulkRows.length} parsed</span></div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: `${C.cta}14`, color: C.cta }}>{bulkRows.length} parsed</span></div>
                 <div className="max-h-52 overflow-y-auto divide-y" style={{ borderColor: C.divider }}>
-                  {bulkRows.slice(0, 12).map((row, index) => <div key={`${row.email}-${index}`} className="grid sm:grid-cols-[36px_1fr_1fr] gap-2 px-4 py-2.5 text-xs"><span style={{ color: C.faint }}>{index + 1}</span><span className="truncate font-bold" style={{ color: C.text }}>{row.email}</span><span className="truncate" style={{ color: C.muted }}>{row.full_name || "Name not provided"}</span></div>)}
+                  {bulkRows.slice(0, 12).map((row, index) => <div key={`${row.email}-${index}`} className="grid sm:grid-cols-[36px_1fr_1fr] gap-2 px-4 py-3 text-xs"><span style={{ color: C.faint }}>{index + 1}</span><span className="truncate font-bold" style={{ color: C.text }}>{row.email}</span><span className="truncate" style={{ color: C.muted }}>{row.full_name || "Name not provided"}</span></div>)}
                   {bulkRows.length > 12 && <p className="px-4 py-3 text-xs text-center" style={{ color: C.faint }}>And {bulkRows.length - 12} more learners</p>}
                 </div>
               </div>
             )}
 
             {bulkError && <div className="rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{bulkError}</div>}
-            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[[bulkMode === "request" ? "Requests" : "Activated", bulkMode === "request" ? bulkResult.requested : bulkResult.activated], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], ["Emails sent", bulkResult.paymentEmailsSent], ["Errors", bulkResult.errors?.length || 0]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-xl font-bold mt-1" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
+            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[[bulkMode === "request" ? "Requests" : "Activated", bulkMode === "request" ? bulkResult.requested : bulkResult.activated], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], ["Emails sent", bulkResult.paymentEmailsSent], ["Errors", bulkResult.errors?.length || 0]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[11px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-[22px] font-bold mt-1 leading-7" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
 
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button onClick={() => setBulkPlan(null)} className={primary} style={{ background: C.pill, color: C.text }}>{bulkResult ? "Close" : "Cancel"}</button>
@@ -4014,7 +4014,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </span>
                         <span className="text-xs font-bold" style={{ color: current ? C.cta : C.text }}>{label}</span>
                       </span>
-                      <span className="hidden sm:block text-[10px] mt-2" style={{ color: C.faint }}>{helper}</span>
+                      <span className="hidden sm:block text-[11px] mt-2" style={{ color: C.faint }}>{helper}</span>
                     </button>
                   );
                 })}
@@ -4023,7 +4023,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               {planBuilderStep === 0 && (
                 <div className="space-y-5">
                   <div>
-                    <h4 className="text-lg font-black" style={{ color: C.text }}>Start with a clear promise</h4>
+                    <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Start with a clear promise</h4>
                     <p className="text-sm mt-1" style={{ color: C.muted }}>Help learners quickly understand who the plan is for and what it unlocks.</p>
                   </div>
                   <label className="block text-xs font-bold" style={{ color: C.muted }}>
@@ -4033,7 +4033,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       value={newPlanName}
                       onChange={(e) => setNewPlanName(e.target.value)}
                       placeholder="For example: Career Accelerator"
-                      className={`${fieldClass} mt-1.5`}
+                      className={`${fieldClass} mt-2`}
                       style={inputStyle}
                     />
                   </label>
@@ -4043,16 +4043,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       value={newPlanDescription}
                       onChange={(e) => setNewPlanDescription(e.target.value)}
                       placeholder="Explain the outcome learners can expect from this plan"
-                      className={`${fieldClass} mt-1.5 min-h-28 resize-none`}
+                      className={`${fieldClass} mt-2 min-h-28 resize-none`}
                       style={inputStyle}
                       maxLength={240}
                     />
-                    <span className="block text-right text-[10px] mt-1.5 font-normal" style={{ color: C.faint }}>{newPlanDescription.length}/240</span>
+                    <span className="block text-right text-[11px] mt-2 font-normal" style={{ color: C.faint }}>{newPlanDescription.length}/240</span>
                   </label>
                   <div className="rounded-2xl p-4" style={{ background: C.page }}>
-                    <p className="text-[10px] uppercase tracking-[0.16em] font-bold" style={{ color: C.faint }}>Learner preview</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] font-bold" style={{ color: C.faint }}>Learner preview</p>
                     <p className="font-black mt-2" style={{ color: C.text }}>{newPlanName.trim() || "Your plan name"}</p>
-                    <p className="text-xs mt-1.5" style={{ color: C.muted }}>{newPlanDescription.trim() || "A concise description of the value learners receive."}</p>
+                    <p className="text-xs mt-2" style={{ color: C.muted }}>{newPlanDescription.trim() || "A concise description of the value learners receive."}</p>
                   </div>
                 </div>
               )}
@@ -4061,10 +4061,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <div className="space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div>
-                      <h4 className="text-lg font-black" style={{ color: C.text }}>Build the learning bundle</h4>
+                      <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Build the learning bundle</h4>
                       <p className="text-sm mt-1" style={{ color: C.muted }}>Select everything learners should unlock with this plan.</p>
                     </div>
-                    <span className="self-start text-xs font-bold rounded-full px-3 py-1.5" style={{ background: `${C.cta}12`, color: C.cta }}>
+                    <span className="self-start text-xs font-bold rounded-full px-3 py-2" style={{ background: `${C.cta}12`, color: C.cta }}>
                       {newPlanContentKeys.length} selected
                     </span>
                   </div>
@@ -4089,7 +4089,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           <div className="flex items-center justify-between mb-2">
                             <div>
                               <p className="text-xs font-bold" style={{ color: C.text }}>{type.label}{type.label.endsWith("s") ? "" : "s"}</p>
-                              <p className="text-[10px] mt-0.5" style={{ color: C.faint }}>{groupKeys.filter((key) => newPlanContentKeys.includes(key)).length} of {items.length} selected</p>
+                              <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{groupKeys.filter((key) => newPlanContentKeys.includes(key)).length} of {items.length} selected</p>
                             </div>
                             <button
                               type="button"
@@ -4137,7 +4137,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               {planBuilderStep === 2 && (
                 <div className="space-y-5">
                   <div>
-                    <h4 className="text-lg font-black" style={{ color: C.text }}>Make pricing easy to choose</h4>
+                    <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Make pricing easy to choose</h4>
                     <p className="text-sm mt-1" style={{ color: C.muted }}>Add one or more purchase options. Entering an amount turns that option on automatically.</p>
                   </div>
                   <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
@@ -4210,9 +4210,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   [newPlanContentKeys.length > 0, "Included content", newPlanContentKeys.length ? `${newPlanContentKeys.length} items selected` : "Add at least one item"],
                   [newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0), "Purchase options", `${newPlanPrices.filter((price) => price.isActive && Number(price.amount) > 0).length} active prices`],
                 ].map(([ready, label, detail]) => (
-                  <div key={String(label)} className="flex items-start gap-2.5">
+                  <div key={String(label)} className="flex items-start gap-2">
                     <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0 mt-0.5" style={{ background: ready ? C.successBg : C.card, color: ready ? C.successText : C.faint }}>
-                      {ready ? <Check className="w-3 h-3" /> : <span className="text-[10px]">!</span>}
+                      {ready ? <Check className="w-3 h-3" /> : <span className="text-[11px]">!</span>}
                     </span>
                     <div>
                       <p className="text-xs font-bold" style={{ color: C.text }}>{label}</p>
@@ -4269,7 +4269,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     value={editPlanName}
                     onChange={(e) => setEditPlanName(e.target.value)}
                     placeholder="For example: Professional"
-                    className={`${fieldClass} mt-1.5 font-bold`}
+                    className={`${fieldClass} mt-2 font-bold`}
                     style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
                   />
                 </label>
@@ -4279,7 +4279,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     value={editPlanDescription}
                     onChange={(e) => setEditPlanDescription(e.target.value)}
                     placeholder="Describe who this plan is for"
-                    className={`${fieldClass} mt-1.5 min-h-20 resize-none`}
+                    className={`${fieldClass} mt-2 min-h-20 resize-none`}
                     style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
                   />
                 </label>
@@ -4340,7 +4340,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-sm font-bold" style={{ color: C.text }}>
                   You have unsaved changes
                 </p>
-                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: C.muted }}>
+                <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
                   {unsavedPlanDialog === "create"
                     ? "Save this setup as a draft so you can continue later, or discard it permanently."
                     : "Save the updates to this plan, or discard the changes you just made."}
@@ -4437,7 +4437,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   <select
                     value={studentId}
                     onChange={(e) => { setStudentId(e.target.value); setPaidAttemptKey(""); }}
-                    className={`${fieldClass} mt-1.5`}
+                    className={`${fieldClass} mt-2`}
                     style={inputStyle}
                   >
                     <option value="">Choose an eligible student</option>
@@ -4457,7 +4457,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       value={newLearnerName}
                       onChange={(e) => setNewLearnerName(e.target.value)}
                       placeholder="Learner's full name"
-                      className={`${fieldClass} mt-1.5`}
+                      className={`${fieldClass} mt-2`}
                       style={inputStyle}
                     />
                   </label>
@@ -4468,7 +4468,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       value={newLearnerEmail}
                       onChange={(e) => setNewLearnerEmail(e.target.value)}
                       placeholder="learner@example.com"
-                      className={`${fieldClass} mt-1.5`}
+                      className={`${fieldClass} mt-2`}
                       style={inputStyle}
                     />
                   </label>
@@ -4479,7 +4479,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <select
                   value={planId}
                   onChange={(e) => { setPlanId(e.target.value); setPaidAttemptKey(""); }}
-                  className={`${fieldClass} mt-1.5`}
+                  className={`${fieldClass} mt-2`}
                   style={inputStyle}
                 >
                   <option value="">Choose an active plan</option>
@@ -4743,7 +4743,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <textarea
                 value={reviewNotes}
                 onChange={(e) => setReviewNotes(e.target.value)}
-                className={`${fieldClass} mt-1.5 min-h-24`}
+                className={`${fieldClass} mt-2 min-h-24`}
                 style={inputStyle}
                 placeholder={
                   reviewTarget.decision === "reject"
@@ -4858,7 +4858,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 ? "This is public. Make it available to this plan and your cohorts instead?"
                 : "These are public. Make them available to this plan and your cohorts instead?"}
             </p>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {closePublicAsk.titles.map((title, index) => (
                 <li key={`${title}-${index}`} className="text-sm font-bold" style={{ color: C.text }}>
                   {title}
@@ -4875,7 +4875,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   closePublicAsk.resolve(true);
                   setClosePublicAsk(null);
                 }}
-                className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                className="rounded-xl px-4 py-3 text-sm font-bold"
                 style={{ background: C.cta, color: C.ctaText }}
               >
                 Make plan-only
@@ -4886,7 +4886,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   closePublicAsk.resolve(false);
                   setClosePublicAsk(null);
                 }}
-                className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                className="rounded-xl px-4 py-3 text-sm font-bold"
                 style={{ background: C.pill, color: C.text }}
               >
                 Cancel

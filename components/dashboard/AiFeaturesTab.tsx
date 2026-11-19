@@ -152,7 +152,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
         <div className="hidden sm:grid sm:grid-cols-[1fr_5rem_5rem] sm:gap-4">
           <span />
           {TIERS.map(t => (
-            <span key={t.id} className="text-[10px] font-bold uppercase tracking-widest text-right" style={{ color: C.faint }}>
+            <span key={t.id} className="text-[11px] font-bold uppercase tracking-widest text-right" style={{ color: C.faint }}>
               {t.label}
             </span>
           ))}
@@ -179,7 +179,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
         </div>
 
         {/* The one number an admin cannot change here, said plainly rather than left a mystery. */}
-        <div className="text-[11px] leading-relaxed px-3 py-2.5 rounded-xl" style={{ background: C.pill, color: C.muted }}>
+        <div className="text-[11px] leading-relaxed px-3 py-3 rounded-xl" style={{ background: C.pill, color: C.muted }}>
           The lesson tutor also has platform-wide ceilings shared by everyone, set in environment
           configuration rather than here. They exist to stop a runaway loop draining the AI account,
           so they are deliberately not editable from a form.
@@ -187,7 +187,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
       </div>
 
       {msg && (
-        <div className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
+        <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
           style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
           {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
           {msg.text}
@@ -198,7 +198,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
         <button
           onClick={save}
           disabled={saving}
-          className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
+          className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
           style={{ background: C.cta, color: C.ctaText }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save AI limits'}
         </button>
@@ -206,7 +206,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
           <button
             type="button"
             onClick={() => setDraft(DEFAULT_DRAFT)}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex items-center gap-1.5"
+            className="px-4 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex items-center gap-2"
             style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.muted }}>
             <RotateCcw className="w-3.5 h-3.5"/> Reset
           </button>

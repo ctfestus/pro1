@@ -222,7 +222,7 @@ export default function DashboardPage() {
     return (
       <div className="platform-font-scope min-h-screen animate-pulse" style={{ background: C.page }}>
         <div className="sticky top-0 z-20 border-b px-6 md:px-10 h-14 flex items-center justify-between backdrop-blur-md" style={{ background: C.nav, borderColor: C.navBorder }}>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg" style={{ background: C.skeleton }}/>
             <div className="h-4 w-24 rounded-lg" style={{ background: C.skeleton }}/>
           </div>
@@ -314,7 +314,7 @@ export default function DashboardPage() {
                   {!isStaff && activeSection === 'courses' && forms.filter(f => f.content_type === 'course').length > 0 && (
                     <button
                       onClick={() => exportAllInSection(forms, 'course', 'courses_bulk')}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
                       style={{ background: C.card, color: C.muted }}>
                       <Download className="w-3.5 h-3.5" /> Export All
                     </button>
@@ -376,7 +376,7 @@ export default function DashboardPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="p-6 rounded-2xl max-w-md w-full"
               style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 16px 48px rgba(0,0,0,0.15)' }}>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: C.text }}>Delete &ldquo;{deletingName}&rdquo;?</h3>
+              <h3 className="text-base font-semibold mb-2 leading-6" style={{ color: C.text }}>Delete &ldquo;{deletingName}&rdquo;?</h3>
               <p className="text-sm mb-6" style={{ color: C.muted }}>This will permanently delete this item and all its responses. This cannot be undone.</p>
               <div className="flex items-center justify-end gap-3">
                 <button onClick={() => setFormToDelete(null)} disabled={isDeleting}
