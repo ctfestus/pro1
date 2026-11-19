@@ -452,23 +452,6 @@ export async function POST(req: NextRequest) {
 
   const { action } = body;
 
-  // -- Get all certificates for the logged-in student ---
-  if (action === 'get-my-certificates') {
-    const sessionUser = await getSessionUser(req);
-    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    try {
-      const { data: certs } = await adminClient()
-        .from('certificates')
-        .select('id, course_id, ve_id, learning_path_id')
-        .eq('student_id', sessionUser.id)
-        .eq('revoked', false);
-      return NextResponse.json({ certs: certs ?? [] });
-    } catch (err: any) {
-      console.error('[course/get-my-certificates]', err);
-      return NextResponse.json({ error: 'Failed to load certificates.' }, { status: 500 });
-    }
-  }
-
   // -- Get current progress + cert + attempt count ---
   if (action === 'get-progress') {
     const { course_id } = body;
