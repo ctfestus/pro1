@@ -133,7 +133,7 @@ export function PricingSection({
 
   return (
     <section id="pricing-plans" className="relative z-20 -mt-16 scroll-mt-24" style={{ fontFamily: bFont }}>
-      {offer && <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} hFont={hFont} />}
+      {offer && <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} />}
 
       {forItem && (
         <p className={`${offer ? 'mt-4' : ''} rounded-2xl bg-white px-5 py-4 text-sm leading-6`} style={{ color: '#5F6B7A' }}>
@@ -181,13 +181,12 @@ export function PricingSection({
   );
 }
 
-function OfferStrip({ plan, price, end, now, hFont }: {
+function OfferStrip({ plan, price, end, now }: {
   plan: PricingPlan;
   price: PricingPlan['prices'][number];
   /** When the offer stops, or null when it has no end date (or the clock has not been read yet). */
   end: number | null;
   now: number | null;
-  hFont?: string;
 }) {
   const left = end !== null && now !== null ? Math.max(0, end - now) : 0;
   const parts = [
@@ -201,9 +200,9 @@ function OfferStrip({ plan, price, end, now, hFont }: {
     : `${money(price.currency, price.discountAmount ?? 0)} off`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4" style={{ boxShadow: `inset 0 0 0 2px ${BEST_VALUE_GOLD}, 0 14px 45px rgba(16,24,40,0.08)` }}>
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4" style={{ boxShadow: `inset 0 0 0 2px ${BEST_VALUE_GOLD}, 0 14px 45px rgba(16,24,40,0.08)`, fontFamily: 'var(--font-display), sans-serif' }}>
       <div>
-        <p className="text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>
+        <p className="text-base font-bold" style={{ color: '#101828' }}>
           {promotionHeading(price.discountLabel, 'Offer')}: {saving} {plan.name}
         </p>
         <p className="mt-1 text-sm" style={{ color: '#667085' }}>

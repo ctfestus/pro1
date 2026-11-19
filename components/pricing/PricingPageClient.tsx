@@ -181,7 +181,6 @@ export function PricingPageClient(props: PricingPageClientProps) {
         onSelectDuration={setSelectedDuration}
         primaryColor={primaryColor}
         accentColor={accentColor}
-        headingFont={headingFont}
         bodyFont={bodyFont}
       />
 

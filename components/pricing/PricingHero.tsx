@@ -3,6 +3,9 @@
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
 
+// Space Grotesk, the display face the course pages use for their headings.
+const DISPLAY_FONT = 'var(--font-display), sans-serif';
+
 const HERO_TOOLS: { name: string; glyph: number }[] = [
   { name: 'Claude', glyph: 36 },
   { name: 'ChatGPT', glyph: 32 },
@@ -92,14 +95,12 @@ export interface PricingHeroProps {
   onSelectDuration: (months: number) => void;
   primaryColor: string;
   accentColor: string;
-  headingFont?: string;
   bodyFont?: string;
 }
 
 export function PricingHero({
-  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, accentColor, headingFont, bodyFont,
+  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, accentColor, bodyFont,
 }: PricingHeroProps) {
-  const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
   const toolIcon = useToolIcons();
 
@@ -141,7 +142,7 @@ export function PricingHero({
         <HeroFlourish accentColor={accentColor} />
         <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.3fr_1fr]">
           <div>
-            <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+            <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
               Learn the skills you need to move your career forward
             </h1>
             <p className="mt-5 max-w-2xl text-base" style={{ color: 'rgba(255,255,255,0.82)' }}>
@@ -164,7 +165,7 @@ export function PricingHero({
       <HeroFlourish accentColor={accentColor} />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.3fr_1fr]">
         <div>
-          <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+          <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
             {promotion
               ? `Get ${durationLabel(price.durationMonths)} of full access at a better price`
               : saving
