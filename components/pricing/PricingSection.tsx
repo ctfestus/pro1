@@ -34,17 +34,20 @@ const KIND_DESCRIPTION: Record<PurchasableContentTable, string> = {
   certifications: 'Prove what you have completed',
 };
 
-const KIND_NOUN: Record<PurchasableContentTable, [string, string]> = {
-  courses: ['course', 'courses'],
-  learning_paths: ['learning path', 'learning paths'],
-  virtual_experiences: ['virtual experience', 'virtual experiences'],
-  certifications: ['certification', 'certifications'],
+const KIND_NOUN: Record<PurchasableContentTable, string> = {
+  courses: 'courses',
+  learning_paths: 'learning paths',
+  virtual_experiences: 'virtual experiences',
+  certifications: 'certifications',
 };
 
-/** "14 courses", one line per kind the plan or free tier opens. The page data is at most a minute old. */
-function countLines(coverage: ContentCounts): string[] {
-  return CONTENT_KINDS.filter(kind => coverage[kind] > 0)
-    .map(kind => `${coverage[kind]} ${KIND_NOUN[kind][coverage[kind] === 1 ? 0 : 1]}`);
+/**
+ * One line per kind the plan or free tier opens, as on the course pages' price card. Plans are
+ * meant to open everything of a kind, including what is added later, so they say "Unlimited";
+ * the free tier opens only what is marked free, so it says "Free".
+ */
+function kindLines(coverage: ContentCounts, word: 'Unlimited' | 'Free'): string[] {
+  return CONTENT_KINDS.filter(kind => coverage[kind] > 0).map(kind => `${word} ${KIND_NOUN[kind]}`);
 }
 
 /** The plan's price at the chosen length, or at the length it is sold at closest to it. */
@@ -230,7 +233,7 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onB
   const end = offerEnd(price, now);
   // The price a day, a month counted as 30 days, always to the cent, as on the course pages.
   const perDay = price ? `${price.currency || 'GHS'} ${(price.amount / (price.durationMonths * 30)).toFixed(2)}` : '';
-  const lines = countLines(plan.coverage);
+  const lines = kindLines(plan.coverage, 'Unlimited');
 
   return (
     <article
@@ -334,7 +337,7 @@ function FreePlanCard({ free, signedIn, hFont }: {
   signedIn: boolean;
   hFont?: string;
 }) {
-  const lines = [...countLines(free), 'Verifiable certificates you earn stay yours'];
+  const lines = [...kindLines(free, 'Free'), 'Verifiable certificates you earn stay yours'];
 
   return (
     <article className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7">
