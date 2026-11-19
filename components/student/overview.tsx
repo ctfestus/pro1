@@ -183,13 +183,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           cohort
             ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).eq('content_type', 'virtual_experience')
             : Promise.resolve({ data: [] as any[] }),
-          token
-            ? fetch('/api/course', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ action: 'get-my-certificates' }),
-              }).then(r => r.json()).catch(() => ({ certs: [] }))
-            : Promise.resolve({ certs: [] }),
+          // By student id, not the signed-in user, so view-as shows the student's certificates.
+          supabase.from('certificates').select('id').eq('student_id', user.id).eq('revoked', false),
           cohort && token && !inIndividualCohort
             ? fetch(`/api/leaderboard?cohort_id=${encodeURIComponent(cohort)}`, { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).catch(() => ({ rankings: [] }))
@@ -304,7 +299,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       setCourseAttempts(caMap);
       setGpAttempts(gpMap);
       setDeadlines(dlMap);
-      setCerts((certsData as any)?.certs ?? []);
+      setCerts(certsData.data ?? []);
       setMyRank(myEntry?.rank ?? null);
       setTotalInCohort(rankings.length);
       setEvents((eventsRes as any)?.data ?? []);

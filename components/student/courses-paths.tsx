@@ -1183,8 +1183,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       setLoadError(false);
       try {
       // The page already verified the user and passes their id; read the local session only.
-      const { data: { session } } = await supabase.auth.getSession();
-      const effectiveUserId = userIdProp ?? session?.user.id;
+      const effectiveUserId = userIdProp ?? (await supabase.auth.getSession()).data.session?.user.id;
       if (!effectiveUserId) return;
 
       // Get student's cohort -- original_cohort_id being set means they're currently in outstanding
@@ -1240,9 +1239,6 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       if (cancelled) return;
       setIsOutstandingInternal(outstanding);
 
-      // Session token for authenticated API calls
-      const token = session?.access_token ?? '';
-
       // Load cohort courses + student attempts + certificates in parallel
       const courseCatalogQuery = !restrictedByPayment
         ? (() => {
@@ -1262,15 +1258,9 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
           .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
           .eq('student_id', effectiveUserId)
           .order('started_at', { ascending: false }),
-        // A dropped certificates request must not take the whole course list down with it --
-        // without the badge is far better than a Courses tab stuck on its skeleton.
-        token
-          ? fetch('/api/course', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ action: 'get-my-certificates' }),
-            }).then(r => r.ok ? r.json() : { certs: [] }).catch(() => ({ certs: [] }))
-          : Promise.resolve({ certs: [] }),
+        // Read by student id, not the signed-in user, so an admin viewing as a student sees the
+        // student's certificates. Its error is ignored: a missing badge beats a failed course list.
+        supabase.from('certificates').select('id, course_id').eq('student_id', effectiveUserId).eq('revoked', false),
       ]);
       // A failed catalogue or attempts query resolves with null data, which would render as
       // "No courses yet". Surface it as a retry instead of pretending the student has nothing.
@@ -1279,7 +1269,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       // Build cert lookup: form_id -> cert id
       const certMap: Record<string, string> = {};
-      for (const c of (certsRes?.certs ?? [])) certMap[c.form_id ?? c.course_id] = c.id;
+      for (const c of (certsRes.data ?? [])) if (c.course_id) certMap[c.course_id] = c.id;
 
       // Normalize course rows with config shape
       const normalizeCourse = (c: any) => ({
