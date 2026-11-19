@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { Check, ChevronDown, FileCheck2, Loader2, Upload } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { Check, FileCheck2, Loader2, Upload } from 'lucide-react';
 import {
   APPLICATION_OTHER_OPTION,
   applicationChoiceSelections,
@@ -15,131 +15,10 @@ import {
   type ApplicationQuestion,
 } from '@/lib/application-forms';
 import { ApplicationFramedImage } from '@/components/ApplicationFramedImage';
+import { MenuSelect } from '@/components/MenuSelect';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { supabase } from '@/lib/supabase';
 import type { ThemeColors } from '@/lib/theme';
-
-function ApplicationDropdown({ questionId, value, options, onChange, C, disabled, autoFocus }: {
-  questionId: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-  C: ThemeColors;
-  disabled: boolean;
-  autoFocus: boolean;
-}) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const selectedIndex = options.indexOf(value);
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(Math.max(0, selectedIndex));
-  const listboxId = `${questionId}-options`;
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOutside);
-    return () => document.removeEventListener('pointerdown', closeOutside);
-  }, [open]);
-
-  function showMenu() {
-    if (disabled || options.length === 0) return;
-    setActiveIndex(Math.max(0, selectedIndex));
-    setOpen(true);
-  }
-
-  function choose(option: string) {
-    onChange(option);
-    setOpen(false);
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (disabled || options.length === 0) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        showMenu();
-        return;
-      }
-      const direction = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex(current => (current + direction + options.length) % options.length);
-      return;
-    }
-    if (event.key === 'Home' && open) {
-      event.preventDefault();
-      setActiveIndex(0);
-      return;
-    }
-    if (event.key === 'End' && open) {
-      event.preventDefault();
-      setActiveIndex(Math.max(0, options.length - 1));
-      return;
-    }
-    if (event.key === 'Escape' && open) {
-      event.preventDefault();
-      setOpen(false);
-      return;
-    }
-    if ((event.key === 'Enter' || event.key === ' ') && open) {
-      event.preventDefault();
-      if (options[activeIndex]) choose(options[activeIndex]);
-    }
-  }
-
-  return (
-    <div ref={rootRef} className="relative" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-      <button
-        type="button"
-        role="combobox"
-        autoFocus={autoFocus}
-        disabled={disabled || options.length === 0}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        aria-activedescendant={open ? `${questionId}-option-${activeIndex}` : undefined}
-        onClick={() => open ? setOpen(false) : showMenu()}
-        onKeyDown={handleKeyDown}
-        className="application-dropdown-trigger flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-        style={{ background: C.input, color: value ? C.text : C.faint, border: `1px solid ${open ? C.cta : C.inputBorder}`, borderRadius: 10 }}
-      >
-        <span className="min-w-0 flex-1 truncate">{value || (options.length > 0 ? 'Select an option' : 'No options configured')}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} style={{ color: open ? C.cta : C.faint }} />
-      </button>
-
-      {open && options.length > 0 && (
-        <div
-          id={listboxId}
-          role="listbox"
-          aria-label="Options"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 max-h-64 overflow-y-auto rounded-lg border p-1.5"
-          style={{ background: C.card, borderColor: C.inputBorder, boxShadow: '0 18px 45px rgba(0, 0, 0, 0.20)', color: C.text }}
-        >
-          {options.map((option, index) => {
-            const selected = option === value;
-            const active = index === activeIndex;
-            return (
-              <button
-                key={`${option}-${index}`}
-                id={`${questionId}-option-${index}`}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => choose(option)}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors"
-                style={{ background: selected || active ? C.page : C.card, color: C.text }}
-              >
-                <span className="min-w-0 flex-1 truncate">{option}</span>
-                {selected && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ background: C.cta, color: '#FFFFFF' }}><Check className="h-3 w-3" strokeWidth={3} /></span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false, startAt = 2, focused = false, autoFocus = false }: {
   questions: ApplicationQuestion[];
@@ -288,7 +167,11 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
             )}
 
             {question.type === 'dropdown' && (
-              <ApplicationDropdown questionId={question.id} value={choiceSelections[0] ?? ''} options={choiceOptions} onChange={next => setChoice([next])} C={C} disabled={disabled} autoFocus={autoFocus} />
+              <MenuSelect field label={question.label || 'Options'} value={choiceSelections[0] ?? ''}
+                options={choiceOptions.map(option => ({ value: option, label: option }))}
+                onChange={next => setChoice([next])} C={C} disabled={disabled} autoFocus={autoFocus}
+                placeholder={choiceOptions.length > 0 ? 'Select an option' : 'No options configured'}
+                className="application-dropdown-trigger" />
             )}
 
             {(question.type === 'single_choice' || question.type === 'yes_no') && (
