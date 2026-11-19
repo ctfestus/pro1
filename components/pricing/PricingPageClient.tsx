@@ -198,7 +198,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           selectedDuration={selectedDuration}
           forItem={forItem && { title: forItem.title, contentTable: forItem.contentTable, contentId: forItem.contentId, onShowAll: showAllPlans }}
         >
-          <PricingTools programmes={programmes} imageUrl={siteConfig.heroImageUrl || undefined} user={user} hFont={hFont} />
+          <PricingTools imageUrl={siteConfig.heroImageUrl || undefined} hFont={hFont} />
         </PricingSection>
 
         <PricingFaq

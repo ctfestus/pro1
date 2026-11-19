@@ -1,13 +1,13 @@
 'use client';
 
-import { Award, CalendarCheck, CreditCard } from 'lucide-react';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
 
-// The three promises every plan keeps, shown beside the headline.
-const PROMISES = [
-  { Icon: CalendarCheck, text: 'No automatic renewal' },
-  { Icon: CreditCard, text: 'Pay with card, bank or mobile money' },
-  { Icon: Award, text: 'Certificates stay yours' },
+const HERO_TOOLS: { name: string; glyph: number }[] = [
+  { name: 'Claude', glyph: 36 },
+  { name: 'ChatGPT', glyph: 32 },
+  { name: 'Excel', glyph: 32 },
+  { name: 'Power BI', glyph: 32 },
 ];
 
 function billingLabel(months: number): string {
@@ -101,6 +101,7 @@ export function PricingHero({
 }: PricingHeroProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
+  const toolIcon = useToolIcons();
 
   // One switch for every plan, where the choice starts. The saving rides on the length it belongs to.
   const lengthSwitch = durationOptions.length === 2 && durationOptions[0] !== durationOptions[1] && (
@@ -120,17 +121,18 @@ export function PricingHero({
     </div>
   );
 
-  const promises = (
-    <ul className="grid grid-cols-3 gap-4">
-      {PROMISES.map(({ Icon, text }) => (
-        <li key={text} className="flex flex-col items-center gap-3 text-center">
-          <span className="grid h-16 w-16 place-items-center rounded-full" style={{ background: 'rgba(255,255,255,0.12)', boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.35)' }}>
-            <Icon className="h-7 w-7" style={{ color: '#FFFFFF' }} />
+  const tools = (
+    <div className="flex gap-3 lg:flex-col lg:justify-self-end">
+      {HERO_TOOLS.map(tool => {
+        const icon = toolIcon(tool.name);
+        if (!icon) return null;
+        return (
+          <span key={tool.name} title={tool.name} className="grid h-[52px] w-[52px] place-items-center rounded-full bg-white" style={{ boxShadow: '0 2px 8px rgba(16,24,40,0.20)' }}>
+            <img src={icon} alt={tool.name} className="object-contain" style={{ width: tool.glyph, height: tool.glyph }} loading="lazy" />
           </span>
-          <span className="text-xs font-bold leading-4" style={{ color: '#FFFFFF' }}>{text}</span>
-        </li>
-      ))}
-    </ul>
+        );
+      })}
+    </div>
   );
 
   if (!offer) {
@@ -147,7 +149,7 @@ export function PricingHero({
             </p>
             {lengthSwitch && <div className="mt-7">{lengthSwitch}</div>}
           </div>
-          {promises}
+          {tools}
         </div>
       </section>
     );
@@ -176,7 +178,7 @@ export function PricingHero({
           </p>
           {lengthSwitch && <div className="mt-7">{lengthSwitch}</div>}
         </div>
-        {promises}
+        {tools}
       </div>
     </section>
   );
