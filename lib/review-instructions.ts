@@ -15,6 +15,19 @@ export const REVIEW_GRADING_INSTRUCTIONS = `GRADING RULES - these take precedenc
 - Do not pad. When there is nothing to correct, return an empty list rather than inventing a finding or a recommendation.`;
 
 /**
+ * For a review without a rubric: the task the student was set, which the review is judged against,
+ * so the reviewer's built-in checklist cannot take over. Empty when the step has no task text.
+ */
+export function taskInstructions(task: string): string {
+  if (!task) return '';
+  return `THE TASK THE STUDENT WAS SET:
+${task}
+
+Judge the work against this task. Use the review areas in these instructions only where they bear on it: a point the task does not need is at most an Optional suggestion and never lowers a score.
+`;
+}
+
+/**
  * The rubric block for a review prompt. `location` says what a location is for this kind of work,
  * for example 'the cell or range, e.g. "Sheet1!C12"'.
  */

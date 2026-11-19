@@ -1,9 +1,9 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions, taskInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
-import { resolveReviewItem, reviewMinScore, reviewRubric, reviewText } from '@/lib/review-target';
+import { resolveReviewItem, reviewMinScore, reviewRubric, reviewTask, reviewText } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
@@ -66,7 +66,7 @@ const PYTHON_FOCUS = `PYTHON-SPECIFIC FOCUS AREAS (data analysis and engineering
 
 // With a rubric the prompt is the reviewer, the data context and the rubric. The general audit and
 // the language focus areas are left out entirely: they are what pulled a report off the rubric.
-function buildSystemPrompt(language: string, dialect: string | undefined, schema: string | undefined, rubric: string[]): string {
+function buildSystemPrompt(language: string, dialect: string | undefined, schema: string | undefined, rubric: string[], task: string): string {
   const lang = language.toLowerCase();
   const dialectName = dialect ?? 'standard SQL';
   const reviewer = lang === 'sql'
@@ -83,7 +83,7 @@ function buildSystemPrompt(language: string, dialect: string | undefined, schema
     return `${reviewer} You are marking a student's code against the instructor's rubric.${dataContext}\n${rubricInstructions(rubric, 'the line number(s), e.g. "12" or "5-8", or "" if it concerns the whole submission')}`;
   }
   const focus = lang === 'sql' ? `\n\n${SQL_FOCUS(dialectName)}` : lang === 'python' ? `\n\n${PYTHON_FOCUS}` : '';
-  return `${reviewer}${dataContext}\n${BASE_INSTRUCTIONS}${focus}`;
+  return `${reviewer}${dataContext}\n${taskInstructions(task)}${BASE_INSTRUCTIONS}${focus}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
     const dialectLabel = dialect ? ` (${dialect})` : '';
-    const fullPrompt = `${buildSystemPrompt(language, dialect, schema, rubric)}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    const fullPrompt = `${buildSystemPrompt(language, dialect, schema, rubric, reviewTask(resolved.item))}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
 
     const parsed = await generateJSON(fullPrompt, reviewSchema({ findings: FINDINGS, hasRubric: rubric.length > 0 }), { feature: 'code-review',
       temperature: 0.25,

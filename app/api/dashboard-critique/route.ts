@@ -1,9 +1,9 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions, taskInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
-import { resolveReviewItem, reviewMinScore, reviewRubric } from '@/lib/review-target';
+import { resolveReviewItem, reviewMinScore, reviewRubric, reviewTask } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
@@ -174,7 +174,6 @@ NEVER mention:
 - Implementation tools or code (no CSS, HTML, or software-specific advice).
 
 ALWAYS write:
-- Specific measurements where relevant (e.g., "increase to 18px", "reduce to 2 colours").
 - The business impact of the issue (e.g., "a truncated Y-axis will mislead executives about the scale of variance").
 - One recommendation per element -- the single highest-priority change to make.
 
@@ -253,7 +252,7 @@ export async function POST(req: NextRequest) {
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
 
-    const fullPrompt = `${rubric.length > 0 ? rubricPrompt(rubric) : SYSTEM_PROMPT}\n\n${REVIEW_GRADING_INSTRUCTIONS}`;
+    const fullPrompt = `${rubric.length > 0 ? rubricPrompt(rubric) : `${taskInstructions(reviewTask(resolved.item))}\n${SYSTEM_PROMPT}`}\n\n${REVIEW_GRADING_INSTRUCTIONS}`;
 
     const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, schemaFor(rubric.length > 0), { feature: 'dashboard-critique',
       temperature: 0.35,

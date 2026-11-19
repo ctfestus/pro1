@@ -170,3 +170,37 @@ describe('an AI setup failure', () => {
   });
 });
 
+// Without a rubric, the review is judged against the task the step set, not a built-in checklist.
+describe.each([
+  ['code', codeReview, 'code_review', { code: 'SELECT 1;' }],
+  ['dashboard', dashboardReview, 'dashboard_critique', { imageBase64: 'sample' }],
+  ['document', documentReview, 'document_review', null],
+] as const)('%s review without a rubric', (name, handler, type, fields) => {
+  it('sends the task the step set and says to judge against it', async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: 'student' }, actor: { id: 'student' },
+      serviceDb: makeSupabaseStub({ students: { data: { role: 'student' } } }),
+      getActorDb: () => makeSupabaseStub({ courses: { data: { questions: [
+        { id: 'q1', type, question: '<p>Find the five customers with the highest revenue.</p>' },
+      ] } } }),
+    } as any);
+    const report = { overallScore: 70, executiveSummary: 's', issues: [], sections: [], categories: [], topRecommendations: [] };
+    vi.mocked(generateJSON).mockResolvedValue(report);
+    vi.mocked(generateVisionJSON).mockResolvedValue(name === 'dashboard' ? { elements: [], audit: report } : report);
+    const target = { source: 'course', contentId: 'course-1', itemId: 'q1' };
+    let body: string | FormData;
+    if (fields === null) {
+      body = new FormData();
+      body.append('file', new File(['A sample report'], 'submission.txt', { type: 'text/plain' }));
+      body.append('reviewTarget', JSON.stringify(target));
+    } else {
+      body = JSON.stringify({ ...fields, reviewTarget: target });
+    }
+    const res = await handler(new Request('http://localhost/api/review', { method: 'POST', body }) as any);
+    expect(res.status).toBe(200);
+    const prompt = String((name === 'code' ? vi.mocked(generateJSON) : name === 'document' ? vi.mocked(generateJSON) : vi.mocked(generateVisionJSON)).mock.calls.at(-1)?.[0]);
+    expect(prompt).toContain('THE TASK THE STUDENT WAS SET:\nFind the five customers with the highest revenue.');
+    expect(prompt).toContain('a point the task does not need is at most an Optional suggestion');
+  });
+});
+

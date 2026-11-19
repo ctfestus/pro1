@@ -9,6 +9,8 @@
 import { NextResponse } from 'next/server';
 import type { AuthedUser } from '@/lib/api-auth';
 import { canAccessAssignedVirtualExperience, parseExcelReviewTarget, type ExcelReviewTarget } from '@/lib/excel-review-config';
+import { toPlainText } from '@/lib/plain-text';
+import { lessonPlainText } from '@/lib/lesson-doc';
 
 export type ReviewTarget = ExcelReviewTarget;
 export type ReviewType = 'code_review' | 'excel_review' | 'document_review' | 'dashboard_critique' | 'written_response';
@@ -124,6 +126,18 @@ export function reviewMinScore(item: any): number | undefined {
   if (item?.minScore === undefined || item?.minScore === null || item?.minScore === '') return undefined;
   const n = Number(item.minScore);
   return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
+}
+
+/**
+ * The task the student was set, as plain text: the step's question or title, then its instructions
+ * (a course question's text, an assignment task's description, or a VE step's email or brief).
+ */
+export function reviewTask(item: any): string {
+  const instructions = item?.emailBody || item?.description
+    ? toPlainText(item.emailBody || item.description)
+    : lessonPlainText(item?.descriptionDoc ?? item?.doc, 4000);
+  return [toPlainText(item?.question || item?.title || item?.label || ''), instructions]
+    .filter(Boolean).join('\n\n').slice(0, 4000);
 }
 
 /** A text setting stored on a step (context, schema), trimmed and capped. */
