@@ -98,7 +98,7 @@ export function SubscribersTab({
                 onClick={() => setStatusFilter(id)}
                 aria-pressed={on}
                 className="inline-flex items-center gap-2 h-8 px-3 rounded-full text-xs font-semibold"
-                style={on ? { background: C.text, color: C.card } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` }}
+                style={on ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` }}
               >
                 {label}
                 <span className="tabular-nums" style={{ opacity: 0.8 }}>{counts[id] ?? 0}</span>
@@ -137,7 +137,7 @@ export function SubscribersTab({
               <tr key={sub.id} style={{ borderBottom: `1px solid ${C.divider}` }}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Avatar name={learnerName(sub.students)} color={C.cta} background={P.ctaSoft} />
+                    <Avatar name={learnerName(sub.students)} color={C.text} background={P.ctaSoft} />
                     <div className="min-w-0">
                       <p className="font-semibold truncate" style={{ color: C.text }}>{sub.students?.full_name || '--'}</p>
                       <p className="text-xs truncate" style={{ color: C.muted }}>{sub.students?.email}</p>
@@ -168,7 +168,7 @@ export function SubscribersTab({
         {rows.map((sub) => (
           <Card key={sub.id} C={C} className="p-4 grid gap-3">
             <div className="flex items-center gap-3">
-              <Avatar name={learnerName(sub.students)} color={C.cta} background={P.ctaSoft} />
+              <Avatar name={learnerName(sub.students)} color={C.text} background={P.ctaSoft} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{learnerName(sub.students)}</p>
                 <p className="text-xs truncate" style={{ color: C.muted }}>{sub.subscription_plans?.name ?? 'Plan'}, {paid(sub)}</p>

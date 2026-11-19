@@ -115,7 +115,7 @@ export function PlansTab({
               onClick={() => { setPickerOpen(false); onSelect(item.plan); }}
               aria-current={selected}
               className="grid gap-2 p-4 rounded-2xl text-left"
-              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}
+              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${P.sel}` : 'none' }}
             >
               <span className="flex items-center gap-2 flex-wrap text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                 {item.plan.name}
@@ -151,7 +151,7 @@ export function PlansTab({
         {!summary || !plan ? (
           <div className="min-h-[320px] grid place-items-center p-8 text-center">
             <div>
-              <div className="flex justify-center"><IconChip color={C.cta} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip></div>
+              <div className="flex justify-center"><IconChip color={C.text} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip></div>
               <p className="text-sm font-semibold mt-3" style={{ color: C.text }}>Select a plan to manage it</p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export function PlansTab({
                           className="w-full flex items-center gap-3 rounded-xl px-2 py-2 text-left text-sm font-semibold disabled:opacity-50"
                           style={{ color: item.danger ? P.bad : C.text }}
                         >
-                          <IconChip color={item.danger ? P.bad : C.cta} background={item.danger ? P.badSoft : P.ctaSoft}>{item.icon}</IconChip>
+                          <IconChip color={item.danger ? P.bad : C.text} background={item.danger ? P.badSoft : P.ctaSoft}>{item.icon}</IconChip>
                           {item.label}
                         </button>
                       ))}
@@ -236,7 +236,7 @@ export function PlansTab({
             <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <h4 className="text-sm font-bold" style={{ color: C.text }}>Prices</h4>
-                <button type="button" onClick={() => onEdit(plan)} className="text-xs font-semibold" style={{ color: C.cta }}>Edit prices</button>
+                <button type="button" onClick={() => onEdit(plan)} className="text-xs font-semibold" style={{ color: C.text }}>Edit prices</button>
               </div>
               {summary.prices.length ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -329,7 +329,7 @@ export function PlansTab({
                             onClick={() => setSelectedContentKeys((current) =>
                               allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
                             className="text-xs font-semibold"
-                            style={{ color: C.cta }}
+                            style={{ color: C.text }}
                           >
                             {allSelected ? 'Clear group' : 'Select all'}
                           </button>
@@ -349,9 +349,9 @@ export function PlansTab({
                               >
                                 <span
                                   className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"
-                                  style={{ background: selected ? C.cta : C.card, border: `1px solid ${selected ? C.cta : C.divider}` }}
+                                  style={{ background: selected ? P.sel : C.card, border: `1px solid ${selected ? P.sel : C.divider}` }}
                                 >
-                                  {selected && <Check className="w-3 h-3" style={{ color: '#ffffff' }} />}
+                                  {selected && <Check className="w-3 h-3" style={{ color: P.onSel }} />}
                                 </span>
                                 <span className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.title}</span>
                               </button>

@@ -58,11 +58,11 @@ export function Switch({ on, onChange, label, C }: { on: boolean; onChange: (on:
       aria-label={label}
       onClick={() => onChange(!on)}
       className="relative w-10 h-6 rounded-full flex-shrink-0 transition-colors"
-      style={{ background: on ? C.text : C.pill, boxShadow: on ? 'none' : `inset 0 0 0 1px ${C.divider}` }}
+      style={{ background: on ? palette(C).sel : C.pill, boxShadow: on ? 'none' : `inset 0 0 0 1px ${C.divider}` }}
     >
       <span
         className="absolute top-1 left-1 w-4 h-4 rounded-full transition-transform"
-        style={{ background: on ? C.card : '#FFFFFF', transform: on ? 'translateX(16px)' : 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }}
+        style={{ background: '#FFFFFF', transform: on ? 'translateX(16px)' : 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }}
       />
     </button>
   );
@@ -252,8 +252,8 @@ function DateTimeField({ label, value, onChange, emptyText, defaultTime, C }: {
                       aria-pressed={selected}
                       className="h-8 rounded-lg text-xs tabular-nums transition-colors"
                       style={{
-                        background: selected ? C.text : 'transparent',
-                        color: selected ? C.card : C.text,
+                        background: selected ? palette(C).sel : 'transparent',
+                        color: selected ? palette(C).onSel : C.text,
                         fontWeight: selected ? 700 : 400,
                         boxShadow: key === today && !selected ? `inset 0 0 0 1px ${C.faint}` : 'none',
                       }}
@@ -323,7 +323,7 @@ function TimeMenu({ label, value, options, disabled, onChange, C }: {
                 style={{ background: selected ? C.pill : 'transparent', color: C.text, fontWeight: selected ? 600 : 400 }}
               >
                 {t}
-                {selected && <Check className="w-4 h-4" style={{ color: C.text }} />}
+                {selected && <Check className="w-4 h-4" style={{ color: palette(C).sel }} />}
               </button>
             );
           })}

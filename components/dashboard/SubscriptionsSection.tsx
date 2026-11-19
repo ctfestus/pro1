@@ -41,7 +41,7 @@ import {
   type PlanContentOutcome,
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
-import { LIGHT_C, modalStyle } from "@/lib/theme";
+import { DARK_C, LIGHT_C, modalStyle } from "@/lib/theme";
 import { effectiveSubscriptionPrice } from "@/lib/subscription-discount";
 import { OverviewTab } from "@/components/dashboard/subscriptions/OverviewTab";
 import { SubscribersTab } from "@/components/dashboard/subscriptions/SubscribersTab";
@@ -239,7 +239,10 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
 }
 
 
-export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
+export function SubscriptionsSection({ C: theme }: { C: typeof LIGHT_C }) {
+  // This page uses the dark-mode blue for buttons and selection controls in both modes. Text and
+  // icons never use it: they stay in the neutral text colours.
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
   const dark = C.page === "#17181E";
   const [tab, setTab] = useState<Tab>("overview");
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
@@ -1769,7 +1772,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             className="inline-flex items-center gap-2 px-4 py-3 -mb-px text-sm font-semibold whitespace-nowrap"
             style={{
               color: tab === id ? C.text : C.muted,
-              borderBottom: `2px solid ${tab === id ? C.cta : "transparent"}`,
+              borderBottom: `2px solid ${tab === id ? palette(C).sel : "transparent"}`,
             }}
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
@@ -1942,7 +1945,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 className="w-full flex items-center gap-3 rounded-xl p-2 text-left disabled:opacity-50"
                 style={{ color: C.text }}
               >
-                <IconChip color={C.cta} background={`${C.cta}14`}><Icon className="w-4 h-4" /></IconChip>
+                <IconChip color={C.text} background={C.pill}><Icon className="w-4 h-4" /></IconChip>
                 <span>
                   <span className="block text-sm font-semibold">{label}</span>
                   <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
@@ -1988,7 +1991,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   className="w-full flex items-center gap-3 rounded-xl p-2 text-left"
                   style={{ color: danger ? P.bad : C.text }}
                 >
-                  <IconChip color={danger ? P.bad : C.cta} background={danger ? P.badSoft : P.ctaSoft}><Icon className="w-4 h-4" /></IconChip>
+                  <IconChip color={danger ? P.bad : C.text} background={danger ? P.badSoft : P.ctaSoft}><Icon className="w-4 h-4" /></IconChip>
                   <span>
                     <span className="block text-sm font-semibold">{label}</span>
                     <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
@@ -2066,7 +2069,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               </div>
             </div>
             <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
-              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.cta }} />
+              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.muted }} />
               <div>
                 <p className="text-sm font-bold" style={{ color: C.text }}>
                   {bulkMode === "request" ? "Payment approval controls access" : "Access begins immediately"}
@@ -2135,7 +2138,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
             {bulkRows.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.divider}` }}>
-                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: `${C.cta}14`, color: C.cta }}>{bulkRows.length} parsed</span></div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: C.pill, color: C.text }}>{bulkRows.length} parsed</span></div>
                 <div className="max-h-52 overflow-y-auto divide-y" style={{ borderColor: C.divider }}>
                   {bulkRows.slice(0, 12).map((row, index) => <div key={`${row.email}-${index}`} className="grid sm:grid-cols-[36px_1fr_1fr] gap-2 px-4 py-3 text-xs"><span style={{ color: C.faint }}>{index + 1}</span><span className="truncate font-bold" style={{ color: C.text }}>{row.email}</span><span className="truncate" style={{ color: C.muted }}>{row.full_name || "Name not provided"}</span></div>)}
                   {bulkRows.length > 12 && <p className="px-4 py-3 text-xs text-center" style={{ color: C.faint }}>And {bulkRows.length - 12} more learners</p>}
@@ -2183,13 +2186,13 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       className="rounded-2xl p-3 text-left transition-all"
                       style={{
                         background: C.page,
-                        boxShadow: current ? `inset 0 0 0 2px ${C.text}` : "none",
+                        boxShadow: current ? `inset 0 0 0 2px ${palette(C).sel}` : "none",
                       }}
                     >
                       <span className="flex items-center gap-2">
                         <span
                           className="w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold"
-                          style={{ background: complete || current ? C.text : C.card, color: complete || current ? C.card : C.faint }}
+                          style={{ background: complete || current ? palette(C).sel : C.card, color: complete || current ? palette(C).onSel : C.faint }}
                         >
                           {complete ? <Check className="w-3.5 h-3.5" /> : index + 1}
                         </span>
@@ -2276,7 +2279,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                               type="button"
                               onClick={() => setNewPlanContentKeys((current) => allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
                               className="text-xs font-bold"
-                              style={{ color: C.cta }}
+                              style={{ color: C.text }}
                             >
                               {allSelected ? "Clear" : "Select all"}
                             </button>
@@ -2291,10 +2294,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                   type="button"
                                   onClick={() => setNewPlanContentKeys((current) => selected ? current.filter((value) => value !== key) : [...current, key])}
                                   className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all"
-                                  style={{ background: C.page, boxShadow: selected ? `inset 0 0 0 2px ${C.text}` : "none" }}
+                                  style={{ background: C.page, boxShadow: selected ? `inset 0 0 0 2px ${palette(C).sel}` : "none" }}
                                 >
-                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? C.text : C.card, border: `1px solid ${selected ? C.text : C.divider}` }}>
-                                    {selected && <Check className="w-3 h-3" style={{ color: C.card }} />}
+                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? palette(C).sel : C.card, border: `1px solid ${selected ? palette(C).sel : C.divider}` }}>
+                                    {selected && <Check className="w-3 h-3" style={{ color: palette(C).onSel }} />}
                                   </span>
                                   <span className="text-xs font-bold truncate" style={{ color: C.text }}>{item.title}</span>
                                 </button>
@@ -2408,7 +2411,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${([Boolean(newPlanName.trim()), newPlanContentKeys.length > 0, newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)].filter(Boolean).length / 3) * 100}%`,
-                      background: C.text,
+                      background: palette(C).sel,
                     }}
                   />
                 </div>
@@ -2861,7 +2864,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     )}
                   </p>
                 </div>
-                <CreditCard className="w-7 h-7" style={{ color: C.cta }} />
+                <CreditCard className="w-7 h-7" style={{ color: C.muted }} />
               </div>
               <div
                 className="grid grid-cols-2 gap-3 mt-4 pt-4 text-xs"
