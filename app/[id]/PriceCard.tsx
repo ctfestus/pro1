@@ -52,18 +52,18 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
       <p style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16, fontWeight: 700, color: palette.text }}>
         <Lock style={{ width: 18, height: 18 }} /> Unlock this {NOUN[kind]}
       </p>
-      <p style={{ margin: 0, fontSize: 13.5, color: palette.muted }}>
-        <span style={{ fontSize: 26, fontWeight: 800, color: palette.text, letterSpacing: '-0.02em', marginRight: 4 }}>{unlockMoney(best.currency, best.amount)}</span>
+      <p style={{ margin: 0, fontSize: 14, color: palette.muted }}>
+        <span style={{ fontSize: 28, fontWeight: 800, color: palette.text, letterSpacing: '-0.02em', marginRight: 4 }}>{unlockMoney(best.currency, best.amount)}</span>
         for {unlockDurationLabel(best.durationMonths)}
       </p>
       {/* A running discount, as the pricing page shows it: the usual price and the saving. */}
       {saving > 0 && (
-        <p style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 0', fontSize: 13, color: palette.muted }}>
+        <p style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 0', fontSize: 14, color: palette.muted }}>
           Usually <s>{unlockMoney(best.currency, best.listAmount!)}</s>
-          <span style={{ padding: '2px 8px', borderRadius: 999, background: '#ffffff', color: '#16a34a', fontSize: 11.5, fontWeight: 800, boxShadow: '0 0 0 1px rgba(22,163,74,0.25)' }}>Save {saving}%</span>
+          <span style={{ padding: '2px 8px', borderRadius: 999, background: '#ffffff', color: '#16a34a', fontSize: 12, fontWeight: 800, boxShadow: '0 0 0 1px rgba(22,163,74,0.25)' }}>Save {saving}%</span>
         </p>
       )}
-      <p style={{ margin: '-8px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
+      <p style={{ margin: '-8px 0 0', fontSize: 14, lineHeight: 1.55, color: palette.muted }}>
         About{' '}
         <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
           {perDay}
@@ -84,7 +84,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
           <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank. Secure checkout by Paystack.
         </p>
       )}
-      <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: palette.muted }}>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: palette.muted }}>
         Opens every course, path and experience in the plan.{' '}
         <Link href="/pricing" style={{ color: palette.accent, fontWeight: 700, textDecoration: 'none' }}>Compare plans</Link>
       </p>

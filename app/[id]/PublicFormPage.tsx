@@ -522,7 +522,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
     ...(virtualExperienceCount > 0 ? [{ Icon: Building2, label: `${virtualExperienceCount} ${coreWord}virtual experience${virtualExperienceCount !== 1 ? 's' : ''}` }] : []),
   ];
   const card = { background: C.card, borderRadius: 14, padding: 24, boxShadow: cardShadow(isDark) };
-  const heading = { fontSize: 16, fontWeight: 600, color: C.text, fontFamily: 'var(--font-display), sans-serif' };
+  const heading = { fontSize: 22, lineHeight: '28px', fontWeight: 600, color: C.text, fontFamily: 'var(--font-display), sans-serif' };
   const tick = (
     <span className="mt-0.5 grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-[5px]" style={{ background: `color-mix(in srgb, ${C.cta} 14%, transparent)` }}>
       <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={C.cta} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -555,18 +555,18 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 40%, transparent) 0%, #0a0a0a 70%)` }} />}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 16 }}>Learning path</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 16 }}>Learning path</p>
           <div style={{ maxWidth: 680 }}>
-            <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
+            <h1 style={{ fontSize: 'clamp(28px,4vw,36px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
               {path.title}
             </h1>
             {description && (
-              <AuthoredText value={description} className="text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
+              <AuthoredText value={description} className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
             )}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
             {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
-              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                 <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
               </span>
             ))}
@@ -579,7 +579,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           {overview && (
             <div style={card}>
               <h2 style={{ ...heading, marginBottom: 8 }}>Overview</h2>
-              <AuthoredText value={overview} className="text-[14.5px] leading-relaxed" style={{ color: C.muted }} />
+              <AuthoredText value={overview} className="text-sm leading-relaxed" style={{ color: C.muted }} />
             </div>
           )}
 
@@ -588,7 +588,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
               <h2 style={{ ...heading, marginBottom: 12 }}>Skills you will learn</h2>
               <div className="flex flex-wrap gap-2">
                 {skills.map((skill: string) => (
-                  <span key={skill} className="rounded-lg px-3 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
+                  <span key={skill} className="rounded-lg px-3 py-1 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
                 ))}
               </div>
             </div>
@@ -597,7 +597,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           {/* The steps in order, numbered on a dashed line, ending at the certificate. */}
           <div style={card}>
             <h2 style={heading}>{hasSpecializations ? 'Core courses' : 'Your path, step by step'}</h2>
-            <p className="mb-4 mt-1 text-[13px]" style={{ color: C.faint }}>
+            <p className="mb-4 mt-1 text-sm" style={{ color: C.faint }}>
               {hasSpecializations
                 ? 'Everyone takes these first, then picks a specialization.'
                 : `${items.length} step${items.length !== 1 ? 's' : ''}, then the path certificate`}
@@ -615,7 +615,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>Tools</p>
                 <div className="flex flex-wrap gap-2">
                   {tools.map((tool: string) => (
-                    <span key={tool} className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-[11.5px] font-semibold" style={{ background: C.pill, color: C.text }}>
+                    <span key={tool} className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
                       {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-3.5 w-3.5 object-contain" />}
                       {tool}
                     </span>
@@ -627,7 +627,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
               <ul className="flex flex-col gap-3">
                 {[...facts, { Icon: BadgeCheck, label: 'Path certificate' }].map(({ Icon, label }) => (
-                  <li key={label} className="flex items-center gap-2 text-[13.5px]" style={{ color: C.text }}>
+                  <li key={label} className="flex items-center gap-2 text-sm" style={{ color: C.text }}>
                     <Icon className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />{label}
                   </li>
                 ))}
@@ -652,10 +652,10 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           )}
           {whoShouldTake.length > 0 && (
             <div style={{ ...card, padding: 24 }}>
-              <h2 style={{ ...heading, fontSize: 15, marginBottom: 12 }}>Who should take this path</h2>
+              <h2 style={{ ...heading, fontSize: 16, lineHeight: '24px', marginBottom: 12 }}>Who should take this path</h2>
               <ul className="space-y-2.5">
                 {whoShouldTake.map((who: string) => (
-                  <li key={who} className="flex items-start gap-2 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
+                  <li key={who} className="flex items-start gap-2 text-sm leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
                 ))}
               </ul>
             </div>
@@ -1424,7 +1424,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     ];
     const vePriced = hasPriceCard(form.locked, form.unlock);
     const ctaStyle = { width: '100%', padding: '12px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, letterSpacing: '-0.01em' } as const;
-    const secondaryStyle = { width: '100%', padding: '12px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 13, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 } as const;
+    const secondaryStyle = { width: '100%', padding: '12px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 14, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 } as const;
 
     return (
       <div style={{ minHeight: '100vh', background: gp.bg, color: gp.title, fontFamily: fontFace }}>
@@ -1453,25 +1453,25 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
             {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
                 {config.role && (
-                  <span style={{ fontSize: 11.5, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
+                  <span style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
                 )}
               </div>
             {/* Title and tagline in one column at a reading width, as on the course hero, so a
                 long title wraps short of the far edge. The title balances its lines. */}
             <div style={{ maxWidth: 680 }}>
-              <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: displayFont }}>
+              <h1 style={{ fontSize: 'clamp(28px,4vw,36px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: displayFont }}>
                 {config.title || form.title}
               </h1>
               {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
+                <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
               )}
             </div>
             {/* What it takes, at a glance */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
               {facts.map(({ Icon, label }) => (
-                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                   <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                 </span>
               ))}
@@ -1503,9 +1503,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 a note from the manager: the manager speaks for themselves once the experience starts. */}
             {config.background && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
-                {config.company && <p style={{ fontSize: 12.5, fontWeight: 600, color: gp.muted, margin: '0 0 4px' }}>{config.company}</p>}
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 12, fontFamily: displayFont }}>The scenario</h2>
-                <div className="rich-content" style={{ fontSize: 14.5, lineHeight: 1.6, color: gp.body }}
+                {config.company && <p style={{ fontSize: 12, fontWeight: 600, color: gp.muted, margin: '0 0 4px' }}>{config.company}</p>}
+                <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 12, fontFamily: displayFont }}>The scenario</h2>
+                <div className="rich-content" style={{ fontSize: 14, lineHeight: 1.6, color: gp.body }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.background) || '' }} />
               </div>
             )}
@@ -1514,7 +1514,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 unfilled outcome as an empty string, which rendered as a tick with no text. */}
             {veOutcomes.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>What you&apos;ll learn</h2>
+                <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>What you&apos;ll learn</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
                   {veOutcomes.map((o: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -1533,7 +1533,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* The missions, drawn the way the player's mission list draws them */}
             {modules.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
+                <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
                 <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} divider={gp.divider} />
               </div>
             )}
@@ -1560,7 +1560,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       .map((t: string, i: number) => {
                       const logo = toolIcon(t);
                       return (
-                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, padding: '4px 12px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
+                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 12px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
                           {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
                           {t}
                         </span>
@@ -1703,30 +1703,30 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               {/* Kind, then the category and level on frosted chips, as the experience page shows
                   its company and role. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Course</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Course</span>
                 {[courseCategory, config.difficulty ? String(config.difficulty) : ''].filter(Boolean).map(chip => (
-                  <span key={chip} style={{ fontSize: 11.5, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
+                  <span key={chip} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
                 ))}
               </div>
               {/* One text column at a reading width, so a long title or description wraps well
                   short of the far edge instead of running across the whole hero. The title
                   balances its lines, so a two-line title does not leave one word on the second. */}
               <div style={{ maxWidth: 680 }}>
-                <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: courseDisplayFont }}>
+                <h1 style={{ fontSize: 'clamp(28px,4vw,36px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: courseDisplayFont }}>
                   {config.title || form.title}
                 </h1>
                 {config.tagline && (
-                  <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{config.tagline}</p>
+                  <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{config.tagline}</p>
                 )}
                 {config.description && (
-                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere', textWrap: 'pretty' }}
+                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 16, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere', textWrap: 'pretty' }}
                     dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
                 )}
               </div>
               {/* What it takes, at a glance */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
                 {[...courseFacts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
-                  <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                  <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                     <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                   </span>
                 ))}
@@ -1749,7 +1749,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   unfilled outcome as an empty string, which rendered as a tick with no text. */}
               {courseOutcomes.length > 0 && (
                 <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
+                  <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
                     {courseOutcomes.map((o: string, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -1789,7 +1789,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
                 return (
                   <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>Course outline</h2>
+                    <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>Course outline</h2>
                     <MissionOutline modules={outlineGroups} isDark={dark} text={cp.title} muted={cp.muted} divider={cp.divider}
                       collapsed={collapsedSections}
                       onToggle={groupId => setCollapsedSections(prev => {
@@ -1813,7 +1813,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                     <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>This course includes</p>
                     <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: 0, padding: 0, listStyle: 'none' }}>
                       {[...courseFacts.map(f => f.Icon === Zap ? { ...f, label: `${f.label} to earn` } : f), { Icon: BadgeCheck, label: 'Verifiable certificate' }].map(({ Icon, label }) => (
-                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: cp.title }}>
+                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: cp.title }}>
                           <Icon style={{ width: 15, height: 15, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />{label}
                         </li>
                       ))}

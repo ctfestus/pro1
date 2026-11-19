@@ -68,7 +68,7 @@ export function MoreLikeThis({ kind, currentId, category = null, palette }: {
 
   return (
     <section style={{ maxWidth: 1140, margin: '0 auto', padding: '0 16px 64px' }}>
-      <h2 className="mb-4 text-lg font-bold" style={{ color: palette.text }}>
+      <h2 className="mb-4 text-[22px] leading-7 font-bold" style={{ color: palette.text }}>
         {kind === 'learning_path' ? 'More learning paths' : 'More like this'}
       </h2>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
