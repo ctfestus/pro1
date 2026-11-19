@@ -27,7 +27,7 @@ export function InstructorCard({ instructor, palette }: {
         <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: palette.text, lineHeight: 1.3, minWidth: 0 }}>{instructor.name}</p>
       </div>
       {instructor.bio && (
-        <p className="line-clamp-5" style={{ margin: '12px 0 0', fontSize: 12.5, lineHeight: 1.55, color: palette.muted }}>{instructor.bio}</p>
+        <p className="line-clamp-5" style={{ margin: '12px 0 0', fontSize: 12, lineHeight: 1.55, color: palette.muted }}>{instructor.bio}</p>
       )}
       {instructor.links.length > 0 && <InstructorLinks name={instructor.name} links={instructor.links} />}
     </div>

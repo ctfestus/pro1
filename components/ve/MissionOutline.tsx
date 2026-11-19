@@ -36,14 +36,14 @@ export function MissionOutline({ modules, isDark, text, muted, divider, collapse
           {onToggle && mod.title ? (
             <button type="button" onClick={() => onToggle(mod.id)} aria-expanded={!collapsed?.has(mod.id)}
               className="mb-3 flex w-full items-center justify-between gap-3 text-left">
-              <span className="truncate text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: muted }}>{mod.title}</span>
-              <span className="flex flex-shrink-0 items-center gap-2 text-[11.5px]" style={{ color: faint }}>
+              <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: muted }}>{mod.title}</span>
+              <span className="flex flex-shrink-0 items-center gap-2 text-xs" style={{ color: faint }}>
                 {mod.lessons.length} {itemWord}{mod.lessons.length === 1 ? '' : 's'}
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed?.has(mod.id) ? '-rotate-90' : ''}`} />
               </span>
             </button>
           ) : mod.title ? (
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-3" style={{ color: muted }}>{mod.title}</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] truncate mb-3" style={{ color: muted }}>{mod.title}</p>
           ) : null}
           {!collapsed?.has(mod.id) && mod.lessons.map((les, li) => {
             const tasks = les.requirements?.length || 0;
@@ -51,7 +51,7 @@ export function MissionOutline({ modules, isDark, text, muted, divider, collapse
             return (
               <div key={les.id} className="flex items-stretch gap-3">
                 <span className="flex flex-col items-center flex-shrink-0">
-                  <span className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-[11.5px] font-bold tabular-nums"
+                  <span className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-xs font-bold tabular-nums"
                     style={{ background: `${faint}26`, color: isDark ? '#c4c4c4' : '#4b5563' }}>
                     {les.number}
                   </span>
@@ -61,7 +61,7 @@ export function MissionOutline({ modules, isDark, text, muted, divider, collapse
                 <span className={`min-w-0 flex-1 pt-[3px] ${hasNext ? 'pb-6' : 'pb-1'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                   <span className="block text-[14px] font-semibold leading-snug" style={{ color: text }}>{les.title}</span>
                   {tasks > 0 && (
-                    <span className="block text-[11.5px] mt-0.5" style={{ color: faint }}>{tasks === 1 ? '1 task' : `${tasks} tasks`}</span>
+                    <span className="block text-xs mt-0.5" style={{ color: faint }}>{tasks === 1 ? '1 task' : `${tasks} tasks`}</span>
                   )}
                 </span>
               </div>
