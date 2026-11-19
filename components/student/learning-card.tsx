@@ -49,7 +49,7 @@ export function LearningCard({
   const pct = Math.max(0, Math.min(100, Math.round(progress)));
   const fill = done ? C.successText : C.cta;
   const showImage = !!cover && !imgErr;
-  const actionClass = 'flex w-full items-center justify-center rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-85';
+  const actionClass = 'flex w-full items-center justify-center rounded-xl py-3 text-sm font-bold transition-opacity hover:opacity-85';
   const actionStyle = action.quiet ? { background: C.pill, color: C.text } : { background: C.cta, color: C.ctaText };
 
   return (
@@ -71,7 +71,7 @@ export function LearningCard({
           </div>
         )}
         {tag && (
-          <span className="absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11.5px] font-bold"
+          <span className="absolute left-3 top-3 rounded-md px-2 py-0.5 text-xs font-bold"
             style={{ background: '#ffffff', color: TAG_COLOR[tag.tone] }}>
             {tag.label}
           </span>
@@ -81,7 +81,7 @@ export function LearningCard({
 
       <div className="flex flex-1 flex-col gap-4 p-6">
         <div>
-          <h3 className="line-clamp-2 text-[17px] font-bold leading-snug" style={{ color: C.text }}>
+          <h3 className="line-clamp-2 text-base leading-6 font-bold" style={{ color: C.text }}>
             <button type="button" className="text-left" onClick={e => { e.stopPropagation(); onOpen(); }}>{title}</button>
           </h3>
           {byline && <div className="mt-1 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>{byline}</div>}
@@ -93,24 +93,24 @@ export function LearningCard({
         {/* Progress, figure and action sit at the bottom, so they line up across a row. */}
         <div className="mt-auto flex flex-col gap-4">
         <div>
-          <p className="mb-1.5 text-[12.5px] font-semibold" style={{ color: C.text }}>Progress</p>
+          <p className="mb-2 text-xs font-semibold" style={{ color: C.text }}>Progress</p>
           <div className="flex items-center gap-3">
             <div className="h-2.5 flex-1 overflow-hidden rounded-full"
               style={{ background: C.pill, boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.12)' }}>
               <div className="h-full rounded-full transition-all"
                 style={{ width: `${pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${fill} 70%, #ffffff), ${fill})`, boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.12)' }} />
             </div>
-            <span className="text-[12.5px] font-bold tabular-nums" style={{ color: C.text }}>{pct}%</span>
+            <span className="text-xs font-bold tabular-nums" style={{ color: C.text }}>{pct}%</span>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xl font-bold tabular-nums leading-tight" style={{ color: C.text }}>{figure}</p>
+            <p className="text-[22px] leading-7 font-bold tabular-nums" style={{ color: C.text }}>{figure}</p>
             <p className="text-xs" style={{ color: C.muted }}>{figureLabel}</p>
           </div>
           {chip && (
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}>
+            <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}>
               {chip.icon && <img src={chip.icon} alt="" className="h-3.5 w-3.5 object-contain" />}
               {chip.label}
             </span>

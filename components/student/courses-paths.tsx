@@ -54,7 +54,7 @@ function CourseCard({ course, deadline, C, onDetails }: {
       tag={completed ? (passed ? { label: 'Completed', tone: 'green' } : { label: 'Not passed', tone: 'red' }) : deadlineTag(deadline, false)}
       title={course.form?.title ?? 'Untitled course'}
       byline={partner ? (
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-2">
           {partner.logo_url && <img src={partner.logo_url} alt="" className="h-4 w-4 object-contain" />}
           Offered by {partner.name}
         </span>
@@ -122,7 +122,7 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
           style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
           <span className="text-sm font-semibold" style={{ color: C.text }}>Course Details</span>
           <button onClick={onClose}
-            className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
+            className="p-2 rounded-lg transition-opacity hover:opacity-70"
             style={{ color: C.muted }}>
             <X className="w-4 h-4"/>
           </button>
@@ -154,7 +154,7 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
                 </div>
               )}
               {completed && (
-                <span className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full"
+                <span className="inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full"
                   style={{ background: passed ? '#f0fdf4' : '#fef2f2', color: passed ? '#16a34a' : '#dc2626' }}>
                   {passed ? `Passed  Score: ${score}%` : `Not passed  Score: ${score}%`}
                 </span>
@@ -186,7 +186,7 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
                 <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.faint }}>What you will learn</p>
                 <div className="space-y-2">
                   {(config.learnOutcomes as string[]).map((outcome: string, i: number) => (
-                    <div key={i} className="flex items-start gap-2.5">
+                    <div key={i} className="flex items-start gap-2">
                       <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                         style={{ background: `${C.green}1a` }}>
                         <CheckCircle className="w-3 h-3" style={{ color: C.green }}/>
@@ -208,7 +208,7 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
                       style={{ borderBottom: i < lessonCount - 1 ? `1px solid ${C.cardBorder}` : 'none' }}>
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: `${C.green}18` }}>
-                        <span className="text-[10px] font-bold" style={{ color: C.green }}>{i + 1}</span>
+                        <span className="text-[11px] font-bold" style={{ color: C.green }}>{i + 1}</span>
                       </div>
                       <span className="text-sm flex-1 leading-snug" style={{ color: C.text }}>
                         {q.lesson?.title || `Lesson ${i + 1}`}
@@ -225,7 +225,7 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
         <div className="p-4 flex-shrink-0 space-y-2" style={{ borderTop: `1px solid ${C.cardBorder}` }}>
           {completed && passed && certId && (
             <a href={courseUrl} target="_blank" rel="noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-opacity hover:opacity-70"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-medium transition-opacity hover:opacity-70"
               style={{ background: C.pill, color: C.muted }}>
               <Play className="w-4 h-4"/> Review course
             </a>
@@ -544,7 +544,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
     <div className="mt-6 max-w-3xl">
       {!current && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
-          <p className="flex items-center gap-2 text-lg font-bold" style={{ color: C.text }}>
+          <p className="flex items-center gap-2 text-[22px] leading-7 font-bold" style={{ color: C.text }}>
             {firstName ? `Welcome, ${firstName}!` : 'Welcome!'}
             <motion.span aria-hidden="true" className="inline-flex origin-bottom-right"
               animate={{ rotate: [0, 18, -8, 18, 0] }} transition={{ duration: 1.2, delay: 0.4 }}>
@@ -594,7 +594,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
                 initial={{ width: '4%' }} animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
                 transition={{ duration: BUILD_STEP_MS / 1000, ease: 'easeOut' }}/>
             </div>
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-3 space-y-2">
               {steps.map((label, i) => {
                 const done = i < step;
                 const active = i === step;
@@ -722,10 +722,10 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
   return (
     <div className="mt-9">
       <div className="mb-5 px-1">
-        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: textColor }}>
+        <h2 className="text-[22px] leading-7 font-bold" style={{ color: textColor }}>
           {path.specializationOptional ? 'Then choose a specialization, if you want one' : 'Then choose your specialization'}
         </h2>
-        <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: mutedColor }}>
+        <p className="mt-2 text-base leading-relaxed" style={{ color: mutedColor }}>
           {path.specializationOptional
             ? 'Take your expertise further with learning tailored to your field, or choose Core only and complete the path with the core.'
             : 'Take your expertise further with learning tailored to your field. You pick one when you start the path.'}
@@ -815,20 +815,20 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
       {!hideHeader && (
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>{path.title}</h3>
+            <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>{path.title}</h3>
             {toPlainText(path.description) && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
             {/* empty:hidden -- an empty path with no learners has nothing to say here, so the
                 row must not leave its top margin behind. */}
             <div className="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
               {!publicPreview && learnerCount > 0 && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-2">
                   <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
                 </span>
               )}
               {!publicPreview && !path.locked && !awaitingTrack && !building && currentIndex >= 0 && !allDone && (
                 <motion.span key={items[currentIndex]?.id ?? currentIndex}
                   initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex items-center gap-1.5 min-w-0 max-w-full">
+                  className="flex items-center gap-2 min-w-0 max-w-full">
                   <motion.span aria-hidden="true" className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }}
                     animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.65, 1, 0.65] }} transition={{ duration: 1.8, repeat: Infinity }}/>
                   <span className="flex-shrink-0">Currently learning:</span>
@@ -852,7 +852,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
             )}
             {pathCertId && (
               <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
-                className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-80"
                 style={{ background: '#f0fdf4', color: '#16a34a' }}>
                 <Award className="w-3 h-3"/> Certificate
               </a>
@@ -1022,7 +1022,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                       <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} className="sm:h-full sm:aspect-auto"/>
                     )}
                     {publicPreview && item.category && (
-                      <span className="absolute left-0 top-2 max-w-[80%] truncate px-2 py-0.5 text-[10.5px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                      <span className="absolute left-0 top-2 max-w-[80%] truncate px-2 py-0.5 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
                         {item.category}
                       </span>
                     )}
@@ -1031,7 +1031,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                         <Check className="w-3 h-3" strokeWidth={3}/>
                       </span>
                     ) : isCurrent ? (
-                      <span className="absolute top-2 left-2 rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
+                      <span className="absolute top-2 left-2 rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1 sm:flex sm:h-full sm:flex-col">
@@ -1046,11 +1046,11 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                     )}
                     {/* The public overview's card sets its own near-white text in dark; the theme's
                         softer text colour made the titles read dimmer than everything above them. */}
-                    <h4 className={`mt-1 font-bold leading-snug ${publicPreview ? 'text-base' : 'text-lg sm:text-xl'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{item.title}</h4>
-                    <div className={publicPreview ? 'mt-1' : 'mt-1.5 sm:min-h-[63px]'}>
+                    <h4 className={`mt-1 font-bold leading-snug ${publicPreview ? 'text-base' : 'text-base leading-6'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{item.title}</h4>
+                    <div className={publicPreview ? 'mt-1' : 'mt-2 sm:min-h-[63px]'}>
                       {inProgressPct !== null ? (
                         <div className="flex h-[63px] max-w-md flex-col justify-center">
-                          <div className="mb-1.5 flex items-center justify-between text-xs" style={{ color: C.faint }}>
+                          <div className="mb-2 flex items-center justify-between text-xs" style={{ color: C.faint }}>
                             <span>In progress</span><span>{inProgressPct}%</span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full" style={{ background: C.page === LIGHT_C.page ? '#e6ebf1' : C.card }}>
@@ -1058,7 +1058,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                           </div>
                         </div>
                       ) : item.description ? (
-                        <p className={`leading-relaxed ${publicPreview ? 'line-clamp-2 text-sm' : 'line-clamp-3 text-[15px]'}`} style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
+                        <p className={`leading-relaxed ${publicPreview ? 'line-clamp-2 text-sm' : 'line-clamp-3 text-base'}`} style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
                       ) : null}
                     </div>
                   </div>
@@ -1094,14 +1094,14 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase" style={{ color: '#b08020' }}>{publicPreview ? 'Finish line' : 'Completion credential'}</p>
-              <h4 className={`mt-1 font-bold ${publicPreview ? 'text-base' : 'text-lg'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{publicPreview ? 'Path certificate' : 'Earn Your Certificate'}</h4>
+              <h4 className={`mt-1 font-bold ${publicPreview ? 'text-base' : 'text-base'}`} style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{publicPreview ? 'Path certificate' : 'Earn Your Certificate'}</h4>
               <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
                 {allDone ? 'You have completed this learning path. Your credential is ready to celebrate and share.' : 'Complete every item in this learning path to unlock your completion credential.'}
               </p>
             </div>
             {allDone && pathCertId ? (
               <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
-                className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-opacity hover:opacity-80"
+                className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-opacity hover:opacity-80"
                 style={{ background: '#16a34a', color: '#ffffff' }}>
                 <Award className="h-4 w-4"/> View certificate
               </a>
@@ -1392,7 +1392,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       body="Check your connection and try again."
       action={(
         <button type="button" onClick={() => setRefreshKey(key => key + 1)}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl"
+          className="text-sm font-semibold px-4 py-3 rounded-xl"
           style={{ background: C.cta, color: C.ctaText }}>
           Try again
         </button>
@@ -1406,7 +1406,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       {!courses.length && !isOutstanding && (
         <EmptyState icon={BookOpen} title="No courses yet"
           body="You have not started any courses. Browse available courses to get started."
-          action={<Link href="/" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-80 dashboard-cta"
+          action={<Link href="/" className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold hover:opacity-80 dashboard-cta"
             style={{ background: C.cta, color: C.ctaText }}><BookOpen className="w-4 h-4"/> Browse courses</Link>}/>
       )}
 

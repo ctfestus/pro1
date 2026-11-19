@@ -592,7 +592,7 @@ export default function StudentDashboard() {
                 <div className="hidden lg:flex pb-0.5" style={{ justifyContent: navCollapsed ? 'center' : 'flex-end' }}>
                   <button
                     onClick={() => setNavCollapsed(o => !o)}
-                    className="p-1.5 rounded-lg transition-all"
+                    className="p-2 rounded-lg transition-all"
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.pill; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -648,7 +648,7 @@ export default function StudentDashboard() {
               <div className="px-2 pb-3 pt-2 border-t space-y-0.5" style={{ borderColor: C.divider }}>
                 {!navCollapsed && !viewingAs && (
                   <Link href="/settings"
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-all"
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-normal transition-all"
                     style={{ color: C.muted }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = C.text; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = C.muted; }}>
@@ -684,7 +684,7 @@ export default function StudentDashboard() {
                   <div className="relative">
                     <img src={emailBannerUrl || logoUrl} alt="" className="w-full object-cover" style={{ height: 140 }}/>
                     <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)' }}>
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md" style={{ background: 'rgba(220,38,38,0.9)', backdropFilter: 'blur(8px)' }}>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-md" style={{ background: 'rgba(220,38,38,0.9)', backdropFilter: 'blur(8px)' }}>
                         <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#ffffff' }}/>
                         <span className="text-xs font-bold tracking-wide" style={{ color: '#ffffff' }}>Action Required</span>
                       </div>
@@ -692,14 +692,14 @@ export default function StudentDashboard() {
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="text-center space-y-1">
-                      <h3 className="text-lg font-bold tracking-tight" style={{ color: C.text }}>Payment Overdue</h3>
+                      <h3 className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: C.text }}>Payment Overdue</h3>
                       <p className="text-sm" style={{ color: C.muted }}>Your course access has been temporarily restricted.</p>
                     </div>
-                    <div className="rounded-lg p-4 space-y-2.5" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
-                      <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>What to do</p>
+                    <div className="rounded-lg p-4 space-y-3" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
+                      <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>What to do</p>
                       {['Go to My Plan and submit a confirmation', 'Include your method, reference, and amount', 'Access is restored once admin approves'].map((step, i) => (
                         <div key={i} className="flex items-center gap-3">
-                          <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+                          <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
                             style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', color: 'white' }}>{i + 1}</div>
                           <p className="text-xs" style={{ color: C.muted }}>{step}</p>
                         </div>
@@ -714,7 +714,7 @@ export default function StudentDashboard() {
                       </button>
                       <button
                         onClick={() => { sessionStorage.setItem('outstandingModalDismissed', '1'); setShowOutstandingModal(false); }}
-                        className="w-full py-2.5 rounded-lg text-sm font-medium tracking-wide transition-all hover:opacity-80 active:scale-95"
+                        className="w-full py-3 rounded-lg text-sm font-medium tracking-wide transition-all hover:opacity-80 active:scale-95"
                         style={{ color: C.muted }}>
                         I Understand
                       </button>
