@@ -8,12 +8,14 @@ import { ArrowRight, Check } from 'lucide-react';
 import RubricReviewReport, { ReviewResultCard, reviewTheme } from '@/components/RubricReviewReport';
 import type { RubricGrade } from '@/lib/review-gate';
 
-// Mirrors PASS_MARK in app/api/ve-answer-review/route.ts.
+// The pass mark when a result predates the route returning it; mirrors PASS_MARK in the route.
 const PASS_MARK = 60;
 
 export interface ShortAnswerResult {
   passed: boolean;
   score: number;
+  /** The step's pass score the review was graded with. */
+  minScore?: number;
   feedback: string;
   strength?: string;
   improvement?: string;
@@ -28,6 +30,7 @@ export function shortAnswerResultOf(json: any): ShortAnswerResult {
   return {
     passed: !!json?.passed,
     score: typeof json?.score === 'number' ? json.score : 0,
+    ...(typeof json?.minScore === 'number' ? { minScore: json.minScore } : {}),
     feedback: json?.feedback || '',
     ...(json?.strength ? { strength: json.strength } : {}),
     ...(json?.improvement ? { improvement: json.improvement } : {}),
@@ -40,6 +43,7 @@ export function shortAnswerProgressFields(result: ShortAnswerResult) {
   return {
     aiPassed: result.passed,
     aiScore: result.score,
+    aiPassMark: result.minScore,
     aiFeedback: result.feedback,
     aiStrength: result.strength,
     aiImprovement: result.improvement,
@@ -51,7 +55,7 @@ export function shortAnswerProgressFields(result: ShortAnswerResult) {
 export function savedShortAnswerResult(entry: any): ShortAnswerFeedback | null {
   if (!entry?.aiFeedback || entry.aiErrored) return null;
   return shortAnswerResultOf({
-    passed: entry.aiPassed, score: entry.aiScore, feedback: entry.aiFeedback,
+    passed: entry.aiPassed, score: entry.aiScore, minScore: entry.aiPassMark, feedback: entry.aiFeedback,
     strength: entry.aiStrength, improvement: entry.aiImprovement, rubricGrades: entry.aiGrades,
   });
 }
@@ -62,6 +66,7 @@ export default function ShortAnswerReviewResult({ result, isDark, accentColor }:
   accentColor: string;
 }) {
   const t = reviewTheme(isDark);
+  const passMark = result.minScore ?? PASS_MARK;
   // Tinted, so the white cards inside stand out on the white step around them.
   const shell = isDark ? '#26272F' : '#F2F5FA';
 
@@ -69,7 +74,7 @@ export default function ShortAnswerReviewResult({ result, isDark, accentColor }:
     return (
       <div className="rounded-[20px] p-3 sm:p-4" style={{ background: shell }}>
         <RubricReviewReport reportLabel="Review of your answer" workNoun="answer" summary={result.feedback}
-          grades={result.rubricGrades} score={result.score} minScore={PASS_MARK} attemptsLeft={null}
+          grades={result.rubricGrades} score={result.score} minScore={passMark} attemptsLeft={null}
           isDark={isDark} accentColor={accentColor} showClosingNote={false} />
       </div>
     );
@@ -83,7 +88,7 @@ export default function ShortAnswerReviewResult({ result, isDark, accentColor }:
   return (
     <div className="space-y-3 rounded-[20px] p-3 sm:p-4" style={{ background: shell }}>
       <ReviewResultCard good={result.passed} heading={result.passed ? 'Passed' : 'Not passed yet'} resultLine={result.feedback}
-        score={result.score} minScore={PASS_MARK} isDark={isDark} />
+        score={result.score} minScore={passMark} isDark={isDark} />
       {parts.length > 0 && (
         <div className="flex flex-col gap-4 rounded-[20px] p-5 sm:p-6" style={{ background: t.card }}>
           {parts.map(({ label, text, Icon, tone }) => (

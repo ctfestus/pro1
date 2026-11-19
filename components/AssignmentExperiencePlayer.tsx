@@ -108,7 +108,7 @@ interface ProjectConfig {
   dataset?: Dataset;
   [key: string]: any;
 }
-type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
+type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiPassMark?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
 
 interface Props {
   formId: string;
