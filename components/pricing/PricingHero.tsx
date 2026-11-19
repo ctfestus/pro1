@@ -28,11 +28,13 @@ export interface PricingHeroProps {
   selectedDuration: number | null;
   onSelectDuration: (months: number) => void;
   primaryColor: string;
+  /** The site's secondary accent, for the chosen length in the headline. */
+  accentColor: string;
   bodyFont?: string;
 }
 
 export function PricingHero({
-  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, bodyFont,
+  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, accentColor, bodyFont,
 }: PricingHeroProps) {
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
   const toolIcon = useToolIcons();
@@ -91,6 +93,8 @@ export function PricingHero({
   const { price, savingPercent } = offer;
   const saving = savingPercent > 0;
   const promotion = Boolean(price.listAmount && price.listAmount > price.amount);
+  // The chosen length stands out in the secondary accent, so the switch visibly changes the headline.
+  const length = <span style={{ color: accentColor }}>{durationLabel(price.durationMonths)}</span>;
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
@@ -98,10 +102,10 @@ export function PricingHero({
         <div>
           <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
             {promotion
-              ? `Get ${durationLabel(price.durationMonths)} of full access at a better price`
+              ? <>Get {length} of full access at a better price</>
               : saving
-              ? `Learn at your own pace and save ${savingPercent}% over ${durationLabel(price.durationMonths)}`
-              : `Learn at your own pace with ${durationLabel(price.durationMonths)} of full access`}
+              ? <>Learn at your own pace and save {savingPercent}% over {length}</>
+              : <>Learn at your own pace with {length} of full access</>}
           </h1>
           <p className="mt-5 text-base" style={{ color: 'rgba(255,255,255,0.92)' }}>
             <span className="font-bold">{formatMoney(price.currency, price.amount)}</span>
