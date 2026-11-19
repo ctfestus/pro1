@@ -90,6 +90,9 @@ export function LessonContentStyles() {
 .lesson-content h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.3rem; letter-spacing: -0.01em; color: #18181b; }
 .lesson-content.dark h1, .lesson-content.dark h2, .lesson-content.dark h3 { color: #ffffff; }
 .lesson-content h1:first-child, .lesson-content h2:first-child, .lesson-content h3:first-child { margin-top: 0; }
+/* Headings set their own line height: the body's 1.6 on 20-30px type pulled a wrapped heading's
+   lines almost as far apart as the heading sits from its text. */
+.lesson-content h1, .lesson-content h2, .lesson-content h3 { line-height: 1.25; }
 .lesson-content hr { border: none; border-top: 1px solid #e4e4e7; margin: 1.25rem 0; }
 .lesson-content.dark hr { border-top-color: #27272a; }
 
