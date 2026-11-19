@@ -18,6 +18,8 @@ import type { SiteConfig } from '@/lib/site-templates';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import { PricingHero } from '@/components/pricing/PricingHero';
+import { PricingTools } from '@/components/pricing/PricingTools';
+import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
@@ -173,6 +175,10 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
       <PricingHero
         offer={selectedOffer}
+        bestOffer={defaultOffer}
+        durationOptions={billingDurationOptions}
+        selectedDuration={selectedDuration}
+        onSelectDuration={setSelectedDuration}
         primaryColor={primaryColor}
         accentColor={accentColor}
         headingFont={headingFont}
@@ -189,12 +195,11 @@ export function PricingPageClient(props: PricingPageClientProps) {
           bodyFont={bodyFont}
           signedIn={signedIn}
           paystackEnabled={paystackEnabled}
-          midAds={midAds}
-          durationOptions={billingDurationOptions}
           selectedDuration={selectedDuration}
-          onSelectDuration={setSelectedDuration}
           forItem={forItem && { title: forItem.title, contentTable: forItem.contentTable, contentId: forItem.contentId, onShowAll: showAllPlans }}
-        />
+        >
+          <PricingTools programmes={programmes} imageUrl={siteConfig.heroImageUrl || undefined} user={user} hFont={hFont} />
+        </PricingSection>
 
         <PricingFaq
           headingFont={headingFont}
@@ -202,6 +207,21 @@ export function PricingPageClient(props: PricingPageClientProps) {
           supportEmail={supportEmail}
           paidPlanName={plans.length === 1 ? plans[0].name : undefined}
         />
+
+        {/* After the decision rather than in the middle of it. */}
+        {midAds && midAds.some(ad => ad.title) && (
+          <section className="mt-20">
+            <div className="mb-7 text-center">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>What access can unlock</p>
+              <h3 className="mt-2 text-2xl leading-8 font-black tracking-tight sm:text-[28px] sm:leading-9" style={{ color: '#101828', fontFamily: hFont }}>
+                Turn learning into visible progress
+              </h3>
+            </div>
+            <div className="-mx-5 sm:-mx-8">
+              <MidAdBanner ads={midAds} hFont={hFont} bFont={bFont} background="transparent" />
+            </div>
+          </section>
+        )}
 
         <section className="relative mt-16 overflow-hidden rounded-[30px] px-6 py-10 text-center sm:px-10 sm:py-12" style={{ background: primaryColor }}>
           <div aria-hidden="true" className="absolute -left-20 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
@@ -214,9 +234,14 @@ export function PricingPageClient(props: PricingPageClientProps) {
             <p className="mx-auto mt-4 max-w-xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.72)' }}>
               No card to begin. No automatic renewal. Just clear access to the experience you choose.
             </p>
-            <Link href={finalCtaHref} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
-              {signedIn ? 'View payment options' : 'Create your free account'} <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Link href={finalCtaHref} className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
+                {signedIn ? 'View payment options' : 'Create your free account'} <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a href="#pricing-plans" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-black" style={{ color: '#FFFFFF', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.6)', fontFamily: hFont }}>
+                See plans
+              </a>
+            </div>
           </div>
         </section>
       </div>

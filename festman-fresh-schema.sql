@@ -7225,6 +7225,7 @@ price_promotions AS (
     p.discount_type,
     p.discount_value,
     p.discount_label,
+    p.discount_ends_at,
     (
       p.discount_type IN ('percentage', 'fixed')
       AND p.discount_value > 0
@@ -7275,6 +7276,8 @@ SELECT
                'discountValue', CASE WHEN pr.promotion_active THEN pr.discount_value ELSE NULL END,
                'discountLabel', CASE WHEN pr.promotion_active THEN pr.discount_label ELSE NULL END,
                'discountAmount', pr.amount - pr.effective_amount,
+               -- When the running offer stops, for the pricing page's countdown. Null with no offer.
+               'discountEndsAt', CASE WHEN pr.promotion_active THEN pr.discount_ends_at ELSE NULL END,
                'currency', pr.currency
              ) ORDER BY pr.duration_months
            )
