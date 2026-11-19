@@ -132,8 +132,18 @@ export function PricingSection({
     .find(Boolean) ?? null;
 
   return (
-    <section id="pricing-plans" className="relative z-20 -mt-16 scroll-mt-24" style={{ fontFamily: bFont }}>
-      {offer && <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} />}
+    <section id="pricing-plans" className={`relative z-20 ${offer ? '-mt-6' : '-mt-16'} scroll-mt-24`} style={{ fontFamily: bFont }}>
+      {offer && (
+        <div className="relative">
+          {/* The hero's colour carried down behind the strip's top half, edge to edge, so the hero
+              ends at the strip's middle however tall the strip wraps. */}
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-1/2"
+            style={{ background: primaryColor, boxShadow: `0 0 0 100vmax ${primaryColor}`, clipPath: 'inset(0 -100vmax)' }} />
+          <div className="relative">
+            <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} />
+          </div>
+        </div>
+      )}
 
       {forItem && (
         <p className={`${offer ? 'mt-4' : ''} rounded-2xl bg-white px-5 py-4 text-sm leading-6`} style={{ color: '#5F6B7A' }}>
