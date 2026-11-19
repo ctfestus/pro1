@@ -106,7 +106,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
       </Link>
       {paystackEnabled && (
         <p style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '-4px 0 0', fontSize: 12, lineHeight: 1.5, color: palette.muted }}>
-          <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank. Secure checkout by Paystack.
+          <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank.
         </p>
       )}
     </div>
