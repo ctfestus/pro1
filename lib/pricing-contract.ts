@@ -30,6 +30,8 @@ export interface PricingPrice {
   discountValue?: number | null;
   discountLabel?: string | null;
   discountAmount?: number;
+  /** When the running offer stops (ISO time); null when there is no offer or it has no end. */
+  discountEndsAt?: string | null;
   currency: string;
 }
 
