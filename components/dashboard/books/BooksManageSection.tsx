@@ -197,7 +197,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
           ].map(card => (
             <div key={card.label} className="p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
               <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>{card.label}</p>
-              <p className="text-lg font-bold mt-1 truncate" style={{ color: C.text }}>{card.value}</p>
+              <p className="text-base font-bold mt-1 truncate leading-6" style={{ color: C.text }}>{card.value}</p>
               <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{card.sub}</p>
             </div>
           ))}
@@ -227,7 +227,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 </p>
               </div>
               <button onClick={() => resolve(a)} disabled={resolvingId === a.id}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 shrink-0"
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 shrink-0"
                 style={{ background: C.card, color: C.text }}>
                 {resolvingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 Mark resolved
@@ -241,7 +241,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.faint }} />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or category"
-            className="w-full rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none" style={{ background: C.input, color: C.text }} />
+            className="w-full rounded-xl pl-10 pr-4 py-3 text-sm outline-none" style={{ background: C.input, color: C.text }} />
         </div>
         <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: C.pill }}>
           {(['all', 'published', 'draft', 'archived'] as const).map(f => (
@@ -265,11 +265,11 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{b.title}</p>
-                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full"
+                  <span className="text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full"
                     style={b.status === 'published'
                       ? { background: '#ffffff', color: '#16a34a', boxShadow: 'inset 0 0 0 1px #bbf7d0' }
                       : { background: C.pill, color: C.faint }}>{b.status}</span>
-                  {b.format && <span className="text-[10px] font-semibold uppercase" style={{ color: C.faint }}>{b.format}</span>}
+                  {b.format && <span className="text-[11px] font-semibold uppercase" style={{ color: C.faint }}>{b.format}</span>}
                 </div>
                 <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>
                   {[(b.authors ?? []).join(', '), b.category].filter(Boolean).join(' / ') || 'No author yet'}

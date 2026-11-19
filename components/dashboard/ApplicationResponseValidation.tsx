@@ -16,7 +16,7 @@ function NumericCriterion({ label, value, onChange, inputStyle, integer = false,
   const [draft, setDraft] = useState(value === undefined ? '' : String(value));
   return (
     <label className="block text-[11px] font-medium">
-      <span className="mb-1.5 block">{label}</span>
+      <span className="mb-2 block">{label}</span>
       <input type="number" inputMode={integer ? 'numeric' : 'decimal'} step={integer ? 1 : 'any'} min={integer ? 1 : undefined} max={max} value={draft}
         onChange={event => {
           const next = event.target.value;
@@ -70,14 +70,14 @@ export function ApplicationResponseValidation({ question, C, inputStyle, onChang
           <NumericCriterion label="Maximum value" value={validation.maxNumber} onChange={maxNumber => update({ maxNumber })} inputStyle={fieldStyle} />
         </div>}
         {question.type === 'date' && <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-[11px] font-medium"><span className="mb-1.5 block">Earliest date</span><input type="date" value={validation.minDate ?? ''} onChange={event => update({ minDate: event.target.value || undefined })} style={fieldStyle} /></label>
-          <label className="block text-[11px] font-medium"><span className="mb-1.5 block">Latest date</span><input type="date" value={validation.maxDate ?? ''} onChange={event => update({ maxDate: event.target.value || undefined })} style={fieldStyle} /></label>
+          <label className="block text-[11px] font-medium"><span className="mb-2 block">Earliest date</span><input type="date" value={validation.minDate ?? ''} onChange={event => update({ minDate: event.target.value || undefined })} style={fieldStyle} /></label>
+          <label className="block text-[11px] font-medium"><span className="mb-2 block">Latest date</span><input type="date" value={validation.maxDate ?? ''} onChange={event => update({ maxDate: event.target.value || undefined })} style={fieldStyle} /></label>
         </div>}
         {question.type === 'multiple_choice' && <div className="grid gap-3 sm:grid-cols-2">
           <NumericCriterion label="Minimum selections" value={validation.minSelections} onChange={minSelections => update({ minSelections })} inputStyle={fieldStyle} integer max={choiceCount} />
           <NumericCriterion label="Maximum selections" value={validation.maxSelections} onChange={maxSelections => update({ maxSelections })} inputStyle={fieldStyle} integer max={choiceCount} />
         </div>}
-        <p className="text-[10px] leading-4" style={{ color: C.faint }}>Leave a limit empty if it should not apply. Applicants will see these rules.</p>
+        <p className="text-[11px] leading-4" style={{ color: C.faint }}>Leave a limit empty if it should not apply. Applicants will see these rules.</p>
       </div>}
     </div>
   );

@@ -67,21 +67,21 @@ export function ApplicationOptionSuggestions({ question, hasDependentConditions,
     <div className="mt-3 rounded-xl p-3" style={{ background: C.input }}>
       {quick && <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: C.text }}><Lightbulb className="h-3.5 w-3.5" style={{ color: C.cta }} /> Suggested: {quick.title}</p>
+          <p className="flex items-center gap-2 text-[11px] font-semibold" style={{ color: C.text }}><Lightbulb className="h-3.5 w-3.5" style={{ color: C.cta }} /> Suggested: {quick.title}</p>
           <p className="mt-1 text-[11px] leading-4" style={{ color: C.muted }}>{quick.options.join(', ')}</p>
         </div>
-        <button type="button" disabled={quickApplied} onClick={() => applyOptions(quick.options, quick.type)} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-60" style={{ background: C.card, color: C.cta }}>
+        <button type="button" disabled={quickApplied} onClick={() => applyOptions(quick.options, quick.type)} className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-semibold disabled:opacity-60" style={{ background: C.card, color: C.cta }}>
           {quickApplied ? <><Check className="h-3.5 w-3.5" /> Added</> : quick.type === 'yes_no' ? 'Use Yes or no' : 'Use options'}
         </button>
       </div>}
       {canSuggestWithAi && <div className={quick ? 'mt-3 border-t pt-3' : ''} style={quick ? { borderColor: C.inputBorder } : undefined}>
-        <button type="button" disabled={loading} onClick={() => void generateOptions()} className="flex items-center gap-1.5 text-[11px] font-semibold disabled:opacity-50" style={{ color: C.cta }}>
+        <button type="button" disabled={loading} onClick={() => void generateOptions()} className="flex items-center gap-2 text-[11px] font-semibold disabled:opacity-50" style={{ color: C.cta }}>
           {loading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
           {loading ? 'Suggesting options...' : isChoice ? 'Suggest more with AI' : 'Suggest choices with AI'}
         </button>
         {aiOptions && <div className="mt-3 flex flex-wrap items-center gap-2">
-          {aiOptions.map(option => <span key={option} className="rounded-md px-2 py-1 text-[10px]" style={{ background: C.card, color: C.text }}>{option}</span>)}
-          <button type="button" onClick={() => { applyOptions(aiOptions, 'single_choice'); setAiSuggestion(null); }} className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold" style={{ background: C.cta, color: C.ctaText }}>{isChoice ? 'Add these options' : 'Use as multiple choice'}</button>
+          {aiOptions.map(option => <span key={option} className="rounded-md px-2 py-1 text-[11px]" style={{ background: C.card, color: C.text }}>{option}</span>)}
+          <button type="button" onClick={() => { applyOptions(aiOptions, 'single_choice'); setAiSuggestion(null); }} className="rounded-lg px-3 py-2 text-[11px] font-semibold" style={{ background: C.cta, color: C.ctaText }}>{isChoice ? 'Add these options' : 'Use as multiple choice'}</button>
         </div>}
         {error?.label === label && <p role="alert" className="mt-2 text-[11px]" style={{ color: C.errorText }}>{error.message}</p>}
       </div>}

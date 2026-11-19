@@ -86,7 +86,7 @@ export function ApplicationInsights({ form, token, C, onBack }: {
             {tiles.map(tile => (
               <div key={tile.label} className="min-w-0 rounded-xl p-3 sm:p-4" style={panel}>
                 <p className="text-[11px] font-semibold" style={{ color: C.faint }}>{tile.label}</p>
-                <p className="mt-1 truncate text-xl font-bold tabular-nums sm:text-2xl" style={{ color: C.text }}>{tile.value}</p>
+                <p className="mt-1 truncate text-[22px] font-bold tabular-nums sm:text-2xl leading-7" style={{ color: C.text }}>{tile.value}</p>
                 <p className="mt-0.5 truncate text-[11px]" style={{ color: C.muted }}>{tile.detail}</p>
               </div>
             ))}
@@ -130,7 +130,7 @@ export function ApplicationInsights({ form, token, C, onBack }: {
                       </button>
                     ))}
                   </div>
-                  <div className="mt-1.5 flex justify-between text-[10px]" style={{ color: C.faint }}>
+                  <div className="mt-2 flex justify-between text-[11px]" style={{ color: C.faint }}>
                     <span>{dayLabel(overview.daily[0].date, { day: 'numeric', month: 'short' })}</span>
                     <span>Today</span>
                   </div>
@@ -144,12 +144,12 @@ export function ApplicationInsights({ form, token, C, onBack }: {
                 {overview.byStage.map(stage => {
                   const share = overview.total ? stage.count / overview.total : 0;
                   return (
-                    <li key={stage.id || 'other'} className="px-2.5 py-2" title={stage.id ? undefined : 'Applicants in a stage that has since been removed'}>
+                    <li key={stage.id || 'other'} className="px-3 py-2" title={stage.id ? undefined : 'Applicants in a stage that has since been removed'}>
                       <span className="flex items-center justify-between gap-3 text-xs">
                         <span className="min-w-0 truncate font-medium" style={{ color: C.text }}>{stage.name}</span>
                         <span className="shrink-0 font-semibold tabular-nums" style={{ color: C.text }}>{stage.count}</span>
                       </span>
-                      <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full" style={{ background: C.input }}>
+                      <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full" style={{ background: C.input }}>
                         <span className="block h-full rounded-full" style={{ width: `${share * 100}%`, background: C.cta }} />
                       </span>
                     </li>
@@ -201,19 +201,19 @@ function FieldCard({ field, C }: { field: ApplicationFieldBreakdown; C: ThemeCol
           {[['Average', field.average], ['Lowest', field.min], ['Highest', field.max]].map(([label, value]) => (
             <div key={label as string} className="rounded-lg p-3" style={{ background: C.input }}>
               <p className="text-[11px] font-semibold" style={{ color: C.faint }}>{label}</p>
-              <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: C.text }}>{formatNumber(value as number)}</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums leading-6" style={{ color: C.text }}>{formatNumber(value as number)}</p>
             </div>
           ))}
         </div>
       ) : (
-        <ul className="mt-3 space-y-2.5">
+        <ul className="mt-3 space-y-3">
           {field.options.map(option => (
             <li key={option.label}>
               <span className="flex items-center justify-between gap-3 text-xs">
                 <span className="min-w-0 truncate font-medium" style={{ color: C.text }} title={option.label}>{option.label}</span>
                 <span className="shrink-0 tabular-nums" style={{ color: C.muted }}><span className="font-semibold" style={{ color: C.text }}>{option.count}</span> ({percent(option.share)})</span>
               </span>
-              <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full" style={{ background: C.input }}>
+              <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full" style={{ background: C.input }}>
                 <span className="block h-full rounded-full" style={{ width: `${option.share * 100}%`, background: C.cta }} />
               </span>
             </li>

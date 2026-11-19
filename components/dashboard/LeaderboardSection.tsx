@@ -81,7 +81,7 @@ export function LeaderboardSection({ C }: { C: typeof LIGHT_C }) {
             <Trophy className="w-5 h-5" style={{ color: '#fbbf24' }}/>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-black leading-tight" style={{ color: '#ffffff' }}>Leaderboard</h2>
+            <h2 className="text-base font-black leading-tight" style={{ color: '#ffffff' }}>Leaderboard</h2>
             <p className="text-xs" style={{ color: 'rgba(197,210,255,0.8)' }}>
               Student rankings by cohort &middot; total XP earned
             </p>
@@ -89,17 +89,17 @@ export function LeaderboardSection({ C }: { C: typeof LIGHT_C }) {
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right">
               <p className="text-base font-black tabular-nums leading-tight" style={{ color: '#fbbf24' }}>{totalStudents}</p>
-              <p className="text-[10px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Students</p>
+              <p className="text-[11px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Students</p>
             </div>
             <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.15)' }}/>
             <div className="text-right">
               <p className="text-base font-black tabular-nums leading-tight" style={{ color: '#ffffff' }}>{avgXP.toLocaleString()}</p>
-              <p className="text-[10px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Avg XP</p>
+              <p className="text-[11px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Avg XP</p>
             </div>
             <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.15)' }}/>
             <div className="text-right">
               <p className="text-base font-black tabular-nums leading-tight" style={{ color: '#ffffff' }}>{totalXP.toLocaleString()}</p>
-              <p className="text-[10px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Total XP</p>
+              <p className="text-[11px]" style={{ color: 'rgba(197,210,255,0.7)' }}>Total XP</p>
             </div>
             <button onClick={() => setRefreshKey(k => k + 1)} aria-label="Refresh"
               className="ml-1 w-8 h-8 rounded-full grid place-items-center flex-shrink-0 transition-opacity hover:opacity-80"
@@ -113,7 +113,7 @@ export function LeaderboardSection({ C }: { C: typeof LIGHT_C }) {
       {/* Cohorts stacked vertically -- one section each */}
       <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
         {/* Filter bar */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3.5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+        <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
           <h3 className="text-sm font-bold leading-none" style={{ color: C.text }}>Rankings</h3>
           <select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)}
             className="text-sm px-3 py-2 rounded-lg outline-none cursor-pointer"
@@ -142,7 +142,7 @@ export function LeaderboardSection({ C }: { C: typeof LIGHT_C }) {
                   </div>
                   {/* Rankings */}
                   {ranks.map((r: any, idx: number) => (
-                    <div key={r.id ?? r.rank} className="flex items-center gap-3 py-3.5"
+                    <div key={r.id ?? r.rank} className="flex items-center gap-3 py-4"
                       style={{ borderBottom: idx < ranks.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
                       {/* Rank */}
                       <span className="w-7 text-sm font-bold tabular-nums flex-shrink-0" style={{ color: r.rank <= 3 ? '#f59e0b' : C.faint }}>{r.rank}</span>

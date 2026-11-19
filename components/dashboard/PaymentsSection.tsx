@@ -171,7 +171,7 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
           <p className="text-xs mt-0.5" style={{ color: C.faint }}>Global options shown to all students on the My Plan page.</p>
         </div>
         <button onClick={() => { setEditing(blank()); setSaveErr(''); }}
-          className="flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-80"
+          className="flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-80"
           style={{ background: C.cta, color: C.ctaText }}>
           <Plus className="w-4 h-4"/> Add Option
         </button>
@@ -195,10 +195,10 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-bold" style={{ color: C.text }}>{opt.label}</p>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
                   style={{ background: C.lime, color: C.green }}>{typeLabel(opt.type)}</span>
                 {!opt.is_active && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: C.pill, color: C.faint }}>Hidden</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold" style={{ background: C.pill, color: C.faint }}>Hidden</span>
                 )}
               </div>
               <p className="text-xs mt-0.5" style={{ color: C.muted }}>
@@ -209,11 +209,11 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
             </div>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={() => { setEditing({ ...opt }); setSaveErr(''); }}
-                className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+                className="p-2 rounded-lg transition-opacity hover:opacity-70" style={{ color: C.muted }}>
                 <Edit2 className="w-3.5 h-3.5"/>
               </button>
               <button onClick={() => handleDelete(opt.id)} disabled={deleting === opt.id}
-                className="p-1.5 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40" style={{ color: '#dc2626' }}>
+                className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40" style={{ color: '#dc2626' }}>
                 <Trash2 className="w-3.5 h-3.5"/>
               </button>
             </div>
@@ -242,7 +242,7 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
 
               {/* Type selector */}
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Payment Type *</label>
+                <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Payment Type *</label>
                 <div className="flex gap-2">
                   {PAYMENT_TYPES.map(t => (
                     <button key={t.value} onClick={() => setEditing((p: any) => ({ ...p, type: t.value }))}
@@ -324,10 +324,10 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
 
             {/* Footer */}
             <div className="flex gap-3 px-6 pb-6 flex-shrink-0">
-              <button onClick={() => setEditing(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+              <button onClick={() => setEditing(null)} className="flex-1 py-3 rounded-xl text-sm font-semibold"
                 style={{ background: C.pill, color: C.muted }}>Cancel</button>
               <button onClick={handleSave} disabled={saving || logoUploading}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: C.cta, color: C.ctaText }}>
                 {saving ? 'Saving...' : 'Save'}
               </button>
@@ -423,17 +423,17 @@ function ConfirmationsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () => 
             Review student-submitted payment proofs. Approval records the payment automatically.
           </p>
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+        <button onClick={load} className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg"
           style={{ background: C.pill, color: C.muted }}>
           <RefreshCw className="w-3.5 h-3.5"/> Refresh
         </button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex gap-2 flex-wrap">
         {([['all','All'], ['pending','Pending'], ['approved','Approved'], ['rejected','Rejected']] as const).map(([val, label]) => (
           <button key={val} onClick={() => setFilter(val)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            className="px-3 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{
               background: filter === val ? C.cta : C.pill,
               color: filter === val ? C.ctaText : C.muted,
@@ -490,13 +490,13 @@ function ConfirmationsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () => 
                 {c.status === 'pending' && (
                   <div className="flex gap-2 flex-shrink-0 self-start">
                     <button onClick={() => handleApprove(c.id)} disabled={acting === c.id}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 transition-opacity hover:opacity-80"
+                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50 transition-opacity hover:opacity-80"
                       style={{ background: '#16a34a18', color: '#16a34a' }}>
                       <CheckCircle className="w-3.5 h-3.5"/>
                       {acting === c.id ? '...' : 'Approve'}
                     </button>
                     <button onClick={() => { setRejectId(c.id); setRejectNote(''); }}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-80"
                       style={{ background: '#dc262618', color: '#dc2626' }}>
                       <XCircle className="w-3.5 h-3.5"/> Reject
                     </button>
@@ -520,10 +520,10 @@ function ConfirmationsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () => 
               className="w-full text-sm px-3 py-2 rounded-xl outline-none resize-none"
               style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
             <div className="flex gap-3">
-              <button onClick={() => setRejectId(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+              <button onClick={() => setRejectId(null)} className="flex-1 py-3 rounded-xl text-sm font-semibold"
                 style={{ background: C.pill, color: C.muted }}>Cancel</button>
               <button onClick={handleReject} disabled={acting === rejectId}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: '#dc2626', color: 'white' }}>
                 {acting === rejectId ? 'Rejecting...' : 'Reject'}
               </button>
@@ -935,8 +935,8 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           return (
             <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="flex items-center gap-3 min-w-0">
-                <h2 className="text-lg font-bold leading-none truncate" style={{ color: C.text }}>{SECTIONS[ci]?.label}</h2>
-                <div className="flex items-center gap-1.5">
+                <h2 className="text-base font-bold leading-none truncate" style={{ color: C.text }}>{SECTIONS[ci]?.label}</h2>
+                <div className="flex items-center gap-2">
                   {SECTIONS.map((s, i) => (
                     <button key={s.id} onClick={() => setPayTab(s.id)} aria-label={s.label}
                       className="rounded-full transition-all" style={{ width: i === ci ? 18 : 7, height: 7, background: i === ci ? C.cta : C.cardBorder }} />
@@ -971,7 +971,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           ['Email', 'Student', 'Cohort', 'Total Fee', 'Paid', 'Balance', 'Plan', 'Access Status', 'Access Until', 'Next Due'],
           filtered.map(r => [r.email, r.student_name, r.cohort_name, r.total_fee, r.paid_total, r.balance, r.payment_plan, r.access_status, r.access_until ?? '', r.next_due_date ?? '']),
           'enrollments-export.csv'
-        )} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-80"
+        )} className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-80"
           style={{ background: C.pill, color: C.text }}>
           <Download className="w-3.5 h-3.5"/> Export CSV
         </button>
@@ -988,14 +988,14 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           const Icon = s.icon;
           return (
             <div key={s.label} className="rounded-2xl p-4" style={{ background: C.pill, border: 'none' }}>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl grid place-items-center flex-shrink-0" style={{ background: s.tint }}>
                   <Icon className="w-4 h-4" style={{ color: s.color === C.text ? C.muted : s.color }} />
                 </div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] leading-tight" style={{ color: C.faint }}>{s.label}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] leading-tight" style={{ color: C.faint }}>{s.label}</p>
               </div>
               <p className="text-2xl font-bold leading-none tabular-nums mt-3" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>{s.sub}</p>
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>{s.sub}</p>
             </div>
           );
         })}
@@ -1015,7 +1015,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           <div className="px-4 pb-4 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-5" style={{ borderTop: `1px solid ${C.divider}` }}>
             {/* Outstanding cohort */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Outstanding Cohort</label>
+              <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Outstanding Cohort</label>
               <select value={outstandingCohortId}
                 onChange={async e => {
                   const v = e.target.value;
@@ -1032,11 +1032,11 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                 <option value="">Select the outstanding cohort</option>
                 {cohorts.filter((c: any) => !isIndividualCohort(c.cohort_kind)).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Students moved here lose access to course resources.</p>
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>Students moved here lose access to course resources.</p>
             </div>
             {/* Grace period */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Grace Period</label>
+              <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Grace Period</label>
               <div className="flex gap-2">
                 <select
                   value={graceCohortId}
@@ -1084,14 +1084,14 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                     } catch { setGraceError('Failed to save.'); }
                     setGraceSaving(false);
                   }}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-40 flex-shrink-0"
+                  className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-40 flex-shrink-0"
                   style={{ background: C.cta, color: C.ctaText }}>
                   {graceSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Check className="w-3.5 h-3.5"/>}
                   Save
                 </button>
               </div>
-              {graceError && <span className="text-xs block mt-1.5" style={{ color: '#dc2626' }}>{graceError}</span>}
-              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Days of access after a missed installment before moving to outstanding.</p>
+              {graceError && <span className="text-xs block mt-2" style={{ color: '#dc2626' }}>{graceError}</span>}
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>Days of access after a missed installment before moving to outstanding.</p>
             </div>
           </div>
         )}
@@ -1155,7 +1155,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             return (
               <div key={group.cohort_id}>
                 {/* Cohort section header */}
-                <div className="flex items-center gap-2.5 flex-wrap pb-3" style={{ borderBottom: `1px solid ${C.divider}` }}>
+                <div className="flex items-center gap-2 flex-wrap pb-3" style={{ borderBottom: `1px solid ${C.divider}` }}>
                   <h4 className="text-sm font-bold leading-none" style={{ color: isOutstandingGroup ? '#dc2626' : C.text }}>{group.cohort_name}</h4>
                   {groupBalance > 0 && (
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(220,38,38,0.1)', color: '#dc2626' }}>
@@ -1163,7 +1163,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                     </span>
                   )}
                   {isOutstandingGroup && (
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>Outstanding Cohort</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>Outstanding Cohort</span>
                   )}
                 </div>
 
@@ -1184,13 +1184,13 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                           <tr key={r.enrollment_id ?? i} style={{ borderTop: `1px solid ${C.divider}` }}>
                             <td style={{ padding: '14px 16px', maxWidth: 280 }}>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                   <p className="truncate" style={{ color: C.text, fontWeight: 500 }} title={r.student_name}>{r.student_name || '--'}</p>
                                   {r.is_presignup && (
-                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)', color: '#b45309' }}>Pending Signup</span>
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)', color: '#b45309' }}>Pending Signup</span>
                                   )}
                                   {!r.is_presignup && r.payment_exempt && (
-                                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(234,179,8,0.12)', color: '#a16207' }}>Exempt</span>
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(234,179,8,0.12)', color: '#a16207' }}>Exempt</span>
                                   )}
                                 </div>
                                 <p className="truncate" style={{ color: C.faint, fontSize: 10 }} title={r.email}>{r.email}</p>
@@ -1202,7 +1202,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                               {r.balance > 0 ? r.balance.toLocaleString() : '--'}
                             </td>
                             <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${accentColor}18`, color: accentColor }}>
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${accentColor}18`, color: accentColor }}>
                                 {r.access_status?.replace(/_/g, ' ')}
                               </span>
                             </td>
@@ -1228,7 +1228,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                                         setMenuRow(r);
                                       }
                                     }}
-                                    className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
+                                    className="p-2 rounded-lg transition-opacity hover:opacity-70"
                                     style={{ color: C.muted, background: menuRow?.enrollment_id === r.enrollment_id ? C.pill : 'transparent' }}>
                                     <MoreVertical className="w-4 h-4"/>
                                   </button>
@@ -1252,37 +1252,37 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
 
       {/* Kebab dropdown - rendered outside table to escape overflow-x-auto clip */}
       {menuRow && menuPos && (
-        <div className="fixed z-50 w-52 rounded-xl py-1.5"
+        <div className="fixed z-50 w-52 rounded-xl py-2"
           style={{ top: menuPos.top, bottom: menuPos.bottom, right: menuPos.right, background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.35)' : '0 12px 32px rgba(0,0,0,0.16)' }}
           onClick={e => e.stopPropagation()}>
           <button onClick={() => { setMenuRow(null); setMenuPos(null); openPay(menuRow); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
             style={{ color: C.text }}>
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0"/> Record Payment
           </button>
           <button onClick={() => { setMenuRow(null); setMenuPos(null); openHistory(menuRow); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
             style={{ color: C.text }}>
             <Clock className="w-3.5 h-3.5 flex-shrink-0"/> Payment History
           </button>
           {menuRow.balance > 0 && !menuRow.payment_exempt && menuRow.access_status !== 'waived' && (
             <button onClick={() => { const row = menuRow; setMenuRow(null); setMenuPos(null); handleSendReminder(row); }}
               disabled={sendingReminder === menuRow.enrollment_id}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
               style={{ color: '#d97706' }}>
               <Send className="w-3.5 h-3.5 flex-shrink-0"/>
               {sendingReminder === menuRow.enrollment_id ? 'Sending...' : 'Send Payment Reminder'}
             </button>
           )}
           <button onClick={() => { setMenuRow(null); setMenuPos(null); openEdit(menuRow); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
             style={{ color: C.text }}>
             <Edit2 className="w-3.5 h-3.5 flex-shrink-0"/> Edit Enrollment
           </button>
           <div className="my-1 mx-3" style={{ borderTop: `1px solid ${C.divider}` }}/>
           {menuRow.access_status !== 'waived' && (
             <button onClick={() => { setMenuRow(null); setMenuPos(null); handleMarkWaived(menuRow); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
               style={{ color: C.text }}>
               <Check className="w-3.5 h-3.5 flex-shrink-0"/> Mark as Waived
             </button>
@@ -1291,14 +1291,14 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             menuRow.cohort_id !== outstandingCohortId && !menuRow.payment_exempt &&
             (menuRow.access_status === 'overdue' || menuRow.access_status === 'pending_deposit') && (
             <button onClick={() => { setMenuRow(null); setMenuPos(null); handleMoveToOutstanding(menuRow); }} disabled={movingId === menuRow.student_id}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
               style={{ color: C.text }}>
               <ArrowRight className="w-3.5 h-3.5 flex-shrink-0"/> Move to Outstanding
             </button>
           )}
           {!menuRow.is_presignup && menuRow.student_id && menuRow.original_cohort_id && (
             <button onClick={() => { setMenuRow(null); setMenuPos(null); handleRestoreCohort(menuRow); }} disabled={movingId === menuRow.student_id}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
               style={{ color: C.text }}>
               <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0"/> Restore to Cohort
             </button>
@@ -1306,13 +1306,13 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           {!menuRow.is_presignup && menuRow.student_id && (
             menuRow.payment_exempt ? (
               <button onClick={() => { setMenuRow(null); setMenuPos(null); handleToggleExempt(menuRow, false); }} disabled={movingId === menuRow.student_id}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
                 style={{ color: C.text }}>
                 <XCircle className="w-3.5 h-3.5 flex-shrink-0"/> Revoke Exemption
               </button>
             ) : (
               <button onClick={() => { setMenuRow(null); setMenuPos(null); handleToggleExempt(menuRow, true); }} disabled={movingId === menuRow.student_id}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70 disabled:opacity-50"
                 style={{ color: C.text }}>
                 <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0"/> Grant Exemption
               </button>
@@ -1339,8 +1339,8 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                   { label: 'Paid', value: Number(payRow.paid_total).toLocaleString(), color: '#16a34a' },
                   { label: 'Balance', value: payRow.balance > 0 ? Number(payRow.balance).toLocaleString() : 'Settled', color: payRow.balance > 0 ? '#dc2626' : '#16a34a' },
                 ].map(s => (
-                  <div key={s.label} className="rounded-xl px-3 py-2.5" style={{ background: C.pill }}>
-                    <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>{s.label}</p>
+                  <div key={s.label} className="rounded-xl px-3 py-3" style={{ background: C.pill }}>
+                    <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>{s.label}</p>
                     <p className="text-sm font-bold mt-0.5" style={{ color: s.color }}>{s.value}</p>
                   </div>
                 ))}
@@ -1349,43 +1349,43 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Amount ({payRow.currency}) *</label>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Amount ({payRow.currency}) *</label>
                   <input type="number" value={payAmount} placeholder="0" onChange={e => setPayAmount(e.target.value)}
-                    className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                     style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Date Paid</label>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Date Paid</label>
                   <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                     style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Method</label>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Method</label>
                   <input type="text" value={payMethod} placeholder="Cash, Mobile Money..." onChange={e => setPayMethod(e.target.value)}
-                    className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                     style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Reference</label>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Reference</label>
                   <input type="text" value={payRef} placeholder="Receipt / transaction ref" onChange={e => setPayRef(e.target.value)}
-                    className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                     style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Notes</label>
+                <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Notes</label>
                 <input type="text" value={payNotes} placeholder="Optional notes" onChange={e => setPayNotes(e.target.value)}
-                  className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                  className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                   style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
               </div>
               {payError && <p className="text-xs" style={{ color: '#dc2626' }}>{payError}</p>}
             </div>
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setPayRow(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80" style={{ background: C.pill, color: C.muted }}>Cancel</button>
-              <button onClick={handleRecordPayment} disabled={paySaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ background: C.cta, color: C.ctaText }}>
+              <button onClick={() => setPayRow(null)} className="flex-1 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={handleRecordPayment} disabled={paySaving} className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ background: C.cta, color: C.ctaText }}>
                 {paySaving ? 'Saving...' : 'Record Payment'}
               </button>
             </div>
@@ -1406,12 +1406,12 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                 <button onClick={() => setHistRow(null)} className="p-1 rounded-lg transition-opacity hover:opacity-70 flex-shrink-0 mt-0.5" style={{ color: C.faint }}><X className="w-4 h-4"/></button>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="rounded-xl px-3 py-2.5" style={{ background: C.pill }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>Total Paid</p>
+                <div className="rounded-xl px-3 py-3" style={{ background: C.pill }}>
+                  <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>Total Paid</p>
                   <p className="text-sm font-bold mt-0.5" style={{ color: '#16a34a' }}>{histRow.currency} {Number(histRow.paid_total).toLocaleString()}</p>
                 </div>
-                <div className="rounded-xl px-3 py-2.5" style={{ background: histRow.balance > 0 ? 'rgba(220,38,38,0.08)' : C.pill }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>Balance</p>
+                <div className="rounded-xl px-3 py-3" style={{ background: histRow.balance > 0 ? 'rgba(220,38,38,0.08)' : C.pill }}>
+                  <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: C.faint }}>Balance</p>
                   <p className="text-sm font-bold mt-0.5" style={{ color: histRow.balance > 0 ? '#dc2626' : '#16a34a' }}>
                     {histRow.balance > 0 ? `${histRow.currency} ${histRow.balance.toLocaleString()}` : 'Settled'}
                   </p>
@@ -1442,22 +1442,22 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                             { label: 'Reference', key: 'reference', type: 'text' },
                           ].map(f => (
                             <div key={f.key}>
-                              <label className="block text-[10px] font-semibold mb-1" style={{ color: C.muted }}>{f.label}</label>
+                              <label className="block text-[11px] font-semibold mb-1" style={{ color: C.muted }}>{f.label}</label>
                               <input type={f.type} value={editPayFields[f.key]}
                                 onChange={e => setEditPayFields((prev: any) => ({ ...prev, [f.key]: e.target.value }))}
-                                className="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
+                                className="w-full text-xs px-3 py-2 rounded-lg outline-none"
                                 style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                             </div>
                           ))}
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold mb-1" style={{ color: C.muted }}>Notes</label>
+                          <label className="block text-[11px] font-semibold mb-1" style={{ color: C.muted }}>Notes</label>
                           <input type="text" value={editPayFields.notes}
                             onChange={e => setEditPayFields((prev: any) => ({ ...prev, notes: e.target.value }))}
-                            className="w-full text-xs px-2.5 py-2 rounded-lg outline-none"
+                            className="w-full text-xs px-3 py-2 rounded-lg outline-none"
                             style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                         </div>
-                        {editPayError && <p className="text-[10px]" style={{ color: '#dc2626' }}>{editPayError}</p>}
+                        {editPayError && <p className="text-[11px]" style={{ color: '#dc2626' }}>{editPayError}</p>}
                         <div className="flex gap-2 pt-1">
                           <button onClick={() => setEditingPayId(null)} className="flex-1 py-2 rounded-lg text-xs font-semibold" style={{ background: C.input, color: C.muted }}>Cancel</button>
                           <button onClick={handleEditPayment} disabled={editPaySaving} className="flex-1 py-2 rounded-lg text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>
@@ -1481,12 +1481,12 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
                           <button onClick={() => startEditPayment(p)}
-                            className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
+                            className="p-2 rounded-lg transition-opacity hover:opacity-70"
                             style={{ color: C.muted, background: C.pill }}>
                             <Edit2 className="w-3 h-3"/>
                           </button>
                           <button onClick={() => handleDeletePayment(p.id)} disabled={deletingPayId === p.id}
-                            className="p-1.5 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-50"
+                            className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-50"
                             style={{ color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
                             {deletingPayId === p.id ? <Loader2 className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
                           </button>
@@ -1499,7 +1499,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             <div className="px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${C.divider}` }}>
               <button onClick={() => { setHistRow(null); openPay(histRow); }}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
+                className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
                 style={{ background: 'rgba(37,99,235,0.1)', color: '#2563eb' }}>
                 <CreditCard className="w-4 h-4"/> Record New Payment
               </button>
@@ -1523,27 +1523,27 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             {/* Scrollable body */}
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
               <div className="space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>Payment Terms</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>Payment Terms</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Total Fee (GHS)</label>
+                    <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Total Fee (GHS)</label>
                     <input type="number" value={editFields.total_fee} placeholder="3000"
                       onChange={e => setEditFields((p: any) => ({ ...p, total_fee: e.target.value }))}
-                      className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                      className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                       style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Deposit Required (GHS)</label>
+                    <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Deposit Required (GHS)</label>
                     <input type="number" value={editFields.deposit_required} placeholder="1500"
                       onChange={e => setEditFields((p: any) => ({ ...p, deposit_required: e.target.value }))}
-                      className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                      className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                       style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Payment Plan</label>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Payment Plan</label>
                   <select value={editFields.payment_plan} onChange={e => setEditFields((p: any) => ({ ...p, payment_plan: e.target.value }))}
-                    className="w-full text-sm px-3 py-2.5 rounded-xl outline-none"
+                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
                     style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}>
                     <option value="flexible">Flexible</option>
                     <option value="full">Full</option>
@@ -1554,7 +1554,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
               </div>
               {installments.length > 0 && (
                 <div className="space-y-3 pt-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider pt-1" style={{ color: C.faint }}>Installment Schedule</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider pt-1" style={{ color: C.faint }}>Installment Schedule</p>
                   {instError && <p className="text-[11px]" style={{ color: '#dc2626' }}>{instError}</p>}
                   {installments.map((inst: any, i: number) => (
                     <div key={inst.id} className="rounded-xl px-3 py-3" style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
@@ -1562,7 +1562,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                         <span className="text-xs font-semibold" style={{ color: C.muted }}>
                           {i === 0 ? 'Deposit' : `Installment ${i}`}
                         </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
                           style={{
                             background: inst.status === 'paid' ? 'rgba(22,163,74,0.12)' : inst.status === 'partial' ? 'rgba(217,119,6,0.12)' : C.input,
                             color: inst.status === 'paid' ? '#16a34a' : inst.status === 'partial' ? '#d97706' : C.faint,
@@ -1574,7 +1574,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                         <input type="date" value={instDates[inst.id] ?? inst.due_date}
                           onChange={e => setInstDates(prev => ({ ...prev, [inst.id]: e.target.value }))}
                           disabled={inst.status === 'paid'}
-                          className="flex-1 text-xs px-2.5 py-2 rounded-lg outline-none disabled:opacity-50"
+                          className="flex-1 text-xs px-3 py-2 rounded-lg outline-none disabled:opacity-50"
                           style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
                         <button
                           onClick={() => handleSaveInstallmentDate(inst.id)}
@@ -1592,8 +1592,8 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             {/* Footer */}
             <div className="flex gap-3 px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${C.divider}` }}>
-              <button onClick={() => setEditRow(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80" style={{ background: C.pill, color: C.muted }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ background: C.cta, color: C.ctaText }}>
+              <button onClick={() => setEditRow(null)} className="flex-1 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ background: C.cta, color: C.ctaText }}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
@@ -1607,7 +1607,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
 
     {/* Toast notification */}
     {payToast && createPortal(
-      <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg"
+      <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-lg"
         style={{ background: payToast.ok ? '#16a34a' : '#dc2626', color: '#fff', minWidth: 220, maxWidth: 360 }}>
         {payToast.ok ? <Check className="w-4 h-4 flex-shrink-0"/> : <X className="w-4 h-4 flex-shrink-0"/>}
         {payToast.text}

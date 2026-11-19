@@ -217,7 +217,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
           <div className="h-10 rounded-lg animate-pulse" style={{ background: C.skeleton }} />
         ) : (
           <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)}
-            className="w-full rounded-lg px-4 py-2.5 text-sm"
+            className="w-full rounded-lg px-4 py-3 text-sm"
             style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text, outline: 'none' }}>
             <option value="">Choose a live session to view attendance</option>
             {events.map(e => (
@@ -247,7 +247,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
             <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="flex items-center gap-3 min-w-0">
                 <h3 className="text-base font-bold leading-none capitalize" style={{ color: C.text }}>{viewMode}</h3>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {(['summary', 'matrix'] as const).map(m => (
                     <button key={m} onClick={() => setViewMode(m)} aria-label={m}
                       className="rounded-full transition-all"
@@ -275,7 +275,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
                 {sessionDates.length > 1 && (
                   <select value={activeDate ?? ''} onChange={e => setNudgeDate(e.target.value)}
                     title="Session to check absences against"
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                    className="rounded-lg px-3 py-2 text-xs font-medium"
                     style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text, outline: 'none' }}>
                     {sessionDates.map(d => (
                       <option key={d} value={d}>
@@ -286,14 +286,14 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
                 )}
                 {absentRows.length > 0 && (
                   <button onClick={handleNudge} disabled={nudging || selectedIds.size === 0}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
                     style={{ background: '#fee2e2', color: '#dc2626', opacity: (nudging || selectedIds.size === 0) ? 0.6 : 1 }}>
                     <Mail className="w-3.5 h-3.5" /> {nudging ? 'Sending...' : `Nudge absent (${selectedIds.size})`}
                   </button>
                 )}
                 {studentRows.length > 0 && (
                   <button onClick={handleExport}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
                     style={{ background: C.pill, color: C.muted }}>
                     <Download className="w-3.5 h-3.5" /> Export CSV
                   </button>

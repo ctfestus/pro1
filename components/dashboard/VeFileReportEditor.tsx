@@ -48,11 +48,11 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
   // field (a score) cannot be overridden by a full-width one.
   const textPrim = isDark ? 'text-zinc-100' : 'text-[#111]';
   const textMut  = isDark ? 'text-zinc-400' : 'text-[#5f6368]';
-  const field    = `px-3.5 py-2.5 rounded-xl border text-[15px] leading-relaxed outline-none transition-colors focus:border-[#00b95c] ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500' : 'bg-white border-[#e3e5e8] text-[#111] placeholder:text-[#9aa0a6]'}`;
-  const label    = `block text-[13px] font-medium mb-1.5 ${textMut}`;
-  const heading  = `text-[15px] font-semibold ${textPrim}`;
-  const action   = `inline-flex items-center gap-1.5 text-[13px] font-semibold px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40 ${textMut}`;
-  const addLink  = 'inline-flex items-center gap-1.5 text-[14px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-40';
+  const field    = `px-4 py-3 rounded-xl border text-base leading-relaxed outline-none transition-colors focus:border-[#00b95c] ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500' : 'bg-white border-[#e3e5e8] text-[#111] placeholder:text-[#9aa0a6]'}`;
+  const label    = `block text-sm font-medium mb-2 ${textMut}`;
+  const heading  = `text-base font-semibold ${textPrim}`;
+  const action   = `inline-flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40 ${textMut}`;
+  const addLink  = 'inline-flex items-center gap-2 text-[14px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-40';
   const divider  = isDark ? 'border-zinc-800' : 'border-[#ebedf0]';
   const SEVERITY_COLORS: Record<InstructorFindingSeverity, string> = { error: '#ef4444', warning: '#f59e0b', suggestion: '#3b82f6' };
 
@@ -87,17 +87,17 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
       <div className="mt-4 space-y-2">
         <div className="flex flex-wrap gap-2">
           <button onClick={draft} disabled={drafting}
-            className="inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-2.5 rounded-xl text-white transition-opacity hover:opacity-85 disabled:opacity-60"
+            className="inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-3 rounded-xl text-white transition-opacity hover:opacity-85 disabled:opacity-60"
             style={{ background: '#00b95c' }}>
             {drafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {drafting ? 'Drafting report' : 'Draft report with AI'}
           </button>
           <button onClick={() => onChange({ ...emptyInstructorReport(rubric), fileUrl })} disabled={drafting}
-            className={`inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-2.5 rounded-xl border transition-opacity hover:opacity-70 disabled:opacity-40 ${isDark ? 'border-zinc-700 text-zinc-200' : 'border-[#e3e5e8] text-[#333]'}`}>
+            className={`inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-3 rounded-xl border transition-opacity hover:opacity-70 disabled:opacity-40 ${isDark ? 'border-zinc-700 text-zinc-200' : 'border-[#e3e5e8] text-[#333]'}`}>
             <Pencil className="w-4 h-4" /> Write report
           </button>
         </div>
-        {error && <p role="alert" className="text-[13px] text-red-500">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
       </div>
     );
   }
@@ -119,14 +119,14 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
   const rubricMode = (report.rubricGrades?.length ?? 0) > 0;
   const setCategory = (i: number, patch: Partial<InstructorFileReport['categories'][number]>) =>
     set({ categories: report.categories.map((c, j) => j === i ? { ...c, ...patch } : c) });
-  const notice = `rounded-xl px-4 py-3 text-[13px] leading-relaxed space-y-2 ${isDark ? 'bg-amber-500/10 text-amber-200' : 'bg-amber-50 text-amber-900'}`;
+  const notice = `rounded-xl px-4 py-3 text-sm leading-relaxed space-y-2 ${isDark ? 'bg-amber-500/10 text-amber-200' : 'bg-amber-50 text-amber-900'}`;
 
   return (
     <div className={`mt-5 pt-5 border-t space-y-5 ${divider}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className={heading}>File report</p>
-          {report.aiDrafted && <p className={`text-[13px] mt-0.5 ${textMut}`}>AI draft. Check it before submitting.</p>}
+          {report.aiDrafted && <p className={`text-sm mt-0.5 ${textMut}`}>AI draft. Check it before submitting.</p>}
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <button onClick={() => setPreview(p => !p)} className={action}>
@@ -140,7 +140,7 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
           </button>
         </div>
       </div>
-      {error && <p role="alert" className="text-[13px] text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
       {isReportStale(report, fileUrl) && (
         <div className={notice}>
           <p>This report was written for an earlier version of the file. The student has since uploaded a new one, and sees this report marked as being about their earlier file.</p>
@@ -192,16 +192,16 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
                 return (
                   <div key={i} className={`space-y-3 pb-5 border-b ${divider}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <p className={`min-w-0 flex-1 text-[15px] font-medium leading-snug ${textPrim}`}>{g.criterion}</p>
+                      <p className={`min-w-0 flex-1 text-base font-medium leading-snug ${textPrim}`}>{g.criterion}</p>
                       {marks.note ? (
-                        <span className={`text-[13px] font-semibold ${textMut}`}>Guidance, no marks</span>
+                        <span className={`text-sm font-semibold ${textMut}`}>Guidance, no marks</span>
                       ) : (
-                        <div className="flex gap-1.5" role="radiogroup" aria-label="Verdict">
+                        <div className="flex gap-2" role="radiogroup" aria-label="Verdict">
                           {([[true, 'Met', '#16a34a'], [false, 'Not met', '#dc2626']] as const).map(([value, text, color]) => {
                             const on = g.passed === value && !isUngraded(g);
                             return (
                               <button key={text} type="button" role="radio" aria-checked={on} onClick={() => setGrade(i, { passed: value })}
-                                className="text-[13px] font-semibold px-3 py-1 rounded-full border transition-colors"
+                                className="text-sm font-semibold px-3 py-1 rounded-full border transition-colors"
                                 style={on ? { background: color, borderColor: color, color: '#fff' } : { borderColor: isDark ? '#3f3f46' : '#e3e5e8', color: isDark ? '#a1a1aa' : '#5f6368' }}>
                                 {text}
                               </button>
@@ -240,13 +240,13 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
             {report.findings.map((f, i) => (
               <div key={i} className={`space-y-3 pb-5 border-b ${divider}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Severity">
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Severity">
                     {(Object.keys(INSTRUCTOR_SEVERITY_LABELS) as InstructorFindingSeverity[]).map(sev => {
                       const on = f.severity === sev;
                       const color = SEVERITY_COLORS[sev];
                       return (
                         <button key={sev} type="button" role="radio" aria-checked={on} onClick={() => setFinding(i, { severity: sev })}
-                          className="text-[13px] font-semibold px-3 py-1 rounded-full border transition-colors"
+                          className="text-sm font-semibold px-3 py-1 rounded-full border transition-colors"
                           style={on ? { background: color, borderColor: color, color: '#fff' } : { borderColor: isDark ? '#3f3f46' : '#e3e5e8', color: isDark ? '#a1a1aa' : '#5f6368' }}>
                           {INSTRUCTOR_SEVERITY_LABELS[sev]}
                         </button>
@@ -294,7 +294,7 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
           <section className="space-y-3">
             <div>
               <p className={heading}>Quality by dimension</p>
-              <p className={`text-[13px] mt-0.5 ${textMut}`}>Score each area of the work separately, for example Accuracy or Presentation.</p>
+              <p className={`text-sm mt-0.5 ${textMut}`}>Score each area of the work separately, for example Accuracy or Presentation.</p>
             </div>
             {report.categories.map((c, i) => (
               <div key={i} className={`space-y-3 pb-5 border-b ${divider}`}>
@@ -337,7 +337,7 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
           </section>
 
           <section>
-            <p className={`${heading} mb-1.5`}>Next steps</p>
+            <p className={`${heading} mb-2`}>Next steps</p>
             <label className={label}>One per line, up to {REPORT_COUNTS.listItems}</label>
             <textarea rows={3} value={toLines(report.recommendations)} onChange={e => set({ recommendations: fromLines(e.target.value) })} className={`${field} w-full resize-y`} />
           </section>

@@ -57,7 +57,7 @@ export function PushStatusPill({ state, msg, className = 'top-2 left-2' }: { sta
     : 'items-center rounded-full px-2 py-0.5 uppercase tracking-wide whitespace-nowrap';
   return (
     <div role="status" aria-live="polite"
-      className={`absolute z-10 flex gap-1 text-[10px] font-bold ${shape} ${className}`}
+      className={`absolute z-10 flex gap-1 text-[11px] font-bold ${shape} ${className}`}
       style={{ background: bg, color: '#fff' }}>
       {state === 'pushing' && <Loader2 className="w-3 h-3 animate-spin shrink-0"/>}
       {failed ? (msg || 'Push failed') : state === 'done' ? msg : 'Pushing'}
@@ -106,13 +106,13 @@ export function PushButton({ type, id, C }: { type: string; id: string; C: typeo
   return (
     <div className="relative group/push">
       <button onClick={push} disabled={state === 'pushing'}
-        className="p-1.5 rounded-lg transition-all hover:opacity-70 disabled:opacity-40"
+        className="p-2 rounded-lg transition-all hover:opacity-70 disabled:opacity-40"
         style={{ background: C.pill, color }}
         title="Push to other platform">
         <Send className="w-3.5 h-3.5" />
       </button>
       <span role={state === 'idle' ? undefined : 'status'} aria-live={state === 'idle' ? undefined : 'polite'}
-        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded text-xs pointer-events-none transition-opacity z-20 ${bubble}`}
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-0.5 rounded text-xs pointer-events-none transition-opacity z-20 ${bubble}`}
         style={{ background: C.text, color: C.page }}>
         {label}
       </span>
@@ -157,7 +157,7 @@ export function PushAllButton({ items, C }: { items: { type: string; id: string 
 
   return (
     <button onClick={pushAll} disabled={busy || !items.length}
-      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40"
+      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40"
       style={{ background: C.card, color: state.status === 'done' ? C.green : C.muted }}>
       <Send className="w-3.5 h-3.5" /> {label}
     </button>
@@ -208,7 +208,7 @@ export function GenericListSection({ table, label, createHref, createLabel, Icon
       </div>
       <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No {label} yet</h2>
       <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first {label.toLowerCase()} to get started.</p>
-      <Link href={createHref} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+      <Link href={createHref} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
         style={{ background: C.cta, color: C.ctaText }}>
         <Plus className="w-4 h-4"/> {createLabel}
       </Link>
@@ -230,12 +230,12 @@ export function GenericListSection({ table, label, createHref, createLabel, Icon
             <div className="min-w-0 flex-1">{renderRow(item)}</div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <Link href={`${createHref}?edit=${item.id}`}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: C.pill, color: C.muted, textDecoration: 'none' }}>
                 <Edit2 className="w-3.5 h-3.5"/> Edit
               </Link>
               <button onClick={() => deleteItem(item.id)} disabled={deletingId === item.id}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`, cursor: deletingId === item.id ? 'not-allowed' : 'pointer', opacity: deletingId === item.id ? 0.6 : 1 }}>
                 <Trash2 className="w-3.5 h-3.5"/> {deletingId === item.id ? 'Deleting…' : 'Delete'}
               </button>
@@ -257,7 +257,7 @@ export function SectionEmptyState({ Icon, label, createHref, createLabel, C }: {
       </div>
       <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No {label} yet</h2>
       <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first {label.toLowerCase()} to get started.</p>
-      <Link href={createHref} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+      <Link href={createHref} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
         style={{ background: C.cta, color: C.ctaText }}>
         <Plus className="w-4 h-4"/> {createLabel}
       </Link>

@@ -166,9 +166,9 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
     setSaving(false);
   };
 
-  const inputCls = `w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors`;
+  const inputCls = `w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors`;
   const inputStyle = { background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text };
-  const labelCls  = `text-xs font-medium mb-1.5 block`;
+  const labelCls  = `text-xs font-medium mb-2 block`;
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
 
@@ -180,7 +180,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
         <div className="flex gap-2">
           {([['default', 'Courses & paths'], ['certification', 'Certifications']] as const).map(([ct, label]) => (
             <button key={ct} onClick={() => switchType(ct)} disabled={saving}
-              className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors"
+              className="px-4 py-2 rounded-full text-xs font-medium transition-colors"
               style={contentType === ct
                 ? { background: C.cta, color: C.ctaText ?? '#ffffff' }
                 : { background: C.input, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
@@ -197,7 +197,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
           <span className="text-xs font-medium" style={{ color: C.muted }}>Alignment</span>
           {([['left', 'Left'], ['center', 'Centered']] as const).map(([al, label]) => (
             <button key={al} onClick={() => set('alignment', al)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              className="px-3 py-2 rounded-full text-xs font-medium transition-colors"
               style={(settings.alignment ?? 'left') === al
                 ? { background: C.cta, color: C.ctaText ?? '#ffffff' }
                 : { background: C.input, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
@@ -222,7 +222,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}/>
                 <div className="w-full h-full" style={{ background: settings.primaryColor }}/>
               </div>
-              <input value={settings.primaryColor} onChange={e => set('primaryColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none`} style={inputStyle}/>
+              <input value={settings.primaryColor} onChange={e => set('primaryColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-3 text-sm font-mono focus:outline-none`} style={inputStyle}/>
             </div>
           </div>
           <div>
@@ -233,7 +233,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}/>
                 <div className="w-full h-full" style={{ background: settings.accentColor }}/>
               </div>
-              <input value={settings.accentColor} onChange={e => set('accentColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none`} style={inputStyle}/>
+              <input value={settings.accentColor} onChange={e => set('accentColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-3 text-sm font-mono focus:outline-none`} style={inputStyle}/>
             </div>
           </div>
         </div>
@@ -290,13 +290,13 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                 <input ref={ref} type="file" accept="image/*" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(slot, f); e.target.value = ''; }}/>
                 <button onClick={() => ref.current?.click()} disabled={!!uploading}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
                   style={{ border: 'none', color: C.muted, background: C.pill }}>
                   {uploading === slot ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                   {url ? `Replace ${labels[slot]}` : `Upload ${labels[slot]}`}
                 </button>
                 {url && (
-                  <button onClick={() => set(urlKey as any, null)} className="p-1.5 rounded-lg" style={{ color: C.faint }}>
+                  <button onClick={() => set(urlKey as any, null)} className="p-2 rounded-lg" style={{ color: C.faint }}>
                     <Trash2 className="w-3.5 h-3.5"/>
                   </button>
                 )}
@@ -330,11 +330,11 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                 <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>Text Layout</h3>
                 <p className="text-xs mt-1" style={{ color: C.muted }}>Select an element, then click on the preview to place it. Or type exact pixel values.</p>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {ELEMENTS.map(({ key, label, color }) => (
                   <div key={key}
                     onClick={() => setSelectedElement(selectedElement === key ? null : key)}
-                    className="grid grid-cols-[12px_1fr_88px_88px] items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors"
+                    className="grid grid-cols-[12px_1fr_88px_88px] items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors"
                     style={{ background: selectedElement === key ? `${color}18` : 'transparent', border: `1px solid ${selectedElement === key ? color : 'transparent'}` }}>
                     <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }}/>
                     <span className="text-xs font-medium truncate" style={{ color: selectedElement === key ? color : C.muted }}>{label}</span>
@@ -364,7 +364,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                     <select
                       value={resolved.partnerAttribution.direction ?? 'horizontal'}
                       onChange={e => setPartnerLayout('direction', e.target.value as PartnerAttributionLayout['direction'])}
-                      className="w-full rounded-lg px-2 py-1.5 text-xs"
+                      className="w-full rounded-lg px-2 py-2 text-xs"
                       style={{ background: C.card, border: `1px solid ${C.cardBorder}`, color: C.text }}
                     >
                       <option value="horizontal">Horizontal</option>
@@ -377,7 +377,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                       type="number" min={24} max={240}
                       value={resolved.partnerAttribution.logoHeight ?? 90}
                       onChange={e => setPartnerLayout('logoHeight', Math.max(24, Math.min(240, Number(e.target.value))))}
-                      className="w-full rounded-lg px-2 py-1.5 text-xs font-mono"
+                      className="w-full rounded-lg px-2 py-2 text-xs font-mono"
                       style={{ background: C.card, border: `1px solid ${C.cardBorder}`, color: C.text }}
                     />
                   </div>
@@ -395,13 +395,13 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
                 </div>
               )}
               <div className="flex items-center gap-2 pt-1">
-                <div className="flex gap-1.5 text-[10px]" style={{ color: C.faint }}>
-                  <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: C.pill }}>X</span> left 
-                  <span className="font-mono px-1.5 py-0.5 rounded ml-2" style={{ background: C.pill }}>Y</span> top 
+                <div className="flex gap-2 text-[11px]" style={{ color: C.faint }}>
+                  <span className="font-mono px-2 py-0.5 rounded" style={{ background: C.pill }}>X</span> left 
+                  <span className="font-mono px-2 py-0.5 rounded ml-2" style={{ background: C.pill }}>Y</span> top 
                 </div>
                 <button
                   onClick={() => { setSettings(prev => ({ ...prev, textPositions: undefined })); setSelectedElement(null); }}
-                  className="ml-auto text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-70"
+                  className="ml-auto text-xs px-3 py-2 rounded-lg transition-opacity hover:opacity-70"
                   style={{ color: C.faint, border: `1px solid ${C.cardBorder}` }}>
                   Reset to defaults
                 </button>
@@ -416,7 +416,7 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
           </div>
         )}
         <button onClick={save} disabled={saving}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
+          className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
           style={{ background: C.cta, color: C.ctaText }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
           {saving ? 'Saving…' : 'Save as default'}

@@ -91,7 +91,7 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       {msg && (
-        <div className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{
+        <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{
           background: msg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.10)',
           color: msg.ok ? '#10b981' : '#ef4444',
           border: `1px solid ${msg.ok ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
@@ -103,8 +103,8 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
       <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
         {/* Header + badge-type tabs */}
         <div className="px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
-          <h2 className="text-lg font-bold leading-none" style={{ color: C.text }}>Badge Images</h2>
-          <p className="text-xs mt-1.5" style={{ color: C.muted }}>Upload a custom image for each badge. If no image is uploaded, the emoji icon is shown instead.</p>
+          <h2 className="text-base font-bold leading-none" style={{ color: C.text }}>Badge Images</h2>
+          <p className="text-xs mt-2" style={{ color: C.muted }}>Upload a custom image for each badge. If no image is uploaded, the emoji icon is shown instead.</p>
           {cats.length > 1 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
               {cats.map((m, i) => {
@@ -156,7 +156,7 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
                     <button
                       onClick={() => handleRemove(badge)}
                       disabled={isRem || isUp}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
+                      className="px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
                       style={{ background: C.deleteBg, color: C.deleteText, border: 'none' }}>
                       {isRem ? 'Removing...' : 'Remove'}
                     </button>
@@ -164,7 +164,7 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
                   <button
                     onClick={() => fileRefs.current[badge.id]?.click()}
                     disabled={isUp || isRem}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
                     style={{ background: C.cta, color: C.ctaText }}>
                     <Upload className="w-3.5 h-3.5" />
                     {isUp ? 'Uploading...' : badge.image_url ? 'Replace' : 'Upload'}

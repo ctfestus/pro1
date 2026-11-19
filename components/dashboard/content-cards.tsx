@@ -11,7 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import {
   Plus, FileText, BarChart3, ExternalLink, Trash2, Edit2, Share2, Check, Copy, X,
   CalendarDays, AlignLeft, ChevronDown, ChevronRight, ChevronLeft, BookOpen, MapPin,
-  Download, Briefcase, Video, Database, MoreVertical, Send, Code2, ShieldCheck,
+  Download, Briefcase, Video, Database, MoreVertical, Send, Code2, ShieldCheck, Lock,
 } from 'lucide-react';
 import { LIGHT_C, useC, cardStyle } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -86,7 +86,7 @@ function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOM
       <div className="px-4 py-3 border-b" style={{ borderColor: C.divider }}>
         <div className="flex items-center gap-2 rounded-xl overflow-hidden border" style={{ background: C.input, borderColor: C.cardBorder }}>
           <span className="flex-1 text-xs px-3 py-2 truncate" style={{ color: C.faint }}>{url}</span>
-          <button onClick={copyLink} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-l flex-shrink-0"
+          <button onClick={copyLink} className="flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors border-l flex-shrink-0"
             style={{ background: C.lime, color: C.green, borderColor: C.cardBorder }}>
             {copied ? <Check className="w-3.5 h-3.5"/> : <Copy className="w-3.5 h-3.5"/>}
             {copied ? 'Copied!' : 'Copy'}
@@ -94,14 +94,14 @@ function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOM
         </div>
       </div>
       <div className="px-4 py-3">
-        <p className="text-[11px] uppercase tracking-wider font-semibold mb-2.5" style={{ color: C.faint }}>Share on</p>
+        <p className="text-[11px] uppercase tracking-wider font-semibold mb-3" style={{ color: C.faint }}>Share on</p>
         <div className="grid grid-cols-4 gap-2">
           {SHARE_PLATFORMS.map(({ id, label, icon, href }) => (
             <a key={id} href={href(url, title, desc)} target="_blank" rel="noreferrer" title={label}
-              className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-colors group ff-hover"
+              className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors group ff-hover"
               style={{ background: C.pill }}>
               <span className="transition-transform group-hover:scale-110">{icon}</span>
-              <span className="text-[10px] transition-colors" style={{ color: C.faint }}>{label}</span>
+              <span className="text-[11px] transition-colors" style={{ color: C.faint }}>{label}</span>
             </a>
           ))}
         </div>
@@ -139,11 +139,11 @@ export function CreateCourseMenu({ C }: { C: any }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -4 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-2 w-72 rounded-2xl overflow-hidden z-50 py-1.5 text-left"
+              className="absolute right-0 top-full mt-2 w-72 rounded-2xl overflow-hidden z-50 py-2 text-left"
               style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}>
               {options.map(opt => (
                 <Link key={opt.href} href={opt.href} onClick={() => setOpen(false)}
-                  className="flex items-start gap-3 px-3.5 py-2.5 transition-colors ff-hover">
+                  className="flex items-start gap-3 px-4 py-3 transition-colors ff-hover">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${opt.color}18` }}>
                     <opt.Icon className="w-4 h-4" style={{ color: opt.color }}/>
                   </div>
@@ -238,13 +238,13 @@ export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen
     a.onClick?.();
   };
 
-  const itemCls = "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-left transition-colors ff-hover";
+  const itemCls = "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-left transition-colors ff-hover";
 
   return (
     <>
       <button ref={btnRef} type="button" title="More options" aria-label="More options"
         onClick={e => { e.stopPropagation(); e.preventDefault(); setOpen(o => !o); }}
-        className={triggerClassName ?? 'p-1.5 rounded-full backdrop-blur-md transition-all hover:scale-110'}
+        className={triggerClassName ?? 'p-2 rounded-full backdrop-blur-md transition-all hover:scale-110'}
         style={triggerStyle ?? { background: C.overlayBtn, color: C.overlayText }}>
         <MoreVertical className={triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'}/>
       </button>
@@ -564,8 +564,8 @@ function CreateSection({ C }: { C: typeof LIGHT_C }) {
                   {/* Text */}
                   <div className="px-4 pt-4 pb-3">
                     <div className="flex items-start justify-between">
-                      <p className="text-[13px] font-semibold leading-snug" style={{ color: C.text }}>{card.title}</p>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full ml-2 flex-shrink-0 mt-0.5"
+                      <p className="text-sm font-semibold leading-snug" style={{ color: C.text }}>{card.title}</p>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full ml-2 flex-shrink-0 mt-0.5"
                         style={{ background: isDark ? 'rgba(124,58,237,0.14)' : '#f5f3ff', color: '#7c3aed' }}>
                         Soon
                       </span>
@@ -582,7 +582,7 @@ function CreateSection({ C }: { C: typeof LIGHT_C }) {
                 <Link href={card.href} className={cardClass} style={cardStyle} {...hoverHandlers}>
                   {/* Text */}
                   <div className="px-4 pt-4 pb-3">
-                    <p className="text-[13px] font-semibold leading-snug" style={{ color: C.text }}>{card.title}</p>
+                    <p className="text-sm font-semibold leading-snug" style={{ color: C.text }}>{card.title}</p>
                     <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: C.faint }}>{card.desc}</p>
                   </div>
                   {/* Illustration */}
@@ -655,7 +655,7 @@ function FormCard({ form, index, shareMenuOpen, setShareMenuOpen, setFormToDelet
           <h3 className="text-sm font-semibold truncate mb-1 hover:opacity-70 transition-opacity" style={{ color: C.text }}>{form.title}</h3>
         </Link>
         {form.status === 'draft' && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold mb-1" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold mb-1" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
         )}
         {type === 'event' && form.config?.eventDetails?.date && (
           <p className="text-xs mb-1 flex items-center gap-1" style={{ color: C.green }}>
@@ -667,7 +667,7 @@ function FormCard({ form, index, shareMenuOpen, setShareMenuOpen, setFormToDelet
 
         {/* Footer: informational only (actions live in the card's top-right menu). */}
         {type !== 'course' && (
-          <div className="flex items-center gap-1.5 text-xs font-medium pt-3 border-t mt-auto" style={{ borderColor: C.divider, color: C.faint }}>
+          <div className="flex items-center gap-2 text-xs font-medium pt-3 border-t mt-auto" style={{ borderColor: C.divider, color: C.faint }}>
             <BarChart3 className="w-3.5 h-3.5"/>
             {form._response_count ?? 0} responses
           </div>
@@ -702,7 +702,7 @@ export function CourseToolRow({ tool, forms, shareMenuOpen, setShareMenuOpen, se
   return (
     <section className="rounded-2xl p-5 sm:p-6 mb-6" style={{ ...cardStyle(C) }}>
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="text-lg sm:text-xl font-bold truncate" style={{ color: C.text }}>{tool}</h2>
+        <h2 className="text-base sm:text-[22px] font-bold truncate leading-6" style={{ color: C.text }}>{tool}</h2>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
             className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
@@ -824,7 +824,7 @@ export function EventCard({ form, index, isLast, shareMenuOpen, setShareMenuOpen
                   {dateObj
                     ? <>
                         <span className="text-2xl font-black leading-none" style={{ color: C.green }}>{dateObj.toLocaleDateString(undefined, { day: '2-digit' })}</span>
-                        <span className="text-[10px] font-bold tracking-widest" style={{ color: C.green }}>{dateObj.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</span>
+                        <span className="text-[11px] font-bold tracking-widest" style={{ color: C.green }}>{dateObj.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</span>
                       </>
                     : <CalendarDays className="w-8 h-8" style={{ color: C.faint }}/>
                   }
@@ -837,21 +837,21 @@ export function EventCard({ form, index, isLast, shareMenuOpen, setShareMenuOpen
             {/* Row 1: Date · Time pill + Mode pill */}
             <div className="flex items-center gap-2 flex-wrap">
               {dateLabel && (
-                <span className="text-xs font-medium px-2.5 py-1 rounded-full"
+                <span className="text-xs font-medium px-3 py-1 rounded-full"
                   style={{ background: C.pill, color: C.muted }}>
                   {dateLabel}{ev.time && ` · ${ev.time}`}
                 </span>
               )}
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+              <span className="text-xs font-semibold px-3 py-1 rounded-full"
                 style={{ border: `1.5px solid ${isVirtual ? C.green + '70' : C.faint + '60'}`, color: isVirtual ? C.green : C.muted }}>
                 {isVirtual ? 'Virtual' : 'In-Person'}
               </span>
-              {isPrivate && <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#fff0f0', color: '#ef4444' }}>🔒 Private</span>}
-              {isPast && <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: C.pill, color: C.faint }}>Past</span>}
+              {isPrivate && <span className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full" style={{ background: '#fff0f0', color: '#ef4444' }}><Lock className="w-3 h-3" />Private</span>}
+              {isPast && <span className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: C.pill, color: C.faint }}>Past</span>}
             </div>
 
             {/* Row 2: Provider logo + name + note / location */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <MeetingProviderIcon provider={providerName} isVirtual={isVirtual}/>
               <span className="text-xs" style={{ color: C.muted }}>
                 <span className="font-medium">{providerName}</span>
@@ -867,7 +867,7 @@ export function EventCard({ form, index, isLast, shareMenuOpen, setShareMenuOpen
             {/* Title */}
             <h3 className="text-sm font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{form.title}</h3>
             {form.status === 'draft' && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
             )}
 
             {/* Description */}

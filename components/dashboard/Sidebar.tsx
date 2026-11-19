@@ -60,7 +60,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen, C, profile, user, isStaff
               if (!visibleItems.length) return null;
               return (
                 <div key={group.label}>
-                  <p className="px-3 mb-2 text-[10px] font-semibold tracking-widest uppercase"
+                  <p className="px-3 mb-2 text-[11px] font-semibold tracking-widest uppercase"
                     style={{ color: C.faint }}>{group.label}</p>
                   <div className="space-y-0.5">
                     {visibleItems.map(item => {
@@ -81,7 +81,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen, C, profile, user, isStaff
                           </div>
                           <span className="flex-1 truncate font-normal">{item.label}</span>
                           {isSoon && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                               style={{ background: 'rgba(124,58,237,0.12)', color: '#7c3aed' }}>
                               Soon
                             </span>
@@ -97,7 +97,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen, C, profile, user, isStaff
             {/* External page links (e.g. Open Certificates) */}
             {!isStaff && NAV_LINK_GROUPS.map(group => (
               <div key={group.label}>
-                <p className="px-3 mb-2 text-[10px] font-semibold tracking-widest uppercase"
+                <p className="px-3 mb-2 text-[11px] font-semibold tracking-widest uppercase"
                   style={{ color: C.faint }}>{group.label}</p>
                 <div className="space-y-0.5">
                   {group.items.map(item => (

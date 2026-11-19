@@ -160,7 +160,7 @@ export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
         </button>
         <div className="rounded-2xl p-6 space-y-5" style={{ background: C.card, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
           <div>
-            <h2 className="text-xl font-bold" style={{ color: C.text }}>{editing ? 'Edit partner' : 'New partner'}</h2>
+            <h2 className="text-[22px] font-bold leading-7" style={{ color: C.text }}>{editing ? 'Edit partner' : 'New partner'}</h2>
             <p className="text-sm mt-1" style={{ color: C.faint }}>Manage the organization shown in course attribution.</p>
           </div>
 
@@ -183,7 +183,7 @@ export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
               <input ref={fileRef} type="file" accept="image/*,.svg" className="hidden"
                 onChange={e => { const file = e.target.files?.[0]; if (file) uploadLogo(file); e.target.value = ''; }} />
               <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
                 style={{ background: C.pill, color: C.text }}>
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 Upload logo
@@ -226,10 +226,10 @@ export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
     <div>
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: C.text }}>Partners</h2>
+          <h2 className="text-[22px] font-bold leading-7" style={{ color: C.text }}>Partners</h2>
           <p className="text-sm mt-1" style={{ color: C.faint }}>Organizations credited on courses and certificates.</p>
         </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
+        <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white"
           style={{ background: C.green }}>
           <Plus className="w-4 h-4" /> New partner
         </button>

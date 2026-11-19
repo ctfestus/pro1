@@ -298,7 +298,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
     setEditing((prev: any) => ({ ...prev, item_ids: ids }));
   };
 
-  const inputCls = `w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors`;
+  const inputCls = `w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors`;
   const inputStyle = { background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
@@ -364,7 +364,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 const active = lpSection === id;
                 return (
                   <button key={id} onClick={() => setLpSection(id)} aria-current={active ? 'page' : undefined}
-                    className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors"
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors"
                     style={{ background: active ? `${C.green}12` : 'transparent', color: active ? C.green : C.faint }}>
                     <Icon className="w-4 h-4"/>{label}
                   </button>
@@ -372,7 +372,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
               })}
               {editing.id && (
                 <button onClick={() => setReportPathId(editing.id)}
-                  className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors"
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors"
                   style={{ background: 'transparent', color: C.faint }}>
                   <BarChart3 className="w-4 h-4"/>Report
                 </button>
@@ -395,10 +395,10 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
 
           {/* Description + AI generate */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold" style={{ color: C.muted }}>Path description</label>
               <button onClick={generateDescription} disabled={generatingDesc}
-                className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-opacity hover:opacity-80 disabled:opacity-50"
+                className="flex items-center gap-2 text-[11px] font-semibold px-3 py-1 rounded-lg transition-opacity hover:opacity-80 disabled:opacity-50"
                 style={{ background: `${C.green}18`, color: C.green }}>
                 {generatingDesc ? <Loader2 className="w-3 h-3 animate-spin"/> : <Zap className="w-3 h-3"/>}
                 {generatingDesc ? 'Generating…' : 'Generate with AI'}
@@ -432,7 +432,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 rows={6}
                 placeholder={'One skill per line\nPrompt engineering\nData storytelling'}
                 className={inputCls} style={inputStyle}/>
-              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Shown as pills. One per line.</p>
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>Shown as pills. One per line.</p>
             </div>
             <div>
               <label className="text-xs font-bold block mb-2" style={{ color: C.muted }}>Who should take this path</label>
@@ -442,7 +442,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 rows={6}
                 placeholder={'One audience per line\nAnalysts moving into AI work\nManagers briefing technical teams'}
                 className={inputCls} style={inputStyle}/>
-              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Shown as bullets. One per line.</p>
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>Shown as bullets. One per line.</p>
             </div>
           </div>
 
@@ -460,7 +460,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                     onClick={() => setList('tools', picked
                       ? (editing.tools ?? []).filter((t: string) => t !== name)
                       : [...(editing.tools ?? []), name])}
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-80"
                     style={{
                       background: picked ? `${C.green}18` : C.pill,
                       color: picked ? C.green : C.muted,
@@ -552,9 +552,9 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
 
           {/* Next path (auto-enroll chaining) */}
           <div className="hidden">
-            <label className="text-xs font-medium mb-1.5 block" style={{ color: C.muted }}>
+            <label className="text-xs font-medium mb-2 block" style={{ color: C.muted }}>
               Next Learning Path
-              <span className="ml-1.5 font-normal" style={{ color: C.faint }}>· students auto-enroll here when they complete this path</span>
+              <span className="ml-2 font-normal" style={{ color: C.faint }}>| students auto-enroll here when they complete this path</span>
             </label>
             <select
               value={editing.next_path_id ?? ''}
@@ -575,12 +575,12 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
           <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>Assign to Cohorts</h3>
           {cohorts.length === 0
             ? <p className="text-sm" style={{ color: C.muted }}>No cohorts found. Create a cohort first.</p>
-            : <div className="space-y-1.5">
+            : <div className="space-y-2">
                 {cohorts.map((c: any) => {
                   const selected = selectedCohorts.includes(c.id);
                   return (
                     <div key={c.id} onClick={() => toggleCohort(c.id)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors"
                       style={{ background: selected ? `${C.green}14` : C.pill }}>
                       <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2" style={{ background: selected ? C.green : 'transparent', borderColor: selected ? C.green : C.faint }}>
                         {selected && <Check className="w-2.5 h-2.5 text-white"/>}
@@ -602,7 +602,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
               <div className="max-w-4xl space-y-5">
                 <div className="flex items-center justify-between gap-4">
                   <div><p className="text-sm font-bold" style={{ color: C.text }}>Assigned cohorts</p><p className="text-xs mt-1" style={{ color: C.faint }}>Learners in these cohorts receive the path when it is published.</p></div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: `${C.green}12`, color: C.green }}>{selectedCohorts.length} selected</span>
+                  <span className="text-xs font-bold px-3 py-2 rounded-full" style={{ background: `${C.green}12`, color: C.green }}>{selectedCohorts.length} selected</span>
                 </div>
                 <button
                   type="button"
@@ -651,7 +651,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   <div className="flex items-center justify-between"><div><p className="text-sm font-bold" style={{ color: C.text }}>Path readiness</p><p className="text-xs mt-1" style={{ color: C.faint }}>Essentials for a strong launch.</p></div><span className="text-sm font-bold" style={{ color: C.green }}>{[editing.title?.trim(), editing.description?.trim(), editing.cover_image, selectedIds.length, selectedCohorts.length].filter(Boolean).length}/5</span></div>
                   <div className="space-y-2 mt-5">{[
                     ['Path title', !!editing.title?.trim(), 'overview'], ['Description', !!editing.description?.trim(), 'overview'], ['Cover image', !!editing.cover_image, 'overview'], ['Learning sequence', selectedIds.length > 0, 'content'], ['Audience', openToEveryone || selectedCohorts.length > 0, 'audience'],
-                  ].map(([label, ready, target]) => <button key={String(label)} onClick={() => setLpSection(target as typeof lpSection)} className="w-full flex items-center gap-2 text-left text-xs py-1.5" style={{ color: ready ? C.muted : C.text }}>{ready ? <CheckCircle2 className="w-4 h-4" style={{ color: C.green }}/> : <Circle className="w-4 h-4" style={{ color: C.faint }}/>}<span className="flex-1">{label}</span>{!ready && <ChevronRight className="w-3.5 h-3.5"/>}</button>)}</div>
+                  ].map(([label, ready, target]) => <button key={String(label)} onClick={() => setLpSection(target as typeof lpSection)} className="w-full flex items-center gap-2 text-left text-xs py-2" style={{ color: ready ? C.muted : C.text }}>{ready ? <CheckCircle2 className="w-4 h-4" style={{ color: C.green }}/> : <Circle className="w-4 h-4" style={{ color: C.faint }}/>}<span className="flex-1">{label}</span>{!ready && <ChevronRight className="w-3.5 h-3.5"/>}</button>)}</div>
                   <div className="mt-5 pt-4 space-y-2 text-xs" style={{ borderTop: `1px solid ${C.divider}`, color: C.faint }}><p>{selectedIds.length} content{selectedIds.length === 1 ? '' : 's'}</p><p>{selectedCohorts.length} assigned cohorts</p><p>{editing.badge_image_url ? 'Custom completion badge' : 'Default completion credential'}</p></div>
                 </aside>
               </div>
@@ -675,7 +675,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
               { label: 'Virtual Experiences', items: veOptions },
               { label: 'Certifications', items: certOptions },
             ] as const).map(group => ({ ...group, items: group.items.filter(matchesContent) })).filter(g => g.items.length > 0).map(group => (
-              <div key={group.label} className="space-y-1.5">
+              <div key={group.label} className="space-y-2">
                 <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>{group.label}</h3>
                 {group.items.map((f: any) => {
                   const selected = selectedIds.includes(f.id);
@@ -706,7 +706,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 Untagged items are core and everyone takes them. Learners pick their track when they open the path.
               </p>
             </div>
-            <button onClick={addTrack} className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.pill, color: C.text }}>
+            <button onClick={addTrack} className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.pill, color: C.text }}>
               <Plus className="w-3.5 h-3.5"/> Add track
             </button>
           </div>
@@ -766,7 +766,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
         {selectedIds.length > 0 && (
           <div className="space-y-3 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
             <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Path sequence</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selectedIds.length} ordered content{selectedIds.length === 1 ? '' : 's'}{tracks.length > 0 ? '. Tag an item with a track to make it track-only. Learners take the core items first, then their track.' : ''}</p></div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {selectedIds.map((id, idx) => {
                 const f = allOptions.find((x: any) => x.id === id);
                 const isVE = f && (f.content_type === 'virtual_experience' || f.content_type === 'guided_project' || f.config?.isVirtualExperience || f.config?.isGuidedProject);
@@ -776,7 +776,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   <div key={id} className="px-3 py-3 rounded-2xl" style={{ background: C.pill }}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold w-8 h-8 rounded-full grid place-items-center flex-shrink-0" style={{ color: C.green, background: `${C.green}16` }}>{idx + 1}</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.card, color: C.muted }}>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.card, color: C.muted }}>
                       {isCert ? 'Cert' : isVE ? 'VE' : 'Course'}
                     </span>
                     <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{f?.title ?? id}</span>
@@ -785,7 +785,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                     <button onClick={() => toggleItem(id)} aria-label="Remove from path" className="p-1 rounded opacity-50 hover:opacity-100"><X className="w-3 h-3" style={{ color: C.muted }}/></button>
                   </div>
                   {tracks.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2 pl-10">
+                    <div className="flex flex-wrap items-center gap-2 mt-2 pl-10">
                       <span className="text-[11px] font-semibold px-2 py-1 rounded-full" style={{ background: itemTracks.length === 0 ? `${C.green}14` : C.card, color: itemTracks.length === 0 ? C.green : C.faint }}>
                         {itemTracks.length === 0 ? 'Core: everyone' : 'Track only'}
                       </span>
@@ -837,7 +837,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
           <p className="text-sm mt-0.5" style={{ color: C.faint }}>Build structured journeys across courses, experiences, and certifications.</p>
         </div>
         <button onClick={openNewEditor}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold hover:opacity-80 transition-opacity"
+          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold hover:opacity-80 transition-opacity"
           style={{ background: C.cta, color: C.ctaText }}>
           <Plus className="w-4 h-4"/> New Learning Path
         </button>
@@ -851,7 +851,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
           <p className="font-semibold text-base mb-1" style={{ color: C.text }}>No learning paths yet</p>
           <p className="text-sm mb-6" style={{ color: C.faint }}>Create your first learning path to group courses into a structured journey.</p>
           <button onClick={openNewEditor}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold"
             style={{ background: C.cta, color: C.ctaText }}>
             <Plus className="w-4 h-4"/> New Learning Path
           </button>
@@ -890,7 +890,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                     </div>}
                 <div className="p-5 space-y-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    <span className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
                       style={{ background: path.status === 'published' ? `${C.green}18` : `${C.faint}18`, color: path.status === 'published' ? C.green : C.faint }}>
                       {path.status}
                     </span>
@@ -900,16 +900,16 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   <p className="font-bold text-base" style={{ color: C.text }}>{path.title}</p>
                   {toPlainText(path.description) && <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
                   {assignedCohortNames.length > 0 && (
-                    <p className="text-[11px] flex items-center gap-1.5" style={{ color: C.faint }}><Users className="w-3 h-3"/>{assignedCohortNames.slice(0, 2).join(', ')}{assignedCohortNames.length > 2 ? ` +${assignedCohortNames.length - 2}` : ''}</p>
+                    <p className="text-[11px] flex items-center gap-2" style={{ color: C.faint }}><Users className="w-3 h-3"/>{assignedCohortNames.slice(0, 2).join(', ')}{assignedCohortNames.length > 2 ? ` +${assignedCohortNames.length - 2}` : ''}</p>
                   )}
                   <div className="flex gap-2 pt-3" style={{ borderTop: `1px solid ${C.divider}` }}>
                     <button onClick={() => openEditor(path)}
-                      className="flex-1 text-center text-xs font-bold py-2.5 rounded-xl transition-all hover:opacity-80"
+                      className="flex-1 text-center text-xs font-bold py-3 rounded-xl transition-all hover:opacity-80"
                       style={{ background: `${C.green}18`, color: C.green }}>
                       Edit
                     </button>
                     <button onClick={() => setReportPathId(path.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2.5 rounded-xl transition-all hover:opacity-80"
+                      className="flex-1 flex items-center justify-center gap-2 text-xs font-bold py-3 rounded-xl transition-all hover:opacity-80"
                       style={{ background: C.pill, color: C.text }}>
                       <BarChart3 className="w-3.5 h-3.5"/> Report
                     </button>

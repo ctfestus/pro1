@@ -274,7 +274,7 @@ function ResponsesTab({
       <div className="space-y-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className={`text-sm ${textSub}`}>{summary}</p>
-          <button onClick={onExport} className={`flex items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
+          <button onClick={onExport} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
         </div>
@@ -287,17 +287,17 @@ function ResponsesTab({
             { label: 'Top score',     value: completedAttempts.length ? `${topScore}%` : '--',   Icon: Trophy },
           ].map(({ label, value, Icon }) => (
             <div key={label} className="rounded-xl p-4" style={{ background: soft }}>
-              <p className={`flex items-center gap-1.5 text-xs font-medium ${textMut}`}><Icon className="h-3.5 w-3.5" />{label}</p>
-              <p className={`mt-1.5 text-2xl font-bold tabular-nums ${textPrim}`}>{value}</p>
+              <p className={`flex items-center gap-2 text-xs font-medium ${textMut}`}><Icon className="h-3.5 w-3.5" />{label}</p>
+              <p className={`mt-2 text-2xl font-bold tabular-nums ${textPrim}`}>{value}</p>
             </div>
           ))}
         </div>
 
         {completedAttempts.length > 0 && questionStats.length > 0 && (
           <section>
-            <h3 className={`mb-2 text-[15px] font-semibold ${textPrim}`}>Questions</h3>
+            <h3 className={`mb-2 text-base font-semibold ${textPrim}`}>Questions</h3>
             {questionStats.map((q: { no: number; text: string; correct: number; total: number; pct: number }) => (
-              <div key={q.no} className="flex items-center gap-3 py-2.5" style={{ borderTop: `1px solid ${line}` }}>
+              <div key={q.no} className="flex items-center gap-3 py-3" style={{ borderTop: `1px solid ${line}` }}>
                 <span className={`w-7 flex-shrink-0 text-xs ${textMut}`}>Q{q.no}</span>
                 <p className={`min-w-0 flex-1 text-sm ${textSub}`}>{q.text}</p>
                 <span className="hidden sm:block"><Bar pct={q.pct} color={q.pct >= 50 ? good : bad} /></span>
@@ -310,7 +310,7 @@ function ResponsesTab({
         {/* LinkedIn shares -- post URLs are only pattern-checked, so spot-check them by hand. */}
         {shares.length > 0 && (
           <section>
-            <h3 className={`flex items-center gap-2 text-[15px] font-semibold ${textPrim}`}>
+            <h3 className={`flex items-center gap-2 text-base font-semibold ${textPrim}`}>
               <LinkedInIcon className="w-4 h-4" style={{ color: '#0A66C2' }} /> LinkedIn shares
             </h3>
             <p className={`mt-0.5 mb-2 text-xs ${textMut}`}>
@@ -320,7 +320,7 @@ function ResponsesTab({
               whether the post is still live.
             </p>
             {shares.map((s: any) => (
-              <div key={s.id} className="flex flex-wrap items-center gap-3 py-2.5" style={{ borderTop: `1px solid ${line}` }}>
+              <div key={s.id} className="flex flex-wrap items-center gap-3 py-3" style={{ borderTop: `1px solid ${line}` }}>
                 <div className="min-w-0 flex-1">
                   <p className={`truncate text-sm font-medium ${textPrim}`}>{s.studentName || s.studentEmail || 'Unknown'}</p>
                   <a href={s.postUrl} target="_blank" rel="noreferrer" className="break-all text-xs hover:underline" style={{ color: '#0A66C2' }}>{s.postUrl}</a>
@@ -332,9 +332,9 @@ function ResponsesTab({
         )}
 
         <section>
-          <h3 className={`mb-2 text-[15px] font-semibold ${textPrim}`}>Learners</h3>
+          <h3 className={`mb-2 text-base font-semibold ${textPrim}`}>Learners</h3>
           {learners.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
+            <div className="mb-2 flex flex-wrap gap-2">
               {([['all', 'All', learners.length], ['passed', 'Passed', counts.passed], ['failed', 'Failed', counts.failed],
                  ['in_progress', 'In progress', counts.in_progress], ['not_started', 'Not started', counts.not_started]] as const).map(([key, label, n]) => {
                 const on = learnerFilter === key;
@@ -368,27 +368,27 @@ function ResponsesTab({
                   }) : [];
                   return (
                     <tr key={l.key} className={`transition-colors ${tableRow}`} style={{ borderTop: `1px solid ${line}` }}>
-                      <td className="px-2 py-2.5">
+                      <td className="px-2 py-3">
                         <p className={`font-medium ${textPrim}`}>{l.name || <span className={`italic ${textMut}`}>Unknown</span>}</p>
                         <p className={`text-xs ${textMut}`}>{l.email || ''}</p>
                       </td>
-                      <td className="px-2 py-2.5">
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: look.color, border: `1px solid ${line}`, background: isDark ? 'transparent' : '#fff' }}>
+                      <td className="px-2 py-3">
+                        <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: look.color, border: `1px solid ${line}`, background: isDark ? 'transparent' : '#fff' }}>
                           <span className="h-1.5 w-1.5 rounded-full" style={{ background: look.color }} />{look.label}
                         </span>
                       </td>
-                      <td className="px-2 py-2.5">
+                      <td className="px-2 py-3">
                         <div className="flex items-center gap-2">
                           <Bar pct={l.pct} color={look.color} />
                           <span className={`whitespace-nowrap text-xs ${textSub}`}>{l.detail}</span>
                         </div>
                       </td>
-                      <td className={`whitespace-nowrap px-2 py-2.5 text-xs ${textMut}`}>{shortDate(l.updatedAt)}</td>
+                      <td className={`whitespace-nowrap px-2 py-3 text-xs ${textMut}`}>{shortDate(l.updatedAt)}</td>
                       {hasReview && (
-                        <td className="px-2 py-2.5">
+                        <td className="px-2 py-3">
                           {submittedDocs.length > 0 && (
                             <button onClick={() => setReviewStudent({ ...l.progress, reviewQs: reviewQuestions })}
-                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
+                              className={`rounded-lg px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
                               View {submittedDocs.length}
                             </button>
                           )}
@@ -435,7 +435,7 @@ function ResponsesTab({
                       <div className="flex items-center justify-between gap-3">
                         <p className={`text-sm font-semibold ${textPrim}`}>{q.question || REVIEW_LABELS[q.type] || 'AI Review'}</p>
                         {ans === 'failed' && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>Below minimum</span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>Below minimum</span>
                         )}
                       </div>
                       {rec?.report
@@ -480,7 +480,7 @@ function ResponsesTab({
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className={`text-sm ${textSub}`}>{capacity > 0 ? `${seatsTaken} registered of ${capacity} places` : `${seatsTaken} registered`}</p>
-            <button onClick={onExport} className={`inline-flex items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-70 ${textPrim}`}
+            <button onClick={onExport} className={`inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-70 ${textPrim}`}
               style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
               <Download className="w-3.5 h-3.5" /> Export participants
             </button>
@@ -494,7 +494,7 @@ function ResponsesTab({
             ].map(t => (
               <div key={t.label} className="rounded-xl p-4" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
                 <p className={`text-xs font-medium ${textMut}`}>{t.label}</p>
-                <p className={`mt-1.5 text-2xl font-bold tabular-nums ${textPrim}`}>{t.value}</p>
+                <p className={`mt-2 text-2xl font-bold tabular-nums ${textPrim}`}>{t.value}</p>
               </div>
             ))}
           </div>
@@ -588,7 +588,7 @@ function ResponsesTab({
                               <p className={`mt-0.5 text-xs ${textMut}`}>{attended} of {totalCount} registered students joined</p>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pct >= 75 ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700') : (isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-[#f1f2f3] text-[#666]')}`}>
+                              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${pct >= 75 ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700') : (isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-[#f1f2f3] text-[#666]')}`}>
                                 {pct}%
                               </span>
                               <ChevronDown className={`w-4 h-4 transition-transform ${textMut} ${isOpen ? 'rotate-180' : ''}`} />
@@ -705,10 +705,10 @@ function ResponsesTab({
                         </span>
                       </div>
                       <div className="min-w-0 pr-8">
-                        <h3 className={`truncate text-xl font-bold leading-tight ${textPrim}`}>{pName}</h3>
+                        <h3 className={`truncate text-[22px] font-bold leading-tight ${textPrim}`}>{pName}</h3>
                         <p className={`mt-0.5 truncate text-sm ${textMut}`}>{pEmail === '--' ? 'No email provided' : pEmail}</p>
                         <span
-                          className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                          className="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-[11px] font-semibold"
                           style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
                         >
                           <CheckCircle2 className="h-3 w-3" /> Registered
@@ -725,10 +725,10 @@ function ResponsesTab({
                       ].map(({ label, value }) => (
                         <div
                           key={label}
-                          className="rounded-2xl px-3 py-2.5 text-center"
+                          className="rounded-2xl px-3 py-3 text-center"
                           style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
                         >
-                          <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMut}`}>{label}</p>
+                          <p className={`text-[11px] font-semibold uppercase tracking-widest ${textMut}`}>{label}</p>
                           <p className={`mt-1 text-xs font-bold leading-tight ${textPrim}`}>{value}</p>
                         </div>
                       ))}
@@ -743,11 +743,11 @@ function ResponsesTab({
                     {responseEntries.length > 0 ? responseEntries.map(([key, value]) => (
                       <div
                         key={key}
-                        className="rounded-2xl px-4 py-3.5"
+                        className="rounded-2xl px-4 py-4"
                         style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}
                       >
-                        <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMut}`}>{formatFieldLabel(String(key))}</p>
-                        <p className={`mt-1.5 text-sm font-medium leading-relaxed break-words ${textPrim}`}>
+                        <p className={`text-[11px] font-semibold uppercase tracking-widest ${textMut}`}>{formatFieldLabel(String(key))}</p>
+                        <p className={`mt-2 text-sm font-medium leading-relaxed break-words ${textPrim}`}>
                           {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                         </p>
                       </div>
@@ -779,11 +779,11 @@ function ResponsesTab({
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className={`border rounded-2xl p-5 ${card}`}>
           <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-emerald-500" /><span className={`text-xs uppercase tracking-wide font-medium ${textMut}`}>Total Responses</span></div>
-          <p className={`text-3xl font-bold ${textPrim}`}>{totalCount}</p>
+          <p className={`text-[28px] font-bold ${textPrim} leading-9`}>{totalCount}</p>
         </div>
         <div className={`border rounded-2xl p-5 ${card}`}>
           <div className="flex items-center gap-2 mb-3"><AlignLeft className="w-4 h-4 text-blue-500" /><span className={`text-xs uppercase tracking-wide font-medium ${textMut}`}>Fields</span></div>
-          <p className={`text-3xl font-bold ${textPrim}`}>{fields.length}</p>
+          <p className={`text-[28px] font-bold ${textPrim} leading-9`}>{fields.length}</p>
         </div>
         <div className={`border rounded-2xl p-5 col-span-2 md:col-span-1 ${card}`}>
           <div className="flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-amber-500" /><span className={`text-xs uppercase tracking-wide font-medium ${textMut}`}>Latest</span></div>
@@ -803,7 +803,7 @@ function ResponsesTab({
       <div className={`rounded-3xl border overflow-hidden ${card}`}>
         <div className={`px-6 py-4 border-b flex items-center justify-between ${cardHeader}`}>
           <h3 className={`text-base font-semibold ${textPrim}`}>All Submissions</h3>
-          <button onClick={onExport} className={`flex items-center gap-1.5 text-xs transition-colors hover:opacity-60 ${textMut}`}>
+          <button onClick={onExport} className={`flex items-center gap-2 text-xs transition-colors hover:opacity-60 ${textMut}`}>
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
         </div>
@@ -843,8 +843,8 @@ function Pagination({ totalCount, page, pageLoading, onPageChange, isDark = true
     <div className={`flex items-center justify-between px-6 py-4 border-t ${borderStyle}`}>
       <span className={`text-xs ${textStyle}`}>{page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}</span>
       <div className="flex items-center gap-2">
-        <button onClick={() => onPageChange(page - 1)} disabled={page === 0 || pageLoading} className={`px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 transition-colors ${btnStyle}`}>Previous</button>
-        <button onClick={() => onPageChange(page + 1)} disabled={(page + 1) * PAGE_SIZE >= totalCount || pageLoading} className={`px-3 py-1.5 rounded-lg text-xs disabled:opacity-30 transition-colors ${btnStyle}`}>Next</button>
+        <button onClick={() => onPageChange(page - 1)} disabled={page === 0 || pageLoading} className={`px-3 py-2 rounded-lg text-xs disabled:opacity-30 transition-colors ${btnStyle}`}>Previous</button>
+        <button onClick={() => onPageChange(page + 1)} disabled={(page + 1) * PAGE_SIZE >= totalCount || pageLoading} className={`px-3 py-2 rounded-lg text-xs disabled:opacity-30 transition-colors ${btnStyle}`}>Next</button>
       </div>
     </div>
   );
@@ -1224,20 +1224,20 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   const cardSub   = isDark ? 'text-xs text-zinc-500 mt-0.5' : 'text-xs text-gray-400 mt-0.5';
 
   const label = isDark
-    ? 'block text-xs font-medium text-zinc-400 mb-1.5'
-    : 'block text-[12.5px] font-semibold text-gray-500 mb-1.5';
+    ? 'block text-xs font-medium text-zinc-400 mb-2'
+    : 'block text-xs font-semibold text-gray-500 mb-2';
 
   // One soft field style, no border, green ring on focus (as the experience editor).
   const input = isDark
-    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
-    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-2.5 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
+    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
+    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
   // A field sitting on the soft AI panel is white, so it still reads as a field.
   const inputOnSoft = isDark
-    ? 'w-full bg-[#1B1C1F] border-0 rounded-[10px] px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
-    : 'w-full bg-white border-0 rounded-[10px] px-3 py-2.5 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
+    ? 'w-full bg-[#1B1C1F] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
+    : 'w-full bg-white border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
   const chipBg = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
   const chipText = isDark ? '#e4e4e7' : '#111';
-  const softBtn = `inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed ${isDark ? 'bg-[rgba(255,255,255,0.055)] text-zinc-200 disabled:text-zinc-500' : 'bg-[#F4F6F9] text-gray-900 disabled:text-[#8a929e]'}`;
+  const softBtn = `inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed ${isDark ? 'bg-[rgba(255,255,255,0.055)] text-zinc-200 disabled:text-zinc-500' : 'bg-[#F4F6F9] text-gray-900 disabled:text-[#8a929e]'}`;
 
 
   // Not ready yet reads as grey (the important flag beats the inline accent colour).
@@ -1245,11 +1245,11 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 
   const feedback = (ok: boolean) => ok
     ? (isDark
-        ? 'flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-        : 'flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm bg-emerald-50 border border-emerald-200 text-emerald-700')
+        ? 'flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+        : 'flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-emerald-50 border border-emerald-200 text-emerald-700')
     : (isDark
-        ? 'flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm bg-rose-500/10 border border-rose-500/20 text-rose-400'
-        : 'flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm bg-red-50 border border-red-200 text-red-600');
+        ? 'flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-rose-500/10 border border-rose-500/20 text-rose-400'
+        : 'flex items-center gap-2 px-4 py-3 rounded-xl text-sm bg-red-50 border border-red-200 text-red-600');
 
   const sectionIconBg = 'p-2 rounded-lg';
 
@@ -1265,12 +1265,12 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           {(isCourse || isVE) && formCohorts.length > 0 && (
             <div>
               <span className={label}>Cohort</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {[{ id: 'all', name: 'All cohorts' }, ...formCohorts].map(c => {
                   const on = selectedCohortId === c.id;
                   return (
                     <button key={c.id} type="button" aria-pressed={on} onClick={() => { setSelectedCohortId(c.id); setBlastResult(null); }}
-                      className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                      className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
                       style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
                       {c.name}
                     </button>
@@ -1282,7 +1282,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           {(isCourse || isVE) && (
             <div>
               <span className={label}>Send to</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {([
                   { value: 'all',         label: 'Everyone'    },
                   { value: 'not_started', label: 'Not started' },
@@ -1294,7 +1294,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   const on = blastSegment === seg.value;
                   return (
                     <button key={seg.value} type="button" aria-pressed={on} onClick={() => { setBlastSegment(seg.value); setBlastResult(null); }}
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors"
                       style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
                       {seg.label}
                       {count !== undefined && <span className="tabular-nums" style={{ opacity: on ? 1 : 0.65 }}>{count}</span>}
@@ -1308,8 +1308,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           {/* Optional AI draft: tone and what it is about; the purpose stays the content's default. */}
           <div className="space-y-3 rounded-xl p-4" style={{ background: chipBg }}>
             <div className="flex items-center justify-between gap-3">
-              <p className={isDark ? 'text-[13.5px] font-semibold text-white' : 'text-[13.5px] font-semibold text-gray-900'}>Draft with AI</p>
-              <span className={isDark ? 'text-[12.5px] text-zinc-500' : 'text-[12.5px] text-gray-500'}>Optional</span>
+              <p className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-gray-900'}>Draft with AI</p>
+              <span className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-500'}>Optional</span>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
               <div>
@@ -1333,7 +1333,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               </div>
             )}
             <button type="button" onClick={handleGenerateBroadcastEmail} disabled={blastAiLoading}
-              className="inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-[13px] font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ background: courseAccent, color: '#fff' }}>
               {blastAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Draft the email'}
             </button>
@@ -1358,12 +1358,12 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               imageFolder="email-images"
               imageWidth="100%"
             />
-            <p className={isDark ? 'mt-1.5 text-xs text-zinc-500' : 'mt-1.5 text-xs text-gray-400'}>Click an image to change its size. Sign off in your own words: nothing is added under your message.</p>
+            <p className={isDark ? 'mt-2 text-xs text-zinc-500' : 'mt-2 text-xs text-gray-400'}>Click an image to change its size. Sign off in your own words: nothing is added under your message.</p>
           </div>
-          <div className={isDark ? 'flex flex-wrap items-center gap-1.5 text-[12.5px] text-zinc-500' : 'flex flex-wrap items-center gap-1.5 text-[12.5px] text-gray-500'}>
+          <div className={isDark ? 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' : 'flex flex-wrap items-center gap-2 text-xs text-gray-500'}>
             <span>Personalise with</span>
             {['{{name}}', '{{email}}', '{{form_title}}', '{{form_url}}', ...(isEvent ? ['{{event_title}}', '{{event_date}}', '{{event_time}}', '{{event_timezone}}', '{{event_location}}', '{{meeting_link}}'] : [])].map(tag => (
-              <code key={tag} className="rounded-md px-1.5 py-0.5 text-[12px]" style={{ background: chipBg, color: isDark ? '#e4e4e7' : '#111' }}>{tag}</code>
+              <code key={tag} className="rounded-md px-2 py-0.5 text-[12px]" style={{ background: chipBg, color: isDark ? '#e4e4e7' : '#111' }}>{tag}</code>
             ))}
             {isEvent && <span className="basis-full">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
           </div>
@@ -1400,7 +1400,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setBlastPreview(null)}>
           <div role="dialog" aria-modal="true" aria-label="Email preview" onClick={e => e.stopPropagation()}
             className={`flex max-h-[92vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
-            <div className="flex items-center gap-3 px-5 py-3.5">
+            <div className="flex items-center gap-3 px-5 py-4">
               <div className="min-w-0 flex-1">
                 <p className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-400'}>Subject</p>
                 <p className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{blastPreview.subject}</p>
@@ -1413,7 +1413,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => setBlastPreview(null)} aria-label="Close preview" className={`rounded-lg p-1.5 ${isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-gray-500 hover:bg-gray-100'}`}>
+              <button type="button" onClick={() => setBlastPreview(null)} aria-label="Close preview" className={`rounded-lg p-2 ${isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-gray-500 hover:bg-gray-100'}`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1607,14 +1607,14 @@ function LeaderboardTab({ form, courseProgress }: { form: any; courseProgress: a
               const pts = r.points ?? 0;
               return (
                 <tr key={`${r.student_id}_${i}`} style={{ borderTop: `1px solid ${line}`, background: rank === 1 ? `color-mix(in srgb, ${gold} 7%, transparent)` : undefined }}>
-                  <td className="px-2 py-2.5">
+                  <td className="px-2 py-3">
                     <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold tabular-nums"
                       style={tint ? { background: `color-mix(in srgb, ${tint} 20%, transparent)`, color: tint } : { background: soft, color: isDark ? '#A8B5C2' : '#555' }}>
                       {rank}
                     </span>
                   </td>
-                  <td className={`px-2 py-2.5 ${txt} ${rank <= 3 ? 'font-semibold' : ''}`}>{r.student_name || 'Unknown'}</td>
-                  <td className="px-2 py-2.5">
+                  <td className={`px-2 py-3 ${txt} ${rank <= 3 ? 'font-semibold' : ''}`}>{r.student_name || 'Unknown'}</td>
+                  <td className="px-2 py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 w-20 overflow-hidden rounded-full" style={{ background: soft }}>
                         <div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: r.passed ? good : bad }} />
@@ -1622,7 +1622,7 @@ function LeaderboardTab({ form, courseProgress }: { form: any; courseProgress: a
                       <span className={`text-xs font-semibold tabular-nums ${txt}`}>{r.pct}%</span>
                     </div>
                   </td>
-                  <td className="px-2 py-2.5">
+                  <td className="px-2 py-3">
                     {pts > 0
                       ? <span className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums" style={{ color: gold }}><Star className="h-3.5 w-3.5" />{pts.toLocaleString()}</span>
                       : <span className={`text-xs ${muted}`}>--</span>}
@@ -1655,7 +1655,7 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
   const textMut  = isLight ? '#555' : '#71717a';
   const published = currentStatus === 'published';
   const blocked = !published && (!ready || unsaved);
-  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-45 flex-shrink-0';
+  const btn = 'inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-45 flex-shrink-0';
 
   const handleStatusToggle = async (newStatus: 'draft' | 'published') => {
     if (newStatus === currentStatus || statusUpdating) return;
@@ -1684,14 +1684,14 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3.5"
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-4"
         style={{ background: published ? `${courseAccent}1a` : (isLight ? 'rgba(217,119,6,0.10)' : 'rgba(245,180,84,0.12)') }}>
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[14.5px] font-semibold" style={{ color: textPrim }}>
+          <p className="flex items-center gap-2 text-sm font-semibold" style={{ color: textPrim }}>
             <span className="h-2 w-2 rounded-full" style={{ background: published ? courseAccent : '#d97706' }} />
             {published ? 'Published' : 'Draft'}
           </p>
-          <p className="mt-0.5 text-[13px]" style={{ color: textMut }}>
+          <p className="mt-0.5 text-sm" style={{ color: textMut }}>
             {published ? `Learners it is assigned to can open this ${kind}.`
               : unsaved ? 'Save your changes, then publish.'
               : !ready ? 'Fix the items below, then publish.'
@@ -1703,7 +1703,7 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
           {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
         </button>
       </div>
-      {statusWarning && <p className="text-[12.5px]" style={{ color: '#b45309' }}>{statusWarning}</p>}
+      {statusWarning && <p className="text-xs" style={{ color: '#b45309' }}>{statusWarning}</p>}
     </div>
   );
 }
@@ -1725,10 +1725,10 @@ function DuplicateRow({ kind, onClone }: { kind: string; onClone: () => Promise<
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-[14px] font-semibold" style={{ color: isLight ? '#111' : '#fff' }}>Duplicate</p>
-        <p className="text-[12.5px]" style={{ color: isLight ? '#555' : '#71717a' }}>Makes a draft copy you can change.</p>
+        <p className="text-xs" style={{ color: isLight ? '#555' : '#71717a' }}>Makes a draft copy you can change.</p>
       </div>
       <button onClick={handleClone} disabled={cloning || cloned}
-        className="inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0"
+        className="inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0"
         style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: isLight ? '#111' : '#fff' }}>
         {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? 'Copy made' : `Duplicate ${kind}`}
       </button>
@@ -1745,7 +1745,7 @@ function ShareKit({ form, formUrl, kind }: { form: any; formUrl: string; kind: s
   const textPrim = isLight ? '#111' : '#fff';
   const textMut  = isLight ? '#555' : '#71717a';
   const soft = isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)';
-  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
+  const btn = 'inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
   const ghost = { background: soft, color: textPrim };
   const contentLabel = kind;
   const embedCode = `<iframe
@@ -1801,7 +1801,7 @@ function ShareKit({ form, formUrl, kind }: { form: any; formUrl: string; kind: s
 
   return (
     <div className="space-y-5" style={{ color: textPrim }}>
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         <p className="text-[14px] font-semibold">Share</p>
         <div className="flex flex-wrap gap-2">
           {socialLinks.map(({ label, href, Icon }) => (
@@ -1811,24 +1811,24 @@ function ShareKit({ form, formUrl, kind }: { form: any; formUrl: string; kind: s
           ))}
         </div>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[14px] font-semibold">Embed</p>
-            <p className="text-[12.5px]" style={{ color: textMut }}>Paste this code into any web page.</p>
+            <p className="text-xs" style={{ color: textMut }}>Paste this code into any web page.</p>
           </div>
           <button onClick={() => copyEmbed(embedCode)} className={btn} style={ghost}>
             {embedCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy embed code</>}
           </button>
         </div>
-        <pre className="overflow-x-auto whitespace-pre rounded-[10px] px-4 py-3 font-mono text-[12.5px] leading-relaxed" style={{ background: soft, color: textMut }}>{embedCode}</pre>
+        <pre className="overflow-x-auto whitespace-pre rounded-[10px] px-4 py-3 font-mono text-xs leading-relaxed" style={{ background: soft, color: textMut }}>{embedCode}</pre>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         <p className="text-[14px] font-semibold">QR code</p>
         <div className="flex flex-wrap items-start gap-5">
           <img src={qrUrl} alt={`QR code for this ${kind}`} className="h-32 w-32 flex-shrink-0 rounded-xl" />
           <div className="space-y-2 pt-1">
-            <p className="text-[13px]" style={{ color: textMut }}>{kind === 'event' ? 'Print or show it at your event so people can scan and open it.' : `Scan to open the ${kind}.`}</p>
+            <p className="text-sm" style={{ color: textMut }}>{kind === 'event' ? 'Print or show it at your event so people can scan and open it.' : `Scan to open the ${kind}.`}</p>
             <a href={qrUrl} download={`qr-${form.slug || form.id}.png`} className={btn} style={ghost}>
               <Download className="w-4 h-4" /> Download QR code
             </a>
@@ -1857,9 +1857,9 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
   const kind = isExperience ? 'experience' : isCourse ? 'course' : isEvent ? 'event' : 'form';
   const linkOnly = isExperience || isCourse;
   const soft = isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)';
-  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
+  const btn = 'inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
   const ghost = { background: soft, color: textPrim };
-  const group = 'space-y-2.5 pt-5';
+  const group = 'space-y-3 pt-5';
   const groupLine = { borderTop: `1px solid ${divider}` };
 
   return (
@@ -1873,7 +1873,7 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
         <p className="text-[14px] font-semibold">Link</p>
         <div className="flex flex-wrap gap-2">
           <input readOnly value={formUrl} aria-label={`Link to this ${kind}`} onFocus={e => e.currentTarget.select()}
-            className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-[12.5px] outline-none"
+            className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-xs outline-none"
             style={{ background: soft, color: textMut, border: 'none' }} />
           <button onClick={() => copyLink(formUrl)} className={btn} style={ghost}>
             {linkCopied ? 'Copied' : 'Copy'}
@@ -1883,7 +1883,7 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
           </a>
         </div>
         {linkOnly && (
-          <p className="text-[12.5px]" style={{ color: textMut }}>
+          <p className="text-xs" style={{ color: textMut }}>
             Pasted into WhatsApp, LinkedIn or X, the link shows the cover image, title and description.
           </p>
         )}
@@ -2123,15 +2123,15 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
                     <h2 className={`text-[18px] font-semibold ${textPrim}`}>Learner progress</h2>
-          <p className={`mt-1 text-[13.5px] ${textMut}`}>Follow progress and review submitted work.</p>
+          <p className={`mt-1 text-sm ${textMut}`}>Follow progress and review submitted work.</p>
         </div>
         <button onClick={exportCSV}
-          className={`flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-80 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f3f5f4] text-[#44504a]'}`}>
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-80 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f3f5f4] text-[#44504a]'}`}>
           Export CSV
         </button>
       </div>
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           { label: 'Learners',    value: attempts.length },
           { label: 'Not started', value: notStarted },
@@ -2139,7 +2139,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
           { label: 'Completed',   value: completed },
         ].map(s => (
           <div key={s.label} className="rounded-xl px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
-            <p className={`text-[12.5px] font-semibold ${textMut}`}>{s.label}</p>
+            <p className={`text-xs font-semibold ${textMut}`}>{s.label}</p>
             <p className={`text-[24px] font-semibold tabular-nums ${textPrim}`}>{s.value}</p>
           </div>
         ))}
@@ -2150,13 +2150,13 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className={`border-b ${isDark ? 'border-zinc-800' : 'border-[rgba(15,23,42,0.08)]'}`}>
-              <tr className={`text-[12.5px] ${textMut}`}>
-                <th className="px-2.5 py-2 font-semibold">Learner</th>
-                <th className="px-2.5 py-2 font-semibold">Status</th>
-                <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Tasks</th>
-                {needsReview && <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Score</th>}
-                <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Last active</th>
-                {needsReview && <th className="px-2.5 py-2 font-semibold">Review</th>}
+              <tr className={`text-xs ${textMut}`}>
+                <th className="px-3 py-2 font-semibold">Learner</th>
+                <th className="px-3 py-2 font-semibold">Status</th>
+                <th className="hidden sm:table-cell px-3 py-2 font-semibold">Tasks</th>
+                {needsReview && <th className="hidden sm:table-cell px-3 py-2 font-semibold">Score</th>}
+                <th className="hidden sm:table-cell px-3 py-2 font-semibold">Last active</th>
+                {needsReview && <th className="px-3 py-2 font-semibold">Review</th>}
               </tr>
             </thead>
             <tbody className={`divide-y ${divider}`}>
@@ -2169,46 +2169,46 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                 const isStarted   = !!a.started_at;
                 return (
                   <tr key={a.id ?? `unenrolled-${i}`} className={`transition-colors ${tableRow}`}>
-                    <td className="px-2.5 py-3">
+                    <td className="px-3 py-3">
                       <p className={`font-semibold ${textPrim}`}>{a.student_name || a.student_email || 'Unnamed learner'}</p>
-                      {a.student_name && a.student_email && <p className={`text-[12.5px] ${textMut}`}>{a.student_email}</p>}
+                      {a.student_name && a.student_email && <p className={`text-xs ${textMut}`}>{a.student_email}</p>}
                     </td>
-                    <td className="px-2.5 py-3">
+                    <td className="px-3 py-3">
                       {isCompleted
-                        ? <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-emerald-300 ring-1 ring-emerald-400/60' : 'bg-white text-emerald-700 ring-1 ring-emerald-500'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
+                        ? <span className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-emerald-300 ring-1 ring-emerald-400/60' : 'bg-white text-emerald-700 ring-1 ring-emerald-500'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
                         : isStarted
-                        ? <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-300 ring-1 ring-zinc-600' : 'bg-white text-zinc-600 ring-1 ring-zinc-300'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> In progress</span>
-                        : <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-400 ring-1 ring-zinc-700' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> Not started</span>}
+                        ? <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-zinc-300 ring-1 ring-zinc-600' : 'bg-white text-zinc-600 ring-1 ring-zinc-300'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> In progress</span>
+                        : <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-zinc-400 ring-1 ring-zinc-700' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> Not started</span>}
                     </td>
-                    <td className="hidden sm:table-cell px-2.5 py-3">
+                    <td className="hidden sm:table-cell px-3 py-3">
                       {isStarted ? (
                         <div className="flex items-center gap-2">
                           <div className={`h-1.5 w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
                             <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#00bf63' }} />
                           </div>
-                          <span className={`whitespace-nowrap text-[12.5px] tabular-nums ${textMut}`}>{doneReqs} of {counts.totalReqs}</span>
+                          <span className={`whitespace-nowrap text-xs tabular-nums ${textMut}`}>{doneReqs} of {counts.totalReqs}</span>
                         </div>
                       ) : (
                         <span className={`text-xs ${textMut}`}>--</span>
                       )}
                     </td>
                     {needsReview && (
-                      <td className={`hidden sm:table-cell px-2.5 py-3 ${textMut}`}>
+                      <td className={`hidden sm:table-cell px-3 py-3 ${textMut}`}>
                         {a.review?.score !== undefined ? <span className="font-bold" style={{ color: '#00873f' }}>{a.review.score}</span> : '-'}
                       </td>
                     )}
-                    <td className={`hidden sm:table-cell px-2.5 py-3 text-[13px] ${textMut}`}>
+                    <td className={`hidden sm:table-cell px-3 py-3 text-sm ${textMut}`}>
                       {a.updated_at ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                     </td>
                     {needsReview && (
-                      <td className="px-2.5 py-3">
+                      <td className="px-3 py-3">
                         {hasWorkToReview(a) ? (
                           <button onClick={() => openReview(a)}
-                            className={`text-[13px] font-bold transition-opacity hover:opacity-70 ${isDark ? 'text-emerald-300' : 'text-[#00873f]'}`}>
+                            className={`text-sm font-bold transition-opacity hover:opacity-70 ${isDark ? 'text-emerald-300' : 'text-[#00873f]'}`}>
                             {a.review ? 'Edit review' : 'Review'}
                           </button>
                         ) : (
-                          <span className={`text-[13px] ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
+                          <span className={`text-sm ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
                         )}
                       </td>
                     )}
@@ -2268,7 +2268,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                 {/* Student submissions */}
                 {visibleReqs.length > 0 && (
                   <div className="space-y-3">
-                    <p className={`text-[12.5px] font-semibold ${textMut}`}>Submitted work</p>
+                    <p className={`text-xs font-semibold ${textMut}`}>Submitted work</p>
                     {visibleReqs.map(req => {
                       const entry = reviewing.progress?.[req.reqId];
                       const fileUrl = entry?.fileUrl;
@@ -2280,7 +2280,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                           {req.type === 'linkedin_share' ? (
                             entry?.linkUrl
                               ? <a href={entry.linkUrl} target="_blank" rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg break-all"
+                                  className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg break-all"
                                   style={{ background: 'rgba(10,102,194,0.1)', color: '#0A66C2' }}>
                                   Open LinkedIn post
                                 </a>
@@ -2289,7 +2289,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                             {entry?.linkUrl && (
                               <div className="mb-2 space-y-1">
                                 <a href={entry.linkUrl} target="_blank" rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg break-all"
+                                  className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg break-all"
                                   style={{ background: '#10b98115', color: '#10b981' }}>
                                   Open submitted link
                                 </a>
@@ -2300,7 +2300,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                               <div className={`rounded-lg px-3 py-2 text-xs space-y-2 ${isDark ? 'bg-amber-500/10 text-amber-200' : 'bg-amber-50 text-amber-800'}`}>
                                 <p>A report was saved for a file this student has since removed. The student can still see it.</p>
                                 <button onClick={() => { if (window.confirm('Remove this report?')) setRevReports(prev => { const next = { ...prev }; delete next[req.reqId]; return next; }); }}
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-current">
+                                  className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border border-current">
                                   Remove report
                                 </button>
                               </div>
@@ -2308,7 +2308,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                             {fileUrl
                               ? <>
                                   <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                                    className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg"
                                     style={{ background: '#10b98115', color: '#10b981' }}>
                                     View uploaded file
                                   </a>
@@ -2341,7 +2341,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                 {/* AI review reports */}
                 {aiReviewReqs.length > 0 && (
                   <div className="space-y-4">
-                    <p className={`text-[12.5px] font-semibold ${textMut}`}>AI review reports</p>
+                    <p className={`text-xs font-semibold ${textMut}`}>AI review reports</p>
                     {aiReviewReqs.map(req => {
                       const entry = reviewing.progress?.[req.reqId];
                       const rec = parseReviewNotes(entry?.notes);
@@ -2360,14 +2360,14 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
 
                 {/* Score */}
                 <div>
-                  <label className={`block text-xs font-semibold mb-1.5 ${textMut}`}>Score (0 - 100)</label>
+                  <label className={`block text-xs font-semibold mb-2 ${textMut}`}>Score (0 - 100)</label>
                   <input type="number" min={0} max={100} value={revScore} onChange={e => setRevScore(e.target.value)}
                     className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${isDark ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-[#f8f8f5] border-[rgba(0,0,0,0.1)] text-[#111]'}`} />
                 </div>
 
                 {/* Feedback */}
                 <div>
-                  <label className={`block text-xs font-semibold mb-1.5 ${textMut}`}>Feedback for student</label>
+                  <label className={`block text-xs font-semibold mb-2 ${textMut}`}>Feedback for student</label>
                   <textarea value={revFeedback} onChange={e => setRevFeedback(e.target.value)} rows={4}
                     placeholder="Write your feedback for the student…"
                     className={`w-full px-3 py-2 rounded-xl border text-sm outline-none resize-none ${isDark ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-[#f8f8f5] border-[rgba(0,0,0,0.1)] text-[#111]'}`} />
@@ -2379,9 +2379,9 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
               {revError && <p role="alert" className="px-6 pt-3 text-xs text-red-500">{revError}</p>}
               <div className={`flex gap-2 px-6 py-4 border-t ${isDark ? 'border-zinc-800' : 'border-[rgba(0,0,0,0.07)]'}`}>
                 <button onClick={closeReview} disabled={revSaving}
-                  className={`flex-1 py-2.5 rounded-xl text-sm border disabled:opacity-40 disabled:cursor-not-allowed ${isDark ? 'border-zinc-700 text-zinc-400' : 'border-[rgba(0,0,0,0.1)] text-[#888]'}`}>Cancel</button>
+                  className={`flex-1 py-3 rounded-xl text-sm border disabled:opacity-40 disabled:cursor-not-allowed ${isDark ? 'border-zinc-700 text-zinc-400' : 'border-[rgba(0,0,0,0.1)] text-[#888]'}`}>Cancel</button>
                 <button onClick={submitReview} disabled={revSaving || draftingReqs.size > 0 || revRefreshing}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-60"
+                  className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-60"
                   style={{ background: '#00b95c', color: '#ffffff' }}>
                   {revSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : draftingReqs.size > 0 ? 'Waiting for AI draft' : 'Save review'}
                 </button>
@@ -2693,24 +2693,24 @@ export default function FormDetailPage() {
             {/* What this is, then its name */}
             <div className="min-w-0">
               <p className="text-[12px]" style={{ color: hdrTextMut }}>{type === 'virtual_experience' ? 'Virtual experience' : type === 'course' ? 'Course' : type === 'event' ? 'Event' : 'Form'}</p>
-              <p className="text-[17px] font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</p>
+              <p className="text-base font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</p>
             </div>
 
             {/* Right actions */}
             <div className="ml-auto flex items-center gap-2 flex-shrink-0">
               {type === 'virtual_experience' ? (
-                <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+                <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </Link>
               ) : type === 'course' || type === 'event' ? null : (
-                <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+                <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </button>
               )}
-              <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+              <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                 View
               </a>
-              {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }} title="Download this as a file you can import into another workspace">
+              {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }} title="Download this as a file you can import into another workspace">
                 Export content
               </button>}
               <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors ff-hover" title="Toggle theme" style={{ color: hdrTextMut }}>
@@ -2727,12 +2727,12 @@ export default function FormDetailPage() {
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       aria-current={isActive ? 'page' : undefined}
-                      className="flex items-center gap-2 whitespace-nowrap pt-2.5 pb-3 text-left text-sm transition-colors"
+                      className="flex items-center gap-2 whitespace-nowrap pt-3 pb-3 text-left text-sm transition-colors"
                       style={{ color: isActive ? (isLight ? '#111' : '#f0f0f0') : hdrTextMut, fontWeight: 600, borderBottom: `2px solid ${isActive ? tabAccent : 'transparent'}`, marginBottom: -1 }}
                     >
                       <span>{tabLabel(tab)}</span>
                       {tab.id === 'responses' && (type === 'virtual_experience' ? veLearnerCount : totalCount) > 0 && (
-                        <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: isActive ? `color-mix(in oklab, ${tabAccent} 18%, transparent)` : (isLight ? 'rgba(0,0,0,0.06)' : '#3f3f46'), color: isActive ? tabAccent : hdrTextMut }}>
+                        <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold" style={{ background: isActive ? `color-mix(in oklab, ${tabAccent} 18%, transparent)` : (isLight ? 'rgba(0,0,0,0.06)' : '#3f3f46'), color: isActive ? tabAccent : hdrTextMut }}>
                           {type === 'virtual_experience' ? veLearnerCount : totalCount}
                         </span>
                       )}

@@ -370,7 +370,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-xs mt-0.5" style={{ color: C.faint }}>{viewingSub.student?.email}{viewingSub.updated_at ? ` · ${new Date(viewingSub.updated_at).toLocaleDateString()}` : ''}</p>
               </div>
             </div>
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: viewingSub.status === 'graded' ? 'rgba(22,163,74,0.12)' : viewingSub.status === 'submitted' ? 'rgba(37,99,235,0.12)' : C.pill, color: viewingSub.status === 'graded' ? '#16a34a' : viewingSub.status === 'submitted' ? '#2563eb' : C.faint }}>
+            <span className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: viewingSub.status === 'graded' ? 'rgba(22,163,74,0.12)' : viewingSub.status === 'submitted' ? 'rgba(37,99,235,0.12)' : C.pill, color: viewingSub.status === 'graded' ? '#16a34a' : viewingSub.status === 'submitted' ? '#2563eb' : C.faint }}>
               {viewingSub.status.charAt(0).toUpperCase() + viewingSub.status.slice(1)}
             </span>
           </div>
@@ -387,11 +387,11 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {stats.average != null && (
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Task average {stats.average}%</span>
+                  <span className="text-[11px] font-bold px-3 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Task average {stats.average}%</span>
                 )}
-                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>{stats.commented} comment{stats.commented === 1 ? '' : 's'}</span>
+                <span className="text-[11px] font-semibold px-3 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>{stats.commented} comment{stats.commented === 1 ? '' : 's'}</span>
                 {scenarioMcq?.subtotal != null && (
-                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>Multiple choice auto-marked {scenarioMcq.subtotal}%</span>
+                  <span className="text-[11px] font-semibold px-3 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>Multiple choice auto-marked {scenarioMcq.subtotal}%</span>
                 )}
               </div>
             </div>
@@ -411,7 +411,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                       {fileUrl && (
                         <div className="rounded-xl px-4 py-3" style={{ background: C.input }}>
                           <a href={fileUrl} target="_blank" rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold transition-opacity hover:opacity-70"
+                            className="inline-flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-70"
                             style={{ color: C.green }}>
                             <Download className="w-3 h-3" /> Download submitted report
                             {rec.report?.fileName && <span className="font-normal ml-1 opacity-60">({rec.report.fileName})</span>}
@@ -464,7 +464,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
               <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: C.faint }}>Attachments</p>
               {subFiles.map((f: any) => (
                 <a key={f.id} href={f.file_url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2.5 text-sm px-3.5 py-2.5 rounded-xl transition-opacity hover:opacity-75"
+                  className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl transition-opacity hover:opacity-75"
                   style={{ background: C.page, color: C.green, border: `1px solid ${C.divider}`, textDecoration: 'none' }}>
                   {f.file_name ? <FileText className="w-4 h-4 flex-shrink-0"/> : <ExternalLink className="w-4 h-4 flex-shrink-0"/>}
                   <span className="truncate font-medium">{f.file_name || f.file_url}</span>
@@ -496,12 +496,12 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: C.faint }}>Score <span style={{ color: C.faint, fontWeight: 400 }}>(out of 100)</span></label>
+            <label className="block text-xs font-semibold mb-2" style={{ color: C.faint }}>Score <span style={{ color: C.faint, fontWeight: 400 }}>(out of 100)</span></label>
             <div className="flex items-center flex-wrap gap-2">
               <input type="number" min={0} max={100} value={score} onChange={e => { setScore(e.target.value); setScoreTouched(true); }} placeholder="e.g. 90"
                 style={{ width: 160, padding: '10px 14px', borderRadius: 12, border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 15, fontWeight: 600, outline: 'none', boxSizing: 'border-box' as const }}/>
               {score && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full"
                   style={{ background: scoreIsPass ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: scoreIsPass ? '#10b981' : '#ef4444' }}>
                   {scoreIsPass ? 'Pass' : 'Fail'}
                 </span>
@@ -509,12 +509,12 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
               {scenarioRec && taskAverage != null && (
                 scoreTouched ? (
                   <button onClick={() => { setScoreTouched(false); setScore(String(taskAverage)); }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-75 transition-opacity"
+                    className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-75 transition-opacity"
                     style={{ background: C.pill, color: C.muted, border: 'none', cursor: 'pointer' }}>
                     <RotateCcw className="w-3 h-3"/> Use task average ({taskAverage}%)
                   </button>
                 ) : (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Following the task average</span>
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Following the task average</span>
                 )
               )}
             </div>
@@ -528,7 +528,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
           </div>
 
           <div className={scenarioRec ? '' : 'mb-5'}>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: C.faint }}>{scenarioRec ? 'Overall feedback to student' : 'Feedback to student'}</label>
+            <label className="block text-xs font-semibold mb-2" style={{ color: C.faint }}>{scenarioRec ? 'Overall feedback to student' : 'Feedback to student'}</label>
             <RichTextEditor value={feedback} onChange={setFeedback}
               placeholder={scenarioRec ? 'Sum up the whole submission. Task comments are saved with each task above.' : 'Write feedback for the student'}
               bgOverride={C.input} fontFamily="var(--font-mono)" enableAiAssist/>
@@ -538,7 +538,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             <>
               {gradeError && <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{gradeError}</p>}
               <button onClick={saveGrade} disabled={grading || gradeSuccess}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                className="px-6 py-3 rounded-xl text-sm font-semibold transition-all"
                 style={{ background: gradeSuccess ? '#10b981' : C.cta, color: C.ctaText, border: 'none', cursor: (grading || gradeSuccess) ? 'not-allowed' : 'pointer', opacity: grading ? 0.6 : 1 }}>
                 {grading ? 'Saving...' : gradeSuccess ? 'Grade saved' : viewingSub.status === 'graded' ? 'Update Grade' : 'Save Grade'}
               </button>
@@ -553,7 +553,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             <div className="flex items-center gap-4 flex-wrap px-4 py-3 rounded-2xl"
               style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 10px 30px rgba(0,0,0,0.45)' : '0 10px 30px rgba(15,23,42,0.12)' }}>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Final grade</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Final grade</p>
                 <p className="text-sm font-bold" style={{ color: scorePct == null || !Number.isFinite(scorePct) ? C.faint : scoreIsPass ? '#16a34a' : '#ef4444' }}>
                   {scorePct == null || !Number.isFinite(scorePct) ? 'Not set' : `${scorePct}% ${scoreIsPass ? 'Pass' : 'Fail'}`}
                 </p>
@@ -562,7 +562,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
               {gradeError && <span className="text-xs font-semibold" style={{ color: '#ef4444' }}>{gradeError}</span>}
               {!gradeError && gradeWarning && <span className="text-xs font-semibold" style={{ color: '#d97706' }}>{gradeWarning}</span>}
               <button onClick={saveGrade} disabled={grading || gradeSuccess}
-                className="ml-auto px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                className="ml-auto px-6 py-3 rounded-xl text-sm font-semibold transition-all"
                 style={{ background: gradeSuccess ? '#10b981' : C.cta, color: C.ctaText, border: 'none', cursor: (grading || gradeSuccess) ? 'not-allowed' : 'pointer', opacity: grading ? 0.6 : 1 }}>
                 {grading ? 'Saving...' : gradeSuccess ? 'Grade saved' : viewingSub.status === 'graded' ? 'Update grade' : 'Save grade'}
               </button>
@@ -664,12 +664,12 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             <button onClick={() => setSelected(null)} className="flex items-center justify-center w-8 h-8 rounded-xl flex-shrink-0 hover:opacity-70 transition-opacity" style={{ background: C.pill, border: 'none', cursor: 'pointer', color: C.muted }}>
               <ArrowLeft className="w-4 h-4"/>
             </button>
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-0.5" style={{ color: reportAccent }}>Assignment report</p>
-                <h2 className="text-lg font-bold truncate" style={{ color: C.text }}>{selected.title}</h2>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-0.5" style={{ color: reportAccent }}>Assignment report</p>
+                <h2 className="text-base font-bold truncate leading-6" style={{ color: C.text }}>{selected.title}</h2>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: selected.status === 'published' ? 'rgba(16,185,129,0.1)' : C.pill, color: selected.status === 'published' ? '#10b981' : C.faint }}>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full flex-shrink-0" style={{ background: selected.status === 'published' ? 'rgba(16,185,129,0.1)' : C.pill, color: selected.status === 'published' ? '#10b981' : C.faint }}>
                 {selected.status}
               </span>
             </div>
@@ -679,12 +679,12 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
               Pass mark {passMark}%
             </span>
             <Link href={`/create/assignment?edit=${selected.id}&preview=1`} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
               style={{ background: reportAccentSoft, color: reportAccent, textDecoration: 'none' }}>
               <Eye className="w-3.5 h-3.5"/> Preview
             </Link>
             <Link href={`/create/assignment?edit=${selected.id}`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
               style={{ background: C.pill, color: C.muted, textDecoration: 'none' }}>
               <Edit2 className="w-3.5 h-3.5"/> Edit
             </Link>
@@ -709,7 +709,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                       <s.icon className="w-4 h-4" style={{ color: s.color }}/>
                     </div>
                   </div>
-                  <p className="text-xl font-bold" style={{ color: C.text }}>{s.value}</p>
+                  <p className="text-[22px] font-bold leading-7" style={{ color: C.text }}>{s.value}</p>
                   <p className="text-[11px] font-semibold mt-1" style={{ color: C.faint }}>{s.label}</p>
                 </div>
               ))}
@@ -724,12 +724,12 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.faint }}/>
                       <input value={responseSearch} onChange={e => setResponseSearch(e.target.value)}
                         placeholder={isGroupAssignment ? 'Search groups or members...' : 'Search students or email...'}
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl text-xs outline-none"
+                        className="w-full pl-9 pr-3 py-3 rounded-xl text-xs outline-none"
                         style={{ background: C.input, color: C.text, border: `1px solid ${C.divider}` }}/>
                     </label>
                   {showCohortFilter && (
                     <select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)}
-                      className="px-3.5 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
+                      className="px-4 py-3 rounded-xl text-xs font-semibold cursor-pointer"
                       style={{ background: C.input, color: C.muted, border: `1px solid ${C.divider}` }}>
                       <option value="all">All cohorts</option>
                       {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -737,17 +737,17 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                   )}
                   </div>
                   <button onClick={() => isGroupAssignment ? exportGroupCSV(visibleRows, selected.title, passMark) : exportCSV(visibleRows, selected.title, passMark)}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold hover:opacity-80 transition-opacity"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-semibold hover:opacity-80 transition-opacity"
                     style={{ background: reportAccentSoft, color: reportAccent, border: 'none' }}>
                     <Download className="w-3.5 h-3.5"/> Export CSV
                   </button>
                 </div>
-                <div className="flex items-center gap-1.5 mt-3 overflow-x-auto pb-0.5" role="group" aria-label="Filter responses by status">
+                <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-0.5" role="group" aria-label="Filter responses by status">
                   {[{ value: 'all', label: 'All' }, ...presentStatuses.map(value => ({ value, label: STATUS_LABELS[value] }))].map(option => {
                     const active = statusFilter === option.value;
                     const StatusIcon = STATUS_ICONS[option.value] ?? Circle;
                     return <button key={option.value} type="button" aria-pressed={active} onClick={() => setStatusFilter(option.value)}
-                      className="flex flex-shrink-0 items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-bold transition-colors"
+                      className="flex flex-shrink-0 items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
                       style={{ border: 'none', background: active ? reportAccentSoft : 'transparent', color: active ? reportAccent : C.faint, cursor: 'pointer' }}>
                       <StatusIcon className="w-3.5 h-3.5"/>{option.label}
                     </button>;
@@ -788,7 +788,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                   const statusInfo = statusCfg(row._status, row._pct);
                   return (
                     <div key={row.id} style={{ background: i % 2 === 0 ? C.card : C.page, borderTop: `1px solid ${C.divider}` }}>
-                      <div className="grid px-5 py-3.5 items-center" style={{ gridTemplateColumns: '1.35fr 1fr 90px 120px 110px 70px 80px 80px', minWidth: 960 }}>
+                      <div className="grid px-5 py-4 items-center" style={{ gridTemplateColumns: '1.35fr 1fr 90px 120px 110px 70px 80px 80px', minWidth: 960 }}>
                         <button onClick={() => toggleExpandedGroup(row.id)} className="flex items-center gap-2 min-w-0 text-left hover:opacity-80"
                           style={{ color: C.text, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                           <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}/>
@@ -803,7 +803,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <span className="text-sm font-bold text-center" style={{ color: C.text }}>{row.members.length}</span>
                         <span className="text-sm font-bold text-center" style={{ color: sub ? C.text : C.faint }}>{sub ? `${row.participants.length}/${row.members.length}` : '--'}</span>
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-center w-fit" style={{ background: statusInfo.bg, color: statusInfo.color }}>
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full text-center w-fit" style={{ background: statusInfo.bg, color: statusInfo.color }}>
                           {statusInfo.label}
                         </span>
                         <span className="text-sm font-bold text-center" style={{ color: sc != null ? (isPassed ? '#10b981' : '#ef4444') : C.faint }}>
@@ -816,7 +816,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                         <div className="flex justify-end">
                           {sub ? (
                             <button onClick={() => openSubmission(sub)}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity"
+                              className="text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-80 transition-opacity"
                               style={{ background: reportAccent, color: C.ctaText, border: 'none', cursor: 'pointer' }}>
                               {sub.status === 'graded' ? 'Regrade' : 'Grade'}
                             </button>
@@ -842,7 +842,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                                           <p className="text-xs truncate" style={{ color: C.faint }}>{member.email}</p>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      <div className="flex items-center gap-2 flex-shrink-0">
                                         {member.is_leader && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(217,119,6,0.12)', color: '#d97706' }}>Leader</span>}
                                         {sub && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: participated ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.10)', color: participated ? '#10b981' : '#ef4444' }}>{participated ? 'Participant' : 'Not marked'}</span>}
                                       </div>
@@ -854,7 +854,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                             <div>
                               <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: C.faint }}>Submission</p>
                               {sub ? (
-                                <div className="space-y-1.5 text-sm" style={{ color: C.text }}>
+                                <div className="space-y-2 text-sm" style={{ color: C.text }}>
                                   <p><span className="font-semibold">Submitted by:</span> {sub.submitted_by_student?.full_name || sub.student?.full_name || 'Group leader'}</p>
                                   <p><span className="font-semibold">Submitted:</span> {sub.updated_at ? new Date(sub.updated_at).toLocaleString() : '--'}</p>
                                   <p style={{ color: C.faint }}>Only the marked participants receive this grade.</p>
@@ -886,7 +886,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                   const isPassed = sc != null && sc >= passMark;
                   const statusInfo = statusCfg(row._status, row._pct);
                   return (
-                    <div key={row.id} className="grid px-5 py-3.5 items-center" style={{ gridTemplateColumns: '1fr 110px 70px 80px 80px', minWidth: 680, background: i % 2 === 0 ? C.card : C.page, borderTop: `1px solid ${C.divider}` }}>
+                    <div key={row.id} className="grid px-5 py-4 items-center" style={{ gridTemplateColumns: '1fr 110px 70px 80px 80px', minWidth: 680, background: i % 2 === 0 ? C.card : C.page, borderTop: `1px solid ${C.divider}` }}>
                       <div className="flex items-center gap-3 min-w-0">
                         <StudentAvatar name={row.full_name} email={row.email} size={34} C={C}/>
                         <div className="min-w-0">
@@ -898,7 +898,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                       </div>
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-center" style={{ background: statusInfo.bg, color: statusInfo.color }}>
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full text-center" style={{ background: statusInfo.bg, color: statusInfo.color }}>
                           {statusInfo.label}
                         </span>
                         {isGroupAssignment && sub?.submitted_by_student?.full_name && (
@@ -915,7 +915,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
                       <div className="flex justify-end">
                         {sub ? (
                           <button onClick={() => openSubmission(sub)}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity"
+                            className="text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-80 transition-opacity"
                             style={{ background: reportAccent, color: C.ctaText, border: 'none', cursor: 'pointer' }}>
                             {sub.status === 'graded' ? 'Regrade' : 'Grade'}
                           </button>
@@ -941,7 +941,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
       </div>
       <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No Assignments yet</h2>
       <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first assignment to get started.</p>
-      <Link href="/create/assignment" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-80" style={{ background: C.cta, color: C.ctaText }}>
+      <Link href="/create/assignment" className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold hover:opacity-80" style={{ background: C.cta, color: C.ctaText }}>
         <Plus className="w-4 h-4"/> New Assignment
       </Link>
     </div>
@@ -951,17 +951,17 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
     <div>
       <div className="flex items-end justify-between gap-4 mb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-2">
             <span className="w-2 h-2 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 5px ${C.green}14` }}/>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: C.green }}>Assignment workspace</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: C.green }}>Assignment workspace</p>
           </div>
-          <h2 className="text-xl font-bold tracking-tight" style={{ color: C.text }}>Assignments</h2>
+          <h2 className="text-[22px] font-bold tracking-tight leading-7" style={{ color: C.text }}>Assignments</h2>
           <p className="text-xs mt-1" style={{ color: C.faint }}>{assignments.length} learning experiences ready to manage and grade.</p>
         </div>
         <div className="flex items-center gap-2">
           {assignments.length > 0 && (
             <button onClick={() => exportAllAssignments(assignments, 'assignments_bulk')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
               style={{ background: C.pill, color: C.muted }}>
               <Download className="w-3.5 h-3.5" /> Export All
             </button>
@@ -989,7 +989,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             className="flex items-center gap-4 p-4 rounded-2xl cursor-pointer group transition-all"
             style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? 'none' : '0 10px 28px rgba(15,23,42,0.045)' }}>
             {/* Cover / letter */}
-            <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center text-xl font-black"
+            <div className="w-12 h-12 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center text-[22px] font-black leading-7"
               style={{ background: C.thumbBg, color: C.green }}>
               {a.cover_image
                 ? <img src={resolveCoverUrl(a.cover_image)} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>
@@ -999,7 +999,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             <button onClick={() => openAssignment(a)} className="flex-1 min-w-0 text-left" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <div className="flex items-center gap-2 mb-0.5">
                 <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{a.title}</p>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
                   style={{ background: a.status === 'published' ? 'rgba(16,185,129,0.1)' : C.pill, color: a.status === 'published' ? '#10b981' : C.faint }}>
                   {a.status}
                 </span>
@@ -1014,23 +1014,23 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
             {/* Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <Link href={`/create/assignment?edit=${a.id}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold hover:opacity-80"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
                 style={{ background: C.pill, color: C.muted, textDecoration: 'none' }}>
                 <Edit2 className="w-3 h-3"/> Edit
               </Link>
               <button onClick={e => { e.stopPropagation(); duplicateAssignment(a); }} disabled={duplicatingId === a.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold hover:opacity-80"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
                 style={{ background: C.pill, color: C.muted, cursor: duplicatingId === a.id ? 'not-allowed' : 'pointer', opacity: duplicatingId === a.id ? 0.5 : 1 }}>
                 {duplicatingId === a.id ? <Loader2 className="w-3 h-3 animate-spin"/> : <Copy className="w-3 h-3"/>}
               </button>
               <button onClick={e => { e.stopPropagation(); exportAssignment(a); }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold hover:opacity-80"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80"
                 style={{ background: C.pill, color: C.muted }}>
                 <Download className="w-3 h-3"/>
               </button>
               {SYNC_ENABLED && <PushButton type="assignment" id={a.id} C={C} />}
               <button onClick={e => { e.stopPropagation(); deleteAssignment(a.id); }} disabled={deletingId === a.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
                 style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`, cursor: deletingId === a.id ? 'not-allowed' : 'pointer', opacity: deletingId === a.id ? 0.5 : 1 }}>
                 <Trash2 className="w-3 h-3"/>
               </button>
