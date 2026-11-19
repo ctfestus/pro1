@@ -98,7 +98,8 @@ export function PricingHero({
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.3fr_1fr]">
+      {/* While an offer runs, the offer strip sits on the hero's bottom edge, so the hero needs less room below. */}
+      <div className={`relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pt-12 sm:px-8 sm:pt-14 lg:grid-cols-[1.3fr_1fr] ${promotion ? 'pb-14' : 'pb-24 sm:pb-28'}`}>
         <div>
           <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
             {promotion
