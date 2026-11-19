@@ -12,12 +12,14 @@ import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlock
 type Kind = 'course' | 'virtual_experience' | 'learning_path';
 const NOUN: Record<Kind, string> = { course: 'course', virtual_experience: 'experience', learning_path: 'path' };
 
-// What the plan opens, one line per kind it has, in the order a learner cares about.
+// What the plan opens, one line per kind it has, in the order a learner cares about. Plans are
+// meant to open everything of a kind, including what is added later, so the card names the kinds
+// rather than counting today's items.
 const KINDS = [
-  { key: 'courses', one: 'course', many: 'courses' },
-  { key: 'learning_paths', one: 'learning path', many: 'learning paths' },
-  { key: 'virtual_experiences', one: 'virtual experience', many: 'virtual experiences' },
-  { key: 'certifications', one: 'certification', many: 'certifications' },
+  { key: 'courses', label: 'Unlimited courses' },
+  { key: 'learning_paths', label: 'Unlimited learning paths' },
+  { key: 'virtual_experiences', label: 'Unlimited virtual experiences' },
+  { key: 'certifications', label: 'Unlimited certifications' },
 ] as const;
 
 /** Whether a locked item has something on sale, so the card (rather than a plain button) shows. */
@@ -45,13 +47,11 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
   const saving = best.listAmount && best.listAmount > best.amount ? Math.round((1 - best.amount / best.listAmount) * 100) : 0;
   // The price a day, a month counted as 30 days, always to the cent ("GHS 0.50", not "GHS 0.5").
   const perDay = `${best.currency || 'GHS'} ${(best.amount / (best.durationMonths * 30)).toFixed(2)}`;
-  const included = KINDS.flatMap(({ key, one, many }) => {
-    const count = plan.coverage?.[key] ?? 0;
-    return count > 0 ? [`${count} ${count === 1 ? one : many}`] : [];
-  });
+  const included = KINDS.filter(({ key }) => (plan.coverage?.[key] ?? 0) > 0).map(({ label }) => label);
 
   return (
-    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    // Space Grotesk, the display face of the pricing page's offer strip and hero.
+    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'var(--font-display), sans-serif' }}>
       <span style={{
         position: 'absolute', top: -12, right: 16, padding: '4px 16px 4px 12px', borderRadius: '4px 0 0 4px',
         clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, 0 100%)',
@@ -98,10 +98,6 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
               </li>
             ))}
           </ul>
-          {/* Every plan is meant to open everything, so new content is added to the plans as it goes live. */}
-          <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: '16px', color: palette.muted }}>
-            Plus every new course, path and experience added while your plan is active.
-          </p>
         </div>
       )}
       <Link href={pricingHrefFor(itemId, kind)}
