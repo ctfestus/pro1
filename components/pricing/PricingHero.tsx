@@ -20,72 +20,6 @@ function billingLabel(months: number): string {
   return `Every ${months} months`;
 }
 
-function HeroFlourish({ accentColor }: { accentColor: string }) {
-  const discountMarks: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
-    { top: '12%', right: '29%', size: 20, delay: '0s' },
-    { top: '22%', right: '4%', size: 16, delay: '0.9s' },
-    { bottom: '15%', right: '25%', size: 24, delay: '1.6s' },
-  ];
-
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <style>{`
-        @keyframes hero-offer-pulse {
-          0%, 100% { opacity: 0.55; transform: scale(0.9); }
-          50% { opacity: 1; transform: scale(1.1); }
-        }
-        .hero-discount-mark { animation: hero-offer-pulse 3.2s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .hero-discount-mark { animation: none; } }
-      `}</style>
-      <div
-        className="absolute rounded-full"
-        style={{
-          right: '-6%',
-          top: '-18%',
-          width: 520,
-          height: 520,
-          background: 'radial-gradient(circle, rgba(255,255,255,0.16), transparent 68%)',
-        }}
-      />
-      <svg
-        className="absolute bottom-0 right-0 hidden lg:block"
-        style={{ width: '34%', height: '72%' }}
-        viewBox="0 0 300 220"
-        fill="none"
-        preserveAspectRatio="xMidYMax slice"
-      >
-        <path
-          d="M-20 232 C 42 206, 108 202, 175 150 S 265 70, 320 100"
-          stroke="rgba(255,255,255,0.16)"
-          strokeWidth="14"
-          strokeLinecap="round"
-        />
-        <path
-          d="M-20 234 C 48 216, 114 220, 182 168 S 268 92, 320 122"
-          stroke="rgba(255,255,255,0.09)"
-          strokeWidth="8"
-          strokeLinecap="round"
-        />
-      </svg>
-      {discountMarks.map((discountMark, index) => (
-        <svg
-          key={index}
-          className="hero-discount-mark absolute"
-          style={{ ...discountMark, width: discountMark.size, height: discountMark.size, animationDelay: discountMark.delay }}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={accentColor}
-          strokeWidth="1.75"
-        >
-          <circle cx="7.5" cy="7.5" r="2.5" />
-          <circle cx="16.5" cy="16.5" r="2.5" />
-          <path d="M18.5 5.5 5.5 18.5" strokeLinecap="round" />
-        </svg>
-      ))}
-    </div>
-  );
-}
-
 export interface PricingHeroProps {
   offer: FeaturedOffer | null;
   /** The page's best offer, whose saving the length switch names. */
@@ -94,12 +28,11 @@ export interface PricingHeroProps {
   selectedDuration: number | null;
   onSelectDuration: (months: number) => void;
   primaryColor: string;
-  accentColor: string;
   bodyFont?: string;
 }
 
 export function PricingHero({
-  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, accentColor, bodyFont,
+  offer, bestOffer, durationOptions, selectedDuration, onSelectDuration, primaryColor, bodyFont,
 }: PricingHeroProps) {
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
   const toolIcon = useToolIcons();
@@ -139,7 +72,6 @@ export function PricingHero({
   if (!offer) {
     return (
       <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
-        <HeroFlourish accentColor={accentColor} />
         <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.3fr_1fr]">
           <div>
             <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
@@ -162,7 +94,6 @@ export function PricingHero({
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
-      <HeroFlourish accentColor={accentColor} />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.3fr_1fr]">
         <div>
           <h1 className="text-4xl leading-[44px] font-black tracking-[-0.04em] sm:text-[45px] sm:leading-[52px]" style={{ color: '#FFFFFF', fontFamily: DISPLAY_FONT, textWrap: 'balance' }}>
