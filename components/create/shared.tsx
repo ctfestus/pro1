@@ -190,7 +190,7 @@ export const isRequired = (f: FormField) => f.required !== false;
 export function Toggle({ checked, onChange, accentColor }: { checked: boolean; onChange: () => void; accentColor?: string }) {
   const C = useC();
   return (
-    <button type="button" onClick={onChange} className="flex items-center gap-1.5">
+    <button type="button" onClick={onChange} className="flex items-center gap-2">
       <span className="relative inline-flex w-7 h-4 rounded-full transition-colors"
         style={{ background: checked ? (accentColor ?? C.green) : C.toggleOff }}>
         <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-3' : ''}`} />
@@ -217,5 +217,5 @@ export function SwitchToggle({ checked, onChange, accentColor }: { checked: bool
 }
 
 // --- UI primitives ---
-export const inputCls = "w-full rounded-lg px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-[#bbb]";
+export const inputCls = "w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors placeholder:text-[#bbb]";
 export const labelCls = "block text-xs font-medium mb-2";

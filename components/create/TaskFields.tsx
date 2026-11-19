@@ -17,7 +17,7 @@ import { RubricFileImportActions } from '@/components/RubricFileImportActions';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 function inputStyle(C: typeof LIGHT_C): React.CSSProperties {
-  return { width: '100%', minHeight: 44, padding: '10px 13px', borderRadius: 11, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.text, fontSize: 13, outline: 'none' };
+  return { width: '100%', minHeight: 44, padding: '10px 13px', borderRadius: 11, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.text, fontSize: 14, outline: 'none' };
 }
 function textareaStyle(C: typeof LIGHT_C): React.CSSProperties {
   return { ...inputStyle(C), minHeight: 104, resize: 'vertical', lineHeight: 1.6, fontFamily: 'inherit' };
@@ -26,7 +26,7 @@ function labelStyle(C: typeof LIGHT_C): React.CSSProperties {
   return { display: 'block', fontSize: 12, fontWeight: 750, color: C.muted, marginBottom: 7 };
 }
 function hintStyle(C: typeof LIGHT_C): React.CSSProperties {
-  return { fontSize: 11.5, color: C.faint, marginTop: 4 };
+  return { fontSize: 12, color: C.faint, marginTop: 4 };
 }
 
 export function TaskFields({ task, onChange, C }: {
@@ -246,8 +246,8 @@ export function TaskFields({ task, onChange, C }: {
               return (
                 <button key={value} type="button" role="radio" aria-checked={active} onClick={() => onChange({ documentReviewMode: value })}
                   style={{ minHeight: 62, padding: '10px 12px', textAlign: 'left', borderRadius: 11, border: `1px solid ${active ? C.cta : C.divider}`, background: active ? accentSoft : C.page, color: active ? C.cta : C.text, cursor: 'pointer' }}>
-                  <strong style={{ display: 'block', fontSize: 12.5 }}>{label}</strong>
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 10.5, color: active ? C.cta : C.faint }}>{description}</span>
+                  <strong style={{ display: 'block', fontSize: 12 }}>{label}</strong>
+                  <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: active ? C.cta : C.faint }}>{description}</span>
                 </button>
               );
             })}

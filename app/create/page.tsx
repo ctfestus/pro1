@@ -260,7 +260,7 @@ export default function Page() {
 
   // Messages from the start page, the generators and the draft step.
   const toastView = toast && (
-    <div role="status" className="fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 max-w-xl w-[calc(100%-2rem)] max-h-[45vh] overflow-auto rounded-2xl px-4 py-3.5 flex items-start gap-3 shadow-xl"
+    <div role="status" className="fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 max-w-xl w-[calc(100%-2rem)] max-h-[45vh] overflow-auto rounded-2xl px-4 py-4 flex items-start gap-3 shadow-xl"
       style={{ background: C.card, border: `1px solid ${toast.type === 'error' ? 'rgba(217,48,37,0.25)' : toast.type === 'success' ? 'rgba(16,185,129,0.25)' : C.cardBorder}`, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
       <div className="w-2 self-stretch rounded-full flex-shrink-0 mt-0.5"
         style={{ background: toast.type === 'error' ? '#D93025' : toast.type === 'success' ? '#10b981' : '#3b82f6' }} />
@@ -709,7 +709,7 @@ export default function Page() {
 
                 {docSourceMethod === 'file' && (
                   <label className="flex flex-col items-center justify-center gap-1 py-8 rounded-2xl cursor-pointer text-center" style={{ border: `1.5px dashed ${docFile ? brand : C.inputBorder}` }}>
-                    <Upload className="w-5 h-5 mb-1.5" style={{ color: docFile ? brand : C.faint }} />
+                    <Upload className="w-5 h-5 mb-2" style={{ color: docFile ? brand : C.faint }} />
                     <span className="text-sm font-semibold" style={{ color: C.text }}>{docFile ? docFile.name : 'Choose a file'}</span>
                     <span className="text-xs" style={{ color: C.faint }}>PDF, DOCX, DOC, TXT, PPTX, PPT (max 20 MB)</span>
                     <input type="file" accept=".pdf,.docx,.doc,.txt,.pptx,.ppt" className="hidden" onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
@@ -767,9 +767,9 @@ export default function Page() {
                       <Field label="Lesson videos">
                         <Chips options={DOC_VIDEOS} isOn={k => docBrief.includeVideos === k} onPick={k => setDocBrief(p => ({ ...p, includeVideos: k }))} />
                         {docBrief.includeVideos && (
-                          <div className="mt-2.5">
+                          <div className="mt-3">
                             <input type="text" value={docBrief.preferredChannels} onChange={e => setDocBrief(p => ({ ...p, preferredChannels: e.target.value }))} placeholder="Channel name, @handle or link, comma separated (optional)" aria-label="Preferred YouTube channels" className={fieldCls} style={inputStyle} />
-                            <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>e.g. freeCodeCamp, @AlexTheAnalyst or a channel URL. Videos come from these channels when they have a relevant match.</p>
+                            <p className="text-[11px] mt-2" style={{ color: C.faint }}>e.g. freeCodeCamp, @AlexTheAnalyst or a channel URL. Videos come from these channels when they have a relevant match.</p>
                           </div>
                         )}
                       </Field>
@@ -845,10 +845,10 @@ export default function Page() {
                       {(pyOutline.datasetPlan?.datasets ?? []).map((ds: any, i: number) => (
                         <div key={i} className="rounded-[10px] p-3" style={{ background: C.input }}>
                           <p className="text-xs font-mono font-semibold" style={{ color: C.text }}>{ds.variableName}</p>
-                          <p className="text-xs mt-0.5 mb-1.5" style={{ color: C.muted }}>{ds.description}</p>
+                          <p className="text-xs mt-0.5 mb-2" style={{ color: C.muted }}>{ds.description}</p>
                           <div className="flex flex-wrap gap-1">
                             {(ds.columns ?? []).map((col: string) => (
-                              <span key={col} className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: C.card, color: C.muted }}>{col}</span>
+                              <span key={col} className="text-[11px] px-2 py-0.5 rounded font-mono" style={{ background: C.card, color: C.muted }}>{col}</span>
                             ))}
                           </div>
                         </div>
@@ -860,9 +860,9 @@ export default function Page() {
                   </SidePanel>
                   {(pyOutline.learningOutcomes ?? []).length > 0 && (
                     <SidePanel title="Outcomes">
-                      <ul className="text-xs space-y-1.5" style={{ color: C.text }}>
+                      <ul className="text-xs space-y-2" style={{ color: C.text }}>
                         {(pyOutline.learningOutcomes ?? []).map((o: string, i: number) => (
-                          <li key={i} className="flex items-start gap-1.5"><Check className="w-3 h-3 mt-0.5 shrink-0" style={{ color: brand }} />{o}</li>
+                          <li key={i} className="flex items-start gap-2"><Check className="w-3 h-3 mt-0.5 shrink-0" style={{ color: brand }} />{o}</li>
                         ))}
                       </ul>
                     </SidePanel>

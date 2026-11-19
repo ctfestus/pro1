@@ -26,7 +26,7 @@ function inputStyle(C: typeof LIGHT_C) {
   } as React.CSSProperties;
 }
 function labelStyle(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
+  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
 }
 
 function toDatetimeLocalValue(d: Date): string {
@@ -243,14 +243,14 @@ export default function CreatePromotionPage() {
 
             {/* Section: Content */}
             <div style={{ padding: '26px 20px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
 
               <div style={{ marginBottom: 18 }}>
                 <label style={labelStyle(C)}>Type</label>
                 <div role="radiogroup" aria-label="Promotion type" style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 10, background: C.pill }}>
                   {([['standard', 'Standard'], ['events', 'Events']] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={kind === id} onClick={() => setKind(id)}
-                      style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
                         background: kind === id ? C.card : 'transparent', color: kind === id ? C.text : C.muted }}>
                       {label}
                     </button>
@@ -296,7 +296,7 @@ export default function CreatePromotionPage() {
                   <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
                     placeholder="https://example.com/image.jpg" style={{ ...inputStyle(C), flex: 1, minWidth: 0 }}/>
                   <button type="button" onClick={() => imageRef.current?.click()} disabled={uploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <Upload style={{ width: 14, height: 14 }}/>{uploading ? 'Uploading...' : 'Upload'}
                   </button>
                   <button type="button" onClick={() => setShowLibrary(true)} title="Select from library"
@@ -347,7 +347,7 @@ export default function CreatePromotionPage() {
                   </div>
                   {eventItems.length < MAX_EVENT_ITEMS && (
                     <button type="button" onClick={() => setEventItems(prev => [...prev, emptyEventItem()])}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.text, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                       <Plus style={{ width: 14, height: 14 }}/> Add event
                     </button>
                   )}
@@ -374,7 +374,7 @@ export default function CreatePromotionPage() {
 
             {/* Section: Where and when */}
             <div style={{ padding: '26px 20px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Where it shows</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Where it shows</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
                 {PROMO_PLACEMENTS.map(p => (
                   <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
@@ -427,7 +427,7 @@ export default function CreatePromotionPage() {
               <>
                 <div style={{ height: 1, background: C.divider }} />
                 <div style={{ padding: '26px 20px' }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 6 }}>Who sees it</h2>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 6 }}>Who sees it</h2>
                   <p style={{ margin: '0 0 16px', fontSize: 12, color: C.faint }}>
                     Leave all unticked to show it to everyone, including visitors who are not signed in. Ticking any limits it to students in those cohorts or plans, and it then never shows to signed-out visitors.
                   </p>
