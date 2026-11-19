@@ -64,7 +64,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
         </p>
       )}
       <p style={{ margin: '-8px 0 0', fontSize: 14, lineHeight: 1.55, color: palette.muted }}>
-        About{' '}
+        Only{' '}
         <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
           {perDay}
           {/* A hand-drawn swoosh under the figure: the platform green of the Enroll buttons, or the ocean blue in dark mode. */}

@@ -95,6 +95,7 @@ export function PricingSection({
   plans,
   free,
   primaryColor,
+  accentColor,
   headingFont,
   bodyFont,
   signedIn,
@@ -157,6 +158,7 @@ export function PricingSection({
             now={now}
             hFont={hFont}
             primaryColor={primaryColor}
+            accentColor={accentColor}
             busy={busyPriceId}
             onBuy={buy}
           />
@@ -223,7 +225,7 @@ function OfferCountdown({ plan, price, end, now, hFont }: {
   );
 }
 
-function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onBuy }: {
+function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, accentColor, busy, onBuy }: {
   plan: PricingPlan;
   months: number | null;
   /** The Starter card is shown first, so this card lists what it adds to it. */
@@ -231,6 +233,8 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onB
   now: number | null;
   hFont?: string;
   primaryColor: string;
+  /** The site's secondary accent: the recommended plan's border. */
+  accentColor: string;
   busy: string;
   onBuy: (price: PricingPlan['prices'][number]) => void;
 }) {
@@ -248,7 +252,7 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onB
     <article
       className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7"
       style={plan.recommended
-        ? { borderTop: `4px solid ${primaryColor}`, boxShadow: `inset 0 0 0 2px ${primaryColor}, 0 18px 48px rgba(16,24,40,0.14)` }
+        ? { borderTop: `4px solid ${accentColor}`, boxShadow: `inset 0 0 0 2px ${accentColor}, 0 18px 48px rgba(16,24,40,0.14)` }
         : { borderTop: '4px solid #E4E7EC' }}
     >
       {plan.recommended && (
@@ -276,7 +280,7 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onB
           ) : (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm" style={{ color: '#667085' }}>
               <span>
-                About{' '}
+                Only{' '}
                 <span className="relative inline-block pb-[3px] font-black" style={{ color: '#101828' }}>
                   {perDay}
                   <svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute bottom-[-3px] left-0 h-[7px] w-full overflow-visible">
