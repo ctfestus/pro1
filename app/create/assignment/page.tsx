@@ -81,7 +81,7 @@ function isMissingSolutionsTable(err: any): boolean {
 function inputStyle(C: typeof LIGHT_C) {
   return {
     width: '100%', minHeight: 46, padding: '11px 14px', borderRadius: 12, border: `1px solid ${C.cardBorder}`,
-    background: C.card, color: C.text, fontSize: 13.5, outline: 'none',
+    background: C.card, color: C.text, fontSize: 14, outline: 'none',
     boxShadow: '0 1px 0 rgba(15,23,42,.02)', transition: 'border-color .15s ease, box-shadow .15s ease',
   } as React.CSSProperties;
 }
@@ -92,7 +92,7 @@ function labelStyle(C: typeof LIGHT_C) {
   return { display: 'block', fontSize: 12, fontWeight: 750, color: C.muted, marginBottom: 8, letterSpacing: '.01em' } as React.CSSProperties;
 }
 function hintStyle(C: typeof LIGHT_C) {
-  return { fontSize: 11.5, lineHeight: 1.5, color: C.faint, marginTop: 6 } as React.CSSProperties;
+  return { fontSize: 12, lineHeight: 1.5, color: C.faint, marginTop: 6 } as React.CSSProperties;
 }
 
 export default function CreateAssignmentPage() {
@@ -602,7 +602,7 @@ export default function CreateAssignmentPage() {
   };
   const sectionEyebrowStyle: React.CSSProperties = {
     color: C.cta,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 800,
     textTransform: 'uppercase',
     letterSpacing: '.14em',
@@ -697,9 +697,9 @@ export default function CreateAssignmentPage() {
                   <span className="animate-ping" style={{ position: 'absolute', width: 10, height: 10, borderRadius: '50%', background: C.cta, opacity: .2 }}/>
                   <span style={{ position: 'relative', width: 6, height: 6, borderRadius: '50%', background: C.cta }}/>
                 </span>
-                <span style={{ color: C.cta, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.16em' }}>Assignment Studio</span>
+                <span style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.16em' }}>Assignment Studio</span>
               </div>
-              <h1 style={{ color: C.text, fontSize: 20, lineHeight: 1.2, fontWeight: 750, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || (editId ? 'Edit assignment' : 'Untitled assignment')}</h1>
+              <h1 style={{ color: C.text, fontSize: 22, lineHeight: 1.2, fontWeight: 750, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || (editId ? 'Edit assignment' : 'Untitled assignment')}</h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
               <button ref={previewButtonRef} type="button" onClick={openPreview} disabled={loadingPreviewVe} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 38, padding: '8px 13px', borderRadius: 12, border: 'none', cursor: 'pointer', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700 }}>
@@ -718,7 +718,7 @@ export default function CreateAssignmentPage() {
         <section style={{ padding: '22px 24px', borderLeft: `1px solid ${C.cardBorder}`, borderRight: `1px solid ${C.cardBorder}`, borderTop: `1px solid ${C.divider}`, borderBottom: `1px solid ${C.divider}`, background: C.card }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ minWidth: 0 }}>
-              <h2 style={{ color: C.text, fontSize: 20, fontWeight: 750, lineHeight: 1.2, margin: 0 }}>{activeStudioConfig.label}</h2>
+              <h2 style={{ color: C.text, fontSize: 22, fontWeight: 750, lineHeight: 1.2, margin: 0 }}>{activeStudioConfig.label}</h2>
               <p style={{ color: C.faint, fontSize: 11, fontWeight: 600, margin: '7px 0 0' }}>{activeStudioConfig.description}</p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -740,8 +740,8 @@ export default function CreateAssignmentPage() {
           {/* -- Assignment Type --- */}
           <section id="assignment-section-type" style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'type' ? 'block' : 'none' }}>
             <div style={{ marginBottom: 20 }}>
-              <p style={{ color: C.cta, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.14em', margin: '0 0 6px' }}>Assignment format</p>
-              <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>How should learners complete this assignment?</h3>
+              <p style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.14em', margin: '0 0 6px' }}>Assignment format</p>
+              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>How should learners complete this assignment?</h3>
               <p style={{ ...hintStyle(C), margin: '7px 0 0', maxWidth: 620 }}>Choose a flexible task-based assignment or connect an immersive virtual experience. This choice determines the tools available in the next tabs.</p>
             </div>
               <div role="radiogroup" aria-label="Assignment type" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
@@ -752,8 +752,8 @@ export default function CreateAssignmentPage() {
                       style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 13, minWidth: 0, minHeight: 92, padding: 16, borderRadius: 15, border: `1px solid ${active ? C.cta : C.divider}`, background: active ? `${C.cta}0e` : C.page, color: active ? C.cta : C.muted, textAlign: 'left', cursor: 'pointer', transition: 'all .15s ease' }}>
                       <span style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: 'grid', placeItems: 'center', background: active ? `${C.cta}18` : C.card, color: active ? C.cta : C.faint }}>{t.icon}</span>
                       <span style={{ minWidth: 0, paddingRight: 22 }}>
-                        <strong style={{ display: 'block', color: active ? C.cta : C.text, fontSize: 13.5, lineHeight: 1.3 }}>{t.label}</strong>
-                        <span style={{ display: 'block', color: C.faint, fontSize: 11.5, lineHeight: 1.45, marginTop: 5 }}>{t.description}</span>
+                        <strong style={{ display: 'block', color: active ? C.cta : C.text, fontSize: 14, lineHeight: 1.3 }}>{t.label}</strong>
+                        <span style={{ display: 'block', color: C.faint, fontSize: 12, lineHeight: 1.45, marginTop: 5 }}>{t.description}</span>
                       </span>
                       {active && (
                         <CheckCircle2 style={{ position: 'absolute', right: 14, top: 14, width: 16, height: 16, color: C.cta }}/>
@@ -773,14 +773,14 @@ export default function CreateAssignmentPage() {
           {assignmentType !== 'standard' && (
             <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'content' ? 'block' : 'none', marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.divider}` }}>
               <p style={sectionEyebrowStyle}>{assignmentType === 'virtual_experience' ? 'Connected experience' : 'AI assessment'}</p>
-              <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'virtual_experience' ? 'Virtual Experience' : 'AI review settings'}</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'virtual_experience' ? 'Virtual Experience' : 'AI review settings'}</h3>
               <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>{assignmentType === 'virtual_experience' ? 'Select the immersive experience learners will complete.' : 'Define the rubric, context, and score used for automated review.'}</p>
 
               {assignmentType === 'virtual_experience' ? (
                 <div style={fieldGroupStyle}>
                   <label style={labelStyle(C)}>Select Virtual Experience <span style={{ color: C.errorText }}>*</span></label>
                   {veForms.length === 0 ? (
-                    <p style={{ fontSize: 13, color: C.faint }}>No Virtual Experiences found. Create one first from the dashboard.</p>
+                    <p style={{ fontSize: 14, color: C.faint }}>No Virtual Experiences found. Create one first from the dashboard.</p>
                   ) : (
                     <select value={veFormId} onChange={e => setVeFormId(e.target.value)}
                       style={{ ...inputStyle(C), appearance: 'auto' }}>
@@ -886,7 +886,7 @@ export default function CreateAssignmentPage() {
           <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'build' ? 'block' : 'none' }}>
             <div style={{ marginBottom: 20 }}>
               <p style={sectionEyebrowStyle}>Assignment identity</p>
-              <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>Set the learner-facing details</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Set the learner-facing details</h3>
               <p style={{ ...hintStyle(C), marginTop: 6 }}>Use a clear title and a focused cover image learners can recognize at a glance.</p>
             </div>
 
@@ -941,7 +941,7 @@ export default function CreateAssignmentPage() {
           {showContentFields && (
             <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'content' ? 'block' : 'none', marginBottom: assignmentType === 'standard' ? 28 : 0, paddingBottom: assignmentType === 'standard' ? 28 : 0, borderBottom: assignmentType === 'standard' ? `1px solid ${C.divider}` : 'none' }}>
               <p style={sectionEyebrowStyle}>{assignmentType === 'standard' ? 'Learner briefing' : 'Assignment content'}</p>
-              <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'standard' ? 'Introduce the assignment' : 'Shape the learner brief'}</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'standard' ? 'Introduce the assignment' : 'Shape the learner brief'}</h3>
               <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>{assignmentType === 'standard' ? 'Give learners the context they need before starting the scenarios.' : 'Explain the situation, expected work, and completion requirements.'}</p>
               {isLegacyType && (
                 <p style={{ ...hintStyle(C), marginBottom: 16 }}>This text is shown to students as a briefing before they interact with the {LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType} tool.</p>
@@ -987,7 +987,7 @@ export default function CreateAssignmentPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
                 <p style={sectionEyebrowStyle}>Learner resources</p>
-                <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>Reference material</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Reference material</h3>
                 <p style={{ ...hintStyle(C), marginTop: 6 }}>Attach links or files learners can use while completing the work.</p>
               </div>
               <button type="button" onClick={addResource}
@@ -997,7 +997,7 @@ export default function CreateAssignmentPage() {
             </div>
 
             {resources.length === 0 && (
-              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12.5, padding: '30px 18px', borderRadius: 15, background: C.page }}>
+              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12, padding: '30px 18px', borderRadius: 15, background: C.page }}>
                 <LinkIcon style={{ width: 20, height: 20, margin: '0 auto 8px', color: C.cta }}/>
                 No resources yet. Add a link or file when learners need supporting material.
               </div>
@@ -1018,7 +1018,7 @@ export default function CreateAssignmentPage() {
                         <input type="file" style={{ display: 'none' }} ref={el => { resourceFileRefs.current[resource.id] = el; }}
                           onChange={e => handleResourceFileUpload(resource.id, e)}/>
                         <button type="button" onClick={() => resourceFileRefs.current[resource.id]?.click()} disabled={resourceUploading[resource.id]}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 44, padding: '9px 12px', borderRadius: 11, border: 'none', background: C.pill, color: C.muted, fontSize: 11.5, fontWeight: 700, cursor: resourceUploading[resource.id] ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 44, padding: '9px 12px', borderRadius: 11, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: resourceUploading[resource.id] ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {resourceUploading[resource.id] ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin"/> : <Upload style={{ width: 12, height: 12 }}/>}
                           {resourceUploading[resource.id] ? 'Uploading...' : 'Upload'}
                         </button>
@@ -1028,7 +1028,7 @@ export default function CreateAssignmentPage() {
                   <div style={{ display: 'flex', gap: 6 }}>
                     {(['link', 'file'] as const).map(t => (
                       <button key={t} type="button" onClick={() => updateResource(resource.id, 'resource_type', t)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 11px', borderRadius: 9, border: 'none', background: resource.resource_type === t ? `${C.cta}14` : C.card, color: resource.resource_type === t ? C.cta : C.muted, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 11px', borderRadius: 9, border: 'none', background: resource.resource_type === t ? `${C.cta}14` : C.card, color: resource.resource_type === t ? C.cta : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
                         <LinkIcon style={{ width: 11, height: 11 }}/> {t}
                       </button>
                     ))}
@@ -1047,7 +1047,7 @@ export default function CreateAssignmentPage() {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
               <div>
                 <p style={sectionEyebrowStyle}>Post-grade release</p>
-                <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>Solution files</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Solution files</h3>
                 <p style={{ ...hintStyle(C), marginTop: 4 }}>
                   The model answer. A student can only see and download these once their own submission has been graded.
                 </p>
@@ -1069,7 +1069,7 @@ export default function CreateAssignmentPage() {
             </div>
 
             {solutions.length === 0 ? (
-              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12.5, padding: '30px 18px', borderRadius: 15, background: C.page }}>
+              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12, padding: '30px 18px', borderRadius: 15, background: C.page }}>
                 <FileText style={{ width: 20, height: 20, margin: '0 auto 8px', color: C.cta }}/>
                 No solutions yet. Upload a worked answer or link a walkthrough for release after grading.
               </div>
@@ -1085,7 +1085,7 @@ export default function CreateAssignmentPage() {
                         onChange={e => updateSolution(s.id, 'url', e.target.value)}
                         style={{ ...inputStyle(C), width: '100%' }}/>
                     )}
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 10px', borderRadius: 9, background: C.card, color: C.muted, fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 10px', borderRadius: 9, background: C.card, color: C.muted, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {s.kind === 'file'
                         ? <><FileText style={{ width: 11, height: 11 }}/> Private file</>
                         : <><LinkIcon style={{ width: 11, height: 11 }}/> Link</>}
@@ -1103,7 +1103,7 @@ export default function CreateAssignmentPage() {
           {/* -- Section: Settings --- */}
           <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'settings' ? 'block' : 'none', marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.divider}` }}>
             <p style={sectionEyebrowStyle}>Rules and timing</p>
-            <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>Assignment settings</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Assignment settings</h3>
             <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>Connect the course, set expectations, and define how success is measured.</p>
 
             <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
@@ -1143,7 +1143,7 @@ export default function CreateAssignmentPage() {
                   onChange={e => setPassingScore(Math.min(100, Math.max(1, Math.round(Number(e.target.value) || DEFAULT_PASS_MARK))))}
                   style={{ ...inputStyle(C), width: 'auto' }}
                 />
-                <span style={{ fontSize: 13, color: C.faint }}>/ 100</span>
+                <span style={{ fontSize: 14, color: C.faint }}>/ 100</span>
               </div>
               <p style={hintStyle(C)}>The grade a submission needs to pass. Below it the student can resubmit; at or above it the work is passed{assignmentType === 'standard' ? ' and the solution files are released' : ''}. Defaults to {DEFAULT_PASS_MARK}.</p>
             </div>
@@ -1162,7 +1162,7 @@ export default function CreateAssignmentPage() {
           {/* -- Target Audience --- */}
           <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'settings' ? 'block' : 'none' }}>
             <p style={sectionEyebrowStyle}>Assignment access</p>
-            <h3 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: 0 }}>Target audience</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Target audience</h3>
             <p style={{ ...hintStyle(C), margin: '7px 0 16px' }}>Choose whether this assignment is delivered to complete cohorts or selected groups.</p>
             {/* Mode toggle */}
             <div style={{ display: 'flex', gap: 4, padding: 5, marginBottom: 16, borderRadius: 12, background: C.page, width: 'fit-content' }}>
@@ -1185,7 +1185,7 @@ export default function CreateAssignmentPage() {
 
             {audienceMode === 'cohorts' && (
               cohorts.length === 0
-                ? <p style={{ fontSize: 13, color: C.faint }}>No cohorts available.</p>
+                ? <p style={{ fontSize: 14, color: C.faint }}>No cohorts available.</p>
                 : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8 }}>
                     {cohorts.map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '11px 13px', borderRadius: 12, background: selectedCohortIds.includes(c.id) ? `${C.cta}0e` : C.page, cursor: 'pointer' }}>
@@ -1199,7 +1199,7 @@ export default function CreateAssignmentPage() {
 
             {audienceMode === 'groups' && (
               groups.length === 0
-                ? <p style={{ fontSize: 13, color: C.faint }}>No groups yet. Create groups from the <Link href="/admin/groups" style={{ color: C.cta }}>Groups admin page</Link>.</p>
+                ? <p style={{ fontSize: 14, color: C.faint }}>No groups yet. Create groups from the <Link href="/admin/groups" style={{ color: C.cta }}>Groups admin page</Link>.</p>
                 : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8 }}>
                     {groups.map(g => {
                       const cohortName = cohorts.find(c => c.id === g.cohort_id)?.name;
@@ -1219,8 +1219,8 @@ export default function CreateAssignmentPage() {
           <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'publish' ? 'block' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
               <div>
-                <p style={{ color: C.cta, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', margin: 0 }}>Publish readiness</p>
-                <h2 style={{ fontSize: 17, fontWeight: 750, color: C.text, margin: '5px 0 0' }}>{readinessComplete === readinessChecks.length ? 'Ready to assign' : `${readinessChecks.length - readinessComplete} items need attention`}</h2>
+                <p style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', margin: 0 }}>Publish readiness</p>
+                <h2 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: '5px 0 0' }}>{readinessComplete === readinessChecks.length ? 'Ready to assign' : `${readinessChecks.length - readinessComplete} items need attention`}</h2>
               </div>
               <span style={{ padding: '7px 11px', borderRadius: 10, background: readinessComplete === readinessChecks.length ? '#22c55e18' : `${C.cta}12`, color: readinessComplete === readinessChecks.length ? '#22c55e' : C.cta, fontSize: 12, fontWeight: 800 }}>{readinessComplete}/{readinessChecks.length}</span>
             </div>
@@ -1249,7 +1249,7 @@ export default function CreateAssignmentPage() {
       </main>
 
       <div style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 55, display: 'flex', alignItems: 'center', gap: 8, padding: 8, maxWidth: 'calc(100vw - 32px)', borderRadius: 15, background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 16px 42px rgba(0,0,0,.45)' : '0 16px 42px rgba(15,23,42,.16)' }}>
-        <motion.button type="submit" form="assignment-form" disabled={loading} whileTap={{ scale: 0.97 }} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', background: C.cta, color: C.ctaText, fontSize: 13, fontWeight: 750, opacity: loading ? .65 : 1 }}>
+        <motion.button type="submit" form="assignment-form" disabled={loading} whileTap={{ scale: 0.97 }} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 750, opacity: loading ? .65 : 1 }}>
           {loading
             ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin"/>
             : <Save style={{ width: 15, height: 15 }}/>
@@ -1273,12 +1273,12 @@ export default function CreateAssignmentPage() {
                   <span style={{ position: 'relative', width: 6, height: 6, borderRadius: '50%', background: C.cta }}/>
                 </span>
                 <div>
-                  <p style={{ fontSize: 11.5, fontWeight: 750, color: C.text, margin: 0 }}>Student preview</p>
-                  <p style={{ fontSize: 10.5, color: C.faint, margin: '2px 0 0' }}>Rendered with the learner experience. Preview activity is not saved.</p>
+                  <p style={{ fontSize: 12, fontWeight: 750, color: C.text, margin: 0 }}>Student preview</p>
+                  <p style={{ fontSize: 11, color: C.faint, margin: '2px 0 0' }}>Rendered with the learner experience. Preview activity is not saved.</p>
                 </div>
               </div>
               <button onClick={() => setShowPreview(false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 <X style={{ width: 12, height: 12 }}/> Exit Preview
               </button>
             </div>
@@ -1332,7 +1332,7 @@ export default function CreateAssignmentPage() {
                       </div>
                     )}
                     <div style={{ padding: '20px 24px' }}>
-                      <h2 style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>{title || 'Untitled Assignment'}</h2>
+                      <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>{title || 'Untitled Assignment'}</h2>
                       <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: C.lime, color: C.cta }}>
                         {ASSIGNMENT_TYPES.find(t => t.value === assignmentType)?.label}
                       </span>
@@ -1378,7 +1378,7 @@ export default function CreateAssignmentPage() {
                   {/* Submission area placeholder */}
                   <div style={{ borderRadius: 20, background: C.card, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, padding: 24 }}>
                     <p style={{ ...sectionEyebrowStyle, marginBottom: 6 }}>Submission workspace</p>
-                    <p style={{ fontSize: 15, fontWeight: 750, color: C.text, marginBottom: 14, marginTop: 0 }}>Your submission</p>
+                    <p style={{ fontSize: 16, fontWeight: 750, color: C.text, marginBottom: 14, marginTop: 0 }}>Your submission</p>
                     {assignmentType === 'standard' && (
                       <>
                         <div style={{ height: 80, borderRadius: 10, border: `1px solid ${C.cardBorder}`, background: C.input, marginBottom: 12 }}/>
@@ -1389,7 +1389,7 @@ export default function CreateAssignmentPage() {
                       </>
                     )}
                     {assignmentType !== 'standard' && (
-                      <p style={{ fontSize: 13, color: C.faint, margin: 0 }}>
+                      <p style={{ fontSize: 14, color: C.faint, margin: 0 }}>
                         {assignmentType === 'code_review' && 'Students paste their SQL / code here and get AI feedback.'}
                         {assignmentType === 'excel_review' && 'Students upload their spreadsheet and get AI feedback.'}
                         {assignmentType === 'dashboard_critique' && 'Students upload a dashboard screenshot and get AI critique.'}

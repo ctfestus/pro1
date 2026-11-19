@@ -25,7 +25,7 @@ function textareaStyle(C: typeof LIGHT_C) {
   return { ...inputStyle(C), minHeight: 140, resize: 'vertical' as const, lineHeight: 1.6 };
 }
 function labelStyle(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
+  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
 }
 
 // -- Format a date for datetime-local input ---
@@ -211,7 +211,7 @@ export default function CreateAnnouncementPage() {
 
             {/* Section: Content */}
             <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
 
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle(C)}>Title <span style={{ color: C.errorText }}>*</span></label>
@@ -263,7 +263,7 @@ export default function CreateAnnouncementPage() {
                   <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)}
                     placeholder="https://example.com/image.jpg" style={{ ...inputStyle(C), flex: 1 }}/>
                   <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <Upload style={{ width: 14, height: 14 }}/>{coverUploading ? 'Uploading…' : 'Upload'}
                   </button>
                   <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
@@ -320,7 +320,7 @@ export default function CreateAnnouncementPage() {
 
             {/* Section: Settings */}
             <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Settings</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Settings</h2>
 
               {/* Pin toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: C.input }}>
@@ -371,7 +371,7 @@ export default function CreateAnnouncementPage() {
               <>
                 <div style={{ height: 1, background: C.divider }} />
                 <div style={{ padding: '26px 30px' }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Assign to Cohorts</h2>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Assign to Cohorts</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {cohorts.map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>

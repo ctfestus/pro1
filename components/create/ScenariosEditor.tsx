@@ -108,7 +108,7 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
       ? { background: 'transparent', border: 'none', boxShadow: 'none', padding: 0, margin: 0 }
       : { background: C.card, borderRadius: 20, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? 'none' : '0 14px 38px rgba(15,23,42,0.05)', padding: 24, marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>Scenarios & Tasks</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Scenarios & Tasks</h2>
         <button type="button" onClick={addScenario}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
           <Plus style={{ width: 14, height: 14 }} /> Add scenario
@@ -119,9 +119,9 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
       </p>
 
       {scenarios.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '34px 18px', borderRadius: 16, background: C.page, color: C.faint, fontSize: 13 }}>
+        <div style={{ textAlign: 'center', padding: '34px 18px', borderRadius: 16, background: C.page, color: C.faint, fontSize: 14 }}>
           <div style={{ width: 38, height: 38, margin: '0 auto 10px', borderRadius: 12, display: 'grid', placeItems: 'center', background: `${C.cta}12`, color: C.cta }}><Plus style={{ width: 18, height: 18 }}/></div>
-          <strong style={{ display: 'block', color: C.text, fontSize: 13, marginBottom: 4 }}>Build the first scenario</strong>
+          <strong style={{ display: 'block', color: C.text, fontSize: 14, marginBottom: 4 }}>Build the first scenario</strong>
           Add context, then combine written, upload, quiz, and AI review tasks.
         </div>
       )}
@@ -173,8 +173,8 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
                               {taskMeta?.icon}
                             </span>
                             <span style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ display: 'block', fontSize: 10, fontWeight: 800, color: C.cta, letterSpacing: '.06em', textTransform: 'uppercase' }}>{TASK_TYPE_LABEL[task.type]}</span>
-                              <span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 650, color: task.title ? C.text : C.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'Untitled task'}</span>
+                              <span style={{ display: 'block', fontSize: 11, fontWeight: 800, color: C.cta, letterSpacing: '.06em', textTransform: 'uppercase' }}>{TASK_TYPE_LABEL[task.type]}</span>
+                              <span style={{ display: 'block', marginTop: 2, fontSize: 14, fontWeight: 650, color: task.title ? C.text : C.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'Untitled task'}</span>
                             </span>
                             {iconBtn(() => moveTask(scenario.id, tIdx, -1), tIdx === 0, <ArrowUp style={{ width: 13, height: 13 }} />, 'Move up')}
                             {iconBtn(() => moveTask(scenario.id, tIdx, 1), tIdx === scenario.tasks.length - 1, <ArrowDown style={{ width: 13, height: 13 }} />, 'Move down')}
@@ -196,21 +196,21 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
                     <div style={{ marginTop: 10, padding: 16, borderRadius: 16, border: `1px solid ${C.cardBorder}`, background: C.card }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <div>
-                          <span style={{ display: 'block', fontSize: 13, fontWeight: 750, color: C.text }}>Choose a task type</span>
-                          <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: C.faint }}>Select how learners will respond or receive feedback.</span>
+                          <span style={{ display: 'block', fontSize: 14, fontWeight: 750, color: C.text }}>Choose a task type</span>
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: C.faint }}>Select how learners will respond or receive feedback.</span>
                         </div>
                         <button type="button" onClick={() => setAddingFor(null)} style={{ fontSize: 12, color: C.faint, background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
                       </div>
                       {TASK_GROUPS.map(group => (
                         <div key={group} style={{ marginTop: 14 }}>
-                          <p style={{ margin: '0 0 8px', fontSize: 10.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: C.faint }}>{group}</p>
+                          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: C.faint }}>{group}</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
                             {TASK_PALETTE.filter(item => item.group === group).map(({ type, icon, description }) => (
                               <button key={type} type="button" onClick={() => addTask(scenario.id, type)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 11, minHeight: 72, padding: '11px 12px', textAlign: 'left', borderRadius: 12, border: `1px solid ${C.divider}`, background: C.page, color: C.text, cursor: 'pointer', transition: 'border-color .15s ease, background .15s ease, transform .15s ease' }}>
                                 <span style={{ width: 38, height: 38, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 11, background: `${C.cta}12`, color: C.cta }}>{icon}</span>
                                 <span style={{ minWidth: 0 }}>
-                                  <strong style={{ display: 'block', fontSize: 12.5, lineHeight: 1.25 }}>{TASK_TYPE_LABEL[type]}</strong>
+                                  <strong style={{ display: 'block', fontSize: 12, lineHeight: 1.25 }}>{TASK_TYPE_LABEL[type]}</strong>
                                   <span style={{ display: 'block', marginTop: 3, fontSize: 11, lineHeight: 1.35, color: C.faint }}>{description}</span>
                                 </span>
                               </button>

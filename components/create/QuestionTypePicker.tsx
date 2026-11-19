@@ -134,7 +134,7 @@ export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true,
           className="flex items-center justify-between px-4 sticky top-0 flex-shrink-0"
           style={{ background: T.bg, borderBottom: `1px solid ${T.divider}`, height: 44 }}
         >
-          <span style={{ fontSize: 11.5, fontWeight: 500, color: T.muted, letterSpacing: '0.01em' }}>Add content</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: T.muted, letterSpacing: '0.01em' }}>Add content</span>
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded-md transition-opacity hover:opacity-50"
@@ -145,7 +145,7 @@ export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true,
         </div>
 
         {/* Categories */}
-        <div className="px-3.5 pb-3.5">
+        <div className="px-4 pb-4">
           {CATEGORIES.map((cat, catIdx) => {
             let types = includeDownloads ? cat.types : cat.types.filter(t => !SLIDE_ONLY_TYPES.has(t.value));
             if (!includeLesson) types = types.filter(t => t.value !== 'lesson');
@@ -157,7 +157,7 @@ export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true,
               <div key={cat.label} style={{ marginTop: catIdx === 0 ? 14 : 12 }}>
                 {/* Section label + rule */}
                 <div className="flex items-center gap-2 mb-2">
-                  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: cat.color, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: cat.color, flexShrink: 0 }}>
                     {cat.label}
                   </span>
                   <div style={{ flex: 1, height: 1, background: cat.color + '28' }} />
@@ -200,7 +200,7 @@ function TypeCard({ entry, color, textColor, cardBg, onSelect }: {
       onClick={onSelect}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="flex items-center gap-2.5 text-left"
+      className="flex items-center gap-2 text-left"
       style={{
         gridColumn: entry.wide ? 'span 2' : undefined,
         padding: '9px 11px',
@@ -223,7 +223,7 @@ function TypeCard({ entry, color, textColor, cardBg, onSelect }: {
       >
         {entry.icon}
       </div>
-      <span style={{ fontSize: 12.5, fontWeight: 500, color: textColor, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+      <span style={{ fontSize: 12, fontWeight: 500, color: textColor, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
         {entry.label}
       </span>
     </button>

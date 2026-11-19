@@ -307,7 +307,7 @@ function CertificationEditor() {
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.cta }}>
                   <span className="h-2 w-2 rounded-full" style={{ background: C.cta, boxShadow: `0 0 0 5px ${C.cta}18` }} /> Certification Studio
                 </div>
-                <h1 className="mt-2 truncate text-xl sm:text-2xl font-bold">{state.title.trim() || (editId ? 'Edit certification' : 'New certification')}</h1>
+                <h1 className="mt-2 truncate text-[22px] sm:text-2xl font-bold leading-7">{state.title.trim() || (editId ? 'Edit certification' : 'New certification')}</h1>
               </div>
               <button onClick={() => router.push('/dashboard#certifications')} className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-transform hover:-translate-y-0.5" style={{ background: C.pill, color: C.muted }}>
                 <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Certifications</span>
@@ -315,17 +315,17 @@ function CertificationEditor() {
             </div>
 
             <div className="overflow-x-auto pb-1">
-              <div className="flex min-w-max items-center gap-1.5">
+              <div className="flex min-w-max items-center gap-2">
                 {EDITOR_TABS.map(tab => {
                   const Icon = tab.icon;
                   const active = editorTab === tab.id;
                   const count = tab.id === 'questions' ? state.questions.length : tab.id === 'practice' ? state.practiceQuestions.length : null;
                   return (
                     <button key={tab.id} type="button" onClick={() => setEditorTab(tab.id)}
-                      className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all"
+                      className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all"
                       style={{ background: active ? `${C.cta}14` : 'transparent', color: active ? C.cta : C.faint }}>
                       <Icon className="w-4 h-4" /> {tab.label}
-                      {count !== null && <span className="min-w-5 rounded-full px-1.5 py-0.5 text-[10px] text-center" style={{ background: active ? `${C.cta}1f` : C.pill }}>{count}</span>}
+                      {count !== null && <span className="min-w-5 rounded-full px-2 py-0.5 text-[11px] text-center" style={{ background: active ? `${C.cta}1f` : C.pill }}>{count}</span>}
                     </button>
                   );
                 })}
@@ -343,13 +343,13 @@ function CertificationEditor() {
         {editorTab === 'overview' && <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Certification identity</p>
-            <h2 className="mt-1 text-lg font-bold">Set the promise learners will work toward</h2>
+            <h2 className="mt-1 text-base font-bold leading-6">Set the promise learners will work toward</h2>
             <p className="mt-1 text-sm" style={{ color: C.muted }}>Create a clear title, summary, category, and public address.</p>
           </div>
           <div>
             <label className={labelCls} style={{ color: C.faint }}>Certification name</label>
             <input value={state.title} onChange={e => update({ title: e.target.value })} placeholder="Enter certification name"
-              className="w-full rounded-xl px-4 py-3.5 text-lg font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="w-full rounded-xl px-4 py-4 text-base font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 leading-6"
               style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text, outlineColor: C.cta }} />
           </div>
           <textarea value={state.description} onChange={e => update({ description: e.target.value })} placeholder="Short description shown before the exam starts"
@@ -361,18 +361,18 @@ function CertificationEditor() {
                 const on = state.certType === tp;
                 return (
                   <button key={tp} type="button" onClick={() => update({ certType: tp })}
-                    className="px-4 py-1.5 rounded-full text-xs font-medium capitalize"
+                    className="px-4 py-2 rounded-full text-xs font-medium capitalize"
                     style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
                     {tp}
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs mt-1.5" style={{ color: C.faint }}>Groups this certification on the certifications page.</p>
+            <p className="text-xs mt-2" style={{ color: C.faint }}>Groups this certification on the certifications page.</p>
           </div>
           <div>
             <label className={labelCls} style={{ color: C.faint }}>Public URL</label>
-            <div className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
+            <div className="flex items-center gap-2 px-3 py-3 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
               <span className="text-sm" style={{ color: C.faint }}>/</span>
               <input value={state.slug} onChange={e => update({ slug: e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })}
                 placeholder="auto-generated" className="flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }} />
@@ -385,7 +385,7 @@ function CertificationEditor() {
         {editorTab === 'settings' && <div className="rounded-2xl p-5 sm:p-7 space-y-6" style={{ background: C.card }}>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Exam setup</p>
-            <h2 className="mt-1 text-lg font-bold">Define the exam rules</h2>
+            <h2 className="mt-1 text-base font-bold leading-6">Define the exam rules</h2>
             <p className="mt-1 text-sm" style={{ color: C.muted }}>Control scoring, time, attempts, security, access, and award visuals.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -400,7 +400,7 @@ function CertificationEditor() {
             <div>
               <label className={labelCls} style={{ color: C.faint }}>Certification badge</label>
               <ImagePickerField C={C} value={state.badgeImageUrl} onChange={url => update({ badgeImageUrl: url })} folder="certification-badges" placeholder="Select or upload badge" contain />
-              <p className="text-xs mt-1.5" style={{ color: C.faint }}>Awarded on pass. Shown on the report and the student&apos;s badges.</p>
+              <p className="text-xs mt-2" style={{ color: C.faint }}>Awarded on pass. Shown on the report and the student&apos;s badges.</p>
             </div>
           </div>
           <div className="flex items-center justify-between pt-1">
@@ -433,7 +433,7 @@ function CertificationEditor() {
             <label className={labelCls} style={{ color: C.faint }}>Who can take this</label>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => update({ cohortIds: [], availableToEveryone: true })}
-                className="px-3 py-1.5 rounded-full text-xs font-medium"
+                className="px-3 py-2 rounded-full text-xs font-medium"
                 style={{ background: state.availableToEveryone ? C.cta : C.pill, color: state.availableToEveryone ? C.ctaText : C.muted }}>
                 Everyone
               </button>
@@ -441,7 +441,7 @@ function CertificationEditor() {
                 const on = state.cohortIds.includes(c.id);
                 return (
                   <button key={c.id} onClick={() => update({ availableToEveryone: false, cohortIds: on ? state.cohortIds.filter(x => x !== c.id) : [...state.cohortIds, c.id] })}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium" style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
+                    className="px-3 py-2 rounded-full text-xs font-medium" style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
                     {c.name}
                   </button>
                 );
@@ -470,7 +470,7 @@ function CertificationEditor() {
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Assessment blueprint</p>
-            <h2 className="mt-1 text-lg font-bold">Skills and case studies</h2>
+            <h2 className="mt-1 text-base font-bold leading-6">Skills and case studies</h2>
             <p className="text-xs mt-0.5" style={{ color: C.faint }}>Define the skills this certification assesses, then map each question to a skill below.</p>
           </div>
           {state.skillAreas.length > 0 && (
@@ -516,7 +516,7 @@ function CertificationEditor() {
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Learner resources</p>
-            <h2 className="mt-1 text-lg font-bold">Prepare learners for success</h2>
+            <h2 className="mt-1 text-base font-bold leading-6">Prepare learners for success</h2>
             <p className="mt-1 text-sm" style={{ color: C.muted }}>Publish study materials, a visual poster, and optional practice links.</p>
           </div>
           <StudyGuideField C={C} url={state.studyGuideUrl} name={state.studyGuideName} published={state.studyGuidePublished}
@@ -528,7 +528,7 @@ function CertificationEditor() {
           <div>
             <label className={labelCls} style={{ color: C.faint }}>Practice test link</label>
             <input value={state.practiceTestUrl} onChange={e => update({ practiceTestUrl: e.target.value })} placeholder="https://..." className={inputCls} style={inputStyle} />
-            <p className="text-xs mt-1.5" style={{ color: C.faint }}>Learners can launch the practice test from the certification before the real exam.</p>
+            <p className="text-xs mt-2" style={{ color: C.faint }}>Learners can launch the practice test from the certification before the real exam.</p>
           </div>
         </div>
 
@@ -544,7 +544,7 @@ function CertificationEditor() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Question bank</p>
-              <h2 className="mt-1 text-lg font-bold">Graded exam questions <span style={{ color: C.faint }}>({state.questions.length})</span></h2>
+              <h2 className="mt-1 text-base font-bold leading-6">Graded exam questions <span style={{ color: C.faint }}>({state.questions.length})</span></h2>
               <p className="mt-1 text-sm" style={{ color: C.muted }}>Build and reorder the questions used in scored attempts.</p>
             </div>
           </div>
@@ -573,7 +573,7 @@ function CertificationEditor() {
         {editorTab === 'practice' && <div className="rounded-2xl p-5 sm:p-7" style={{ background: C.card }}>
           <div className="mb-3">
             <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Practice bank</p>
-            <h2 className="mt-1 text-lg font-bold">Practice questions <span style={{ color: C.faint }}>({state.practiceQuestions.length})</span></h2>
+            <h2 className="mt-1 text-base font-bold leading-6">Practice questions <span style={{ color: C.faint }}>({state.practiceQuestions.length})</span></h2>
             <p className="text-sm mt-1" style={{ color: C.muted }}>Students see the correct answers and explanations after practice. These questions never appear in the graded exam. Leave empty to hide Practice.</p>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onPracticeDragEnd}>
@@ -601,7 +601,7 @@ function CertificationEditor() {
           <div className="rounded-2xl p-5 sm:p-7 space-y-6" style={{ background: C.card }}>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Readiness</p>
-              <h2 className="mt-1 text-lg font-bold">Review before publishing</h2>
+              <h2 className="mt-1 text-base font-bold leading-6">Review before publishing</h2>
               <p className="mt-1 text-sm" style={{ color: C.muted }}>A quick check of the essentials learners need for a complete certification experience.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -630,8 +630,8 @@ function CertificationEditor() {
       </div>
 
       <div className="fixed bottom-5 right-4 sm:right-6 z-30 flex items-center gap-2 rounded-2xl p-2" style={{ background: C.card, boxShadow: '0 16px 50px rgba(15,23,42,0.20)' }}>
-        <button onClick={() => save('draft')} disabled={saving} className="rounded-xl px-3.5 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>Save draft</button>
-        <button onClick={() => save('published')} disabled={saving} className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2" style={{ background: C.cta, color: C.ctaText }}>
+        <button onClick={() => save('draft')} disabled={saving} className="rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>Save draft</button>
+        <button onClick={() => save('published')} disabled={saving} className="rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2" style={{ background: C.cta, color: C.ctaText }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Publish
         </button>
       </div>
@@ -675,8 +675,8 @@ function ImagePickerField({ C, value, onChange, folder, placeholder, contain }: 
         <div className="relative w-full h-28 rounded-xl overflow-hidden group" style={{ border: `1px solid ${C.inputBorder}`, background: C.input }}>
           <img src={value} alt="" className="w-full h-full" style={{ objectFit: contain ? 'contain' : 'cover' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2" style={{ background: 'rgba(0,0,0,0.5)' }}>
-            <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.92)', color: '#111' }}><ImagePlus className="w-3.5 h-3.5" /> Change</button>
-            <button type="button" onClick={() => onChange('')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.85)', color: '#dc2626' }}><Trash2 className="w-3.5 h-3.5" /> Remove</button>
+            <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.92)', color: '#111' }}><ImagePlus className="w-3.5 h-3.5" /> Change</button>
+            <button type="button" onClick={() => onChange('')} className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.85)', color: '#dc2626' }}><Trash2 className="w-3.5 h-3.5" /> Remove</button>
           </div>
         </div>
       ) : (
@@ -751,7 +751,7 @@ function PrepItemsField({ C, value, onChange }: {
       </div>
 
       {value.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {value.map(p => {
             const o = byId[p.id];
             return (
@@ -774,7 +774,7 @@ function PrepItemsField({ C, value, onChange }: {
 
       {open && (
         <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
+          <div className="flex items-center gap-2 px-3 py-3 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
             <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }} />
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search courses and paths" className="flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }} />
           </div>
@@ -838,7 +838,7 @@ function StudyGuideField({ C, url, name, published, onChange, onPublish }: {
       <label className={labelCls} style={{ color: C.faint }}>Study guide (PDF)</label>
       {url ? (
         <div className="flex items-center gap-3 flex-wrap text-sm">
-          <span className="flex items-center gap-1.5 min-w-0" style={{ color: C.text }}>
+          <span className="flex items-center gap-2 min-w-0" style={{ color: C.text }}>
             <FileText className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }} /><span className="truncate" style={{ maxWidth: 220 }}>{name || 'Study guide.pdf'}</span>
           </span>
           <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium" style={{ color: C.cta }}>Preview</a>
@@ -847,7 +847,7 @@ function StudyGuideField({ C, url, name, published, onChange, onPublish }: {
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer text-sm w-fit" style={{ ...inputStyle, color: C.muted }}>
+          <label className="flex items-center gap-2 px-3 py-3 rounded-lg cursor-pointer text-sm w-fit" style={{ ...inputStyle, color: C.muted }}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             <span>Upload PDF</span>
             <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={upload} />
@@ -892,7 +892,7 @@ function PosterField({ C, url, published, onChange, onPublish }: {
             : <ImagePlus className="w-5 h-5" style={{ color: C.faint }} />}
         </div>
         <div className="space-y-2">
-          <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer text-xs w-fit" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted }}>
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs w-fit" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted }}>
             <Upload className="w-3.5 h-3.5" /> {url ? 'Replace' : 'Upload'}
             <input type="file" accept="image/*" className="hidden" onChange={upload} />
           </label>
@@ -921,13 +921,13 @@ function QuestionCard({ q, index, C, skillAreas, scenarios, hasSharedData, expan
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-xl overflow-hidden" >
-      <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: expanded ? '12px 12px 0 0' : 12 }}>
+      <div className="flex items-center gap-2 px-3 py-3" style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: expanded ? '12px 12px 0 0' : 12 }}>
         <button className="cursor-grab active:cursor-grabbing" style={{ color: C.faint }} {...attributes} {...listeners}><GripVertical className="w-3.5 h-3.5" /></button>
         <button onClick={onToggle} className="flex-1 text-left min-w-0">
           <span className="text-sm font-medium truncate block" style={{ color: C.text }}>
             {(q.question?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()) || <span className="italic" style={{ color: C.faint }}>Question {index + 1}</span>}
           </span>
-          <span className="text-[10px]" style={{ color: C.faint }}>{TYPE_LABELS[type]}</span>
+          <span className="text-[11px]" style={{ color: C.faint }}>{TYPE_LABELS[type]}</span>
         </button>
         <button onClick={onRemove} className="p-1 hover:text-red-400" style={{ color: C.faint }}><Trash2 className="w-3.5 h-3.5" /></button>
         <button onClick={onToggle} className="p-1" style={{ color: C.faint }}>{expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</button>
@@ -1003,7 +1003,7 @@ function SqlTablesEditor({ C, inputStyle, tables, onChange }: {
         {tables.map((tbl, i) => (
           <div key={tbl.id ?? i} className="flex items-center gap-2">
             <input value={tbl.tableName} onChange={e => setTable(i, { tableName: e.target.value })} placeholder="table_name" className={inputCls} style={inputStyle} />
-            <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer text-xs flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted, maxWidth: 160 }}>
+            <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted, maxWidth: 160 }}>
               {uploadingIdx === i ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               <span className="truncate">{tbl.fileName || 'CSV'}</span>
               <input type="file" accept=".csv,.tsv" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadCsv(i, f); }} />
@@ -1039,7 +1039,7 @@ function PythonDatasetsEditor({ C, inputStyle, datasets, onChange }: {
         {datasets.map((ds, i) => (
           <div key={ds.id ?? i} className="flex items-center gap-2">
             <input value={ds.variableName} onChange={e => setDataset(i, { variableName: e.target.value })} placeholder="df" className={inputCls} style={inputStyle} />
-            <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer text-xs flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted, maxWidth: 160 }}>
+            <label className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.muted, maxWidth: 160 }}>
               {uploadingIdx === i ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               <span className="truncate">{ds.fileName || 'CSV'}</span>
               <input type="file" accept=".csv,.tsv" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadDataset(i, f); }} />
@@ -1059,7 +1059,7 @@ function PythonDatasetsEditor({ C, inputStyle, datasets, onChange }: {
 function SharedPlaygroundField({ C, inputStyle, value, onChange }: {
   C: any; inputStyle: any; value: PlaygroundData; onChange: (pd: PlaygroundData) => void;
 }) {
-  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 13 };
+  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 14 };
   const [lang, setLang] = useState<'sql' | 'python'>(
     (value.pythonDatasets?.length || value.setupPython?.trim()) && !(value.sqlTables?.length || value.setupSql?.trim()) ? 'python' : 'sql',
   );
@@ -1071,7 +1071,7 @@ function SharedPlaygroundField({ C, inputStyle, value, onChange }: {
       </div>
       <div className="flex gap-2">
         {(['sql', 'python'] as const).map(l => (
-          <button key={l} type="button" onClick={() => setLang(l)} className="px-3 py-1.5 rounded-full text-xs font-medium"
+          <button key={l} type="button" onClick={() => setLang(l)} className="px-3 py-2 rounded-full text-xs font-medium"
             style={{ background: lang === l ? C.cta : C.pill, color: lang === l ? C.ctaText : C.muted }}>
             {l === 'sql' ? 'SQL tables' : 'Python datasets'}
           </button>
@@ -1103,7 +1103,7 @@ function PlaygroundEditor({ q, C, inputStyle, hasSharedData, onUpdate }: { q: Co
   const pg = q.playground;
   const enabled = !!pg;
   const lang = pg?.language ?? 'sql';
-  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 13 };
+  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 14 };
   const tables = pg?.sqlTables ?? [];
   const datasets = pg?.pythonDatasets ?? [];
   const useShared = pg?.useSharedData !== false; // default on when shared data exists
@@ -1122,7 +1122,7 @@ function PlaygroundEditor({ q, C, inputStyle, hasSharedData, onUpdate }: { q: Co
         <div className="mt-3 space-y-3">
           <div className="flex gap-2">
             {(['sql', 'python'] as const).map(l => (
-              <button key={l} onClick={() => update({ language: l })} className="px-3 py-1.5 rounded-full text-xs font-medium"
+              <button key={l} onClick={() => update({ language: l })} className="px-3 py-2 rounded-full text-xs font-medium"
                 style={{ background: lang === l ? C.cta : C.pill, color: lang === l ? C.ctaText : C.muted }}>
                 {l === 'sql' ? 'SQL' : 'Python'}
               </button>
@@ -1130,7 +1130,7 @@ function PlaygroundEditor({ q, C, inputStyle, hasSharedData, onUpdate }: { q: Co
           </div>
 
           {hasSharedData && (
-            <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg" style={{ background: C.input }}>
+            <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-lg" style={{ background: C.input }}>
               <div>
                 <span className="text-xs font-medium" style={{ color: C.text }}>Use shared certification data</span>
                 <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Loads the certification&apos;s shared tables/datasets here too, alongside any added below.</p>
@@ -1166,7 +1166,7 @@ function PlaygroundEditor({ q, C, inputStyle, hasSharedData, onUpdate }: { q: Co
 }
 
 function TypeFields({ q, type, C, inputStyle, onUpdate }: { q: CourseQuestion; type: QuestionType; C: any; inputStyle: any; onUpdate: (patch: Partial<CourseQuestion>) => void }) {
-  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 13 };
+  const mono = { ...inputStyle, fontFamily: 'ui-monospace, monospace', fontSize: 14 };
   const [imgUploading, setImgUploading] = useState(false);
 
   // Multiple choice / code / image_choice: text options with a "correct" radio (correctAnswer = option
@@ -1273,13 +1273,13 @@ function TypeFields({ q, type, C, inputStyle, onUpdate }: { q: CourseQuestion; t
         <label className={labelCls} style={{ color: C.faint }}>Image options (select the correct one)</label>
         <div className="grid grid-cols-2 gap-3">
           {options.map((opt, i) => (
-            <div key={i} className="rounded-lg p-2.5 space-y-2" style={{ border: `1px solid ${q.correctAnswer === String(i) ? C.cta : C.inputBorder}` }}>
+            <div key={i} className="rounded-lg p-3 space-y-2" style={{ border: `1px solid ${q.correctAnswer === String(i) ? C.cta : C.inputBorder}` }}>
               <label className="flex items-center justify-center h-24 rounded cursor-pointer overflow-hidden" style={{ background: C.input }}>
                 {images[i] ? <img src={images[i]} alt="" className="h-full w-full object-contain" /> : <ImagePlus className="w-5 h-5" style={{ color: C.faint }} />}
                 <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadImg(i, f); }} />
               </label>
               <input value={opt} onChange={e => { const next = [...options]; next[i] = e.target.value; onUpdate({ options: next }); }} placeholder="Label" className={inputCls} style={inputStyle} />
-              <label className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
+              <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
                 <input type="radio" checked={q.correctAnswer === String(i)} onChange={() => onUpdate({ correctAnswer: String(i) })} style={{ accentColor: C.cta }} /> Correct
               </label>
             </div>

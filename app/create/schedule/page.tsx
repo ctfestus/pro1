@@ -44,7 +44,7 @@ function textareaStyle(C: typeof LIGHT_C) {
   return { ...inputStyle(C), minHeight: 80, resize: 'vertical' as const, lineHeight: 1.6 };
 }
 function labelStyle(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
+  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
 }
 
 // --- Page ---
@@ -275,7 +275,7 @@ export default function CreateSchedulePage() {
 
             {/* Section: Details */}
             <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Details</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Details</h2>
 
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle(C)}>Title <span style={{ color: C.errorText }}>*</span></label>
@@ -311,7 +311,7 @@ export default function CreateSchedulePage() {
                         border: 'none',
                         background: status === s ? C.cta : C.input,
                         color: status === s ? C.ctaText : C.muted,
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: 600,
                         cursor: 'pointer',
                         textTransform: 'capitalize',
@@ -344,7 +344,7 @@ export default function CreateSchedulePage() {
                   <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)}
                     placeholder="https://example.com/image.jpg" style={{ ...inputStyle(C), flex: 1 }}/>
                   <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <Upload style={{ width: 14, height: 14 }}/>{coverUploading ? 'Uploading…' : 'Upload'}
                   </button>
                   <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
@@ -395,7 +395,7 @@ export default function CreateSchedulePage() {
             <div style={{ padding: '26px 30px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                 <div>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>Topics</h2>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Topics</h2>
                   <p style={{ fontSize: 12, color: C.faint, margin: '4px 0 0' }}>Topics are ordered by their position in the list.</p>
                 </div>
                 <button
@@ -403,7 +403,7 @@ export default function CreateSchedulePage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '8px 14px', borderRadius: 8, border: 'none',
-                    background: C.pill, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
                   <Plus style={{ width: 14, height: 14 }}/> Add Topic
@@ -457,13 +457,13 @@ export default function CreateSchedulePage() {
             {/* Section: Resources */}
             <div style={{ padding: '26px 30px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>Resources</h2>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Resources</h2>
                 <button
                   type="button" onClick={addResource}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '8px 14px', borderRadius: 8, border: 'none',
-                    background: C.pill, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
                   <Plus style={{ width: 14, height: 14 }}/> Add Resource
@@ -512,7 +512,7 @@ export default function CreateSchedulePage() {
               <>
                 <div style={{ height: 1, background: C.divider }} />
                 <div style={{ padding: '26px 30px' }}>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Assign to Cohorts</h2>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Assign to Cohorts</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {cohorts.map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>

@@ -37,7 +37,7 @@ function inp(C: typeof LIGHT_C) {
   } as React.CSSProperties;
 }
 function lbl(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
+  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
 }
 
 export default function CreateRecordingPage() {
@@ -251,7 +251,7 @@ export default function CreateRecordingPage() {
 
             {/* Section: Recording Details */}
             <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Recording Details</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Recording Details</h2>
 
               <div style={{ marginBottom: 16 }}>
                 <label style={lbl(C)}>Course / Programme Title *</label>
@@ -280,7 +280,7 @@ export default function CreateRecordingPage() {
                   <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10,
                       border: 'none', background: C.pill, color: C.muted,
-                      fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <Upload size={14}/>{coverUploading ? 'Uploading...' : 'Upload'}
                   </button>
                   <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
@@ -325,10 +325,10 @@ export default function CreateRecordingPage() {
 
             {/* Section: Cohorts */}
             <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 4 }}>Assign to Cohorts</h2>
-              <p style={{ fontSize: 13, color: C.faint, marginBottom: 16 }}>Only students in selected cohorts will see these recordings.</p>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 4 }}>Assign to Cohorts</h2>
+              <p style={{ fontSize: 14, color: C.faint, marginBottom: 16 }}>Only students in selected cohorts will see these recordings.</p>
               {cohorts.length === 0
-                ? <p style={{ fontSize: 13, color: C.faint }}>No cohorts found.</p>
+                ? <p style={{ fontSize: 14, color: C.faint }}>No cohorts found.</p>
                 : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {cohorts.map(c => {
                       const sel = selectedCohortIds.includes(c.id);
@@ -336,7 +336,7 @@ export default function CreateRecordingPage() {
                         <button type="button" key={c.id} onClick={() => toggleCohort(c.id)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                            padding: '7px 14px', borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: 'pointer',
                             border: 'none',
                             background: sel ? C.cta : C.pill,
                             color: sel ? C.ctaText : C.muted,
@@ -357,12 +357,12 @@ export default function CreateRecordingPage() {
             <div style={{ padding: '26px 30px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
                 <div>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 2 }}>Sessions</h2>
-                  <p style={{ fontSize: 13, color: C.faint }}>Each session takes a week number, a topic and a video link. Add notes and the files students need for that class.</p>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 2 }}>Sessions</h2>
+                  <p style={{ fontSize: 14, color: C.faint }}>Each session takes a week number, a topic and a video link. Add notes and the files students need for that class.</p>
                 </div>
                 <button type="button" onClick={() => addEntry()}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10,
-                    background: C.cta, color: C.ctaText, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', flexShrink: 0 }}>
+                    background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', flexShrink: 0 }}>
                   <Plus size={14}/> Add Session
                 </button>
               </div>
@@ -371,7 +371,7 @@ export default function CreateRecordingPage() {
                 <div style={{ textAlign: 'center', padding: '36px 16px', borderRadius: 14, background: C.pill }}>
                   <Video size={22} style={{ color: C.faint }}/>
                   <p style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginTop: 10 }}>No sessions yet</p>
-                  <p style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>Add your first session to start building this programme.</p>
+                  <p style={{ fontSize: 14, color: C.faint, marginTop: 4 }}>Add your first session to start building this programme.</p>
                 </div>
               )}
 
@@ -466,7 +466,7 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
           <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
             transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 13, fontWeight: 700,
+            <span style={{ display: 'block', fontSize: 14, fontWeight: 700,
               color: entry.topic.trim() ? C.text : C.faint }} className="truncate">
               {entry.topic.trim() || `Session ${position}`}
             </span>
@@ -487,13 +487,13 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
           <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Week</label>
           <input type="number" min={1} value={entry.week}
             onChange={e => onUpdate(entry.id, 'week', parseInt(e.target.value) || 1)}
-            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
           <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Topic</label>
           <input value={entry.topic} onChange={e => onUpdate(entry.id, 'topic', e.target.value)}
             placeholder="e.g. Introduction to Pivot Tables"
-            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
         </div>
       </div>
 
@@ -501,7 +501,7 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
         <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Video link</label>
         <input value={entry.url} onChange={e => onUpdate(entry.id, 'url', e.target.value)}
           placeholder="https://youtu.be/..."
-          style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+          style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
         <p style={{ fontSize: 11, color: playsInApp ? C.green : C.faint, marginTop: 5 }}>
           {!entry.url.trim()
             ? 'YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.'
@@ -538,12 +538,12 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
                 return (
                   <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
                     borderRadius: 10, background: C.card }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
                       background: C.pill, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
                       {recordingAttachmentBadge(att)}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text }} className="truncate">{att.name}</p>
                       <p style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>
                         {att.kind === 'file' ? (size ? `Uploaded file - ${size}` : 'Uploaded file') : 'External link'}
                       </p>

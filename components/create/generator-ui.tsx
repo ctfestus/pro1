@@ -28,11 +28,11 @@ export function Field({ label, optional, hint, children }: { label: string; opti
   const C = useC();
   return (
     <div>
-      <label className="text-xs font-medium mb-1.5 block" style={{ color: C.muted }}>
+      <label className="text-xs font-medium mb-2 block" style={{ color: C.muted }}>
         {label}{optional && <span className="font-normal" style={{ color: C.faint }}> (optional)</span>}
       </label>
       {children}
-      {hint && <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>{hint}</p>}
+      {hint && <p className="text-[11px] mt-2" style={{ color: C.faint }}>{hint}</p>}
     </div>
   );
 }
@@ -41,7 +41,7 @@ export function GenerateButton({ label, onClick, disabled, full }: { label: stri
   const { brand, brandText } = useBrand();
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40 ${full ? 'w-full py-3.5 mt-1' : 'px-5 py-3 shrink-0'}`}
+      className={`flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40 ${full ? 'w-full py-4 mt-1' : 'px-5 py-3 shrink-0'}`}
       style={{ background: brand, color: brandText }}>
       <Sparkles className="w-4 h-4" /> {label}
     </button>
@@ -61,7 +61,7 @@ export function BriefPanel({ icon, title, description, onBack, children }: { ico
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: C.pill, color: C.muted }}>{icon}</div>
           <div>
             <p className="text-xs mb-0.5" style={{ color: C.faint }}>Step 1 of 2</p>
-            <h2 className="text-xl font-semibold tracking-tight" style={{ color: C.text }}>{title}</h2>
+            <h2 className="text-[22px] font-semibold tracking-tight leading-7" style={{ color: C.text }}>{title}</h2>
             <p className="text-sm mt-1 max-w-xl" style={{ color: C.muted }}>{description}</p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export function Chips<K extends string | boolean>({ options, isOn, onPick }: { o
         const on = isOn(opt.key);
         return (
           <button key={String(opt.key)} type="button" onClick={() => onPick(opt.key)} aria-pressed={on}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-colors"
+            className="flex items-center gap-1 px-3 py-2 rounded-full text-xs transition-colors"
             style={on ? { background: tint, color: brand, fontWeight: 600 } : { background: C.pill, color: C.muted, fontWeight: 500 }}>
             {on && <Check className="w-3 h-3" />}{opt.label}
           </button>
@@ -101,7 +101,7 @@ export function OutlineHeader({ title, description, onBack, onGenerate, disabled
       </button>
       <div className="flex-1 min-w-0">
         <p className="text-xs mb-0.5" style={{ color: C.faint }}>Step 2 of 2</p>
-        <h2 className="text-lg font-semibold tracking-tight" style={{ color: C.text }}>{title}</h2>
+        <h2 className="text-base font-semibold tracking-tight leading-6" style={{ color: C.text }}>{title}</h2>
         <p className="text-sm" style={{ color: C.muted }}>{description}</p>
       </div>
       <GenerateButton label="Generate course" onClick={onGenerate} disabled={disabled} />
@@ -132,12 +132,12 @@ export function OutlineModules({ modules, onChange, typeOptions, newLesson, onRe
         const lessons = mod.lessons ?? [];
         return (
           <div key={mod.id || mi} className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
-            <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: tint }}>
+            <div className="flex items-center gap-2 px-4 py-3" style={{ background: tint }}>
               <span className="text-[12px] font-bold tracking-[0.08em] uppercase shrink-0" style={{ color: brand }}>Module {mi + 1}:</span>
               <input value={mod.title} onChange={e => setModule(mi, { title: e.target.value })} aria-label={`Module ${mi + 1} name`}
                 className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px] font-bold tracking-[0.08em] uppercase" style={{ color: brand }} />
               <button type="button" onClick={() => onRegenerate(mi)} disabled={regenerating !== null}
-                className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg shrink-0 transition-opacity hover:opacity-80 disabled:opacity-40" style={{ background: C.card, color: C.muted }}>
+                className="flex items-center gap-2 text-xs px-2 py-1 rounded-lg shrink-0 transition-opacity hover:opacity-80 disabled:opacity-40" style={{ background: C.card, color: C.muted }}>
                 <RefreshCw className={`w-3 h-3 ${regenerating === mi ? 'animate-spin' : ''}`} /> Regenerate
               </button>
               <button type="button" onClick={() => onChange(modules.filter((_, i) => i !== mi))} title="Remove module" aria-label={`Remove module ${mi + 1}`}
@@ -145,17 +145,17 @@ export function OutlineModules({ modules, onChange, typeOptions, newLesson, onRe
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="px-4 pt-2.5 pb-3">
+            <div className="px-4 pt-3 pb-3">
               <input value={mod.description ?? ''} onChange={e => setModule(mi, { description: e.target.value })} placeholder="Module description" aria-label={`Module ${mi + 1} description`}
                 className="w-full bg-transparent border-none outline-none text-xs mb-2" style={{ color: C.muted }} />
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {lessons.map((lesson, li) => (
                   <div key={lesson.id || li} className="group flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ background: C.input }}>
                     <input value={lesson.title} onChange={e => setLessons(mi, lessons.map((l, i) => (i === li ? { ...l, title: e.target.value } : l)))} aria-label="Lesson title"
                       className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm" style={{ color: C.text }} />
                     <span className="relative shrink-0">
                       <select value={lesson.questionType} onChange={e => setLessons(mi, lessons.map((l, i) => (i === li ? { ...l, questionType: e.target.value } : l)))} aria-label="Lesson type"
-                        className="appearance-none rounded-lg pl-2.5 pr-6 py-1 text-[11px] font-semibold cursor-pointer outline-none" style={{ background: C.card, border: `1px solid ${C.inputBorder}`, color: C.text }}>
+                        className="appearance-none rounded-lg pl-3 pr-6 py-1 text-[11px] font-semibold cursor-pointer outline-none" style={{ background: C.card, border: `1px solid ${C.inputBorder}`, color: C.text }}>
                         {typeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                       <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.faint }} />

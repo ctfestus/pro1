@@ -337,7 +337,7 @@ function RowMenu({ C, label, onDelete, moveTargets }: {
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
-  const item = 'w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors';
+  const item = 'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors';
   const groups = Array.from(new Set((moveTargets ?? []).map(t => t.group ?? '')));
   return (
     <div ref={ref} className="relative flex-shrink-0">
@@ -347,7 +347,7 @@ function RowMenu({ C, label, onDelete, moveTargets }: {
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-9 z-30 min-w-[200px] max-h-72 overflow-auto rounded-xl p-1.5"
+        <div role="menu" className="absolute right-0 top-9 z-30 min-w-[200px] max-h-72 overflow-auto rounded-xl p-2"
           style={{ background: C.card, boxShadow: `0 0 0 1px ${C.divider}, 0 12px 28px rgba(15,23,42,0.16)` }}>
           {!moving ? (
             <>
@@ -363,7 +363,7 @@ function RowMenu({ C, label, onDelete, moveTargets }: {
           ) : (
             groups.map(g => (
               <div key={g || 'all'}>
-                {g && <p className="px-2.5 pt-2 pb-1 text-[11.5px] font-semibold" style={{ color: C.faint }}>{g}</p>}
+                {g && <p className="px-3 pt-2 pb-1 text-xs font-semibold" style={{ color: C.faint }}>{g}</p>}
                 {(moveTargets ?? []).filter(t => (t.group ?? '') === g).map((t, i) => (
                   <button key={`${g}-${i}`} type="button" role="menuitem" className={item} style={{ color: C.text }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -459,15 +459,15 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
 
   return (
     <div className="space-y-2" style={{ background: 'transparent' }}>
-      <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+      <p className="text-xs font-semibold" style={{ color: C.muted }}>
         Grading rubric
-        <span className="ml-1.5 font-normal" style={{ color: C.faint }}>
+        <span className="ml-2 font-normal" style={{ color: C.faint }}>
           (optional) {grader}
         </span>
       </p>
       {note && <p className="text-[11px]" style={{ color: C.faint }}>{note}</p>}
       {sessionToken && (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <RubricFileImportActions
             busy={extracting}
             background={C.card}
@@ -482,11 +482,11 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
         </div>
       )}
       {criteria.map((crit, ci) => (
-        <div key={ci} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+        <div key={ci} className="flex items-center gap-2 rounded-lg px-3 py-2"
           style={{ background: C.pill }}>
           <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: C.card }}>
-            <span className="text-[9px] font-black" style={{ color: C.muted }}>{ci + 1}</span>
+            <span className="text-[11px] font-black" style={{ color: C.muted }}>{ci + 1}</span>
           </div>
           <input
             className="flex-1 bg-transparent text-[12px] outline-none"
@@ -1605,7 +1605,7 @@ function VirtualExperienceCreatePageInner() {
               </Link>
               <div className="min-w-0">
                 <p className="text-[12px] mb-0.5" style={{ color: C.faint }}>Virtual experience</p>
-                <h1 className="text-[17px] sm:text-[18px] font-bold leading-tight truncate" style={{ color: C.text }}>
+                <h1 className="text-base sm:text-[18px] font-bold leading-tight truncate" style={{ color: C.text }}>
                   {step === 2 ? (title || 'Untitled experience') : (effectiveId ? 'Edit Virtual Experience' : 'New Virtual Experience')}
                 </h1>
               </div>
@@ -1614,25 +1614,25 @@ function VirtualExperienceCreatePageInner() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 {veSlug ? (
                   <a href={`/${veSlug}`} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all hover:opacity-70"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all hover:opacity-70"
                     style={{ color: C.muted, background: C.pill, textDecoration: 'none' }}>
                     <Eye className="w-3.5 h-3.5" /> Preview
                   </a>
                 ) : (
                   <span title="Save the experience first to preview it"
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold cursor-not-allowed opacity-40"
+                    className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold cursor-not-allowed opacity-40"
                     style={{ color: C.muted, background: C.pill }}>
                     <Eye className="w-3.5 h-3.5" /> Preview
                   </span>
                 )}
                 <button onClick={() => handleSave('draft')} disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
                   style={{ color: C.muted, background: 'transparent' }}>
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                   Save draft
                 </button>
                 <button onClick={() => handleSave('published')} disabled={saving}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12px] font-bold transition-all hover:opacity-85"
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-bold transition-all hover:opacity-85"
                   style={{ background: saveSuccess ? '#16a34a' : C.cta, color: C.ctaText }}>
                   {saveSuccess ? <Check className="w-3.5 h-3.5"/> : <CheckCircle2 className="w-3.5 h-3.5"/>}
                   {saveSuccess ? 'Saved' : effectiveId ? 'Update' : 'Publish'}
@@ -1648,7 +1648,7 @@ function VirtualExperienceCreatePageInner() {
       <div className="px-4 sm:px-6 pb-4 pt-0">
         {step === 2 && (saveError || saveWarning) && (
           <div className="max-w-6xl mx-auto pt-3">
-            <div className="px-4 py-3 rounded-xl text-[13px] flex items-start gap-2"
+            <div className="px-4 py-3 rounded-xl text-sm flex items-start gap-2"
               role="status"
               style={saveError
                 ? { background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }
@@ -1664,8 +1664,8 @@ function VirtualExperienceCreatePageInner() {
           <div className="max-w-4xl mx-auto pb-6">
           <div className="rounded-b-2xl" style={{ background: C.card, boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
             <div className="px-6 sm:px-8 pt-2 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <h2 className="text-[17px] font-semibold leading-tight" style={{ color: C.text }}>How do you want to build it?</h2>
-              <p className="text-[13px] mt-1" style={{ color: C.muted }}>Let AI draft the whole experience, or start from a blank outline.</p>
+              <h2 className="text-base font-semibold leading-tight" style={{ color: C.text }}>How do you want to build it?</h2>
+              <p className="text-sm mt-1" style={{ color: C.muted }}>Let AI draft the whole experience, or start from a blank outline.</p>
             </div>
             <div className="ve-tab px-6 sm:px-8 py-7 space-y-6">
 
@@ -1703,10 +1703,10 @@ function VirtualExperienceCreatePageInner() {
                     {m.icon}
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-[15px] font-bold" style={{ color: C.text }}>{m.title}</p>
+                    <p className="text-base font-bold" style={{ color: C.text }}>{m.title}</p>
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>{m.badge}</span>
                   </div>
-                  <p className="text-[13px] leading-relaxed" style={{ color: C.muted }}>{m.desc}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: C.muted }}>{m.desc}</p>
                 </button>
               ))}
             </div>
@@ -1718,13 +1718,13 @@ function VirtualExperienceCreatePageInner() {
                 <div>
                   {/* Industry */}
                   <div className="pb-5 space-y-3">
-                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Industry</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Industry</p>
+                    <div className="flex flex-wrap gap-2">
                       {[...INDUSTRIES, { id: 'other', label: 'Other' }].map(ind => {
                         const selected = industry === ind.id;
                         return (
                           <button key={ind.id} type="button" aria-pressed={selected} onClick={() => setIndustry(ind.id)}
-                            className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                            className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
                             style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
                             {ind.label}
                           </button>
@@ -1746,13 +1746,13 @@ function VirtualExperienceCreatePageInner() {
 
                   {/* Experience Level */}
                   <div className="pb-5 pt-5 space-y-3 border-t" style={{ borderColor: C.divider }}>
-                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Level</p>
+                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Level</p>
                     <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
                       {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
                         const selected = difficulty === id;
                         return (
                           <button key={id} type="button" aria-pressed={selected} onClick={() => setDifficulty(id)}
-                            className="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors"
+                            className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
                             style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
                             {label}
                           </button>
@@ -1765,17 +1765,17 @@ function VirtualExperienceCreatePageInner() {
                   <div className="pb-5 pt-5 border-t" style={{ borderColor: C.divider }}>
                     <div className="grid sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Role</label>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Role</label>
                         <input style={inp} value={roleHint} onChange={e => setRoleHint(e.target.value)} placeholder="e.g. Data Analyst" />
                       </div>
                       {creationMode !== 'manual' && (
                         <div>
-                          <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Focus topic</label>
+                          <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Focus topic</label>
                           <input style={inp} value={focusTopic} onChange={e => setFocusTopic(e.target.value)} placeholder="e.g. Fraud detection" />
                         </div>
                       )}
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Tools</label>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Tools</label>
                         <input style={inp} value={toolsInput} onChange={e => setToolsInput(e.target.value)} placeholder="e.g. Excel, Power BI" />
                       </div>
                     </div>
@@ -1785,7 +1785,7 @@ function VirtualExperienceCreatePageInner() {
                   {creationMode !== 'manual' && (
                     <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>
                           Company <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <input
@@ -1796,26 +1796,26 @@ function VirtualExperienceCreatePageInner() {
                         />
                       </div>
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>
                           Scenario <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={scenario}
                           onChange={e => setScenario(e.target.value)}
                           rows={3}
-                          style={{ ...inp, fontSize: 13, resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
+                          style={{ ...inp, fontSize: 14, resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
                           placeholder="Describe the company background and the problem the student needs to solve. e.g. NaraPay is a Lagos-based fintech processing 50,000 mobile transactions daily. They are losing 12% revenue to fraud and need a data analyst to identify patterns."
                         />
                       </div>
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>
+                        <label className="text-xs font-semibold block mb-1" style={{ color: C.muted }}>
                           Extra instructions for the AI <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={customPrompt}
                           onChange={e => setCustomPrompt(e.target.value)}
                           rows={2}
-                          style={{ ...inp, fontSize: 13, resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
+                          style={{ ...inp, fontSize: 14, resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
                           placeholder="e.g. Make questions harder than usual. Use a conversational tone in lesson bodies."
                         />
                       </div>
@@ -1827,7 +1827,7 @@ function VirtualExperienceCreatePageInner() {
                           style={{ marginTop: 2, accentColor: C.cta, flexShrink: 0 }}
                         />
                         <div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Present tasks as workplace emails</span>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Present tasks as workplace emails</span>
                           <p style={{ margin: '2px 0 0', fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
                             Wraps every task, upload, and AI review in an email thread from the manager. The AI will also write the email body for each one.
                           </p>
@@ -1840,7 +1840,7 @@ function VirtualExperienceCreatePageInner() {
                   <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+                        <p className="text-xs font-semibold" style={{ color: C.muted }}>
                           Dataset <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </p>
                         {creationMode === 'ai' && (
@@ -1852,7 +1852,7 @@ function VirtualExperienceCreatePageInner() {
                       <div className="flex rounded-[10px] overflow-hidden text-[12px] p-[3px]" style={{ background: C.field }}>
                         {(['upload', 'link'] as const).map(tab => (
                           <button key={tab} onClick={() => setDatasetInputTab(tab)}
-                            className="px-3 py-1.5 font-medium transition-all"
+                            className="px-3 py-2 font-medium transition-all"
                             style={{
                               background: datasetInputTab === tab ? C.card : 'transparent',
                               color: datasetInputTab === tab ? C.text : C.muted, borderRadius: 8,
@@ -1870,7 +1870,7 @@ function VirtualExperienceCreatePageInner() {
                         <div className="flex items-center gap-2">
                           <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetFileUpload}/>
                           <button onClick={() => datasetRef.current?.click()}
-                            className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-70"
+                            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border transition-all hover:opacity-70"
                             style={{ border: 'none', color: C.text, background: C.field }}>
                             {uploadingDataset ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                             {datasetFilename ? datasetFilename : 'Upload CSV or Excel file'}
@@ -1886,11 +1886,11 @@ function VirtualExperienceCreatePageInner() {
                           value={datasetCsv}
                           onChange={e => setDatasetCsv(e.target.value)}
                           rows={8}
-                          style={{ ...inp, fontFamily: 'monospace', fontSize: 13, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
+                          style={{ ...inp, fontFamily: 'monospace', fontSize: 14, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
                           placeholder={"Paste CSV data here, or upload a file above…\n\ndate,region,amount,status\n2024-01-01,Lagos,45000,Completed\n2024-01-02,Abuja,32000,Pending"}
                         />
                         {datasetCsv.trim() && (
-                          <div className="flex items-center gap-2 text-[13px]" style={{ color: C.faint }}>
+                          <div className="flex items-center gap-2 text-sm" style={{ color: C.faint }}>
                             <Table className="w-3.5 h-3.5"/>
                             {datasetCsv.trim().split('\n').length} rows detected
                             {creationMode === 'ai' && ' · AI will generate questions from these exact values'}
@@ -1931,7 +1931,7 @@ function VirtualExperienceCreatePageInner() {
                           value={datasetDescription}
                           onChange={e => setDatasetDescription(e.target.value)}
                           rows={2}
-                          style={{ ...inp, fontSize: 13, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
+                          style={{ ...inp, fontSize: 14, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
                           placeholder={creationMode === 'ai' ? 'Leave blank to let AI write one, or describe the dataset yourself…' : 'e.g. Q3 regional sales transactions with status and amount columns.'}
                         />
                       </div>
@@ -1941,7 +1941,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Error */}
                 {genError && (
-                  <div className="px-4 py-3 rounded-xl text-[13px]" style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
                     {genError}
                   </div>
                 )}
@@ -1949,7 +1949,7 @@ function VirtualExperienceCreatePageInner() {
                 {/* CTA button */}
                 {creationMode === 'ai' && (
                   <button onClick={handleGenerate} disabled={generating}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-[15px] transition-all hover:opacity-90 hover:scale-[1.005] disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-base transition-all hover:opacity-90 hover:scale-[1.005] disabled:opacity-60"
                     style={{ background: C.cta, color: C.ctaText, boxShadow: `0 6px 20px ${C.cta}38` }}>
                     {generating
                       ? <><Loader2 className="w-5 h-5 animate-spin"/> Generating…</>
@@ -1961,7 +1961,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {creationMode === 'manual' && (
                   <button onClick={handleManual}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-[15px] transition-all hover:opacity-90 hover:scale-[1.005]"
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-base transition-all hover:opacity-90 hover:scale-[1.005]"
                     style={{ background: C.cta, color: C.ctaText, boxShadow: `0 6px 20px ${C.cta}38` }}>
                     <PenLine className="w-5 h-5"/> Start with Blank Template
                   </button>
@@ -1969,12 +1969,12 @@ function VirtualExperienceCreatePageInner() {
 
                 {generating && (
                   <div className="text-center space-y-3">
-                    <p className="text-[13px] font-medium" style={{ color: C.muted }}>
+                    <p className="text-sm font-medium" style={{ color: C.muted }}>
                       {datasetCsv.trim() ? 'Analysing your data and generating questions…' : 'Creating company scenario, milestones, missions and dataset…'}
                     </p>
-                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
                       {['Company brief', 'Dataset', 'Milestones', 'Missions', 'Questions'].map((s, i) => (
-                        <span key={s} className="text-[12px] px-2.5 py-1 rounded-full animate-pulse font-medium"
+                        <span key={s} className="text-[12px] px-3 py-1 rounded-full animate-pulse font-medium"
                           style={{ background: `${C.cta}18`, color: C.cta, animationDelay: `${i * 0.2}s` }}>{s}</span>
                       ))}
                     </div>
@@ -2011,7 +2011,7 @@ function VirtualExperienceCreatePageInner() {
                     const active = activeSection === section.id;
                     return (
                       <button key={section.id} type="button" onClick={() => goToSection(section.id)} aria-current={active ? 'page' : undefined}
-                        className="flex-shrink-0 pt-2.5 pb-3 text-[14px] font-semibold transition-colors"
+                        className="flex-shrink-0 pt-3 pb-3 text-[14px] font-semibold transition-colors"
                         style={{ color: active ? C.text : C.faint, borderBottom: `2px solid ${active ? C.cta : 'transparent'}`, marginBottom: -1 }}>
                         {section.label}
                       </button>
@@ -2028,33 +2028,33 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Basics */}
                 <div style={{ ...card, borderTop: 'none', paddingTop: 4 }} className="space-y-3">
-                    <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>Basics</h3>
+                    <h3 className="text-base font-semibold" style={{ color: C.text }}>Basics</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Company</label>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Company</label>
                         <input value={config.company || ''} onChange={e => setConfig(c => c ? { ...c, company: e.target.value } : c)}
                           style={inp} placeholder="e.g. Kolapay" />
                       </div>
                       <div>
-                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Learner role</label>
+                        <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Learner role</label>
                         <input value={config.role || ''} onChange={e => setConfig(c => c ? { ...c, role: e.target.value } : c)}
                           style={inp} placeholder="e.g. Data Analyst" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Experience title</label>
+                      <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Experience title</label>
                       <input value={title} onChange={e => setTitle(e.target.value)}
                         style={{ ...inp, fontSize: 16, fontWeight: 600 }} placeholder="e.g. Churn Analyst at Kolapay" />
                     </div>
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Tagline</label>
+                      <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Tagline</label>
                       <input value={config.tagline || ''} onChange={e => setConfig(c => c ? { ...c, tagline: e.target.value } : c)}
                         style={inp} placeholder="One line that says what the learner will do" />
                     </div>
 
                     {/* Skills / tools -- editable. Shown to students as "Skills you will use". */}
                     <div>
-                      <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Skills and tools</p>
+                      <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Skills and tools</p>
                       <div className="space-y-2">
                         {(config.tools || []).map((t, i) => {
                           const logo = toolIcon(t);
@@ -2063,7 +2063,7 @@ function VirtualExperienceCreatePageInner() {
                             <div key={i} className="ve-shell flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.field }}>
                               {logo
                                 ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
-                                : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
+                                : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[11px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
                               }
                               <input value={t} onChange={e => renameTool(i, e.target.value)}
                                 onBlur={normalizeToolsNow}
@@ -2119,7 +2119,7 @@ function VirtualExperienceCreatePageInner() {
 
                     {/* Dataset - replace/attach/remove works here even for an already-saved VE */}
                     <div>
-                    <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Dataset</label>
+                    <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Dataset</label>
                     <div className="p-4 rounded-xl" style={{ background: C.field, border: `1.5px dashed ${C.cardBorder}` }}>
                       <input ref={datasetReplaceRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetReplace} />
                       {dataset ? (
@@ -2145,7 +2145,7 @@ function VirtualExperienceCreatePageInner() {
                               style={{ color: C.muted }}
                               placeholder="Describe this dataset for students…"
                             />
-                            <div className="flex items-center gap-1.5 mt-1.5">
+                            <div className="flex items-center gap-2 mt-2">
                               <LinkIcon className="w-3 h-3 flex-shrink-0" style={{ color: C.faint }} />
                               <input
                                 value={dataset.url || ''}
@@ -2179,7 +2179,7 @@ function VirtualExperienceCreatePageInner() {
                       {managerPhoto ? <img src={managerPhoto} alt={managerName} className="w-full h-full object-cover" /> : managerInitials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold" style={{ color: C.text }}>{managerName} <span className="font-normal" style={{ color: C.muted }}>· {managerTitle}</span></p>
+                      <p className="text-sm font-bold" style={{ color: C.text }}>{managerName} <span className="font-normal" style={{ color: C.muted }}>| {managerTitle}</span></p>
                       <p className="text-[11px]" style={{ color: C.faint }}>To: New {config.role} · Your Brief</p>
                     </div>
                     <span className="text-[11px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: C.pill, color: C.muted }}>Onboarding</span>
@@ -2188,22 +2188,22 @@ function VirtualExperienceCreatePageInner() {
                   {/* Editable fields */}
                   <div className="pt-4 pb-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
-                      <div className="flex items-end justify-between gap-3 mb-1.5">
+                      <div className="flex items-end justify-between gap-3 mb-2">
                         <div>
-                          <label className="text-[12.5px] font-semibold block" style={{ color: C.muted }}>Experience guide</label>
+                          <label className="text-xs font-semibold block" style={{ color: C.muted }}>Experience guide</label>
                           <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>Choose the professional learners will hear from throughout this experience.</p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button type="button" onClick={() => setShowGuideManager(v => !v)}
                             className="text-[12px] font-semibold px-3 py-2 rounded-xl" style={{ color: C.muted, background: C.pill }}>Manage profiles</button>
                           <button type="button" onClick={() => { setEditingGuideId(null); setGuideDraft(emptyGuideDraft); setShowGuideForm(true); setGuideError(''); }}
-                            className="text-[12px] font-bold flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                            className="text-[12px] font-bold flex items-center gap-2 px-3 py-2 rounded-xl"
                             style={{ color: C.cta, background: `${C.cta}12` }}>
                             <Plus className="w-3.5 h-3.5" /> Add professional
                           </button>
                         </div>
                       </div>
-                      <select disabled={guidesLoading} value={config.guideId || ''} onChange={e => selectExperienceGuide(e.target.value)} style={{ ...inp, fontSize: 13, opacity: guidesLoading ? 0.7 : 1 }}>
+                      <select disabled={guidesLoading} value={config.guideId || ''} onChange={e => selectExperienceGuide(e.target.value)} style={{ ...inp, fontSize: 14, opacity: guidesLoading ? 0.7 : 1 }}>
                         <option value="">{guidesLoading ? 'Loading profiles...' : 'Default generated manager'}</option>
                         {experienceGuides.some(g => g.source_type === 'external' && (g.status !== 'archived' || g.id === config.guideId)) && <optgroup label="External professionals">
                           {experienceGuides.filter(g => g.source_type === 'external' && (g.status !== 'archived' || g.id === config.guideId)).map(g => <option key={g.id} value={g.id}>{g.full_name}{g.professional_title ? ` — ${g.professional_title}` : ''}{g.status === 'archived' ? ' (Archived)' : ''}</option>)}
@@ -2221,7 +2221,7 @@ function VirtualExperienceCreatePageInner() {
                     {showGuideManager && <div className="sm:col-span-2 rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.divider}` }}>
                       <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.card }}>
                         <div>
-                          <p className="text-[13px] font-bold" style={{ color: C.text }}>Experience guide profiles</p>
+                          <p className="text-sm font-bold" style={{ color: C.text }}>Experience guide profiles</p>
                           <p className="text-[11px]" style={{ color: C.faint }}>External profiles are editable. Instructor identities stay linked to their accounts.</p>
                         </div>
                         <button type="button" onClick={() => setShowGuideManager(false)} style={{ color: C.faint }}><X className="w-4 h-4" /></button>
@@ -2233,19 +2233,19 @@ function VirtualExperienceCreatePageInner() {
                             {g.profile_photo_url ? <img src={g.profile_photo_url} alt={g.full_name} className="w-full h-full object-cover" /> : g.full_name.split(/\s+/).map((x: string) => x[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-bold truncate" style={{ color: C.text }}>{g.full_name}</p>
+                            <p className="text-sm font-bold truncate" style={{ color: C.text }}>{g.full_name}</p>
                             <p className="text-[11px] truncate" style={{ color: C.muted }}>{[g.professional_title, g.company].filter(Boolean).join(' · ') || 'Professional profile'}</p>
                           </div>
-                          {g.status === 'archived' && <span className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Archived</span>}
-                          <button type="button" onClick={() => beginEditGuide(g)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg" style={{ color: C.cta, background: `${C.cta}10` }}>Edit</button>
-                          <button type="button" onClick={() => setGuideStatus(g, g.status === 'archived' ? 'active' : 'archived')} className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg" style={{ color: C.muted, background: C.pill }}>{g.status === 'archived' ? 'Restore' : 'Archive'}</button>
+                          {g.status === 'archived' && <span className="text-xs font-semibold" style={{ color: C.muted }}>Archived</span>}
+                          <button type="button" onClick={() => beginEditGuide(g)} className="text-[11px] font-bold px-3 py-2 rounded-lg" style={{ color: C.cta, background: `${C.cta}10` }}>Edit</button>
+                          <button type="button" onClick={() => setGuideStatus(g, g.status === 'archived' ? 'active' : 'archived')} className="text-[11px] font-semibold px-3 py-2 rounded-lg" style={{ color: C.muted, background: C.pill }}>{g.status === 'archived' ? 'Restore' : 'Archive'}</button>
                         </div>)}
                         {experienceGuides.filter(g => g.source_type === 'instructor').map(g => <div key={g.id} className="px-4 py-3 flex items-center gap-3" style={{ borderTop: `1px solid ${C.divider}` }}>
                           <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
                             {g.profile_photo_url ? <img src={g.profile_photo_url} alt={g.full_name} className="w-full h-full object-cover" /> : g.full_name.split(/\s+/).map((x: string) => x[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
-                          <div className="flex-1 min-w-0"><p className="text-[13px] font-bold" style={{ color: C.text }}>{g.full_name}</p><p className="text-[11px]" style={{ color: C.muted }}>Instructor · Linked account</p></div>
-                          <span className="text-[12.5px] font-semibold" style={{ color: C.cta }}>Synced</span>
+                          <div className="flex-1 min-w-0"><p className="text-sm font-bold" style={{ color: C.text }}>{g.full_name}</p><p className="text-[11px]" style={{ color: C.muted }}>Instructor | Linked account</p></div>
+                          <span className="text-xs font-semibold" style={{ color: C.cta }}>Synced</span>
                         </div>)}
                       </div>
                     </div>}
@@ -2258,12 +2258,12 @@ function VirtualExperienceCreatePageInner() {
                         <input ref={guidePhotoRef} type="file" accept="image/*" className="hidden" onChange={e => uploadGuidePhoto(e.target.files?.[0])} />
                         <button type="button" disabled={savingGuide} onClick={() => guidePhotoRef.current?.click()} className="text-[11px] font-bold" style={{ color: C.cta }}>{guideDraft.profile_photo_url ? 'Change photo' : 'Upload photo'}</button>
                       </div>
-                      <input value={guideDraft.full_name} onChange={e => setGuideDraft(d => ({ ...d, full_name: e.target.value }))} style={{ ...inp, fontSize: 13 }} placeholder="Full name" />
-                      <input value={guideDraft.professional_title} onChange={e => setGuideDraft(d => ({ ...d, professional_title: e.target.value }))} style={{ ...inp, fontSize: 13 }} placeholder="Professional title" />
-                      <input value={guideDraft.company} onChange={e => setGuideDraft(d => ({ ...d, company: e.target.value }))} style={{ ...inp, fontSize: 13 }} placeholder="Company (optional)" />
-                      <input value={guideDraft.linkedin_url} onChange={e => setGuideDraft(d => ({ ...d, linkedin_url: e.target.value }))} style={{ ...inp, fontSize: 13 }} placeholder="LinkedIn profile URL" />
-                      <textarea value={guideDraft.bio} onChange={e => setGuideDraft(d => ({ ...d, bio: e.target.value }))} rows={3} className="sm:col-start-2 sm:col-span-2" style={{ ...inp, fontSize: 13, resize: 'vertical' }} placeholder="Short professional bio" />
-                      <input value={guideDraft.expertise} onChange={e => setGuideDraft(d => ({ ...d, expertise: e.target.value }))} className="sm:col-start-2 sm:col-span-2" style={{ ...inp, fontSize: 13 }} placeholder="Areas of expertise, separated by commas" />
+                      <input value={guideDraft.full_name} onChange={e => setGuideDraft(d => ({ ...d, full_name: e.target.value }))} style={{ ...inp, fontSize: 14 }} placeholder="Full name" />
+                      <input value={guideDraft.professional_title} onChange={e => setGuideDraft(d => ({ ...d, professional_title: e.target.value }))} style={{ ...inp, fontSize: 14 }} placeholder="Professional title" />
+                      <input value={guideDraft.company} onChange={e => setGuideDraft(d => ({ ...d, company: e.target.value }))} style={{ ...inp, fontSize: 14 }} placeholder="Company (optional)" />
+                      <input value={guideDraft.linkedin_url} onChange={e => setGuideDraft(d => ({ ...d, linkedin_url: e.target.value }))} style={{ ...inp, fontSize: 14 }} placeholder="LinkedIn profile URL" />
+                      <textarea value={guideDraft.bio} onChange={e => setGuideDraft(d => ({ ...d, bio: e.target.value }))} rows={3} className="sm:col-start-2 sm:col-span-2" style={{ ...inp, fontSize: 14, resize: 'vertical' }} placeholder="Short professional bio" />
+                      <input value={guideDraft.expertise} onChange={e => setGuideDraft(d => ({ ...d, expertise: e.target.value }))} className="sm:col-start-2 sm:col-span-2" style={{ ...inp, fontSize: 14 }} placeholder="Areas of expertise, separated by commas" />
                       <div className="flex items-center justify-end gap-2">
                         <button type="button" onClick={() => { setShowGuideForm(false); setEditingGuideId(null); setGuideDraft(emptyGuideDraft); }} className="px-3 py-2 rounded-xl text-[12px] font-semibold" style={{ color: C.muted }}>Cancel</button>
                         <button type="button" disabled={savingGuide} onClick={editingGuideId ? updateExperienceGuide : createExperienceGuide} className="px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50" style={{ background: C.cta }}>{savingGuide ? 'Saving…' : editingGuideId ? 'Update profile' : 'Save profile'}</button>
@@ -2275,20 +2275,20 @@ function VirtualExperienceCreatePageInner() {
                       </label>
                     </div>}
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Manager name</label>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: C.muted }}>Manager name</label>
                       <input value={config.managerName || ''} onChange={e => setConfig(c => c ? { ...c, managerName: e.target.value, guideId: null, guideSnapshot: null } : c)}
-                        style={{ ...inp, fontSize: 13 }} placeholder="e.g. Amara Diallo" />
+                        style={{ ...inp, fontSize: 14 }} placeholder="e.g. Amara Diallo" />
                     </div>
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Manager title</label>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: C.muted }}>Manager title</label>
                       <input value={config.managerTitle || ''} onChange={e => setConfig(c => c ? { ...c, managerTitle: e.target.value, guideId: null, guideSnapshot: null } : c)}
-                        style={{ ...inp, fontSize: 13 }} placeholder="e.g. Head of Analytics" />
+                        style={{ ...inp, fontSize: 14 }} placeholder="e.g. Head of Analytics" />
                     </div>
                   </div>
 
                   {/* Scenario / background */}
                   <div className="pb-1">
-                    <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Scenario</label>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: C.muted }}>Scenario</label>
                     <AiTextarea
                       value={backgroundDraft}
                       onValueChange={text => {
@@ -2308,10 +2308,10 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Learning outcomes card */}
                 <div style={card} className="p-5 space-y-3">
-                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
+                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ background: C.field }}>
+                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-3" style={{ background: C.field }}>
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{ background: `${C.cta}18` }}>
                             <Check className="w-3 h-3" style={{ color: C.cta }} />
@@ -2328,7 +2328,7 @@ function VirtualExperienceCreatePageInner() {
                       ))}
                     </div>
                     <button onClick={() => { setFocusOutcome((config.learnOutcomes || []).length); setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c); }}
-                      className="text-[13px] font-semibold flex items-center gap-1.5 px-2 py-1.5 hover:opacity-70" style={{ color: C.muted }}>
+                      className="text-sm font-semibold flex items-center gap-2 px-2 py-2 hover:opacity-70" style={{ color: C.muted }}>
                       <Plus className="w-3.5 h-3.5" /> Add outcome
                     </button>
                 </div>
@@ -2348,14 +2348,14 @@ function VirtualExperienceCreatePageInner() {
                         <div className="group py-4" style={{ borderTop: mi > 0 ? `1px solid ${C.divider}` : 'none' }}>
 
                           {/* Milestone heading */}
-                          <div className="flex items-center gap-2.5 mb-2">
+                          <div className="flex items-center gap-2 mb-2">
                             <div className="flex-shrink-0" title="Drag to reorder milestone">{moduleDragHandle}</div>
                             <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: C.faint }}>Milestone {mi + 1}</span>
                             <input
                               value={mod.title}
                               onChange={e => updateModule(mod.id, { title: e.target.value })}
                               aria-label={`Milestone ${mi + 1} title`}
-                              className="flex-1 bg-transparent text-[15.5px] font-semibold outline-none min-w-0 rounded-lg px-2 -mx-2 py-1"
+                              className="flex-1 bg-transparent text-base font-semibold outline-none min-w-0 rounded-lg px-2 -mx-2 py-1"
                               style={{ color: C.text }}
                               placeholder="Milestone title"
                             />
@@ -2375,7 +2375,7 @@ function VirtualExperienceCreatePageInner() {
                                 <div className="rounded-xl group" style={{ background: expandedModules.has(expandKey) ? C.field : 'transparent' }}>
 
                                   {/* Mission row: open it to edit the content and tasks */}
-                                  <div className="flex items-center gap-2 px-2 py-1.5">
+                                  <div className="flex items-center gap-2 px-2 py-2">
                                     <div className="flex-shrink-0" title="Drag to reorder mission">{lessonDragHandle}</div>
                                     <button type="button" onClick={() => toggleModule(expandKey)} aria-expanded={expandedModules.has(expandKey)}
                                       aria-label={expandedModules.has(expandKey) ? 'Close mission' : 'Open mission'}
@@ -2393,7 +2393,7 @@ function VirtualExperienceCreatePageInner() {
                                       placeholder="Mission title"
                                     />
                                     <button type="button" onClick={() => toggleModule(expandKey)}
-                                      className="hidden sm:block text-[12.5px] whitespace-nowrap flex-shrink-0 transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+                                      className="hidden sm:block text-xs whitespace-nowrap flex-shrink-0 transition-opacity hover:opacity-70" style={{ color: C.muted }}>
                                       {reqCount} task{reqCount !== 1 ? 's' : ''}
                                     </button>
                                     <RowMenu C={C} label={`Mission ${li + 1} options`} onDelete={() => removeLesson(mod.id, les.id)}
@@ -2415,11 +2415,11 @@ function VirtualExperienceCreatePageInner() {
                                         />
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <input style={{ ...inp, fontSize: 13, flex: 1, background: C.card }} value={les.videoUrl || ''} placeholder="Video link (YouTube, Vimeo, Bunny or Canva)"
+                                        <input style={{ ...inp, fontSize: 14, flex: 1, background: C.card }} value={les.videoUrl || ''} placeholder="Video link (YouTube, Vimeo, Bunny or Canva)"
                                           aria-label="Video link" onChange={e => updateLesson(mod.id, les.id, { videoUrl: e.target.value })} />
                                         <button type="button" onClick={() => openBunnyPicker(`${mod.id}::${les.id}`)}
                                           title="Choose a video from the Bunny library"
-                                          className="flex items-center gap-1.5 px-1 py-2 text-[13px] font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
+                                          className="flex items-center gap-2 px-1 py-2 text-sm font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
                                           style={{ color: '#FF6B35' }}>
                                           <Video className="w-3.5 h-3.5"/> Bunny
                                         </button>
@@ -2436,7 +2436,7 @@ function VirtualExperienceCreatePageInner() {
                                               updateLesson(mod.id, les.id, { videoUrl: url });
                                             } catch (err: any) { alert('Upload failed: ' + (err?.message || 'Please try again.')); }
                                           }} />
-                                          <div className="flex items-center gap-1.5 px-1 py-2 text-[13px] font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
+                                          <div className="flex items-center gap-2 px-1 py-2 text-sm font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
                                             style={{ color: C.muted }}>
                                             <FileCode className="w-3.5 h-3.5"/> HTML
                                           </div>
@@ -2454,7 +2454,7 @@ function VirtualExperienceCreatePageInner() {
                                       {/* Tasks */}
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Tasks</span>
+                                          <span className="text-xs font-semibold" style={{ color: C.muted }}>Tasks</span>
                                           <div className="flex-1 h-px" style={{ background: C.divider }}/>
                                         </div>
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd(mod.id, les.id)}>
@@ -2473,17 +2473,17 @@ function VirtualExperienceCreatePageInner() {
                                                     says so, since learners see the title as the task's heading. */}
                                                 <button type="button" onClick={() => toggleReqOpen(req.id)} aria-expanded={openReqs.has(req.id)}
                                                   title={openReqs.has(req.id) ? 'Close this task' : 'Open this task to edit it'}
-                                                  className="flex flex-1 min-w-0 items-center gap-2.5 py-1.5 text-left">
+                                                  className="flex flex-1 min-w-0 items-center gap-2 py-2 text-left">
                                                   {openReqs.has(req.id) ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />}
                                                   <span className="flex-shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-semibold" style={{ background: C.field, color: C.muted }}>
                                                     {REQ_TYPE_NAMES[req.type] || 'Task'}
                                                   </span>
                                                   {req.label.trim()
                                                     ? <span className="min-w-0 flex-1 truncate text-[14px]" style={{ color: C.text }}>{req.label}</span>
-                                                    : <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold" style={{ color: '#b45309' }}>No title yet</span>}
+                                                    : <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: '#b45309' }}>No title yet</span>}
                                                 </button>
                                                 {req.emailFrame && !openReqs.has(req.id) && (
-                                                  <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: C.cta }}>
+                                                  <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: C.cta }}>
                                                     <Mail className="w-3 h-3" /> Email
                                                   </span>
                                                 )}
@@ -2549,7 +2549,7 @@ function VirtualExperienceCreatePageInner() {
                                                     onClick={() => updateReq(mod.id, les.id, req.id, { emailFrame: !req.emailFrame })}
                                                     role="switch" aria-checked={!!req.emailFrame}
                                                     title={req.emailFrame ? 'This task arrives as an email from the manager. Click to show it as a plain card.' : 'Click to send this task as an email from the manager.'}
-                                                    className="flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all"
+                                                    className="flex-shrink-0 flex items-center gap-2 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all"
                                                     style={{ background: req.emailFrame ? `${C.cta}1f` : C.card, color: req.emailFrame ? C.cta : C.muted, border: `1px solid ${req.emailFrame ? C.cta : C.cardBorder}` }}>
                                                     <Mail className="w-3 h-3" /> {req.emailFrame ? 'Sent as email' : 'Send as email'}
                                                   </button>
@@ -2561,14 +2561,14 @@ function VirtualExperienceCreatePageInner() {
                                                       updateReq(mod.id, les.id, req.id, convertLegacyEmailDeliverable(req));
                                                     }}
                                                     title="Convert the email into the deliverable brief and checkbox presentation"
-                                                    className="flex flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-all"
+                                                    className="flex flex-shrink-0 items-center gap-2 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-all"
                                                     style={{ background: 'rgba(245,158,11,0.12)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
                                                     <Mail className="h-3 w-3" /> Convert from email
                                                   </button>
                                                 )}
                                               </div>
                                               <div>
-                                                <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                                                <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>
                                                   Title <span className="font-normal" style={{ color: C.faint }}>(the heading learners see)</span>
                                                 </label>
                                                 <input value={req.label}
@@ -2649,7 +2649,7 @@ function VirtualExperienceCreatePageInner() {
                                                   ) : (
                                                     <div className="space-y-3">
                                                       <div>
-                                                        <p className="text-[12.5px] font-semibold mb-2" style={{ color: C.muted }}>
+                                                        <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>
                                                           Deliverable instructions
                                                         </p>
                                                         <LessonEditor
@@ -2667,7 +2667,7 @@ function VirtualExperienceCreatePageInner() {
                                                         />
                                                       </div>
                                                       <div className="space-y-2">
-                                                        <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+                                                        <p className="text-xs font-semibold" style={{ color: C.muted }}>
                                                           Resources
                                                         </p>
                                                         {(req.attachments || []).map((att, ai) => (
@@ -2718,7 +2718,7 @@ function VirtualExperienceCreatePageInner() {
                                                       <button
                                                         type="button"
                                                         onClick={() => updateReq(mod.id, les.id, req.id, { shareRequired: req.shareRequired !== true })}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all self-start"
+                                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all self-start"
                                                         style={req.shareRequired !== true
                                                           ? { background: C.card, border: `1px solid ${C.cardBorder}`, color: C.muted }
                                                           : { background: C.cta, color: 'white' }}>
@@ -2766,7 +2766,7 @@ function VirtualExperienceCreatePageInner() {
                                                             const newOpts = [...opts]; newOpts[oi] = e.target.value;
                                                             updateReq(mod.id, les.id, req.id, { options: newOpts, correctAnswer: req.correctAnswer === opt ? e.target.value : req.correctAnswer });
                                                           }}
-                                                          className="flex-1 bg-transparent text-[13px] outline-none"
+                                                          className="flex-1 bg-transparent text-sm outline-none"
                                                           style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, borderColor: isCorrect ? C.cta : 'transparent', color: isCorrect ? C.cta : C.text, fontWeight: isCorrect ? 600 : 400 }}
                                                           placeholder={`Option ${letter}…`} />
                                                       </div>
@@ -2823,7 +2823,7 @@ function VirtualExperienceCreatePageInner() {
                                                       const letter = String.fromCharCode(65 + oi);
                                                       const recommended = req.correctAnswer === opt && opt !== '';
                                                       return (
-                                                        <div key={oi} className="rounded-lg p-2 space-y-1.5" style={{ background: C.card, border: `1px solid ${recommended ? tc.color : C.cardBorder}` }}>
+                                                        <div key={oi} className="rounded-lg p-2 space-y-2" style={{ background: C.card, border: `1px solid ${recommended ? tc.color : C.cardBorder}` }}>
                                                           <div className="flex items-center gap-2">
                                                             <button
                                                               type="button"
@@ -2836,7 +2836,7 @@ function VirtualExperienceCreatePageInner() {
                                                             <input
                                                               value={opt}
                                                               onChange={e => updateDecisionOption(oi, e.target.value)}
-                                                              className="flex-1 bg-transparent text-[13px] outline-none"
+                                                              className="flex-1 bg-transparent text-sm outline-none"
                                                               style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, color: C.text }}
                                                               placeholder={`Decision option ${letter}...`}
                                                             />
@@ -2874,20 +2874,20 @@ function VirtualExperienceCreatePageInner() {
                                                 </div>
                                               )}
                                               {req.type === 'upload' && (
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-2">
                                                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
                                                     <LinkIcon className="w-3 h-3 flex-shrink-0" />Students will upload a file or paste a link
                                                   </div>
                                                   {/* Read by the AI draft of the instructor report when the student uploads an Excel workbook. */}
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
                                                     <textarea
                                                       value={(req.reviewSheetNames ?? []).join('\n')}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
                                                       rows={3}
                                                       spellCheck={false}
                                                       placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
                                                       style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                     <p className="text-[11px] mt-1" style={{ color: C.muted }}>When you draft a report with AI, only these worksheets are read. Leave blank to read the first 5.</p>
@@ -2906,7 +2906,7 @@ function VirtualExperienceCreatePageInner() {
                                                 </div>
                                               )}
                                               {req.type === 'text' && (
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-2">
                                                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
                                                     <FileText className="w-3 h-3 flex-shrink-0" />Students will type a written response
                                                   </div>
@@ -2914,7 +2914,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <button
                                                     type="button"
                                                     onClick={() => updateReq(mod.id, les.id, req.id, { aiReview: !req.aiReview, expectedAnswer: undefined })}
-                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
                                                     style={{
                                                       background: req.aiReview ? 'rgba(0,185,92,0.12)' : 'rgba(0,0,0,0.04)',
                                                       color: req.aiReview ? '#00b95c' : C.muted,
@@ -2962,7 +2962,7 @@ function VirtualExperienceCreatePageInner() {
                                                     Students paste their code. AI reviews correctness, quality, efficiency, and best practices with line-level feedback
                                                   </div>
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Language</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Language</p>
                                                     <select
                                                       value={req.reviewLanguage ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewLanguage: e.target.value || undefined })}
@@ -2975,19 +2975,19 @@ function VirtualExperienceCreatePageInner() {
                                                     <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will not be able to switch.</p>
                                                   </div>
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Table schema or data context (optional)</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Table schema or data context (optional)</p>
                                                     <textarea
                                                       value={req.schema ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { schema: e.target.value })}
                                                       rows={4}
                                                       spellCheck={false}
                                                       placeholder="Paste CREATE TABLE statements or describe the DataFrame columns. The AI uses this to validate student code against the actual schema."
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
                                                       style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div className="flex items-center gap-3">
-                                                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
+                                                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
                                                       type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
@@ -3015,31 +3015,31 @@ function VirtualExperienceCreatePageInner() {
                                                     Students upload their .xlsx file. AI reviews formula correctness, formula choice, and value accuracy.
                                                   </div>
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Spreadsheet context (optional)</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Spreadsheet context (optional)</p>
                                                     <textarea
                                                       value={req.context ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
                                                       rows={4}
                                                       spellCheck={false}
                                                       placeholder="Include the domain so the AI applies the right expertise. e.g. This is a financial model for a retail business. B5 should calculate total revenue using SUMIF on column D, C10 should show profit margin as a percentage. Or: This is an HR payroll sheet. Column F should calculate net pay after tax deductions. Or: This is a BI sales dashboard for a fintech company. D12 should show month-on-month growth using XLOOKUP."
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
                                                       style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
                                                     <textarea
                                                       value={(req.reviewSheetNames ?? []).join('\n')}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
                                                       rows={3}
                                                       spellCheck={false}
                                                       placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
                                                       style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div className="flex items-center gap-3">
-                                                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
+                                                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
                                                       type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
@@ -3068,18 +3068,18 @@ function VirtualExperienceCreatePageInner() {
                                                     <FileText className="w-3 h-3 flex-shrink-0" />Students upload a PDF, Word document, or text file for rubric-based review.
                                                   </div>
                                                   <div>
-                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Document context</p>
+                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Document context</p>
                                                     <textarea value={req.context ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })} rows={3}
                                                       placeholder="Describe the intended audience, purpose, and any important requirements."
-                                                      className="w-full resize-none outline-none text-[12px] px-3 py-2.5 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
+                                                      className="w-full resize-none outline-none text-[12px] px-3 py-3 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
                                                   </div>
                                                   <div className="flex flex-wrap items-center gap-3">
                                                     <select value={req.documentReviewMode ?? 'ai_only'} onChange={e => updateReq(mod.id, les.id, req.id, { documentReviewMode: e.target.value as Requirement['documentReviewMode'] })} style={{ ...inp, width: 'auto', fontSize: 12 }}>
                                                       <option value="ai_only">AI review</option><option value="manual">Instructor review</option><option value="hybrid">AI + instructor review</option>
                                                     </select>
-                                                    <label className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Pass score</label>
+                                                    <label className="text-xs font-semibold" style={{ color: C.muted }}>Pass score</label>
                                                     <input type="number" min={0} max={100} value={req.minScore ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : Number(e.target.value) })}
-                                                      placeholder="70" className="w-20 outline-none text-[12px] px-2 py-1.5 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
+                                                      placeholder="70" className="w-20 outline-none text-[12px] px-2 py-2 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
                                                     <span className="text-[11px]" style={{ color: C.muted }}>out of 100</span>
                                                   </div>
                                                   <RubricBuilder criteria={req.rubric ?? []}
@@ -3114,7 +3114,7 @@ function VirtualExperienceCreatePageInner() {
                             {/* Add mission, then the milestone's optional solution link */}
                             <div className="space-y-2 pt-1">
                               <button onClick={() => addLesson(mod.id)}
-                                className="flex items-center gap-1.5 text-[13px] font-semibold px-2 py-1.5 transition-opacity hover:opacity-70"
+                                className="flex items-center gap-2 text-sm font-semibold px-2 py-2 transition-opacity hover:opacity-70"
                                 style={{ color: C.muted }}>
                                 <Plus className="w-3.5 h-3.5" /> Add mission
                               </button>
@@ -3124,7 +3124,7 @@ function VirtualExperienceCreatePageInner() {
                                   value={mod.solutionVideo || ''}
                                   onChange={e => updateModule(mod.id, { solutionVideo: e.target.value })}
                                   aria-label={`Solution video or file for ${mod.title || 'this milestone'}`}
-                                  className="flex-1 min-w-0 bg-transparent py-2.5 text-[13px] outline-none"
+                                  className="flex-1 min-w-0 bg-transparent py-3 text-sm outline-none"
                                   style={{ color: C.text }}
                                   placeholder="Solution video or file link for this milestone (optional)" />
                               </div>
@@ -3139,7 +3139,7 @@ function VirtualExperienceCreatePageInner() {
                     </DndContext>
                   </div>
                   <button onClick={addModule}
-                    className="flex items-center gap-1.5 text-[13px] font-semibold px-2 py-2 mt-1 transition-opacity hover:opacity-70"
+                    className="flex items-center gap-2 text-sm font-semibold px-2 py-2 mt-1 transition-opacity hover:opacity-70"
                     style={{ color: C.muted }}>
                     <Plus className="w-3.5 h-3.5" /> Add milestone
                   </button>
@@ -3150,16 +3150,16 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* The experience: industry, level and duration */}
                 <div style={card} className="space-y-4">
-                  <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>The experience</h3>
+                  <h3 className="text-base font-semibold" style={{ color: C.text }}>The experience</h3>
                   <div>
-                    <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Industry</label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Industry</label>
+                    <div className="flex flex-wrap gap-2">
                       {[...INDUSTRIES, { id: 'other', label: 'Other' }].map(ind => {
                         const selected = industry === ind.id;
                         return (
                           <button key={ind.id} type="button" aria-pressed={selected}
                             onClick={() => { setIndustry(ind.id); if (ind.id !== 'other') setConfig(c => c ? { ...c, industry: ind.id } : c); }}
-                            className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                            className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
                             style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
                             {ind.label}
                           </button>
@@ -3175,26 +3175,26 @@ function VirtualExperienceCreatePageInner() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Level</label>
+                      <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Level</label>
                       <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
                         {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
                           const selected = (config.difficulty || 'intermediate') === id;
                           return (
                             <button key={id} type="button" aria-pressed={selected} onClick={() => setConfig(c => c ? { ...c, difficulty: id } : c)}
-                              className="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors"
+                              className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
                               style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
                               {label}
                             </button>
                           );
                         })}
                       </div>
-                      <p className="text-[12px] mt-1.5" style={{ color: C.faint }}>Shown on the experience page. It does not change the content.</p>
+                      <p className="text-[12px] mt-2" style={{ color: C.faint }}>Shown on the experience page. It does not change the content.</p>
                     </div>
                     <div>
-                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Duration</label>
+                      <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Duration</label>
                       <input value={config.duration || ''} onChange={e => setConfig(c => c ? { ...c, duration: e.target.value } : c)}
                         style={inp} placeholder="e.g. 3 weeks" />
-                      <p className="text-[12px] mt-1.5" style={{ color: C.faint }}>How long it takes to complete.</p>
+                      <p className="text-[12px] mt-2" style={{ color: C.faint }}>How long it takes to complete.</p>
                     </div>
                   </div>
                 </div>
@@ -3206,21 +3206,21 @@ function VirtualExperienceCreatePageInner() {
                 {/* Look: accent, cover and badge. The accent is chosen as a course's is: a theme colour or a
                     custom one. Unset keeps the default green. */}
                 <div style={{ ...card, paddingBottom: 12 }} className="space-y-3">
-                  <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>Look</h3>
-                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Accent colour</p>
+                  <h3 className="text-base font-semibold" style={{ color: C.text }}>Look</h3>
+                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Accent colour</p>
                   <div className="flex flex-wrap items-start gap-4">
                     {(Object.entries(THEME_ACCENT_COLORS) as [ThemeColor, string][]).map(([key, color]) => {
                       const selected = config.theme === key && !config.customAccent;
                       return (
                         <button key={key} type="button" onClick={() => setConfig(c => c ? { ...c, theme: key, customAccent: undefined } : c)}
-                          aria-pressed={selected} title={key[0].toUpperCase() + key.slice(1)} className="flex flex-col items-center gap-1.5 group">
+                          aria-pressed={selected} title={key[0].toUpperCase() + key.slice(1)} className="flex flex-col items-center gap-2 group">
                           <span className={`h-7 w-7 rounded-full transition-transform group-hover:scale-110 ${selected ? 'scale-110' : ''}`}
                             style={{ background: color, boxShadow: selected ? `0 0 0 2.5px ${C.card}, 0 0 0 4.5px ${color}` : undefined }} />
-                          <span className="text-[10px] capitalize" style={{ color: C.faint }}>{key}</span>
+                          <span className="text-[11px] capitalize" style={{ color: C.faint }}>{key}</span>
                         </button>
                       );
                     })}
-                    <label title="Custom color" className="flex flex-col items-center gap-1.5 group cursor-pointer">
+                    <label title="Custom color" className="flex flex-col items-center gap-2 group cursor-pointer">
                       <span className={`relative grid h-7 w-7 place-items-center rounded-full transition-transform group-hover:scale-110 ${config.customAccent ? 'scale-110' : ''}`}
                         style={{
                           background: config.customAccent ?? 'conic-gradient(from 90deg, #f43f5e, #f59e0b, #a3e635, #10b981, #06b6d4, #3b82f6, #ec4899, #f43f5e)',
@@ -3231,7 +3231,7 @@ function VirtualExperienceCreatePageInner() {
                           onChange={e => setConfig(c => c ? { ...c, customAccent: e.target.value } : c)}
                           className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                       </span>
-                      <span className="text-[10px]" style={{ color: C.faint }}>Custom</span>
+                      <span className="text-[11px]" style={{ color: C.faint }}>Custom</span>
                     </label>
                   </div>
                   <p className="text-[11px]" style={{ color: C.faint }}>Used for buttons, highlights and progress across the experience. Pale colours are darkened just enough to stay readable.</p>
@@ -3240,7 +3240,7 @@ function VirtualExperienceCreatePageInner() {
                 {/* Cover image card */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-5">
                 <div id="ve-cover-image" className="space-y-2 min-w-0">
-                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Cover image</p>
+                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Cover image</p>
                   {coverImage && (
                     <img src={resolveCoverUrl(coverImage)} alt="cover" className="w-full object-cover rounded-xl"
                       style={{ height: 180 }} onError={e => (e.target as HTMLImageElement).style.display = 'none'} />
@@ -3250,12 +3250,12 @@ function VirtualExperienceCreatePageInner() {
                       className="w-full min-h-28 rounded-xl flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
                       style={{ background: C.field, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
                       <Images className="w-6 h-6" />
-                      <span className="text-[13px] font-semibold">Upload or choose a cover image</span>
+                      <span className="text-sm font-semibold">Upload or choose a cover image</span>
                       <span className="text-[11px]" style={{ color: C.faint }}>Recommended 16:9 landscape image</span>
                     </button>
                   )}
                   <div className="flex gap-2">
-                    <input style={{ ...inp, fontSize: 13 }} value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Paste image URL…" />
+                    <input style={{ ...inp, fontSize: 14 }} value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Paste image URL..." />
                     <button onClick={() => coverRef.current?.click()} disabled={uploadingCover}
                       className="flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
                       style={{ color: C.muted, background: C.field }}>
@@ -3281,20 +3281,20 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Completion badge */}
                 <div className="space-y-2 min-w-0">
-                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Completion badge</p>
+                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Completion badge</p>
                   <p className="text-[12px] leading-relaxed" style={{ color: C.faint }}>Earned on completing the experience, alongside the certificate.</p>
                   {config?.badgeImageUrl && (
                     <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.field }}>
                       <img src={config.badgeImageUrl} alt="Badge" className="w-16 h-16 rounded-xl object-contain flex-shrink-0"
                         style={{ border: `1px solid ${C.cardBorder}`, background: C.input }}/>
                       <button onClick={() => setConfig(c => c ? { ...c, badgeImageUrl: null } : c)}
-                        className="text-xs px-3 py-1.5 rounded-lg transition-opacity hover:opacity-70"
+                        className="text-xs px-3 py-2 rounded-lg transition-opacity hover:opacity-70"
                         style={{ color: '#ef4444', background: '#ef444412' }}>Remove</button>
                     </div>
                   )}
                   <div className="flex gap-2">
                     <button onClick={() => badgeInputRef.current?.click()} disabled={uploadingBadge}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:opacity-70 disabled:opacity-50"
+                      className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-70 disabled:opacity-50"
                       style={{ color: C.muted, background: C.field }}>
                       {uploadingBadge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                       {uploadingBadge ? 'Uploading...' : config?.badgeImageUrl ? 'Change badge' : 'Upload badge'}
@@ -3309,7 +3309,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Target Audience card */}
                 <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Target audience</p>
+                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Target audience</p>
 
                   <button
                     type="button"
@@ -3320,7 +3320,7 @@ function VirtualExperienceCreatePageInner() {
                     style={{ background: availableToEveryone ? `${C.cta}14` : C.card, boxShadow: availableToEveryone ? `0 0 0 2px ${C.cta}` : 'none' }}
                   >
                     <span className="space-y-1">
-                      <span className="block text-[13px] font-semibold" style={{ color: availableToEveryone ? C.cta : C.text }}>
+                      <span className="block text-sm font-semibold" style={{ color: availableToEveryone ? C.cta : C.text }}>
                         Available to everyone
                       </span>
                       <span className="block text-[11px] leading-relaxed" style={{ color: C.faint }}>
@@ -3336,16 +3336,16 @@ function VirtualExperienceCreatePageInner() {
                   </button>
 
                   {availableToEveryone
-                    ? <p className="text-[13px]" style={{ color: C.faint }}>Open to every account, so no cohort is selected.</p>
+                    ? <p className="text-sm" style={{ color: C.faint }}>Open to every account, so no cohort is selected.</p>
                     : cohorts.length === 0
-                    ? <p className="text-[13px]" style={{ color: C.faint }}>No cohorts available.</p>
-                    : <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    ? <p className="text-sm" style={{ color: C.faint }}>No cohorts available.</p>
+                    : <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {cohorts.map(c => {
                           const sel = selectedCohorts.includes(c.id);
                           return (
                             <button key={c.id}
                               onClick={() => setSelectedCohorts(prev => sel ? prev.filter(x => x !== c.id) : [...prev, c.id])}
-                              className="flex items-center gap-2 px-3 py-3 rounded-xl text-[13px] font-semibold text-left transition-all"
+                              className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold text-left transition-all"
                               style={{ border: '1px solid transparent', background: sel ? `${C.cta}14` : C.card, color: sel ? C.cta : C.muted, boxShadow: sel ? `0 0 0 2px ${C.cta}` : 'none' }}>
                               <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: sel ? C.cta : C.pill, color: sel ? C.ctaText : C.faint }}>
                                 {sel && <Check className="w-3 h-3" />}
@@ -3370,7 +3370,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Deadline card */}
                 <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Deadline</p>
+                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Deadline</p>
                   <div className="flex flex-wrap gap-2">
                     {['', '7', '14', '30'].map(days => {
                       const selected = deadlineDays === days;
@@ -3393,7 +3393,7 @@ function VirtualExperienceCreatePageInner() {
                       value={deadlineDays}
                       onChange={e => setDeadlineDays(e.target.value.replace(/\D/g, ''))}
                     />
-                    <span className="text-[13px]" style={{ color: C.muted }}>days from assignment</span>
+                    <span className="text-sm" style={{ color: C.muted }}>days from assignment</span>
                   </div>
                   <p className="text-[11px]" style={{ color: C.faint }}>Students have this many days from when their cohort is assigned to complete the experience. Leave blank for no deadline.</p>
                 </div>
@@ -3476,7 +3476,7 @@ function VirtualExperienceCreatePageInner() {
                         className="w-full text-left px-4 py-2 text-xs"
                         style={{ background: bunnyCollection === col.guid ? `${C.cta}18` : 'transparent', color: bunnyCollection === col.guid ? C.cta : C.muted }}>
                         <span className="block font-medium truncate">{col.name}</span>
-                        <span className="text-[10px]" style={{ color: C.faint }}>{col.videoCount} videos</span>
+                        <span className="text-[11px]" style={{ color: C.faint }}>{col.videoCount} videos</span>
                       </button>
                     ))}
                   </div>
@@ -3505,13 +3505,13 @@ function VirtualExperienceCreatePageInner() {
                               </div>
                             )}
                             {v.duration > 0 && (
-                              <span className="absolute bottom-1.5 right-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                              <span className="absolute bottom-1.5 right-1.5 text-[11px] font-semibold px-2 py-0.5 rounded"
                                 style={{ background: 'rgba(0,0,0,0.75)', color: 'white' }}>
                                 {Math.floor(v.duration / 60)}:{String(v.duration % 60).padStart(2, '0')}
                               </span>
                             )}
                           </div>
-                          <div className="px-2.5 py-2">
+                          <div className="px-3 py-2">
                             <p className="text-xs font-medium line-clamp-2 leading-snug" style={{ color: C.text }}>{v.title}</p>
                           </div>
                         </button>
