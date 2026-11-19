@@ -1182,12 +1182,12 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       setLoading(true);
       setLoadError(false);
       try {
-      // getUser resolves with { user: null, error } on a network or auth failure. The page
-      // redirects a signed-out visitor before this mounts, so an error here is a real failure.
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) return;
-      const effectiveUserId = userIdProp ?? user.id;
+      // The page has already verified the user with getUser and passes their id. A second
+      // getUser here was an extra round trip to Supabase Auth on every load, and any blip in
+      // it put the student on the retry screen. Read the local session only, as Overview does.
+      const { data: { session } } = await supabase.auth.getSession();
+      const effectiveUserId = userIdProp ?? session?.user.id;
+      if (!effectiveUserId) return;
 
       // Get student's cohort -- original_cohort_id being set means they're currently in outstanding
       const { data: student, error: studentError } = await supabase
@@ -1242,8 +1242,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       if (cancelled) return;
       setIsOutstandingInternal(outstanding);
 
-      // Get session token for authenticated API calls
-      const { data: { session } } = await supabase.auth.getSession();
+      // Session token for authenticated API calls
       const token = session?.access_token ?? '';
 
 
