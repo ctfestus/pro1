@@ -14,6 +14,7 @@ import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRe
 import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { repairVeSubmissionUrl, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
+import ShortAnswerReviewResult, { savedShortAnswerResult, shortAnswerProgressFields, shortAnswerResultOf } from '@/components/ShortAnswerReviewResult';
 import type { RequirementProps } from './types';
 import { AiNote, TaskButton, TaskOption, taskTheme } from './TaskCard';
 
@@ -109,9 +110,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       // restored from yesterday's saved state would be telling them to buy their
       // way out of a limit that has already reset.
       ? { passed: false, feedback: progress[req.id]?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true, upgradeUrl: undefined }
-      : progress[req.id]?.aiFeedback
-      ? { passed: !!progress[req.id]?.aiPassed, feedback: progress[req.id]!.aiFeedback!, score: progress[req.id]?.aiScore ?? 0, upgradeUrl: undefined }
-      : null;
+      : savedShortAnswerResult(progress[req.id]);
     const feedback = aiFeedback[req.id] !== undefined ? aiFeedback[req.id] : persistedFeedback;
     const fbErrored = !!feedback?.errored;
     // Neutral tone for a review that never ran; green/amber only for a real verdict.
@@ -158,11 +157,9 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
           if (ok) {
             // A real verdict from the model - record it (pass or fail) and clear
             // any prior error marker.
-            const passed = json.passed ?? false;
-            const fb = json.feedback || '';
-            const score = json.score ?? 0;
-            setAiFeedback(prev => ({ ...prev, [req.id]: { passed, feedback: fb, score } }));
-            setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score } }; saveProgress(next, currentModId, currentLesId); return next; });
+            const result = shortAnswerResultOf(json);
+            setAiFeedback(prev => ({ ...prev, [req.id]: result }));
+            setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, ...shortAnswerProgressFields(result) } }; saveProgress(next, currentModId, currentLesId); return next; });
           } else {
             // A review that never ran. Three different things land here and they must not
             // be treated alike. A fault -- reviewer down, bad request, timeout -- is not
@@ -270,13 +267,18 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               ) : (
               <MailThreadMsg isDark={isDark} from={manager}>
                 <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
-                <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
-                    {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                    {fbTone.label}
+                {/* An AI verdict is the structured review; a manual comparison and a review that never ran keep the note. */}
+                {req.aiReview && !fbErrored ? (
+                  <ShortAnswerReviewResult result={feedback} isDark={!!isDark} accentColor={accentColor} />
+                ) : (
+                  <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
+                      {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                      {fbTone.label}
+                    </div>
+                    <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
                   </div>
-                  <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
-                </div>
+                )}
               </MailThreadMsg>
               )}
               {/* A wrong answer or a failed review both get a way back to the composer;

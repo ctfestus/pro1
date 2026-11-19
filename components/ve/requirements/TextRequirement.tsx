@@ -1,9 +1,10 @@
 'use client';
 
-import { CheckCircle2, Circle, Loader2, Download, AlertTriangle, PenLine, Sparkles } from 'lucide-react';
+import { Loader2, AlertTriangle, PenLine, Sparkles } from 'lucide-react';
 import AiReviewUpgradePrompt, { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import ShortAnswerReviewResult, { savedShortAnswerResult, shortAnswerProgressFields, shortAnswerResultOf } from '@/components/ShortAnswerReviewResult';
 import type { RequirementProps } from './types';
 import { TaskHeader, TaskButton, AiNote, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
@@ -15,7 +16,7 @@ function isAnswerCorrect(studentAnswer: string, expectedAnswer: string): boolean
 /** Short answer, with AI review or an exact-match check. */
 export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const {
-    isDark, accentColor, config, formId, authHeader, currentLes,
+    isDark, accentColor, formId, authHeader,
     currentModId, currentLesId, reviewMode, entitlement, progress, setProgress, saveProgress,
     noteValues, setNoteValues, aiReviewing, setAiReviewing, aiFeedback, setAiFeedback,
   } = ctx;
@@ -30,7 +31,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
     ? aiFeedback[req.id]
     : (progress[req.id]?.aiErrored
       ? { passed: false, feedback: progress[req.id]?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true }
-      : null);
+      : savedShortAnswerResult(progress[req.id]));
   const fbErrored = !!feedback?.errored;
   // The box stays editable/retryable whenever the LAST review errored - keyed off the
   // PERSISTED marker, not the transient banner. The banner clears on the first keystroke
@@ -38,11 +39,13 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
   // would re-lock the field. Progression is never blocked (completed stays true); this
   // only governs the editable/"done" presentation, which a successful resubmit restores.
   const showDone  = done && !progress[req.id]?.aiErrored;
+  // A reviewed answer that did not pass stays open, so the student can improve it and send it again.
+  const locked    = showDone && !(feedback && !fbErrored && !feedback.passed);
 
   if (req.aiReview) {
     // --- AI Review path ---
     const handleSubmitAi = async () => {
-      if (!noteVal.trim() || reviewing || showDone) return;
+      if (!noteVal.trim() || reviewing || locked) return;
       setAiReviewing(prev => ({ ...prev, [req.id]: true }));
       setAiFeedback(prev => ({ ...prev, [req.id]: null }));
       // A fault keeps progression open, so a flaky reviewer can never trap a student.
@@ -73,9 +76,10 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined,
           );
         } else {
-          setAiFeedback(prev => ({ ...prev, [req.id]: { passed: json.passed, feedback: json.feedback, score: json.score } }));
+          const result = shortAnswerResultOf(json);
+          setAiFeedback(prev => ({ ...prev, [req.id]: result }));
           setProgress(prev => {
-            const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, aiFeedback: undefined } };
+            const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, ...shortAnswerProgressFields(result) } };
             saveProgress(next, currentModId, currentLesId);
             return next;
           });
@@ -99,14 +103,14 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             setNoteValues(prev => ({ ...prev, [req.id]: e.target.value }));
             if (feedback && !showDone) setAiFeedback(prev => ({ ...prev, [req.id]: null }));
           }}
-          disabled={showDone && !reviewMode}
+          disabled={locked && !reviewMode}
           placeholder="Write your answer"
           aria-label="Write your answer"
           rows={4}
           className={`${TASK_FIELD} w-full text-[14px] px-3 py-2.5 resize-y`}
-          style={fieldStyle(t, showDone ? 'done' : 'normal')}
+          style={fieldStyle(t, locked ? 'done' : 'normal')}
         />
-        {!showDone && entitlement.locked && (
+        {!locked && entitlement.locked && (
           <AiReviewUpgradePrompt
             accentColor={accentColor}
             isDark={isDark ?? false}
@@ -118,10 +122,10 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             message="You can still write and send your answer. It just will not be reviewed by AI."
           />
         )}
-        {!showDone && !entitlement.locked && entitlement.exhausted && (
+        {!locked && !entitlement.locked && entitlement.exhausted && (
           <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
         )}
-        {!showDone && (
+        {!locked && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <AiNote t={t} />
@@ -146,70 +150,8 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             </div>
           </div>
         )}
-        {/* AI feedback panel */}
         {feedback && !fbErrored && (
-          <div className="rounded-xl p-4 space-y-2"
-            style={{
-              background: feedback.passed ? `${t.accent}12` : `${t.bad}12`,
-              border: 'none',
-            }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {feedback.passed
-                  ? <CheckCircle2 className="w-4 h-4" style={{ color: t.accent }} />
-                  : <Circle className="w-4 h-4" style={{ color: t.bad }} />}
-                <span className="text-[13px] font-bold" style={{ color: feedback.passed ? t.accent : t.bad }}>
-                  {feedback.passed ? 'Passed' : 'Not quite there yet'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-bold tabular-nums px-2 py-0.5 rounded-full"
-                  style={{ background: feedback.passed ? `${t.accent}26` : `${t.bad}26`, color: feedback.passed ? t.accent : t.bad }}>
-                  {feedback.score}/100
-                </span>
-                <button
-                  onClick={async () => {
-                    const { jsPDF } = await import('jspdf');
-                    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-                    const margin = 48;
-                    const pageW  = doc.internal.pageSize.getWidth();
-                    const maxW   = pageW - margin * 2;
-                    let y = margin;
-
-                    const addText = (text: string, size: number, bold: boolean, color: [number, number, number], gap: number) => {
-                      doc.setFontSize(size);
-                      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-                      doc.setTextColor(...color);
-                      const lines = doc.splitTextToSize(text, maxW);
-                      doc.text(lines, margin, y);
-                      y += lines.length * (size * 1.4) + gap;
-                    };
-
-                    const ve   = [config.company, config.role].filter(Boolean).join(' - ');
-                    const task = req.label || req.description || 'Task';
-
-                    if (ve) addText(ve, 10, false, [120, 120, 120], 4);
-                    addText('AI Review Feedback', 18, true, [17, 24, 39], 20);
-                    addText(task, 13, true, [55, 65, 81], 6);
-                    if (currentLes?.title) addText(currentLes.title, 10, false, [120, 120, 120], 16);
-
-                    addText('Your Answer', 11, true, [100, 100, 100], 6);
-                    addText(noteVal, 12, false, [55, 65, 81], 20);
-
-                    addText(`Score: ${feedback.score}/100  |  ${feedback.passed ? 'Passed' : 'Not yet passed'}`, 11, true, feedback.passed ? [16, 185, 129] : [245, 158, 11], 8);
-                    addText(feedback.feedback, 12, false, [55, 65, 81], 0);
-
-                    const slug = (task).replace(/\s+/g, '-').toLowerCase().slice(0, 40);
-                    doc.save(`ai-review-${slug}.pdf`);
-                  }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
-                  style={{ background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: isDark ? '#aaa' : '#666' }}>
-                  <Download className="w-3 h-3" /> PDF
-                </button>
-              </div>
-            </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
-          </div>
+          <ShortAnswerReviewResult result={feedback} isDark={!!isDark} accentColor={accentColor} />
         )}
       </div>
     );

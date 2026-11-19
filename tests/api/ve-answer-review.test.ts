@@ -229,7 +229,10 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
 
 describe('POST /api/ve-answer-review - grading', () => {
   it('grades from the VE row and ignores client-supplied grading fields', async () => {
-    mockGenerateJSON.mockResolvedValue({ score: 85, passed: true, feedback: 'Good point on double counting.' });
+    // The step has criteria, so the model grades each one and the route works out the score.
+    mockGenerateJSON.mockResolvedValue({ executiveSummary: 'Good point on double counting.', rubricGrades: [
+      { id: 1, passed: true, comment: 'Names double counting.', location: '', fix: '' },
+    ] });
     const res = await post(answerBody({
       // Forged grading context must have no effect -- the server loads its own.
       expectedAnswer: 'anything I want',
@@ -237,7 +240,10 @@ describe('POST /api/ve-answer-review - grading', () => {
       question: 'Different question',
     }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ passed: true, feedback: 'Good point on double counting.', score: 85 });
+    expect(await res.json()).toEqual({
+      passed: true, score: 100, feedback: 'Good point on double counting.',
+      rubricGrades: [{ criterion: 'Mentions double counting', passed: true, comment: 'Names double counting.' }],
+    });
     const prompt = mockGenerateJSON.mock.calls[0][0] as string;
     expect(prompt).toContain('Why do duplicates matter?');
     expect(prompt).toContain('Mentions double counting');
@@ -254,3 +260,21 @@ describe('POST /api/ve-answer-review - grading', () => {
     expect((await post(answerBody())).status).toBe(500);
   });
 });
+
+describe('POST /api/ve-answer-review - result structure', () => {
+  it('without criteria, returns the verdict, what worked and what to change as separate parts', async () => {
+    const noCriteria = structuredClone(VE_ROW);
+    noCriteria.modules[0].lessons[0].requirements[0].rubric = [];
+    const auth = await mockRequireUser.getMockImplementation()?.({} as any);
+    mockRequireUser.mockResolvedValue({ ...(auth as any), getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: noCriteria } }) as any });
+    mockGenerateJSON.mockResolvedValue({ score: 55, feedback: 'Close, but the cause is missing.', strength: 'You spotted the duplicate rows.', improvement: 'Say why duplicates inflate totals.' });
+    const res = await post(answerBody());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      passed: false, score: 55, feedback: 'Close, but the cause is missing.',
+      strength: 'You spotted the duplicate rows.', improvement: 'Say why duplicates inflate totals.',
+    });
+    expect((mockGenerateJSON.mock.calls[0][1] as any).required).toEqual(['score', 'feedback', 'strength', 'improvement']);
+  });
+});
+

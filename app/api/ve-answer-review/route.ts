@@ -1,7 +1,8 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
+import { collectRubricGrades, rubricPassRate } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
 import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
@@ -38,13 +39,17 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 
 const PASS_MARK = 60;
 
+// Without criteria: a verdict, the score, and what worked and what to change as separate parts,
+// so the student reads a structured result rather than one block of text.
 const responseSchema = {
   type: 'object',
   properties: {
-    score:    { type: 'number' },
-    feedback: { type: 'string' },
+    score:       { type: 'number' },
+    feedback:    { type: 'string' },
+    strength:    { type: 'string' },
+    improvement: { type: 'string' },
   },
-  required: ['score', 'feedback'],
+  required: ['score', 'feedback', 'strength', 'improvement'],
 };
 
 export async function POST(req: NextRequest) {
@@ -155,15 +160,20 @@ export async function POST(req: NextRequest) {
   const taskLabel   = question || description || 'this task';
   const lessonLine  = [moduleTitle, lessonTitle].filter(Boolean).join(' > ');
 
-  const criteria: string[] = Array.isArray(rubric) ? rubric.filter(c => typeof c === 'string' && c.trim()) : [];
-  // The criteria are the instructor's statement of what a good answer needs, so they set the score
-  // and bound the feedback. Without them the reviewer judges the task as written.
-  const rubricLines = criteria.length > 0
-    ? `Criteria - judge the response against these and nothing else:\n${criteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
-    : '';
+  const criteria: string[] = Array.isArray(rubric) ? rubric.filter(c => typeof c === 'string' && c.trim()).map((c: string) => c.trim()) : [];
   const contextLine  = context       ? `Context: ${context}` : '';
   const modelLine    = expectedAnswer ? `Strong answer covers: ${expectedAnswer}` : '';
-  const extras       = [contextLine, rubricLines, modelLine].filter(Boolean).join('\n');
+  const extras       = [contextLine, modelLine].filter(Boolean).join('\n');
+
+  // With criteria the review is a verdict per criterion, the same as the other AI reviews; the score
+  // is worked out from them. Without, a verdict, a strength and the one change that would help most.
+  const instructions = criteria.length > 0
+    ? rubricInstructions(criteria, 'the part of the answer, e.g. "Second sentence"')
+    : `Return:
+- score: 0-100 (${PASS_MARK}+ passes).
+- feedback: one sentence giving your overall verdict on the response.
+- strength: one sentence naming one specific thing the response does well, pointing to what they wrote. Return "" if there is nothing.
+- improvement: one sentence saying precisely what to add or change, and why it matters on the job. Return "" when the response needs no change.`;
 
   const prompt = `You are a senior ${roleLine}${industry ? ` in ${industry}` : ''}. A junior team member has submitted a written response as part of their work experience${lessonLine ? ` (${lessonLine})` : ''}.
 
@@ -171,14 +181,11 @@ Task: ${taskLabel}
 ${extras ? `\n${extras}\n` : ''}
 Their response: "${studentAnswer}"
 
-${criteria.length > 0
-    ? `Score 0-100 as the share of the criteria the response meets (${PASS_MARK}+ passes). Feedback covers only the criteria: do not raise anything they do not ask for.`
-    : `Score 0-100 (${PASS_MARK}+ passes).`} Write exactly 2-3 sentences of feedback. Rules:
-- Be direct. Cut any sentence that does not add information.
-- Reference what they actually wrote, not generic advice.
-- If passed: name one specific strength, then one concrete way to go further.
-- If not passed: name the exact gap, explain why it matters on the job, tell them precisely what to add or change.
-- No preamble. No filler phrases ("great effort", "however", "it's worth noting"). No bullet points. Start with the assessment, not their name.
+${instructions}
+
+Rules:
+- Be direct. Reference what they actually wrote, not generic advice.
+- No preamble or filler phrases ("great effort", "however", "it's worth noting"). Do not start with their name.
 
 ${REVIEW_GRADING_INSTRUCTIONS}`;
 
@@ -188,10 +195,21 @@ ${REVIEW_GRADING_INSTRUCTIONS}`;
   if (charge.response) return charge.response;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, { feature: 've-answer-review', usageContext: { operation: 've-answer-review' }, temperature: 0.4 });
+    const parsed = await generateJSON(prompt, criteria.length > 0 ? reviewSchema({ hasRubric: true }) : responseSchema, { feature: 've-answer-review', usageContext: { operation: 've-answer-review' }, temperature: 0.4 });
     // Passing is read off the score, so the verdict can never disagree with the number beside it.
+    if (criteria.length > 0) {
+      const { grades } = collectRubricGrades(criteria, parsed?.rubricGrades);
+      const score = Math.round(rubricPassRate(grades, criteria) ?? 0);
+      return NextResponse.json({ passed: score >= PASS_MARK, score, feedback: String(parsed?.executiveSummary ?? ''), rubricGrades: grades });
+    }
     const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.score))) : 0;
-    return NextResponse.json({ passed: score >= PASS_MARK, feedback: parsed.feedback || '', score });
+    return NextResponse.json({
+      passed: score >= PASS_MARK,
+      score,
+      feedback: String(parsed.feedback ?? ''),
+      strength: String(parsed.strength ?? ''),
+      improvement: String(parsed.improvement ?? ''),
+    });
   } catch (err: any) {
     console.error('[ve-answer-review]', err);
     // The review never happened, so it should not have cost them an attempt.
