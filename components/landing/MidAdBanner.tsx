@@ -71,13 +71,13 @@ export function MidAdBanner({
               <div className="relative z-10 flex flex-col gap-3" style={{ padding: '28px 32px', minHeight: sideImage ? undefined : 164 }}>
                 <div>
                   {ad.label && (
-                    <span className="inline-block text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded mb-2.5"
+                    <span className="inline-block text-[11px] font-bold uppercase tracking-widest px-3 py-0.5 rounded mb-3"
                       style={{ background: 'rgba(255,255,255,0.22)', color: 'white', letterSpacing: '0.1em' }}>
                       {ad.label}
                     </span>
                   )}
-                  <h3 className="font-extrabold leading-tight mb-1.5"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.02em', fontSize: 'clamp(15px,1.4vw,19px)', maxWidth: sideImage ? 'none' : 240 }}>
+                  <h3 className="text-base leading-6 sm:text-[22px] sm:leading-7 font-extrabold mb-2"
+                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.02em', maxWidth: sideImage ? 'none' : 240 }}>
                     {ad.title}
                   </h3>
                   {ad.description && (
@@ -90,7 +90,7 @@ export function MidAdBanner({
                   <div className="mt-1">
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-                      style={{ background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, fontSize: 13, padding: '10px 20px' }}>
+                      style={{ background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, fontSize: 14, padding: '12px 20px' }}>
                       {ad.ctaText}
                       <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>

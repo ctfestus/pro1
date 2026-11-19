@@ -63,7 +63,7 @@ export function PricingFaq({ headingFont, bodyFont, supportEmail, paidPlanName }
           </span>
           <p className="mt-5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>Clear answers</p>
           <h2
-            className="mt-2 text-3xl font-black tracking-[-0.035em] sm:text-4xl"
+            className="mt-2 text-[28px] leading-9 font-black tracking-[-0.035em] sm:text-4xl sm:leading-[44px]"
             style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
           >
             Questions before you choose?

@@ -111,7 +111,7 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
     // and shadow -- with the date tile where the standard card has its image. The close button
     // sits on the first card. The promo title is only a dashboard name and screen reader label.
     return (
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2">
         {items.map((item, i) => {
           const { month, day } = eventDateParts(item.date);
           const url = safePromoUrl(item.url);
@@ -120,12 +120,12 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
               <div className="flex flex-col items-center justify-center flex-shrink-0"
                 style={{ width: 96, height: 96, borderRadius: 10, background: tileColor, color: tileText }}>
                 <span className="text-[12px] font-medium" style={{ letterSpacing: '0.18em', paddingLeft: '0.18em' }}>{month}</span>
-                <span className="text-[38px] font-normal leading-none mt-1">{day}</span>
+                <span className="text-4xl font-normal leading-none mt-1">{day}</span>
               </div>
               <div className={`min-w-0 flex-1 ${i === 0 && onClose ? 'pr-6' : ''}`}>
                 <p className="text-[11px] font-semibold uppercase" style={{ color: C.muted, letterSpacing: '0.12em' }}>{eventFormatLabel(item.format)}</p>
-                <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
-                {item.note && <p className="text-[13px] leading-snug mt-1" style={{ color: C.muted }}>{item.note}</p>}
+                <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
+                {item.note && <p className="text-sm leading-snug mt-1" style={{ color: C.muted }}>{item.note}</p>}
               </div>
             </div>
           );
@@ -152,13 +152,13 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         )}
         <div className="min-w-0 flex-1 pr-6">
-          <p className="text-[15px] font-bold leading-snug" style={{ color: C.text }}>{promo.title}</p>
+          <p className="text-base font-bold leading-snug" style={{ color: C.text }}>{promo.title}</p>
           {promo.body && (
-            <p className="text-[13px] leading-snug mt-1 line-clamp-3" style={{ color: C.muted }}>{promo.body}</p>
+            <p className="text-sm leading-snug mt-1 line-clamp-3" style={{ color: C.muted }}>{promo.body}</p>
           )}
           {ctaUrl && (
             <PromoLink url={ctaUrl} preview={preview} onAction={onAction}
-              className="inline-block mt-2 text-[13px] font-semibold hover:underline"
+              className="inline-block mt-2 text-sm font-semibold hover:underline"
               style={{ color: C.cta }}>
               {ctaLabel}
             </PromoLink>
