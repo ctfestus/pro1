@@ -5,12 +5,22 @@
 // not the item's, and the card says so: it opens everything in the plan.
 
 import Link from 'next/link';
-import { ArrowRight, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
 import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
 import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlockMoney, type UnlockInfo } from '@/lib/unlock-pricing';
 
 type Kind = 'course' | 'virtual_experience' | 'learning_path';
 const NOUN: Record<Kind, string> = { course: 'course', virtual_experience: 'experience', learning_path: 'path' };
+
+// What the plan opens, one line per kind it has, in the order a learner cares about. Plans are
+// meant to open everything of a kind, including what is added later, so the card names the kinds
+// rather than counting today's items.
+const KINDS = [
+  { key: 'courses', label: 'Unlimited courses' },
+  { key: 'learning_paths', label: 'Unlimited learning paths' },
+  { key: 'virtual_experiences', label: 'Unlimited virtual experiences' },
+  { key: 'certifications', label: 'Unlimited certifications' },
+] as const;
 
 /** Whether a locked item has something on sale, so the card (rather than a plain button) shows. */
 export function hasPriceCard(locked: boolean | undefined, unlock: UnlockInfo): boolean {
@@ -37,6 +47,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
   const saving = best.listAmount && best.listAmount > best.amount ? Math.round((1 - best.amount / best.listAmount) * 100) : 0;
   // The price a day, a month counted as 30 days, always to the cent ("GHS 0.50", not "GHS 0.5").
   const perDay = `${best.currency || 'GHS'} ${(best.amount / (best.durationMonths * 30)).toFixed(2)}`;
+  const included = KINDS.filter(({ key }) => (plan.coverage?.[key] ?? 0) > 0).map(({ label }) => label);
 
   return (
     <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -49,8 +60,9 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
       }}>
         {planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Best value'}
       </span>
-      <p style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16, fontWeight: 700, color: palette.text }}>
-        <Lock style={{ width: 18, height: 18 }} /> Unlock this {NOUN[kind]}
+      {/* The price is the plan's, so the card leads with the plan, not with unlocking this one item. */}
+      <p style={{ margin: 0, fontSize: 16, lineHeight: '24px', fontWeight: 700, color: palette.text }}>
+        Get this {NOUN[kind]} and more.
       </p>
       <p style={{ margin: 0, fontSize: 14, color: palette.muted }}>
         <span style={{ fontSize: 28, fontWeight: 800, color: palette.text, letterSpacing: '-0.02em', marginRight: 4 }}>{unlockMoney(best.currency, best.amount)}</span>
@@ -75,19 +87,28 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
         </span>{' '}
         a day. One payment, no automatic renewal.
       </p>
+      {included.length > 0 && (
+        // Space Grotesk, the display face of the pricing page's offer strip and hero.
+        <div style={{ borderTop: `1px solid ${palette.line}`, paddingTop: 12, fontFamily: 'var(--font-display), sans-serif' }}>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: palette.muted }}>What&apos;s included:</p>
+          <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
+            {included.map(line => (
+              <li key={line} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: palette.text }}>
+                <Check style={{ width: 16, height: 16, flexShrink: 0, color: '#16a34a' }} /> {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Link href={pricingHrefFor(itemId, kind)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
         {planName ? `Enroll with ${planName}` : enrollLabel(unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
       </Link>
       {paystackEnabled && (
         <p style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '-4px 0 0', fontSize: 12, lineHeight: 1.5, color: palette.muted }}>
-          <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank. Secure checkout by Paystack.
+          <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank.
         </p>
       )}
-      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: palette.muted }}>
-        Opens every course, path and experience in the plan.{' '}
-        <Link href="/pricing" style={{ color: palette.accent, fontWeight: 700, textDecoration: 'none' }}>Compare plans</Link>
-      </p>
     </div>
   );
 }
