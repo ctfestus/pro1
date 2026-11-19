@@ -16,7 +16,8 @@ import {
 } from '@/lib/pricing-contract';
 import type { PurchasableContentTable } from '@/lib/subscription-plan-access';
 
-const RECOMMENDED_BORDER = '#FF9933';
+// The Best Value gold: the ribbon, the recommended plan's border and the offer countdown's edge.
+const BEST_VALUE_GOLD = '#F5D77A';
 
 const KIND_LABEL: Record<PurchasableContentTable, string> = {
   courses: 'Courses',
@@ -202,7 +203,7 @@ function OfferCountdown({ plan, price, end, now, hFont }: {
     : `${money(price.currency, price.discountAmount ?? 0)} off`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4" style={{ boxShadow: 'inset 0 0 0 2px #F5D77A, 0 14px 45px rgba(16,24,40,0.08)' }}>
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4" style={{ boxShadow: `inset 0 0 0 2px ${BEST_VALUE_GOLD}, 0 14px 45px rgba(16,24,40,0.08)` }}>
       <div>
         <p className="text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>
           {promotionHeading(price.discountLabel, 'Offer')}: {saving} {plan.name}
@@ -250,14 +251,14 @@ function PlanCard({ plan, months, afterFree, now, hFont, primaryColor, busy, onB
     <article
       className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7"
       style={plan.recommended
-        // The recommended plan's border: a fixed orange, so it stands apart from the primary-coloured button.
-        ? { borderTop: `4px solid ${RECOMMENDED_BORDER}`, boxShadow: `inset 0 0 0 2px ${RECOMMENDED_BORDER}, 0 18px 48px rgba(16,24,40,0.14)` }
-        : { borderTop: '4px solid #E4E7EC' }}
+        // One even 2px edge in the ribbon's gold, so the border and the Best Value label read as one.
+        ? { boxShadow: `inset 0 0 0 2px ${BEST_VALUE_GOLD}, 0 18px 48px rgba(16,24,40,0.14)` }
+        : undefined}
     >
       {plan.recommended && (
         // The seller's own pick, and openly that. Not "most popular", which is a claim about
         // other buyers that nobody here can check.
-        <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.06em]" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+        <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.06em]" style={{ background: BEST_VALUE_GOLD, color: '#3d2e00' }}>
           Best Value
         </span>
       )}
@@ -351,7 +352,7 @@ function FreePlanCard({ free, signedIn, hFont }: {
   const lines = [...countLines(free), 'Verifiable certificates you earn stay yours'];
 
   return (
-    <article className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7" style={{ borderTop: '4px solid #E4E7EC' }}>
+    <article className="relative flex flex-col rounded-[20px] bg-white p-6 sm:p-7">
       <p className="text-[22px] leading-7 font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
       <p className="mt-2 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
       <div className="mt-5">
