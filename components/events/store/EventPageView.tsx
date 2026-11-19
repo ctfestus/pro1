@@ -67,7 +67,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=${font.googleFamily}&display=swap`} />
       )}
     <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-5 sm:pt-8 pb-16">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
         <Link href="/events" className="font-medium hover:underline" style={{ color: 'var(--ev-body,#334155)' }}>Events</Link>
         <ChevronRight className="w-3.5 h-3.5" /><span className="truncate">{event.title}</span>
       </nav>
@@ -87,10 +87,10 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
           <header>
             <p className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--ev-body2,#475569)' }}>
               {event.format === 'virtual' ? 'Online event' : 'In person event'}
-              {event.isPast && <span className="rounded-full px-2.5 py-0.5 normal-case tracking-normal" style={{ background: 'var(--ev-line,#e2e8f0)', color: 'var(--ev-body,#334155)' }}>Ended</span>}
-              {badge && <span className="rounded-full px-2.5 py-0.5 normal-case tracking-normal" style={BADGE_STYLE[badge.tone]}>{badge.label}</span>}
+              {event.isPast && <span className="rounded-full px-3 py-0.5 normal-case tracking-normal" style={{ background: 'var(--ev-line,#e2e8f0)', color: 'var(--ev-body,#334155)' }}>Ended</span>}
+              {badge && <span className="rounded-full px-3 py-0.5 normal-case tracking-normal" style={BADGE_STYLE[badge.tone]}>{badge.label}</span>}
             </p>
-            <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.title}</h1>
+            <h1 className="mt-2 text-[28px] leading-9 sm:text-[36px] sm:leading-[44px] font-extrabold tracking-tight" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.title}</h1>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Fact icon={<CalendarDays className="w-5 h-5" />}
@@ -127,7 +127,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {aboutHtml && (
             <div>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>About this event</h2>
+              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>About this event</h2>
               <div className="rich-preview mt-3 text-base leading-relaxed" style={{ color: 'var(--ev-body,#334155)' }}
                 dangerouslySetInnerHTML={{ __html: aboutHtml }} />
             </div>
@@ -135,7 +135,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {event.speakers.length > 0 && (
             <div>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Speakers</h2>
+              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Speakers</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {event.speakers.map((sp, i) => (
                   <div key={`${sp.name}-${i}`} className="flex gap-3 rounded-2xl bg-[var(--ev-surface,#ffffff)] p-4" style={{ boxShadow: CARD_SHADOW }}>
@@ -159,7 +159,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {event.host && (
             <div>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Hosted by</h2>
+              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Hosted by</h2>
               <div className="mt-4 flex gap-4 rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5" style={{ boxShadow: CARD_SHADOW }}>
                 <div className="w-14 h-14 flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center font-bold"
                   style={{ background: `${primaryColor}18`, color: primaryColor }}>
@@ -167,7 +167,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
                 </div>
                 <div className="min-w-0">
                   <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.host.name}</p>
-                  {event.host.bio && <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>{event.host.bio}</p>}
+                  {event.host.bio && <p className="mt-2 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>{event.host.bio}</p>}
                   <InstructorLinks name={event.host.name} links={event.host.links} />
                 </div>
               </div>
@@ -185,7 +185,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
       {more.length > 0 && (
         <div className="mt-16">
           <div className="flex items-end justify-between gap-4">
-            <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>More upcoming events</h2>
+            <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>More upcoming events</h2>
             <Link href="/events" className="text-sm font-semibold hover:underline" style={{ color: primaryColor }}>See all</Link>
           </div>
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
