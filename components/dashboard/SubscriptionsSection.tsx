@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -10,7 +10,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  CircleDollarSign,
   Clock3,
   CreditCard,
   Download,
@@ -43,13 +42,14 @@ import {
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
 import { LIGHT_C, modalStyle } from "@/lib/theme";
-import { effectiveSubscriptionPrice, promotionHeading, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
+import { effectiveSubscriptionPrice } from "@/lib/subscription-discount";
 import { OverviewTab } from "@/components/dashboard/subscriptions/OverviewTab";
 import { SubscribersTab } from "@/components/dashboard/subscriptions/SubscribersTab";
 import { PaymentsTab } from "@/components/dashboard/subscriptions/PaymentsTab";
 import { PlansTab } from "@/components/dashboard/subscriptions/PlansTab";
 import type { PlanSummary, SubsTab } from "@/components/dashboard/subscriptions/types";
 import { MenuSelect } from "@/components/MenuSelect";
+import { PlanDiscountFields, PlanPriceFields, planDiscountStatus, type PlanDiscountDraft, type PlanPriceDraft } from "@/components/dashboard/subscriptions/PlanForm";
 import {
   Count, DISPLAY_FONT, IconChip, OptionCard, btnClass, btnStyle, learnerName, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
   shortDate, subscriberBucket,
@@ -82,7 +82,7 @@ const freshPayment = () => ({
 const PLAN_PRICE_DURATIONS = [1, 3, 6, 12] as const;
 const DURATION_OPTIONS = PLAN_PRICE_DURATIONS.map((months) => ({ value: String(months), label: durationLabel(months) }));
 
-function freshPlanPrices() {
+function freshPlanPrices(): PlanPriceDraft[] {
   return PLAN_PRICE_DURATIONS.map((durationMonths) => ({
     durationMonths: String(durationMonths),
     amount: "",
@@ -91,14 +91,6 @@ function freshPlanPrices() {
     sortOrder: durationMonths,
   }));
 }
-
-type PlanDiscountDraft = {
-  type: "" | "percentage" | "fixed";
-  value: string;
-  startsAt: string;
-  endsAt: string;
-  label: string;
-};
 
 const freshPlanDiscount = (): PlanDiscountDraft => ({
   type: "",
@@ -126,22 +118,6 @@ function planDiscountPayload(discount: PlanDiscountDraft) {
     endsAt: discount.type && discount.endsAt ? `${discount.endsAt}:00.000Z` : null,
     label: discount.type ? discount.label.trim() || null : null,
   };
-}
-
-function planDiscountStatus(discount: PlanDiscountDraft) {
-  if (!discount.type) return null;
-  const now = Date.now();
-  const startsAt = discount.startsAt ? Date.parse(`${discount.startsAt}:00.000Z`) : null;
-  const endsAt = discount.endsAt ? Date.parse(`${discount.endsAt}:00.000Z`) : null;
-  if (startsAt !== null && startsAt > now) return "Scheduled";
-  if (endsAt !== null && endsAt <= now) return "Ended";
-  return "Live";
-}
-
-function discountStatusTone(status: string | null, C: typeof LIGHT_C) {
-  if (status === "Live") return C.successText;
-  if (status === "Scheduled") return "#b45309";
-  return C.muted;
 }
 
 function startingPlanPrice(plan: any) {
@@ -259,263 +235,6 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }} />
       {status === "inactive" ? "Draft" : status.replaceAll("_", " ")}
     </span>
-  );
-}
-
-function PlanPriceFields({
-  prices,
-  setPrices,
-  C,
-  fieldClass,
-  inputStyle,
-}: {
-  prices: ReturnType<typeof freshPlanPrices>;
-  setPrices: Dispatch<SetStateAction<ReturnType<typeof freshPlanPrices>>>;
-  C: typeof LIGHT_C;
-  fieldClass: string;
-  inputStyle: CSSProperties;
-}) {
-  const activePriceCount = prices.filter((price) => price.isActive).length;
-  return (
-    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-2xl grid place-items-center flex-shrink-0" style={{ background: C.card, color: C.text }}>
-            <CircleDollarSign className="w-5 h-5" />
-          </span>
-          <div>
-            <p className="text-sm font-black" style={{ color: C.text }}>Pricing and duration</p>
-            <p className="text-xs mt-0.5" style={{ color: C.faint }}>Choose what learners can buy and set each total price.</p>
-          </div>
-        </div>
-        <span className="text-[11px] font-bold rounded-full px-3 py-2 flex-shrink-0" style={{ background: C.card, color: C.text }}>
-          {activePriceCount} active
-        </span>
-      </div>
-      <div className="grid sm:grid-cols-2 gap-3">
-        {prices.map((price, index) => {
-          const active = price.isActive;
-          return (
-            <div
-              key={price.durationMonths}
-              className="relative overflow-hidden rounded-[20px] p-4 transition-all"
-              style={{
-                background: active ? C.card : C.pill,
-                boxShadow: active ? `inset 0 0 0 1px ${C.divider}` : "none",
-                opacity: active ? 1 : 0.64,
-              }}
-            >
-              <label className="flex items-start justify-between gap-3 cursor-pointer">
-                <span>
-                  <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? C.cta : C.faint }} />
-                    {active ? "Available" : "Hidden"}
-                  </span>
-                  <span className="flex items-baseline gap-1 mt-1" style={{ color: C.text }}>
-                    <span className="text-2xl font-black leading-none">{price.durationMonths}</span>
-                    <span className="text-sm font-bold">month{price.durationMonths === "1" ? "" : "s"}</span>
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
-                  className="sr-only peer"
-                />
-                <span
-                  className="relative w-10 h-6 rounded-full transition-colors after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
-                  style={{ background: active ? C.cta : C.divider }}
-                />
-              </label>
-              <div className="mt-4">
-                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: C.faint }}>Total price</span>
-                <div className="grid grid-cols-[1fr_78px] gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={price.amount}
-                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index
-                      ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
-                      : row))}
-                    placeholder="0.00"
-                    aria-label={`${price.durationMonths} month price`}
-                    className={`${fieldClass} text-base font-black leading-6`}
-                    style={{ ...inputStyle, background: C.page, borderColor: "transparent" }}
-                  />
-                  <input
-                    value={price.currency}
-                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
-                    aria-label={`${price.durationMonths} month currency`}
-                    className={`${fieldClass} text-center font-black`}
-                    style={{ ...inputStyle, background: C.page, borderColor: "transparent", color: C.text }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function PlanDiscountFields({
-  discount,
-  setDiscount,
-  prices,
-  C,
-  fieldClass,
-  inputStyle,
-}: {
-  discount: PlanDiscountDraft;
-  setDiscount: Dispatch<SetStateAction<PlanDiscountDraft>>;
-  prices: ReturnType<typeof freshPlanPrices>;
-  C: typeof LIGHT_C;
-  fieldClass: string;
-  inputStyle: CSSProperties;
-}) {
-  const example = prices.find((price) => price.isActive && Number(price.amount) > 0);
-  const preview = example && discount.type && Number(discount.value) > 0
-    ? effectiveSubscriptionPrice(example.amount, {
-        discount_type: discount.type,
-        discount_value: discount.value,
-      })
-    : null;
-  const status = planDiscountStatus(discount);
-  const statusTone = discountStatusTone(status, C);
-  const promotionEnabled = Boolean(discount.type);
-  const controlStyle = { ...inputStyle, background: C.card, borderColor: "transparent" };
-  return (
-    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-black" style={{ color: C.text }}>Promotional offer</p>
-          <p className="text-xs mt-0.5" style={{ color: C.faint }}>Optional discount across every active duration.</p>
-        </div>
-        {status && (
-          <span className="rounded-full px-3 py-2 text-[11px] font-bold flex-shrink-0" style={{ background: C.card, color: statusTone }}>
-            {status}
-          </span>
-        )}
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-3 mt-5">
-        <label className="sm:col-span-2 text-xs font-bold" style={{ color: C.muted }}>
-          Promotion name <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
-          <input
-            value={discount.label}
-            disabled={!discount.type}
-            maxLength={PROMOTION_NAME_MAX}
-            onChange={(e) => setDiscount((value) => ({ ...value, label: e.target.value }))}
-            placeholder="Black Friday"
-            className={`${fieldClass} mt-2 disabled:opacity-50`}
-            style={controlStyle}
-          />
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          Offer type
-          <div className="mt-2">
-            <MenuSelect
-              field
-              label="Offer type"
-              value={discount.type}
-              options={[
-                { value: "", label: "No promotion" },
-                { value: "percentage", label: "Percentage off" },
-                { value: "fixed", label: "Fixed amount off" },
-              ] as const}
-              onChange={(type) => setDiscount((value) => ({ ...value, type }))}
-              C={C}
-            />
-          </div>
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          {discount.type === "percentage" ? "Percentage off" : "Amount off"}
-          <div className="relative mt-2">
-            <input
-              type="number"
-              min="0.01"
-              max={discount.type === "percentage" ? "99.99" : undefined}
-              step="0.01"
-              value={discount.value}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))}
-              placeholder={discount.type === "percentage" ? "15" : "50.00"}
-              className={`${fieldClass} pr-14 text-base font-black disabled:opacity-50 leading-6`}
-              style={controlStyle}
-            />
-            {promotionEnabled && (
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black" style={{ color: C.muted }}>
-                {discount.type === "percentage" ? "%" : example?.currency || "GHS"}
-              </span>
-            )}
-          </div>
-        </label>
-      </div>
-
-      {preview?.discountActive && example && (
-        <div className="rounded-2xl p-4 mt-4 flex items-center justify-between gap-4" style={{ background: C.card }}>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Price preview</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm line-through" style={{ color: C.faint }}>{money(example.currency, preview.listAmount)}</span>
-              <ArrowRight className="w-3.5 h-3.5" style={{ color: C.muted }} />
-              <span className="text-[22px] font-black leading-7" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
-            </div>
-          </div>
-          <div className="min-w-0 text-right">
-            <span className="rounded-full px-3 py-2 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
-              Save {money(example.currency, preview.discountAmount)}
-            </span>
-            <p className="text-[11px] mt-2 break-words" style={{ color: C.faint }}>
-              Learners see: {promotionHeading(discount.label, "Special offer").toUpperCase()},
-              then {discount.type === "percentage"
-                ? `${preview.discountValue}% off`
-                : `${money(example.currency, preview.discountAmount)} off`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
-        <div className="flex items-center gap-2 mb-3">
-          <CalendarClock className="w-4 h-4" style={{ color: C.muted }} />
-          <div>
-            <p className="text-xs font-black" style={{ color: C.text }}>Offer schedule</p>
-            <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Leave either field empty when no boundary is needed. Times use UTC.</p>
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label className="text-xs font-bold" style={{ color: C.muted }}>
-            Starts at
-            <input
-              type="datetime-local"
-              value={discount.startsAt}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))}
-              className={`${fieldClass} mt-2 disabled:opacity-50`}
-              style={controlStyle}
-            />
-          </label>
-          <label className="text-xs font-bold" style={{ color: C.muted }}>
-            Ends at
-            <input
-              type="datetime-local"
-              value={discount.endsAt}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))}
-              className={`${fieldClass} mt-2 disabled:opacity-50`}
-              style={controlStyle}
-            />
-          </label>
-        </div>
-      </div>
-
-      {discount.type === "fixed" && (
-        <p className="text-[11px] mt-3" style={{ color: C.faint }}>All active prices must use the same currency for a fixed discount.</p>
-      )}
-    </section>
   );
 }
 
@@ -2463,18 +2182,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       }}
                       className="rounded-2xl p-3 text-left transition-all"
                       style={{
-                        background: current ? `${C.cta}12` : C.page,
-                        boxShadow: current ? `inset 0 0 0 1.5px ${C.cta}` : "none",
+                        background: C.page,
+                        boxShadow: current ? `inset 0 0 0 2px ${C.text}` : "none",
                       }}
                     >
                       <span className="flex items-center gap-2">
                         <span
                           className="w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold"
-                          style={{ background: complete || current ? C.cta : C.card, color: complete || current ? C.ctaText : C.faint }}
+                          style={{ background: complete || current ? C.text : C.card, color: complete || current ? C.card : C.faint }}
                         >
                           {complete ? <Check className="w-3.5 h-3.5" /> : index + 1}
                         </span>
-                        <span className="text-xs font-bold" style={{ color: current ? C.cta : C.text }}>{label}</span>
+                        <span className="text-xs font-bold" style={{ color: C.text }}>{label}</span>
                       </span>
                       <span className="hidden sm:block text-[11px] mt-2" style={{ color: C.faint }}>{helper}</span>
                     </button>
@@ -2526,7 +2245,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Build the learning bundle</h4>
                       <p className="text-sm mt-1" style={{ color: C.muted }}>Select everything learners should unlock with this plan.</p>
                     </div>
-                    <span className="self-start text-xs font-bold rounded-full px-3 py-2" style={{ background: `${C.cta}12`, color: C.cta }}>
+                    <span className="self-start text-xs font-bold rounded-full px-3 py-2" style={{ background: C.pill, color: C.text }}>
                       {newPlanContentKeys.length} selected
                     </span>
                   </div>
@@ -2572,10 +2291,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                   type="button"
                                   onClick={() => setNewPlanContentKeys((current) => selected ? current.filter((value) => value !== key) : [...current, key])}
                                   className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all"
-                                  style={{ background: selected ? `${C.cta}10` : C.page, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : "none" }}
+                                  style={{ background: C.page, boxShadow: selected ? `inset 0 0 0 2px ${C.text}` : "none" }}
                                 >
-                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? C.cta : C.card, border: `1px solid ${selected ? C.cta : C.divider}` }}>
-                                    {selected && <Check className="w-3 h-3" style={{ color: "#ffffff" }} />}
+                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? C.text : C.card, border: `1px solid ${selected ? C.text : C.divider}` }}>
+                                    {selected && <Check className="w-3 h-3" style={{ color: C.card }} />}
                                   </span>
                                   <span className="text-xs font-bold truncate" style={{ color: C.text }}>{item.title}</span>
                                 </button>
@@ -2597,15 +2316,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               )}
 
               {planBuilderStep === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Make pricing easy to choose</h4>
-                    <p className="text-sm mt-1" style={{ color: C.muted }}>Add one or more purchase options. Entering an amount turns that option on automatically.</p>
-                  </div>
-                  <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
-                  <PlanDiscountFields discount={newPlanDiscount} setDiscount={setNewPlanDiscount} prices={newPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
-                  <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
-                    <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.cta }} />
+                <div>
+                  <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} discount={newPlanDiscount} C={C} />
+                  <PlanDiscountFields discount={newPlanDiscount} setDiscount={setNewPlanDiscount} prices={newPlanPrices} C={C} />
+                  <div className="rounded-2xl p-4 mt-5 flex items-start gap-3" style={{ background: C.page }}>
+                    <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.muted }} />
                     <div>
                       <p className="text-sm font-bold" style={{ color: C.text }}>You control when it goes live</p>
                       <p className="text-xs mt-1" style={{ color: C.faint }}>Save a draft to finish later, or create and activate once content and at least one valid price are ready.</p>
@@ -2663,7 +2378,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
             <aside className="rounded-2xl p-4 self-start lg:sticky lg:top-0" style={{ background: C.page }}>
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4" style={{ color: C.cta }} />
+                <SlidersHorizontal className="w-4 h-4" style={{ color: C.muted }} />
                 <p className="text-sm font-black" style={{ color: C.text }}>Plan readiness</p>
               </div>
               <div className="mt-4 space-y-3">
@@ -2693,7 +2408,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${([Boolean(newPlanName.trim()), newPlanContentKeys.length > 0, newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)].filter(Boolean).length / 3) * 100}%`,
-                      background: C.cta,
+                      background: C.text,
                     }}
                   />
                 </div>
@@ -2712,60 +2427,40 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           error={error}
           wide
         >
-          <div className="space-y-5">
-            <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="w-10 h-10 rounded-2xl grid place-items-center" style={{ background: C.card, color: C.text }}>
-                  <SlidersHorizontal className="w-5 h-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-black" style={{ color: C.text }}>Plan identity</p>
-                  <p className="text-xs mt-0.5" style={{ color: C.faint }}>Give learners a clear reason to choose this plan.</p>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] gap-3">
-                <label className="text-xs font-bold" style={{ color: C.muted }}>
-                  Plan name
-                  <input
-                    autoFocus
-                    value={editPlanName}
-                    onChange={(e) => setEditPlanName(e.target.value)}
-                    placeholder="For example: Professional"
-                    className={`${fieldClass} mt-2 font-bold`}
-                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
-                  />
-                </label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>
-                  Description
-                  <textarea
-                    value={editPlanDescription}
-                    onChange={(e) => setEditPlanDescription(e.target.value)}
-                    placeholder="Describe who this plan is for"
-                    className={`${fieldClass} mt-2 min-h-20 resize-none`}
-                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
-                  />
-                </label>
-              </div>
+          <div>
+            <section>
+              <h4 className="text-base font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>About this plan</h4>
+              <p className="text-xs mt-1 mb-4" style={{ color: C.muted }}>What learners see on the pricing page.</p>
+              <label className="block text-xs font-semibold" style={{ color: C.muted }}>
+                Plan name
+                <input
+                  autoFocus
+                  value={editPlanName}
+                  onChange={(e) => setEditPlanName(e.target.value)}
+                  placeholder="For example: Professional"
+                  className={`${fieldClass} mt-2 font-semibold`}
+                  style={inputStyle}
+                />
+              </label>
+              <label className="block text-xs font-semibold mt-4" style={{ color: C.muted }}>
+                Description
+                <textarea
+                  value={editPlanDescription}
+                  onChange={(e) => setEditPlanDescription(e.target.value)}
+                  maxLength={240}
+                  placeholder="Describe who this plan is for"
+                  className={`${fieldClass} mt-2 min-h-20 resize-none`}
+                  style={inputStyle}
+                />
+                <span className="block text-right text-xs mt-1 font-normal" style={{ color: C.faint }}>{editPlanDescription.length}/240</span>
+              </label>
             </section>
 
-            <PlanPriceFields
-              prices={editPlanPrices}
-              setPrices={setEditPlanPrices}
-              C={C}
-              fieldClass={fieldClass}
-              inputStyle={inputStyle}
-            />
+            <PlanPriceFields prices={editPlanPrices} setPrices={setEditPlanPrices} discount={editPlanDiscount} C={C} />
 
-            <PlanDiscountFields
-              discount={editPlanDiscount}
-              setDiscount={setEditPlanDiscount}
-              prices={editPlanPrices}
-              C={C}
-              fieldClass={fieldClass}
-              inputStyle={inputStyle}
-            />
+            <PlanDiscountFields discount={editPlanDiscount} setDiscount={setEditPlanDiscount} prices={editPlanPrices} C={C} />
 
-            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-5 mt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
               <button
                 onClick={requestCloseEditPlan}
                 disabled={busy}
