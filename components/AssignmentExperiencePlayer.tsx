@@ -9,6 +9,8 @@ import {
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
+import ShortAnswerReviewResult, { savedShortAnswerResult, shortAnswerProgressFields, shortAnswerResultOf, type ShortAnswerFeedback } from '@/components/ShortAnswerReviewResult';
+import type { RubricGrade } from '@/lib/review-gate';
 import { useSessionToken } from '@/lib/use-session-token';
 import AiReviewUpgradePrompt, { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
@@ -106,7 +108,7 @@ interface ProjectConfig {
   dataset?: Dataset;
   [key: string]: any;
 }
-type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean }>;
+type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
 
 interface Props {
   formId: string;
@@ -236,7 +238,7 @@ export default function AssignmentExperiencePlayer({
   const [aiReviewing,     setAiReviewing]     = useState<Record<string, boolean>>({});
   // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
   // network) - shown as a neutral "could not review" state, never a pass/fail grade.
-  const [aiFeedback,      setAiFeedback]      = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null>>({});
+  const [aiFeedback,      setAiFeedback]      = useState<Record<string, ShortAnswerFeedback | null>>({});
   const entitlement = useAiReviewEntitlement('veAnswers');
   async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1081,9 +1083,7 @@ export default function AssignmentExperiencePlayer({
                               // restored from yesterday's saved state would be telling them to buy their
                               // way out of a limit that has already reset.
                               ? { passed: false, feedback: prog?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true, upgradeUrl: undefined }
-                              : prog?.aiFeedback
-                              ? { passed: !!prog?.aiPassed, feedback: prog.aiFeedback, score: prog?.aiScore ?? 0, upgradeUrl: undefined }
-                              : null;
+                              : savedShortAnswerResult(prog);
                             const feedback = aiFeedback[req.id] !== undefined ? aiFeedback[req.id] : persistedFeedback;
                             const fbErrored = !!feedback?.errored;
                             // Neutral tone for a review that never ran; green/amber only for a real verdict.
@@ -1129,11 +1129,9 @@ export default function AssignmentExperiencePlayer({
                                   if (ok) {
                                     // A real verdict from the model - record it (pass or fail) and clear
                                     // any prior error marker.
-                                    const passed = json.passed ?? false;
-                                    const fb = json.feedback || '';
-                                    const score = json.score ?? 0;
-                                    setAiFeedback(prev => ({ ...prev, [req.id]: { passed, feedback: fb, score } }));
-                                    updateProgress(req.id, { notes: val, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score });
+                                    const result = shortAnswerResultOf(json);
+                                    setAiFeedback(prev => ({ ...prev, [req.id]: result }));
+                                    updateProgress(req.id, { notes: val, completed: true, aiErrored: undefined, ...shortAnswerProgressFields(result) });
                                   } else {
                                     // A review that never ran. A fault is not the student's doing, so it still
                                     // marks the step done. A spent allowance is the rule working, and marking
@@ -1231,13 +1229,18 @@ export default function AssignmentExperiencePlayer({
                                       ) : (
                                       <MailThreadMsg isDark={isDark} from={manager}>
                                         <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
-                                        <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
-                                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
-                                            {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                                            {fbTone.label}
+                                        {/* An AI verdict is the structured review; a manual comparison and a review that never ran keep the note. */}
+                                        {req.aiReview && !fbErrored ? (
+                                          <ShortAnswerReviewResult result={feedback} isDark={!!isDark} accentColor={accent} />
+                                        ) : (
+                                          <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
+                                              {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                              {fbTone.label}
+                                            </div>
+                                            <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
                                           </div>
-                                          <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
-                                        </div>
+                                        )}
                                       </MailThreadMsg>
                                       )}
                                       {/* A wrong answer or a failed review both get a way back to the composer;

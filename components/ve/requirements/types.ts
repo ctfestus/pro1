@@ -1,3 +1,5 @@
+import type { RubricGrade } from '@/lib/review-gate';
+import type { ShortAnswerFeedback } from '@/components/ShortAnswerReviewResult';
 import type React from 'react';
 import type { LessonDoc } from '@/lib/lesson-doc';
 import type { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
@@ -89,11 +91,11 @@ export interface ProjectConfig {
   dataset?: Dataset;
 }
 
-export type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean }>;
+export type Progress = Record<string, { completed: boolean; notes?: string; selectedAnswer?: string; fileUrl?: string; linkUrl?: string; aiPassed?: boolean; aiFeedback?: string; aiScore?: number; aiErrored?: boolean; aiStrength?: string; aiImprovement?: string; aiGrades?: RubricGrade[] }>;
 
 // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
 // network) - it is shown as a neutral "could not review" state, never a pass/fail grade.
-export type AiFeedbackEntry = { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null;
+export type AiFeedbackEntry = ShortAnswerFeedback | null;
 
 export const REQ_META: Record<string, { label: string; color: string; bg: string }> = {
   reflection:  { label: 'Reflection',  color: '#00b95c', bg: 'rgba(0,185,92,0.12)' },

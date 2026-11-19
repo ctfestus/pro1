@@ -71,6 +71,9 @@ const DARK: typeof LIGHT = {
   passBar: '#4ade80', failBar: '#f87171', retryText: '#0b1220',
 };
 
+/** The review colours for a theme, shared with the other review layouts. */
+export const reviewTheme = (isDark: boolean) => (isDark ? DARK : LIGHT);
+
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -110,7 +113,6 @@ export default function RubricReviewReport({
       ? `Fix the criteria marked not met in your ${workNoun}. You have no review attempts left.`
       : `Fix the criteria marked not met, update your ${workNoun}, and submit another review.${attemptsLeft ? ` You have ${plural(attemptsLeft, 'attempt')} left.` : ''}`;
 
-  const bubble = good ? t.passBubble : t.failBubble;
   const buttonBase = 'flex min-h-[44px] items-center gap-1.5 rounded-xl px-3.5 text-[13px] font-semibold';
 
   return (
@@ -136,30 +138,7 @@ export default function RubricReviewReport({
 
       {children}
 
-      <section className="flex flex-col gap-5 rounded-[20px] p-6 sm:flex-row sm:items-center" style={{ background: t.card }}>
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: bubble.bg, color: bubble.fg }}>
-              {good ? <Check className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" /> : <X className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" />}
-            </span>
-            <h2 className="text-2xl font-bold tracking-[-0.02em]" style={{ color: t.text }}>{heading}</h2>
-          </div>
-          <p className="text-[15px] leading-normal" style={{ color: t.text }}>{resultLine}</p>
-          {summary && <p className="text-sm leading-relaxed" style={{ color: t.muted }}>{summary}</p>}
-        </div>
-        <div className="flex shrink-0 flex-col gap-2.5 rounded-2xl p-4 sm:w-44" style={{ background: t.inner }}>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[40px] font-bold leading-none tabular-nums" style={{ color: t.text }}>{Math.round(safeScore)}</span>
-            <span className="text-sm font-semibold" style={{ color: t.muted }}>/ 100</span>
-          </div>
-          <div role="img" aria-label={`${Math.round(safeScore)} of 100${minScore ? `, pass mark ${minScore}` : ''}`}
-            className="relative h-2.5 rounded-full" style={{ background: t.track }}>
-            <div className="h-full rounded-full" style={{ width: `${safeScore}%`, background: good ? t.passBar : t.failBar }} />
-            {minScore ? <div className="absolute -top-1 h-[18px] w-0.5" style={{ left: `${Math.min(100, minScore)}%`, background: t.marker }} /> : null}
-          </div>
-          {minScore ? <p className="text-xs font-medium" style={{ color: t.muted }}>Pass mark {minScore}</p> : null}
-        </div>
-      </section>
+      <ReviewResultCard good={good} heading={heading} resultLine={resultLine} summary={summary} score={safeScore} minScore={minScore} isDark={isDark} />
 
       <section className="flex flex-col gap-3 rounded-[20px] p-6" style={{ background: t.card }}>
         <div className="flex items-baseline justify-between gap-3">
@@ -221,3 +200,45 @@ export default function RubricReviewReport({
 export function isRubricReport(report: { rubricGrades?: unknown[]; categories?: unknown[] } | null | undefined): boolean {
   return !!report && (report.rubricGrades?.length ?? 0) > 0 && (report.categories?.length ?? 0) === 0;
 }
+
+/** The result first: pass or fail, what it means, and the score against the pass mark. */
+export function ReviewResultCard({ good, heading, resultLine, summary, score, minScore, isDark }: {
+  good: boolean;
+  heading: string;
+  resultLine?: string;
+  summary?: string;
+  score: number;
+  minScore?: number;
+  isDark: boolean;
+}) {
+  const t = reviewTheme(isDark);
+  const bubble = good ? t.passBubble : t.failBubble;
+  const safeScore = Math.max(0, Math.min(100, score));
+  return (
+    <section className="flex flex-col gap-5 rounded-[20px] p-6 sm:flex-row sm:items-center" style={{ background: t.card }}>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: bubble.bg, color: bubble.fg }}>
+            {good ? <Check className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" /> : <X className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" />}
+          </span>
+          <h2 className="text-2xl font-bold tracking-[-0.02em]" style={{ color: t.text }}>{heading}</h2>
+        </div>
+        {resultLine && <p className="text-[15px] leading-normal" style={{ color: t.text }}>{resultLine}</p>}
+        {summary && <p className="text-sm leading-relaxed" style={{ color: t.muted }}>{summary}</p>}
+      </div>
+      <div className="flex shrink-0 flex-col gap-2.5 rounded-2xl p-4 sm:w-44" style={{ background: t.inner }}>
+        <div className="flex items-baseline gap-1">
+          <span className="text-[40px] font-bold leading-none tabular-nums" style={{ color: t.text }}>{Math.round(safeScore)}</span>
+          <span className="text-sm font-semibold" style={{ color: t.muted }}>/ 100</span>
+        </div>
+        <div role="img" aria-label={`${Math.round(safeScore)} of 100${minScore ? `, pass mark ${minScore}` : ''}`}
+          className="relative h-2.5 rounded-full" style={{ background: t.track }}>
+          <div className="h-full rounded-full" style={{ width: `${safeScore}%`, background: good ? t.passBar : t.failBar }} />
+          {minScore ? <div className="absolute -top-1 h-[18px] w-0.5" style={{ left: `${Math.min(100, minScore)}%`, background: t.marker }} /> : null}
+        </div>
+        {minScore ? <p className="text-xs font-medium" style={{ color: t.muted }}>Pass mark {minScore}</p> : null}
+      </div>
+    </section>
+  );
+}
+
