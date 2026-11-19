@@ -6,6 +6,7 @@ import { publicEventRedirect } from '@/lib/events/store';
 import PublicFormPage from './PublicFormPage';
 import { paystackIsConfigured } from '@/lib/paystack';
 import { loadContentInstructor } from '@/lib/content-instructor';
+import { loadLearnerCount } from '@/lib/content-learner-count';
 
 // Server wrapper so link previews can read ?catalogueType= (a layout never receives search
 // params). The page itself is the client component in PublicFormPage.tsx.
@@ -41,16 +42,17 @@ export default async function Page({ params, searchParams }: {
 }) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const catalogueType = typeof query.catalogueType === 'string' ? query.catalogueType : null;
-  const [publicEvent, promotions, instructor] = await Promise.all([
+  const [publicEvent, promotions, instructor, learnerCount] = await Promise.all([
     publicEventRedirect(id),
     currentPromotions(),
     loadContentInstructor(id, catalogueType),
+    loadLearnerCount(id, catalogueType),
   ]);
   const publicEventPath = publicEvent ? `/events/${encodeURIComponent(publicEvent.slug)}` : null;
   const jsonLd = await buildContentJsonLd(id, catalogueType, instructor);
   return <>
     {/* JSON in a script tag: escape "<" so a title can never close the tag. */}
     {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />}
-    <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} paystackEnabled={paystackIsConfigured()} instructor={instructor} />
+    <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} paystackEnabled={paystackIsConfigured()} instructor={instructor} learnerCount={learnerCount} />
   </>;
 }

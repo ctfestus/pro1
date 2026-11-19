@@ -50,7 +50,7 @@ export function shareImage(content: Pick<ShareContent, 'id' | 'type' | 'coverIma
  * The public item for a page, once per request: the link preview and the search data below both
  * need it. A failed lookup must not take the page down with it; it just gets neither.
  */
-const findSharedItem = cache((id: string, catalogueType: string | null) =>
+export const findSharedItem = cache((id: string, catalogueType: string | null) =>
   findPublicCatalogueItem(adminClient(), id, catalogueType).catch(error => {
     console.error('[share-metadata] lookup failed', error?.message ?? error);
     return null;

@@ -8775,3 +8775,22 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.event_seats_taken(uuid[]) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.event_seats_taken(uuid[]) TO service_role;
+
+-- Learners who have started a course, experience or path, for its public page (migration 245).
+CREATE OR REPLACE FUNCTION public.content_learner_count(p_table text, p_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT CASE p_table
+    WHEN 'courses' THEN (SELECT count(DISTINCT student_id) FROM public.course_attempts WHERE course_id = p_id)
+    WHEN 'virtual_experiences' THEN (SELECT count(DISTINCT student_id) FROM public.guided_project_attempts WHERE ve_id = p_id)
+    WHEN 'learning_paths' THEN (SELECT count(*) FROM public.learning_path_progress WHERE learning_path_id = p_id)
+    ELSE 0
+  END::integer;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.content_learner_count(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.content_learner_count(text, uuid) TO service_role;

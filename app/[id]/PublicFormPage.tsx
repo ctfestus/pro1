@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay, Users } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
@@ -483,7 +483,13 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
 }
 
-function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null }) {
+// How many learners have started the item, last in the banner's facts. The server sends it only
+// from 50 up (lib/content-learner-count), so a new item shows nothing rather than a small number.
+function learnersFact(count: number | null) {
+  return count ? [{ Icon: Users, label: `${count.toLocaleString('en-US')} learners` }] : [];
+}
+
+function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor, learnerCount }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null; learnerCount: number | null }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   // On a path with specializations no learner takes every item: count the core, and name the
@@ -565,7 +571,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
             )}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
-            {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
+            {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }, ...learnersFact(learnerCount)].map(({ Icon, label }) => (
               <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                 <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
               </span>
@@ -672,7 +678,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, learnerCount = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; learnerCount?: number | null }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -1228,7 +1234,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     if (pathPreview) {
       return (
         <>
-          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} />
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} learnerCount={learnerCount} />
           <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
         </>
       );
@@ -1470,7 +1476,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             </div>
             {/* What it takes, at a glance */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
-              {facts.map(({ Icon, label }) => (
+              {[...facts, ...learnersFact(learnerCount)].map(({ Icon, label }) => (
                 <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                   <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                 </span>
@@ -1725,7 +1731,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               </div>
               {/* What it takes, at a glance */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
-                {[...courseFacts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
+                {[...courseFacts, { Icon: BadgeCheck, label: 'Certificate on completion' }, ...learnersFact(learnerCount)].map(({ Icon, label }) => (
                   <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                     <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                   </span>
