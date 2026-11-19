@@ -1182,9 +1182,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       setLoading(true);
       setLoadError(false);
       try {
-      // The page has already verified the user with getUser and passes their id. A second
-      // getUser here was an extra round trip to Supabase Auth on every load, and any blip in
-      // it put the student on the retry screen. Read the local session only, as Overview does.
+      // The page already verified the user and passes their id; read the local session only.
       const { data: { session } } = await supabase.auth.getSession();
       const effectiveUserId = userIdProp ?? session?.user.id;
       if (!effectiveUserId) return;
@@ -1244,7 +1242,6 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       // Session token for authenticated API calls
       const token = session?.access_token ?? '';
-
 
       // Load cohort courses + student attempts + certificates in parallel
       const courseCatalogQuery = !restrictedByPayment
