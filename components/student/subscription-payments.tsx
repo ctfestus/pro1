@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   AlertCircle, ArrowRight, BadgeCheck, Banknote, CalendarClock, Check, CheckCircle2,
   Clock3, Copy, CreditCard, ExternalLink, ReceiptText, Send,
@@ -14,6 +13,14 @@ import { Sk } from '@/components/student/shared';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { promotionHeading } from '@/lib/subscription-discount';
 import { purchaseItem } from '@/lib/pending-purchase';
+import { offerEndsAt } from '@/lib/pricing-offer';
+import { useNow } from '@/lib/use-now';
+import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
+
+// Space Grotesk, the display face of the pricing page and the course pages.
+const DISPLAY_FONT = 'var(--font-display), sans-serif';
+// The Best Value gold, as on the pricing page: ribbon, border and offer strip edge.
+const BEST_VALUE_GOLD = '#F5D77A';
 
 type Tab = 'pay' | 'confirm' | 'history';
 const PAYSTACK_RETURN_REFERENCE_KEY = 'paystack:return-reference';
@@ -444,6 +451,8 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       accessProgress={accessProgress}
       overdue={overdue}
       onConfirm={() => goToTab('confirm')}
+      recommendedPlan={purchasablePlans.find((row: any) => row.recommended) ?? null}
+      hasPlans={purchasablePlans.length > 0 && !pendingConfirmation}
     />
 
     {overdue && <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, color: C.errorText }}><AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5"/><div><p className="text-sm font-bold">Your payment deadline has passed</p><p className="text-xs mt-1 opacity-80">You can still send your confirmation. Contact support if your payment terms need to be updated.</p></div></div>}
@@ -462,32 +471,16 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         exactly backwards: a renewal creates a checkout like any other, so the people most likely
         to abandon one were the only people the card refused to appear for -- blocked by their own
         cart, with no way to see or clear it. */}
-    {data?.cart && !openRequest && !readOnly && <section className="relative overflow-hidden rounded-2xl p-3 sm:p-4" style={{ background: dark ? 'linear-gradient(135deg, #101820 0%, #0f2a2a 52%, #10201c 100%)' : 'linear-gradient(135deg, #f8ffff 0%, #ecfeff 54%, #f0fdf4 100%)', boxShadow: dark ? '0 18px 44px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.08)' : '0 16px 44px rgba(15,118,110,0.11), inset 0 1px 0 rgba(255,255,255,0.92)' }}>
-      <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: dark ? 'radial-gradient(circle at 18% 12%, rgba(34,211,238,0.24), transparent 31%), radial-gradient(circle at 90% 105%, rgba(20,184,166,0.22), transparent 34%)' : 'radial-gradient(circle at 18% 12%, rgba(6,182,212,0.20), transparent 31%), radial-gradient(circle at 90% 105%, rgba(20,184,166,0.18), transparent 34%)' }}/>
-      <div className="pointer-events-none absolute left-0 right-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.74), rgba(20,184,166,0.62), transparent)' }}/>
-      <div className="relative grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ background: dark ? 'rgba(34,211,238,0.13)' : 'rgba(6,182,212,0.12)', color: dark ? '#a5f3fc' : '#0e7490' }}>
-              {hasActiveAccess ? 'Complete your renewal' : 'Complete your checkout'}
-            </span>
-            <span className="text-xs font-bold" style={{ color: dark ? 'rgba(255,255,255,0.68)' : C.faint }}>Your checkout is paused, not lost</span>
-          </div>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <p className="max-w-3xl truncate text-base leading-6 font-black sm:text-[22px] sm:leading-7" style={{ color: dark ? '#fff7ed' : C.text }}>
-              {data.cart.plan_name}
-            </p>
-            <span className="text-sm font-bold" style={{ color: dark ? 'rgba(255,255,255,0.76)' : C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`}</span>
-            <span className="text-sm font-black" style={{ color: dark ? '#a5f3fc' : '#0f766e' }}>{money(data.cart.currency, data.cart.amount)}</span>
-          </div>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed" style={{ color: dark ? 'rgba(255,255,255,0.70)' : C.muted }}>
-            {hasActiveAccess ? 'Your renewal is waiting where you left it.' : 'You started enrollment and can finish it now.'}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 lg:w-64">
-          <button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-bold transition-colors disabled:opacity-50" style={{ background: dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.70)', color: dark ? 'rgba(255,255,255,0.74)' : C.muted, border: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(14,116,144,0.14)'}` }}>Remove</button>
-          <button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: dark ? 'linear-gradient(135deg, #22d3ee, #14b8a6)' : 'linear-gradient(135deg, #06b6d4, #10b981)', color: '#ffffff', boxShadow: '0 12px 24px rgba(15,118,110,0.22)' }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button>
-        </div>
+    {data?.cart && !openRequest && !readOnly && <section className="flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" style={{ background: C.card, borderLeft: `4px solid ${C.cta}` }}>
+      <div className="min-w-0">
+        <p className="text-base font-bold" style={{ color: C.text }}>{hasActiveAccess ? `Finish renewing ${data.cart.plan_name}` : `Finish paying for ${data.cart.plan_name}`}</p>
+        <p className="mt-1 text-sm" style={{ color: C.muted }}>
+          {durationLabel(Number(data.cart.duration_months))}, {money(data.cart.currency, data.cart.amount)}. Your checkout is paused, not lost.
+        </p>
+      </div>
+      <div className="grid flex-shrink-0 grid-cols-2 gap-2 sm:w-64">
+        <button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>Remove</button>
+        <button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Continue{cartBusy ? <Loader2 className="h-4 w-4 animate-spin"/> : <ArrowRight className="h-4 w-4"/>}</button>
       </div>
     </section>}
 
@@ -512,6 +505,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       onPurchase={purchasePlan}
       onToggleManual={() => setPayManually(value => !value)}
       chosenPriceId={chosenPriceId()}
+      activeUntil={hasActiveAccess ? subscription.current_period_end : null}
     />}
 
     {showPaymentWorkspace && <div ref={tabsRef} tabIndex={-1} className="space-y-5 outline-none scroll-mt-20">
@@ -532,7 +526,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
 
 function AccessHero({
   C, heroStyle, subscription, plan, planName, openRequest, pendingConfirmation,
-  hasActiveAccess, daysLeft, accessProgress, overdue, onConfirm,
+  hasActiveAccess, daysLeft, accessProgress, overdue, onConfirm, recommendedPlan, hasPlans,
 }: {
   C: typeof LIGHT_C;
   heroStyle: React.CSSProperties;
@@ -546,8 +540,14 @@ function AccessHero({
   accessProgress: number;
   overdue: boolean;
   onConfirm: () => void;
+  /** The plan the admin marks recommended, named on the banner's button. */
+  recommendedPlan: any;
+  /** Plans are listed below, so the banner's button has somewhere to go. */
+  hasPlans: boolean;
 }) {
   const choosingPlan = !subscription && !openRequest;
+  // Scrolled to rather than linked: this page routes its sections by the URL hash.
+  const showPlans = () => document.getElementById(recommendedPlan ? `plan-${recommendedPlan.id}` : 'access-plans')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const dark = C.page === '#17181E';
 
   return <section className="relative isolate overflow-hidden rounded-[30px] p-5 sm:p-7 lg:p-8" style={{ ...heroStyle, color: '#ffffff' }}>
@@ -559,15 +559,17 @@ function AccessHero({
 
     {choosingPlan ? <div className="relative flex w-full flex-col gap-4 py-1 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.64)' }}>Your current plan</p>
-        <h2 className="mt-2 text-2xl leading-8 font-black tracking-[-0.025em] sm:text-[28px] sm:leading-9" style={{ color: '#ffffff' }}>Starter plan</h2>
-        <p className="mt-2 max-w-lg text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>Upgrade to Pro to unlock the complete learning experience and accelerate your progress.</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.64)' }}>Your access</p>
+        <h2 className="mt-2 text-2xl leading-8 font-bold tracking-[-0.025em] sm:text-[28px] sm:leading-9" style={{ color: '#ffffff', fontFamily: DISPLAY_FONT }}>Free starter access</h2>
+        <p className="mt-2 max-w-lg text-sm leading-6" style={{ color: 'rgba(255,255,255,0.72)' }}>Free courses and experiences are open to you. Pick a plan below to unlock everything in it.</p>
       </div>
-      <Link href="/pricing" className="inline-flex min-h-12 w-full flex-shrink-0 items-center justify-center rounded-xl px-5 py-3 text-sm font-black transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-110 active:translate-y-0 active:scale-[0.98] sm:w-fit" style={{ background: '#10b981', color: '#ffffff' }}>Upgrade to Pro</Link>
+      {hasPlans && <button type="button" onClick={showPlans} className="inline-flex min-h-12 w-full flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none sm:w-fit" style={{ color: C.cta }}>
+        {recommendedPlan ? `Upgrade to ${recommendedPlan.name}` : 'See plans'}<ArrowRight className="h-4 w-4"/>
+      </button>}
     </div> : <div className="relative grid items-end gap-5 lg:grid-cols-[1fr_auto]">
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl leading-8 font-black tracking-tight sm:text-[28px] sm:leading-9" style={{ color: '#ffffff' }}>{planName}</h2>
+          <h2 className="text-2xl leading-8 font-bold tracking-tight sm:text-[28px] sm:leading-9" style={{ color: '#ffffff', fontFamily: DISPLAY_FONT }}>{planName}</h2>
           <StatePill status={subscription?.status || 'awaiting payment'} C={C} inverse/>
         </div>
         <p className="mt-2 max-w-xl text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
@@ -590,7 +592,7 @@ function AccessHero({
 
 function PricingStage({
   plans, subscription, openRequest, planBusyId, paystackEnabled, payManually,
-  readOnly, C, onPurchase, onToggleManual, chosenPriceId,
+  readOnly, C, onPurchase, onToggleManual, chosenPriceId, activeUntil,
 }: {
   plans: any[];
   subscription: any;
@@ -603,8 +605,11 @@ function PricingStage({
   onPurchase: (priceId: string, quotedAmount?: number, quotedCurrency?: string) => void;
   onToggleManual: () => void;
   chosenPriceId?: string;
+  /** End of the access a renewal adds to, while the plan is still running. */
+  activeUntil: string | null;
 }) {
   const copy = renewalCopy(subscription?.status);
+  const now = useNow();
   // One length for every plan: each length any plan is sold at, shortest first. A length picked on
   // the pricing page wins; otherwise the best-value length of the first plan.
   const lengths = useMemo(() => [...new Set(plans.flatMap(plan => (plan.prices ?? []).map((price: any) => price.durationMonths as number)))].sort((a, b) => a - b), [plans]);
@@ -624,35 +629,90 @@ function PricingStage({
   const [pickedMonths, setMonths] = useState<number | null>(null);
   const months = pickedMonths ?? defaultMonths;
   const selectedIndex = Math.max(0, lengths.indexOf(months ?? -1));
-  return <section id="access-plans" aria-labelledby="access-plans-heading" className="scroll-mt-20 py-2">
-    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <h3 id="access-plans-heading" className="text-2xl leading-8 font-black tracking-tight sm:text-[28px] sm:leading-9" style={{ color: C.text }}>{subscription ? copy.heading : 'Choose your access'}</h3>
-      {paystackEnabled && <button type="button" onClick={onToggleManual} className="inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-colors" style={{ background: C.card, color: C.muted }}><CreditCard className="h-3.5 w-3.5"/>{payManually ? 'Bank transfer selected' : 'Secure online payment'}<span className="h-2 w-2 rounded-full" style={{ background: payManually ? '#f59e0b' : '#16a34a' }}/></button>}
-    </div>
+  // The offer strip follows the recommended plan, else the first plan on offer at the chosen length.
+  const offerPlans = [...plans].sort((a, b) => Number(!!b.recommended) - Number(!!a.recommended));
+  const offer = offerPlans.map(plan => {
+    const price = priceAtLength(plan.prices ?? [], months);
+    return price && price.listAmount > price.amount ? { plan, price, end: offerEndsAt(price, now) } : null;
+  }).find(Boolean) ?? null;
 
-    {lengths.length > 1 && <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-bold" style={{ color: C.text }}>Choose duration</p>
-      <div className="relative grid w-fit max-w-full overflow-hidden rounded-full p-1" role="group" aria-label={subscription ? 'Renewal duration' : 'Access duration'} style={{ background: C.card, gridTemplateColumns: `repeat(${lengths.length}, minmax(0, 1fr))` }}>
+  return <section id="access-plans" aria-labelledby="access-plans-heading" className="scroll-mt-20 py-2">
+    <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <h3 id="access-plans-heading" className="text-2xl leading-8 font-bold tracking-tight sm:text-[28px] sm:leading-9" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{subscription ? copy.heading : 'Choose your access'}</h3>
+      {lengths.length > 1 && <div className="relative grid w-fit max-w-full overflow-hidden rounded-full p-1" role="group" aria-label={subscription ? 'Renewal duration' : 'Access duration'} style={{ background: C.card, gridTemplateColumns: `repeat(${lengths.length}, minmax(0, 1fr))` }}>
         <span aria-hidden="true" className="absolute bottom-1 left-1 top-1 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none" style={{ background: C.cta, width: `calc((100% - 0.5rem) / ${lengths.length})`, transform: `translateX(${selectedIndex * 100}%)` }}/>
         {lengths.map(length => {
           const active = length === months;
           return <button key={length} type="button" aria-pressed={active} onClick={() => setMonths(length)} className="relative z-10 min-h-9 min-w-16 whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none" style={{ color: active ? C.ctaText : C.muted }}>{durationLabel(length)}</button>;
         })}
-      </div>
-    </div>}
-
-    <div className={`grid gap-4 ${plans.length > 2 ? 'lg:grid-cols-3' : plans.length === 2 ? 'md:grid-cols-2' : ''}`}>
-      {plans.map(plan => <SubscriptionPlanCard key={plan.id} plan={plan} months={months} subscription={subscription} openRequest={openRequest} planBusyId={planBusyId} readOnly={readOnly} C={C} onPurchase={onPurchase}/>)}
+      </div>}
     </div>
 
-    {paystackEnabled && <p className="mt-2 text-xs" style={{ color: C.faint }}>{payManually ? 'You will receive verified bank transfer or mobile money instructions after choosing a plan. ' : 'Checkout opens securely after you choose a plan. '}<button type="button" onClick={onToggleManual} className="font-bold underline underline-offset-4" style={{ color: C.cta }}>{payManually ? 'Pay online instead' : 'Use bank transfer or mobile money'}</button></p>}
+    {/* How to pay, chosen before a plan: the same two routes as before, made plain. */}
+    {paystackEnabled && <div role="radiogroup" aria-label="How to pay" className="mb-4 grid gap-2 sm:grid-cols-2">
+      {[
+        { manual: false, Icon: CreditCard, title: 'Pay online', text: 'Card, Mobile Money or bank. Access opens at once.' },
+        { manual: true, Icon: Banknote, title: 'Bank transfer or mobile money', text: 'You send it; the team confirms it, then opens your access.' },
+      ].map(({ manual, Icon, title, text }) => {
+        const selected = payManually === manual;
+        return <button key={title} type="button" role="radio" aria-checked={selected} onClick={() => { if (!selected) onToggleManual(); }}
+          className="flex items-start gap-3 rounded-xl p-4 text-left transition-shadow" style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}>
+          <Icon className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: selected ? C.cta : C.faint }}/>
+          <span><span className="block text-sm font-bold" style={{ color: C.text }}>{title}</span><span className="mt-1 block text-xs leading-4" style={{ color: C.muted }}>{text}</span></span>
+        </button>;
+      })}
+    </div>}
+
+    {offer && <OfferStrip plan={offer.plan} price={offer.price} end={offer.end} now={now} C={C}/>}
+
+    <div className={`${offer ? 'mt-8' : ''} grid items-stretch gap-4 ${plans.length > 2 ? 'lg:grid-cols-3' : plans.length === 2 ? 'md:grid-cols-2' : ''}`}>
+      {plans.map(plan => <SubscriptionPlanCard key={plan.id} plan={plan} months={months} subscription={subscription} openRequest={openRequest} planBusyId={planBusyId} readOnly={readOnly} C={C} onPurchase={onPurchase} now={now} activeUntil={activeUntil} single={plans.length === 1}/>)}
+    </div>
   </section>;
+}
+
+/** The plan's price at the chosen length, or at the length it is sold at closest to it. */
+function priceAtLength(prices: any[], months: number | null) {
+  const sorted = [...prices].sort((a, b) => a.durationMonths - b.durationMonths);
+  if (months === null) return sorted[0];
+  return sorted.find(price => price.durationMonths === months)
+    ?? [...sorted].sort((a, b) => Math.abs(a.durationMonths - months) - Math.abs(b.durationMonths - months) || a.durationMonths - b.durationMonths)[0];
+}
+
+const offerEndDate = (end: number) => new Date(end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+/** The running offer, as on the pricing page: name, old and new price, and a countdown when it has an end. */
+function OfferStrip({ plan, price, end, now, C }: { plan: any; price: any; end: number | null; now: number | null; C: typeof LIGHT_C }) {
+  const left = end !== null && now !== null ? Math.max(0, end - now) : 0;
+  const parts = [
+    { value: Math.floor(left / 86_400_000), unit: 'days' },
+    { value: Math.floor(left / 3_600_000) % 24, unit: 'hrs' },
+    { value: Math.floor(left / 60_000) % 60, unit: 'min' },
+    { value: Math.floor(left / 1000) % 60, unit: 'sec' },
+  ];
+  const saving = price.discountType === 'percentage' ? `${price.discountValue}% off` : `${money(price.currency, price.discountAmount)} off`;
+  return <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl px-5 py-4" style={{ background: C.card, boxShadow: `inset 0 0 0 2px ${BEST_VALUE_GOLD}`, fontFamily: DISPLAY_FONT }}>
+    <div>
+      <p className="text-base font-bold" style={{ color: C.text }}>{promotionHeading(price.discountLabel, 'Offer')}: {saving} {plan.name}</p>
+      <p className="mt-1 text-sm" style={{ color: C.muted }}>
+        <span className="line-through" style={{ color: C.faint }}>{money(price.currency, price.listAmount)}</span>{' '}
+        <span className="font-bold" style={{ color: C.text }}>{money(price.currency, price.amount)}</span> for {durationLabel(price.durationMonths)}
+      </p>
+    </div>
+    {end !== null && <div className="flex items-center gap-2" role="timer" aria-label={`Offer ends in ${parts[0].value} days ${parts[1].value} hours`}>
+      <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: C.muted }}>Ends in</span>
+      {parts.map(part => <span key={part.unit} className="min-w-12 rounded-lg px-2 py-1 text-center" style={{ background: C.text, color: C.card }}>
+        <span className="block text-[22px] leading-7 font-bold tabular-nums">{String(part.value).padStart(2, '0')}</span>
+        <span className="block text-[11px] opacity-70">{part.unit}</span>
+      </span>)}
+    </div>}
+  </div>;
 }
 
 /** How many of a plan's items the card names before "+ N more". */
 const PLAN_ITEMS_SHOWN = 4;
 
-function SubscriptionPlanCard({ plan, months, subscription, openRequest, planBusyId, readOnly, C, onPurchase }: {
+function SubscriptionPlanCard({ plan, months, subscription, openRequest, planBusyId, readOnly, C, onPurchase, now, activeUntil, single }: {
   plan: any;
   months: number | null;
   subscription: any;
@@ -661,57 +721,79 @@ function SubscriptionPlanCard({ plan, months, subscription, openRequest, planBus
   readOnly: boolean;
   C: typeof LIGHT_C;
   onPurchase: (priceId: string, quotedAmount?: number, quotedCurrency?: string) => void;
+  now: number | null;
+  activeUntil: string | null;
+  /** The only card (a renewal): its button is sized like a button, not stretched across the page. */
+  single: boolean;
 }) {
   const prices = useMemo(() => [...(plan.prices ?? [])].sort((a: any, b: any) => a.durationMonths - b.durationMonths), [plan.prices]);
-  // The plan's price at the chosen length, or at the length it is sold at closest to it.
-  const selectedPrice = months === null ? prices[0]
-    : prices.find((price: any) => price.durationMonths === months)
-      ?? [...prices].sort((a: any, b: any) => Math.abs(a.durationMonths - months) - Math.abs(b.durationMonths - months) || a.durationMonths - b.durationMonths)[0];
+  const selectedPrice = priceAtLength(prices, months);
   const otherLength = Boolean(selectedPrice && months !== null && selectedPrice.durationMonths !== months);
   const comparison = selectedPrice ? comparePlanPrice(selectedPrice, prices) : { perMonth: 0, savingPercent: 0 };
   const isBusy = selectedPrice?.id === planBusyId;
   const blocked = Boolean(openRequest || planBusyId || readOnly || !selectedPrice);
   const copy = renewalCopy(subscription?.status);
   const promotion = Boolean(selectedPrice?.listAmount && selectedPrice.listAmount > selectedPrice.amount);
-  const promotionName = promotionHeading(selectedPrice?.discountLabel, 'Special offer');
-  const promotionSaving = selectedPrice?.discountType === 'percentage'
-    ? `${selectedPrice.discountValue}% off`
-    : `${money(selectedPrice?.currency, selectedPrice?.discountAmount)} off`;
+  const end = offerEndsAt(selectedPrice, now);
+  // Best Value only while choosing: on a renewal the learner's own plan is the only card.
+  const best = Boolean(plan.recommended && !subscription);
+  // The price a day, a month counted as 30 days, always to the cent, as on the pricing page.
+  const perDay = selectedPrice ? `${selectedPrice.currency || 'GHS'} ${(selectedPrice.amount / (selectedPrice.durationMonths * 30)).toFixed(2)}` : '';
   const items: any[] = plan.contents ?? [];
   const itemCount = Math.max(plan.contentCount ?? 0, items.length);
   const moreCount = itemCount - Math.min(items.length, PLAN_ITEMS_SHOWN);
 
-  return <article className="flex flex-col rounded-2xl p-4 sm:p-6" style={{ background: C.card }}>
+  return <article id={`plan-${plan.id}`} className="relative flex scroll-mt-24 flex-col rounded-2xl p-6" style={{ background: C.card, boxShadow: best ? `inset 0 0 0 2px ${BEST_VALUE_GOLD}` : 'none' }}>
+    {best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.06em]" style={{ background: BEST_VALUE_GOLD, color: '#3d2e00' }}>Best Value</span>}
     <div className="flex flex-wrap items-center gap-2">
       <p className="text-[22px] leading-7 font-black tracking-tight" style={{ color: C.text }}>{plan.name}</p>
       {subscription && <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: C.successBg, color: C.successText }}>Current plan</span>}
     </div>
-    {plan.description && <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>{plan.description}</p>}
+    {plan.description && <p className="mt-2 text-sm leading-6" style={{ color: C.muted }}>{plan.description}</p>}
 
-    {promotion && selectedPrice && <span className="mt-4 w-fit rounded-full px-3 py-1 text-[11px] font-black" style={{ background: '#FFCC00', color: '#101828' }}>{promotionName}: {promotionSaving}</span>}
-
-    <div className="mt-4">
-      <p className="text-xs font-semibold" style={{ color: C.faint }}>{subscription ? 'Renewal total' : 'Total'}</p>
-      {selectedPrice ? <>
-        <p className="mt-1 text-[28px] leading-9 font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)} <span className="text-xs font-semibold tracking-normal" style={{ color: C.muted }}>for {durationLabel(selectedPrice.durationMonths)}</span></p>
-        {otherLength && months !== null && <p className="mt-1 text-xs font-semibold" style={{ color: C.muted }}>Not sold for {durationLabel(months)}. Shown for {durationLabel(selectedPrice.durationMonths)}.</p>}
-        {promotion && <p className="mt-1 text-xs" style={{ color: C.muted }}>
-          Usually <span className="line-through" style={{ color: C.faint }}>{money(selectedPrice.currency, selectedPrice.listAmount)}</span>. You save {money(selectedPrice.currency, selectedPrice.discountAmount)}.
+    {selectedPrice ? <div className="mt-4">
+      <p className="text-sm" style={{ color: C.muted }}>
+        <span className="mr-1 text-[32px] leading-10 font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</span>
+        for {durationLabel(selectedPrice.durationMonths)}
+      </p>
+      {otherLength && months !== null
+        ? <p className="mt-2 text-xs font-semibold" style={{ color: C.muted }}>Not sold for {durationLabel(months)}. Shown for {durationLabel(selectedPrice.durationMonths)}.</p>
+        : <p className="mt-2 flex flex-wrap items-center gap-2 text-sm" style={{ color: C.muted }}>
+          <span>
+            Only{' '}
+            <span className="relative inline-block pb-[3px] font-black" style={{ color: C.text }}>
+              {perDay}
+              <svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute bottom-[-3px] left-0 h-[7px] w-full overflow-visible">
+                <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={DEFAULT_VE_ACCENT} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+              </svg>
+            </span>{' '}
+            a day
+          </span>
+          {comparison.savingPercent > 0 && <span className="rounded-full border px-2 py-0.5 text-xs font-bold" style={{ background: C.successBg, borderColor: C.successBorder, color: C.successText }}>Save {comparison.savingPercent}%</span>}
         </p>}
-        {comparison.savingPercent > 0 && <span className="mt-2 inline-block rounded-full border px-3 py-1 text-[11px] font-bold" style={{ background: C.successBg, borderColor: C.successBorder, color: C.successText }}>Save {comparison.savingPercent}%</span>}
-      </> : <p className="mt-1 text-sm font-bold" style={{ color: C.muted }}>Pricing unavailable</p>}
-    </div>
+    </div> : <p className="mt-4 text-sm font-bold" style={{ color: C.muted }}>Pricing unavailable</p>}
 
-    {items.length > 0 && <ul className="mt-4 space-y-2">
-      {items.slice(0, PLAN_ITEMS_SHOWN).map(item => <li key={`${item.contentTable}:${item.contentId}`} className="flex items-start gap-2 text-sm" style={{ color: C.text }}>
-        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: C.successText }}/><span className="min-w-0">{item.title}</span>
-      </li>)}
-      {moreCount > 0 && <li className="pl-6 text-sm font-bold" style={{ color: C.cta }}>+ {moreCount} more</li>}
-    </ul>}
-
-    <button type="button" onClick={() => selectedPrice && onPurchase(selectedPrice.id, selectedPrice.amount, selectedPrice.currency)} disabled={blocked} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-4 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 md:mt-auto" style={{ background: C.cta, color: C.ctaText }}>
-      {isBusy ? <><Loader2 className="h-4 w-4 animate-spin"/>Opening checkout</> : !selectedPrice ? 'Unavailable' : openRequest ? 'Payment in progress' : readOnly ? 'Preview only' : subscription ? <>{copy.action}<ArrowRight className="h-4 w-4"/></> : <>Unlock this plan<ArrowRight className="h-4 w-4"/></>}
+    <button type="button" onClick={() => selectedPrice && onPurchase(selectedPrice.id, selectedPrice.amount, selectedPrice.currency)} disabled={blocked}
+      className={`mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 ${single ? 'sm:w-fit sm:min-w-64' : ''}`}
+      style={best || single ? { background: C.cta, color: C.ctaText } : { background: C.pill, color: C.text }}>
+      {isBusy ? <><Loader2 className="h-4 w-4 animate-spin"/>Opening checkout</> : !selectedPrice ? 'Unavailable' : openRequest ? 'Payment in progress' : readOnly ? 'Preview only' : subscription ? <>{copy.action}<ArrowRight className="h-4 w-4"/></> : <>Unlock {plan.name}<ArrowRight className="h-4 w-4"/></>}
     </button>
+    {selectedPrice && <p className="mt-3 text-xs leading-4" style={{ color: C.muted }}>
+      {promotion && <>Usually <span className="line-through">{money(selectedPrice.currency, selectedPrice.listAmount)}</span>{end ? `, offer ends ${offerEndDate(end)}` : ''}. </>}
+      {subscription && activeUntil && `Adds ${durationLabel(selectedPrice.durationMonths)} after ${fmtDate(activeUntil)}. `}
+      Pay once, no automatic renewal.
+    </p>}
+
+    {/* What the plan opens, while choosing. A learner renewing already has it. */}
+    {!subscription && items.length > 0 && <div className="mt-6 border-t pt-4" style={{ borderColor: C.divider }}>
+      <p className="text-xs font-bold" style={{ color: C.muted }}>Includes:</p>
+      <ul className="mt-2 space-y-2">
+        {items.slice(0, PLAN_ITEMS_SHOWN).map(item => <li key={`${item.contentTable}:${item.contentId}`} className="flex items-start gap-2 text-sm" style={{ color: C.text }}>
+          <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: C.successText }}/><span className="min-w-0">{item.title}</span>
+        </li>)}
+        {moreCount > 0 && <li className="pl-6 text-sm font-bold" style={{ color: C.cta }}>+ {moreCount} more</li>}
+      </ul>
+    </div>}
   </article>;
 }
 

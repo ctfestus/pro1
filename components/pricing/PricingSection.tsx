@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Loader2, Minus } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { promotionHeading } from '@/lib/subscription-discount';
 import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
-import { durationLabel, formatMoney as money } from '@/lib/pricing-offer';
+import { durationLabel, formatMoney as money, offerEndsAt as offerEnd } from '@/lib/pricing-offer';
+import { useNow } from '@/lib/use-now';
 import {
   CONTENT_KINDS,
   type ContentCounts,
@@ -52,29 +53,6 @@ function priceForLength(prices: PricingPlan['prices'], months: number | null) {
   if (months === null) return prices[0];
   return prices.find(row => row.durationMonths === months)
     ?? [...prices].sort((a, b) => Math.abs(a.durationMonths - months) - Math.abs(b.durationMonths - months) || a.durationMonths - b.durationMonths)[0];
-}
-
-/** An offer that is running and has an end date still ahead. */
-function offerEnd(price: PricingPlan['prices'][number] | null, now: number | null): number | null {
-  if (!price?.discountEndsAt || now === null || !(price.listAmount && price.listAmount > price.amount)) return null;
-  const end = Date.parse(price.discountEndsAt);
-  return Number.isFinite(end) && end > now ? end : null;
-}
-
-/**
- * The time on the viewer's clock, ticking each second, or null on the server and the first render.
- * Dates and the countdown wait for it, so the server and the browser never disagree about them.
- */
-function useNow(): number | null {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    // Read the clock once mounted, then every second for the countdown.
-    const tick = () => setNow(Date.now());
-    const first = setTimeout(tick, 0);
-    const timer = setInterval(tick, 1000);
-    return () => { clearTimeout(first); clearInterval(timer); };
-  }, []);
-  return now;
 }
 
 const endDate = (end: number) => new Date(end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

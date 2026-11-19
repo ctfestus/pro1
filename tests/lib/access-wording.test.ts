@@ -72,8 +72,8 @@ describe('how access is described to a learner', () => {
   it('is reading real prose, not an empty list', () => {
     // The redesigned hero also carries unquoted JSX prose, so pin real learner-facing copy
     // directly rather than relying only on the quoted-string extraction above.
-    expect(component).toContain('Starter plan');
-    expect(component).toContain('Upgrade to Pro');
-    expect(component).toContain('Choose duration');
+    expect(component).toContain('Free starter access');
+    expect(component).toContain('Upgrade to ${recommendedPlan.name}');
+    expect(component).toContain("title: 'Pay online'");
   });
 });
