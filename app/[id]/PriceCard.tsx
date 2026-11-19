@@ -50,8 +50,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
   const included = KINDS.filter(({ key }) => (plan.coverage?.[key] ?? 0) > 0).map(({ label }) => label);
 
   return (
-    // Space Grotesk, the display face of the pricing page's offer strip and hero.
-    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16, fontFamily: 'var(--font-display), sans-serif' }}>
+    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <span style={{
         position: 'absolute', top: -12, right: 16, padding: '4px 16px 4px 12px', borderRadius: '4px 0 0 4px',
         clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, 0 100%)',
@@ -89,7 +88,8 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
         a day. One payment, no automatic renewal.
       </p>
       {included.length > 0 && (
-        <div style={{ borderTop: `1px solid ${palette.line}`, paddingTop: 12 }}>
+        // Space Grotesk, the display face of the pricing page's offer strip and hero.
+        <div style={{ borderTop: `1px solid ${palette.line}`, paddingTop: 12, fontFamily: 'var(--font-display), sans-serif' }}>
           <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: palette.muted }}>What&apos;s included:</p>
           <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
             {included.map(line => (
