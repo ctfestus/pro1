@@ -42,7 +42,7 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
     <>
     <div className="relative">
       <section className="relative max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-5 sm:pt-8 pb-28 lg:pb-16">
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm" style={{ color: '#64748b' }}>
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm" style={{ color: '#64748b' }}>
           <Link href="/products" className="font-medium hover:underline" style={{ color: '#334155' }}>Digital Products</Link>
           {book.category && <><ChevronRight className="w-3.5 h-3.5" /><span className="truncate">{book.category}</span></>}
         </nav>
@@ -53,24 +53,24 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
             <BookCover book={book} primaryColor={primaryColor} />
             <div className="min-w-0 flex-1 text-center sm:text-left">
               {/* What kind of product it is (migration 242) and its format, above the title. */}
-              <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-[11px] sm:text-xs font-bold uppercase tracking-[0.14em]"
+              <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-[11px] sm:text-xs font-bold uppercase tracking-[0.14em]"
                 style={{ color: '#0f172a' }}>
                 <span>{book.productTypeLabel}</span>
                 {format && (
                   <>
                     <span aria-hidden className="w-1 h-1 rounded-full" style={{ background: '#94a3b8' }} />
-                    <span className="inline-flex items-center gap-1.5" style={{ color: '#475569' }}>
+                    <span className="inline-flex items-center gap-2" style={{ color: '#475569' }}>
                       <FileText className="w-3.5 h-3.5" style={{ color: '#64748b' }} /> {format}
                     </span>
                   </>
                 )}
               </p>
-              <h1 className="text-[28px] leading-[1.15] sm:text-4xl sm:leading-[1.1] lg:text-[44px] font-extrabold tracking-tight max-w-[20ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
-              {book.subtitle && <p className="mt-3 text-base sm:text-lg leading-snug max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
+              <h1 className="text-[28px] leading-9 sm:text-[32px] sm:leading-10 lg:text-[36px] lg:leading-[44px] font-extrabold tracking-tight max-w-[20ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
+              {book.subtitle && <p className="mt-3 text-base leading-6 max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
               {tags.length > 0 && (
                 <ul className="mt-4 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Topics">
                   {tags.map(t => (
-                    <li key={t} className="inline-flex items-center rounded-full px-3 py-1.5 text-xs sm:text-[13px] font-medium"
+                    <li key={t} className="inline-flex items-center rounded-full px-3 py-2 text-xs font-medium"
                       style={{ background: '#ffffff', color: '#475569', boxShadow: CARD_SHADOW }}>{t}</li>
                   ))}
                 </ul>
@@ -94,7 +94,7 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
           <div className="min-w-0 max-w-[960px] space-y-6">
             {aboutHtml && (
               <section aria-labelledby="about-heading" className="rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
-                <h2 id="about-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>About this product</h2>
+                <h2 id="about-heading" className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: '#0f172a' }}>About this product</h2>
                 {/* The editor's rich text, sanitized (lib/books/description.ts); older plain text is escaped. */}
                 <div className="product-richtext mt-3 max-w-[70ch]" dangerouslySetInnerHTML={{ __html: aboutHtml }} />
               </section>
@@ -108,7 +108,7 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
         {more.length > 0 && (
           <section aria-labelledby="more-heading" className="mt-10">
             <div className="flex items-end justify-between gap-3">
-              <h2 id="more-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>More digital products</h2>
+              <h2 id="more-heading" className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: '#0f172a' }}>More digital products</h2>
               <Link href="/products" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: '#0f172a' }}>
                 See all <ChevronRight className="w-4 h-4" />
               </Link>
@@ -140,7 +140,7 @@ function BookCover({ book, primaryColor }: { book: StoreBook; primaryColor: stri
           : (
             <div className="w-full h-full flex flex-col justify-between p-5" style={{ background: `linear-gradient(150deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 55%, #0f172a))` }}>
               <Package className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.85)' }} />
-              <p className="font-bold text-lg leading-snug line-clamp-4" style={{ color: '#ffffff' }}>{book.title}</p>
+              <p className="font-bold text-base leading-6 line-clamp-4" style={{ color: '#ffffff' }}>{book.title}</p>
             </div>
           )}
       </div>
@@ -176,15 +176,15 @@ function AboutInstructor({ instructor, authors, primaryColor }: { instructor: St
     if (!authors.length) return null;
     return (
       <section aria-labelledby="instructor-heading" className="mt-8 sm:mt-10 max-w-[960px] rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
-        <h2 id="instructor-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>{authors.length > 1 ? 'About the authors' : 'About the author'}</h2>
-        <p className="mt-3 text-[15px] font-semibold" style={{ color: '#0f172a' }}>{authors.join(', ')}</p>
+        <h2 id="instructor-heading" className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: '#0f172a' }}>{authors.length > 1 ? 'About the authors' : 'About the author'}</h2>
+        <p className="mt-3 text-base font-semibold" style={{ color: '#0f172a' }}>{authors.join(', ')}</p>
       </section>
     );
   }
 
   return (
     <section aria-labelledby="instructor-heading" className="mt-8 sm:mt-10 max-w-[960px] rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
-      <h2 id="instructor-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>About the creator</h2>
+      <h2 id="instructor-heading" className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: '#0f172a' }}>About the creator</h2>
       <div className="mt-5 flex flex-col sm:flex-row gap-5 sm:gap-6">
         {instructor.avatar
           ? <img src={resolveCoverUrl(instructor.avatar)} alt={instructor.name} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
@@ -194,7 +194,7 @@ function AboutInstructor({ instructor, authors, primaryColor }: { instructor: St
           )}
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold" style={{ color: '#0f172a' }}>{instructor.name}</p>
-          {instructor.bio && <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-line max-w-[68ch]" style={{ color: '#475569' }}>{instructor.bio}</p>}
+          {instructor.bio && <p className="mt-2 text-base leading-6 whitespace-pre-line max-w-[68ch]" style={{ color: '#475569' }}>{instructor.bio}</p>}
           {instructor.links.length > 0 && <InstructorLinks name={instructor.name} links={instructor.links} />}
         </div>
       </div>
