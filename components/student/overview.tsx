@@ -58,7 +58,7 @@ function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Recor
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>In progress</h3>
+          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>In progress</h3>
           <p className="text-sm mt-1" style={{ color: C.muted }}>Pick up where you left off</p>
         </div>
         <RowArrows row={row} C={C} />
@@ -85,11 +85,11 @@ function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Recor
                     const days = dl ? Math.ceil((dl.getTime() - Date.now()) / 86400000) : null;
                     const label = days === null ? 'In progress' : days < 0 ? 'Overdue' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
                     const bg = days === null ? '#22c55e' : days < 0 ? '#D93025' : days <= 3 ? '#ea580c' : '#16a34a';
-                    return <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: bg, color: '#ffffff' }}>{label}</span>;
+                    return <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: bg, color: '#ffffff' }}>{label}</span>;
                   })()}
                 </div>
                 <p className="text-xs mt-2" style={{ color: C.faint }}>{isProject ? 'Virtual Experience' : 'Course'}</p>
-                <p className="text-[15px] font-bold leading-snug mt-0.5 mb-2.5 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
+                <p className="text-base font-bold leading-snug mt-0.5 mb-3 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
                 <ProgressBar value={pct} color="#22c55e"/>
                 <p className="text-[11px] mt-1" style={{ color: C.faint }}>{pct}% complete</p>
               </a>
@@ -429,7 +429,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       body="Check your connection and try again."
       action={(
         <button type="button" onClick={() => setRefreshKey(key => key + 1)}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl"
+          className="text-sm font-semibold px-4 py-3 rounded-xl"
           style={{ background: C.cta, color: C.ctaText }}>
           Try again
         </button>
@@ -443,7 +443,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       {/* Statistics carousel */}
       <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>Statistics</h3>
+          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Statistics</h3>
           <RowArrows row={statRow} C={C} />
         </div>
 
@@ -475,7 +475,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       {/* Upcoming -- deadlines + events, carousel */}
       <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>Upcoming</h3>
+          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Upcoming</h3>
           <RowArrows row={upRow} C={C} />
         </div>
 
@@ -498,10 +498,10 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
                   <div className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center" style={{ background: `${col}14` }}>
                     <Icon className="w-10 h-10" style={{ color: col }}/>
                     {cover && <img src={resolveCoverUrl(cover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                    <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: col, color: '#ffffff' }}>{lbl}</span>
+                    <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: col, color: '#ffffff' }}>{lbl}</span>
                   </div>
                   <p className="text-xs mt-2" style={{ color: C.faint }}>{typeLabel}</p>
-                  <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{title}</p>
+                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{title}</p>
                 </div>
               );
             })}
@@ -515,7 +515,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-2 min-w-0">
               <TrendingUp className="w-5 h-5 flex-shrink-0" style={{ color: C.green }}/>
-              <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>Recommended for you</h3>
+              <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>Recommended for you</h3>
             </div>
             <RowArrows row={recRow} C={C} />
           </div>
@@ -540,14 +540,14 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
                     {isVE ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}
                     {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
                     {gap.topic && (
-                      <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
+                      <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md"
                         style={{ background: '#16a34a', color: '#ffffff' }}>
                         {String(gap.topic).slice(0, 24)}
                       </span>
                     )}
                   </div>
                   <p className="text-xs mt-2" style={{ color: C.faint }}>{isVE ? 'Virtual Experience' : 'Course'}</p>
-                  <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{gap.course.title}</p>
+                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{gap.course.title}</p>
                 </a>
               );
             })}

@@ -71,17 +71,17 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-20" style={{ background: color }} />
               <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: color }} />
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+            <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
               style={{ background: `${color}18`, color }}>
               {cfg.industry}
             </span>
             {cfg.difficulty && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>
                 {cfg.difficulty}
               </span>
             )}
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+          <button onClick={onClose} className="p-2 rounded-lg transition-opacity hover:opacity-70" style={{ color: C.muted }}>
             <X className="w-4 h-4"/>
           </button>
         </div>
@@ -119,7 +119,7 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
 
             {/* Progress (if started) */}
             {isStarted && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex justify-between text-xs" style={{ color: C.muted }}>
                   <span>Progress</span>
                   <span>{doneReqs} / {totalReqs} tasks · {pct}%</span>
@@ -128,7 +128,7 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
               </div>
             )}
             {isCompleted && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              <div className="flex items-center gap-2 px-3 py-3 rounded-xl"
                 style={{ background: `${color}12`, color }}>
                 <CheckCircle className="w-4 h-4 flex-shrink-0"/>
                 <span className="text-sm font-semibold">Project completed</span>
@@ -144,7 +144,7 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
               <div className="flex items-center gap-2 flex-wrap">
                 <Zap className="w-3.5 h-3.5 flex-shrink-0" style={{ color }}/>
                 {(cfg.tools as string[]).map((t: string) => (
-                  <span key={t} className="text-xs px-2.5 py-1 rounded-lg font-medium"
+                  <span key={t} className="text-xs px-3 py-1 rounded-lg font-medium"
                     style={{ background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: C.text }}>
                     {t}
                   </span>
@@ -167,7 +167,7 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
                 <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.faint }}>What you will learn</p>
                 <div className="space-y-2">
                   {(cfg.learnOutcomes as string[]).filter(o => String(o ?? '').trim()).map((o: string, i: number) => (
-                    <div key={i} className="flex items-start gap-2.5">
+                    <div key={i} className="flex items-start gap-2">
                       <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                         style={{ background: `${color}1a` }}>
                         <CheckCircle className="w-3 h-3" style={{ color }}/>
@@ -189,7 +189,7 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
                       <div className="flex items-center gap-3 px-4 py-3">
                         <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                           style={{ background: `${color}18` }}>
-                          <span className="text-[10px] font-bold" style={{ color }}>{mi + 1}</span>
+                          <span className="text-[11px] font-bold" style={{ color }}>{mi + 1}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium leading-snug" style={{ color: C.text }}>{m.title}</span>

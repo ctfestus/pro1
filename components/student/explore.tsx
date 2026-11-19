@@ -304,7 +304,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
           <span className="w-7 h-7 rounded-lg grid place-items-center flex-shrink-0" style={{ background: `${accent}16` }}>
             <Icon className="w-[15px] h-[15px]" style={{ color: accent }} />
           </span>
-          <h3 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: C.text }}>
+          <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>
             {title}
           </h3>
         </div>
@@ -344,7 +344,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                       style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
 
                     {item.category && (
-                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold"
+                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold"
                         style={{ background: '#F5D77A', color: '#3d2e00' }}>
                         {item.category}
                       </span>
@@ -357,7 +357,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                     )}
                   </div>
 
-                  <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
+                  <p className="text-base font-bold leading-snug mt-3 line-clamp-2" style={{ color: C.text }}>
                     {item.title}
                   </p>
                   {item.locked && item.prices?.length ? (
@@ -404,7 +404,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
 
 function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode; children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
+    <span className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
       {icon && <span className="flex" style={{ color: C.faint }}>{icon}</span>}
       {children}
     </span>
@@ -447,12 +447,12 @@ function CataloguePreview({ item, accent, onOpen, C }: {
       >
         <div className="p-4 pb-0">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
+            <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
               Learning Path
             </span>
             {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: C.muted }} />}
           </div>
-          <h3 className="text-lg font-bold leading-snug line-clamp-2 mb-1.5" style={{ color: C.text }}>
+          <h3 className="text-base leading-6 font-bold line-clamp-2 mb-2" style={{ color: C.text }}>
             {item.title}
           </h3>
           {desc && (
@@ -468,7 +468,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: C.faint }}>
                 {pathItems.length} item{pathItems.length !== 1 ? 's' : ''} in this path
               </p>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-2">
                 {pathItems.map(pathItem => (
                   <div key={pathItem.id} className="flex-shrink-0" style={{ width: 110 }}>
                     {(() => {
@@ -476,7 +476,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
                       return (
                         <>
                           <div
-                            className="rounded-lg overflow-hidden mb-1.5"
+                            className="rounded-lg overflow-hidden mb-2"
                             style={{ aspectRatio: '16/9', background: coverUrl ? '#0b0b0d' : C.pill }}
                           >
                             {coverUrl ? (
@@ -505,7 +505,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             <button
               type="button"
               onClick={() => onOpen(item)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
+              className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 mt-4"
               style={{ background: C.cta, color: C.ctaText }}
             >
               <ArrowRight className="w-3.5 h-3.5" />
@@ -515,7 +515,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             <button
               type="button"
               onClick={() => onOpen(item)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
+              className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 mt-4"
               style={{ background: '#00bf63', color: 'white' }}
             >
               <Play className="w-3.5 h-3.5" />
@@ -552,7 +552,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </div>
         )}
         {item.category && (
-          <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+          <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
             {item.category}
           </span>
         )}
@@ -566,9 +566,9 @@ function CataloguePreview({ item, accent, onOpen, C }: {
 
       <div className="flex flex-col gap-4 p-6">
         <div>
-          <h3 className="text-[17px] font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+          <h3 className="text-base font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
           {item.byline && (
-            <div className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>
+            <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>
               {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
               {item.byline}
             </div>
@@ -582,7 +582,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         )}
 
         {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {item.level && <PreviewFact C={C} icon={<GraduationCap className="h-3.5 w-3.5" />}>{item.level} level</PreviewFact>}
             {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
             {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
@@ -599,9 +599,9 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
               {item.type === 'certification' ? 'What it covers' : item.type === 'book' ? 'What you will get' : 'What you will learn'}
             </p>
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {item.outcomes.map(outcome => (
-                <li key={outcome} className="flex gap-2 text-[13px] leading-snug" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+                <li key={outcome} className="flex gap-2 text-sm leading-snug" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
                   <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={3} style={{ color: C.successText }} />
                   <span className="line-clamp-2">{outcome}</span>
                 </li>
@@ -614,7 +614,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           <button
             type="button"
             onClick={() => onOpen(item)}
-            className="flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-opacity hover:opacity-90"
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -632,7 +632,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
             </>
           );
-          const cta = 'flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90';
+          const cta = 'flex w-full items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-opacity hover:opacity-90';
           const ctaStyle = { background: '#00bf63', color: 'white' };
           const href = directHref(item);
           // A link where one exists, for the same reason the card is one: middle-click, open in a
