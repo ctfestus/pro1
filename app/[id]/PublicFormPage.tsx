@@ -39,6 +39,8 @@ import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
 import { MoreLikeThis } from './MoreLikeThis';
 import { PriceCard, hasPriceCard } from './PriceCard';
+import { InstructorCard } from './InstructorCard';
+import type { StoreInstructor } from '@/lib/books/store';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel, pricingHrefFor } from '@/lib/unlock-pricing';
@@ -481,7 +483,7 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
 }
 
-function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean }) {
+function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   // On a path with specializations no learner takes every item: count the core, and name the
@@ -645,6 +647,9 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
             <PriceCard kind="learning_path" itemId={path.id} unlock={path.unlock} paystackEnabled={paystackEnabled}
               palette={{ card: C.card, text: C.text, muted: C.muted, line: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)', accent: C.cta, shadow: cardShadow(isDark), dark: isDark }} />
           )}
+          {instructor && (
+            <InstructorCard instructor={instructor} palette={{ card: C.card, text: C.text, muted: C.muted, accent: C.cta, shadow: cardShadow(isDark) }} />
+          )}
           {whoShouldTake.length > 0 && (
             <div style={{ ...card, padding: '20px' }}>
               <h2 style={{ ...heading, fontSize: 15, marginBottom: 12 }}>Who should take this path</h2>
@@ -667,7 +672,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -1223,7 +1228,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     if (pathPreview) {
       return (
         <>
-          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} />
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} />
           <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
         </>
       );
@@ -1844,6 +1849,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               {hasPriceCard(form.locked, form.unlock) && (
                 <PriceCard kind="course" itemId={form.id} unlock={form.unlock} paystackEnabled={paystackEnabled}
                   palette={{ card: cp.card, text: cp.title, muted: cp.muted, line: cp.border, accent: accentColor, shadow: courseCardShadow, dark }} />
+              )}
+              {instructor && (
+                <InstructorCard instructor={instructor} palette={{ card: cp.card, text: cp.title, muted: cp.muted, accent: accentColor, shadow: courseCardShadow }} />
               )}
               {/* Digital products the author recommends with this course (shows nothing if none). */}
               <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />
