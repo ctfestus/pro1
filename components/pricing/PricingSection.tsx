@@ -145,7 +145,7 @@ export function PricingSection({
         </p>
       )}
 
-      <div className={`${offer || forItem ? 'mt-4' : ''} grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3`}>
+      <div className={`${offer ? 'mt-8' : forItem ? 'mt-4' : ''} grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3`}>
         {/* The free tier does not open a locked item, so it is not offered as one of its plans. */}
         {!forItem && <FreePlanCard free={free} signedIn={signedIn} hFont={hFont} />}
         {plans.map(plan => (
