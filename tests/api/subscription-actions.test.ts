@@ -22,6 +22,7 @@ const createClient = vi.hoisted(() => vi.fn());
 const getSubscriptionPlans = vi.hoisted(() => vi.fn());
 const getSubscriptions = vi.hoisted(() => vi.fn());
 const getEligibleSubscriptionStudents = vi.hoisted(() => vi.fn());
+const getCollectedThisMonth = vi.hoisted(() => vi.fn());
 const getSubscriptionForStudent = vi.hoisted(() => vi.fn());
 const getSubscriptionHistory = vi.hoisted(() => vi.fn());
 const getSubscriptionPaymentRequests = vi.hoisted(() => vi.fn());
@@ -40,6 +41,7 @@ vi.mock('@/lib/db-subscriptions', () => ({
   getSubscriptionPlans,
   getSubscriptions,
   getEligibleSubscriptionStudents,
+  getCollectedThisMonth,
   getSubscriptionForStudent,
   getSubscriptionHistory,
   getSubscriptionPaymentRequests,
@@ -108,6 +110,7 @@ beforeEach(() => {
   getSubscriptionPlans.mockResolvedValue([]);
   getSubscriptions.mockResolvedValue([]);
   getEligibleSubscriptionStudents.mockResolvedValue([]);
+  getCollectedThisMonth.mockResolvedValue([]);
   getSubscriptionPaymentRequests.mockResolvedValue([]);
   getSubscriptionForStudent.mockResolvedValue(null);
   getSubscriptionHistory.mockResolvedValue([]);
@@ -126,9 +129,12 @@ describe('subscription read authorization', () => {
     });
     createClient.mockReturnValue(db);
 
+    getSubscriptions.mockResolvedValue([{ id: 'subscription-owned', plan_id: 'plan-owned' }]);
     const response = await GET(getRequest('subscription-list'));
     expect(response.status).toBe(200);
     expect(getSubscriptions).toHaveBeenCalledWith(db, ['plan-owned']);
+    // Money collected is scoped like the list: only the instructor's own plans' subscriptions.
+    expect(getCollectedThisMonth).toHaveBeenCalledWith(db, ['subscription-owned']);
     // Plan ownership scopes the subscriptions, not the learner picker. An instructor gets the
     // same eligible-student list an admin does, because eligibility is a fact about the student
     // rather than about the plan or the caller.
@@ -156,6 +162,7 @@ describe('subscription read authorization', () => {
     expect(response.status).toBe(200);
     expect(getSubscriptions).toHaveBeenCalledWith(db, null);
     expect(getEligibleSubscriptionStudents).toHaveBeenCalledWith(db);
+    expect(getCollectedThisMonth).toHaveBeenCalledWith(db, null);
   });
 });
 
