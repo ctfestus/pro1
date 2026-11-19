@@ -32,18 +32,18 @@ export function MissionOutline({ modules, isDark, text, muted, divider, collapse
   return (
     <div className="flex flex-col">
       {numbered.map((mod, mi) => (
-        <div key={mod.id} style={mi ? { borderTop: `1px solid ${divider}`, marginTop: 14, paddingTop: 16 } : undefined}>
+        <div key={mod.id} style={mi ? { borderTop: `1px solid ${divider}`, marginTop: 16, paddingTop: 16 } : undefined}>
           {onToggle && mod.title ? (
             <button type="button" onClick={() => onToggle(mod.id)} aria-expanded={!collapsed?.has(mod.id)}
-              className="mb-2.5 flex w-full items-center justify-between gap-3 text-left">
+              className="mb-3 flex w-full items-center justify-between gap-3 text-left">
               <span className="truncate text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: muted }}>{mod.title}</span>
-              <span className="flex flex-shrink-0 items-center gap-1.5 text-[11.5px]" style={{ color: faint }}>
+              <span className="flex flex-shrink-0 items-center gap-2 text-[11.5px]" style={{ color: faint }}>
                 {mod.lessons.length} {itemWord}{mod.lessons.length === 1 ? '' : 's'}
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed?.has(mod.id) ? '-rotate-90' : ''}`} />
               </span>
             </button>
           ) : mod.title ? (
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-2.5" style={{ color: muted }}>{mod.title}</p>
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-3" style={{ color: muted }}>{mod.title}</p>
           ) : null}
           {!collapsed?.has(mod.id) && mod.lessons.map((les, li) => {
             const tasks = les.requirements?.length || 0;

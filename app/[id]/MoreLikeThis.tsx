@@ -67,11 +67,11 @@ export function MoreLikeThis({ kind, currentId, category = null, palette }: {
   if (!cards.length) return null;
 
   return (
-    <section style={{ maxWidth: 1140, margin: '0 auto', padding: '0 16px 72px' }}>
+    <section style={{ maxWidth: 1140, margin: '0 auto', padding: '0 16px 64px' }}>
       <h2 className="mb-4 text-lg font-bold" style={{ color: palette.text }}>
         {kind === 'learning_path' ? 'More learning paths' : 'More like this'}
       </h2>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(card => {
           const cover = card.cover ? resolveCoverUrl(card.cover) : '';
           const logo = card.category ? toolIcon(card.category) : null;
@@ -87,13 +87,13 @@ export function MoreLikeThis({ kind, currentId, category = null, palette }: {
                     </div>
                   )}
                 {card.category && (
-                  <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                  <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
                     {card.category}
                   </span>
                 )}
               </div>
               <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: palette.muted }}>{source.label}</p>
-              <p className="mt-0.5 line-clamp-2 text-[16px] font-bold leading-snug" style={{ color: palette.text }}>{card.title}</p>
+              <p className="mt-1 line-clamp-2 text-[16px] font-bold leading-snug" style={{ color: palette.text }}>{card.title}</p>
             </Link>
           );
         })}

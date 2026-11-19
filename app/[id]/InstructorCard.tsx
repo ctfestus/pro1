@@ -14,11 +14,11 @@ export function InstructorCard({ instructor, palette }: {
   palette: { card: string; text: string; muted: string; accent: string; shadow: string };
 }) {
   return (
-    <div style={{ background: palette.card, borderRadius: 14, padding: '16px 18px', boxShadow: palette.shadow }}>
+    <div style={{ background: palette.card, borderRadius: 14, padding: 24, boxShadow: palette.shadow }}>
       <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 700, color: palette.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         Your instructor
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ width: 44, height: 44, borderRadius: 999, overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${palette.accent} 14%, transparent)`, color: palette.accent, fontWeight: 800, fontSize: 14 }}>
           {instructor.avatar
             ? <img src={resolveCoverUrl(instructor.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

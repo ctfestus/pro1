@@ -39,9 +39,9 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
   const perDay = `${best.currency || 'GHS'} ${(best.amount / (best.durationMonths * 30)).toFixed(2)}`;
 
   return (
-    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px 20px 20px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ position: 'relative', background: palette.card, borderRadius: 14, padding: '24px', border: `1px solid ${palette.line}`, boxShadow: palette.shadow, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <span style={{
-        position: 'absolute', top: -11, right: 14, padding: '4px 18px 4px 10px', borderRadius: '4px 0 0 4px',
+        position: 'absolute', top: -12, right: 16, padding: '4px 16px 4px 12px', borderRadius: '4px 0 0 4px',
         clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, 0 100%)',
         // Light gold, as on Explore's labels; the ocean blue in dark mode.
         background: palette.dark ? '#3E93FF' : '#F5D77A', color: palette.dark ? '#ffffff' : '#3d2e00',
@@ -49,7 +49,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
       }}>
         {planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Best value'}
       </span>
-      <p style={{ display: 'flex', alignItems: 'center', gap: 9, margin: 0, fontSize: 16, fontWeight: 700, color: palette.text }}>
+      <p style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 16, fontWeight: 700, color: palette.text }}>
         <Lock style={{ width: 18, height: 18 }} /> Unlock this {NOUN[kind]}
       </p>
       <p style={{ margin: 0, fontSize: 13.5, color: palette.muted }}>
@@ -63,7 +63,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
           <span style={{ padding: '2px 8px', borderRadius: 999, background: '#ffffff', color: '#16a34a', fontSize: 11.5, fontWeight: 800, boxShadow: '0 0 0 1px rgba(22,163,74,0.25)' }}>Save {saving}%</span>
         </p>
       )}
-      <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
+      <p style={{ margin: '-8px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
         About{' '}
         <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
           {perDay}
@@ -76,11 +76,11 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
         a day. One payment, no automatic renewal.
       </p>
       <Link href={pricingHrefFor(itemId, kind)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 13, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
         {planName ? `Enroll with ${planName}` : enrollLabel(unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
       </Link>
       {paystackEnabled && (
-        <p style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: '-4px 0 0', fontSize: 12, lineHeight: 1.5, color: palette.muted }}>
+        <p style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '-4px 0 0', fontSize: 12, lineHeight: 1.5, color: palette.muted }}>
           <ShieldCheck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} /> Pay with Mobile Money, card or bank. Secure checkout by Paystack.
         </p>
       )}

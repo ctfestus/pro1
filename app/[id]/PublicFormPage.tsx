@@ -456,7 +456,7 @@ function ShareCard({ title, blurb, colors }: {
   const url = `${here.origin}${here.pathname}${type ? `?catalogueType=${encodeURIComponent(type)}` : ''}`;
   return (
     <div style={{
-      background: colors.card, borderRadius: 14, padding: '16px 18px', boxShadow: colors.shadow,
+      background: colors.card, borderRadius: 14, padding: '16px 24px', boxShadow: colors.shadow,
       ['--ev-surface' as string]: colors.button, ['--ev-text' as string]: colors.text, ['--ev-muted' as string]: colors.muted,
     } as React.CSSProperties}>
       <ShareButtons url={url} title={title} blurb={blurb} compact className="flex flex-nowrap items-center gap-2" />
@@ -521,7 +521,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
     ...(specializationCount > 0 ? [{ Icon: ListChecks, label: `+ ${specializationCount} specialization${specializationCount !== 1 ? 's' : ''}` }] : []),
     ...(virtualExperienceCount > 0 ? [{ Icon: Building2, label: `${virtualExperienceCount} ${coreWord}virtual experience${virtualExperienceCount !== 1 ? 's' : ''}` }] : []),
   ];
-  const card = { background: C.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow(isDark) };
+  const card = { background: C.card, borderRadius: 14, padding: 24, boxShadow: cardShadow(isDark) };
   const heading = { fontSize: 16, fontWeight: 600, color: C.text, fontFamily: 'var(--font-display), sans-serif' };
   const tick = (
     <span className="mt-0.5 grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-[5px]" style={{ background: `color-mix(in srgb, ${C.cta} 14%, transparent)` }}>
@@ -541,7 +541,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
             if (window.history.length > 1) window.history.back();
             else window.location.href = '/';
           }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 999, background: C.divider, color: C.muted, cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '7px 12px' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: 0, borderRadius: 999, background: C.divider, color: C.muted, cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '8px 12px' }}
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -555,18 +555,18 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 40%, transparent) 0%, #0a0a0a 70%)` }} />}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 14 }}>Learning path</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 16 }}>Learning path</p>
           <div style={{ maxWidth: 680 }}>
-            <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
+            <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
               {path.title}
             </h1>
             {description && (
               <AuthoredText value={description} className="text-[15px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
             )}
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
             {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
-              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                 <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
               </span>
             ))}
@@ -574,7 +574,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]" style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 56px', gap: 20, alignItems: 'start' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]" style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 48px', gap: 24, alignItems: 'start' }}>
         <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {overview && (
             <div style={card}>
@@ -588,7 +588,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
               <h2 style={{ ...heading, marginBottom: 12 }}>Skills you will learn</h2>
               <div className="flex flex-wrap gap-2">
                 {skills.map((skill: string) => (
-                  <span key={skill} className="rounded-lg px-2.5 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
+                  <span key={skill} className="rounded-lg px-3 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
                 ))}
               </div>
             </div>
@@ -608,14 +608,14 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
           </div>
         </div>
 
-        <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ ...card, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ ...card, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {tools.length > 0 && (
               <div>
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>Tools</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {tools.map((tool: string) => (
-                    <span key={tool} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold" style={{ background: C.pill, color: C.text }}>
+                    <span key={tool} className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-[11.5px] font-semibold" style={{ background: C.pill, color: C.text }}>
                       {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-3.5 w-3.5 object-contain" />}
                       {tool}
                     </span>
@@ -624,10 +624,10 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
               </div>
             )}
             <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
-              <ul className="flex flex-col gap-2.5">
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
+              <ul className="flex flex-col gap-3">
                 {[...facts, { Icon: BadgeCheck, label: 'Path certificate' }].map(({ Icon, label }) => (
-                  <li key={label} className="flex items-center gap-2.5 text-[13.5px]" style={{ color: C.text }}>
+                  <li key={label} className="flex items-center gap-2 text-[13.5px]" style={{ color: C.text }}>
                     <Icon className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />{label}
                   </li>
                 ))}
@@ -651,11 +651,11 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
             <InstructorCard instructor={instructor} palette={{ card: C.card, text: C.text, muted: C.muted, accent: C.cta, shadow: cardShadow(isDark) }} />
           )}
           {whoShouldTake.length > 0 && (
-            <div style={{ ...card, padding: '20px' }}>
+            <div style={{ ...card, padding: 24 }}>
               <h2 style={{ ...heading, fontSize: 15, marginBottom: 12 }}>Who should take this path</h2>
               <ul className="space-y-2.5">
                 {whoShouldTake.map((who: string) => (
-                  <li key={who} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
+                  <li key={who} className="flex items-start gap-2 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
                 ))}
               </ul>
             </div>
@@ -1423,8 +1423,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       { Icon: BadgeCheck, label: 'Certificate on completion' },
     ];
     const vePriced = hasPriceCard(form.locked, form.unlock);
-    const ctaStyle = { width: '100%', padding: '13px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' } as const;
-    const secondaryStyle = { width: '100%', padding: '11px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 13, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 } as const;
+    const ctaStyle = { width: '100%', padding: '12px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, letterSpacing: '-0.01em' } as const;
+    const secondaryStyle = { width: '100%', padding: '12px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 13, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 } as const;
 
     return (
       <div style={{ minHeight: '100vh', background: gp.bg, color: gp.title, fontFamily: fontFace }}>
@@ -1436,7 +1436,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <img src={(isLight ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
           </Link>
-          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'capitalize'}}>
+          <span style={{ fontSize: 11, padding: '4px 12px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'capitalize'}}>
             {config.industry}
           </span>
         </nav>
@@ -1450,18 +1450,18 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           {/* Gradient overlay */}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
           {/* Content */}
-          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 32px' }}>
+          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
             {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
                 {config.role && (
-                  <span style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
+                  <span style={{ fontSize: 11.5, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
                 )}
               </div>
             {/* Title and tagline in one column at a reading width, as on the course hero, so a
                 long title wraps short of the far edge. The title balances its lines. */}
             <div style={{ maxWidth: 680 }}>
-              <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: displayFont }}>
+              <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: displayFont }}>
                 {config.title || form.title}
               </h1>
               {config.tagline && (
@@ -1469,9 +1469,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               )}
             </div>
             {/* What it takes, at a glance */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
               {facts.map(({ Icon, label }) => (
-                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                   <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                 </span>
               ))}
@@ -1479,7 +1479,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* Manager credit -- the reason to enrol, above the fold. Fixed light-on-dark
                 palette because the hero sits on the cover image, not the page surface. */}
             {guide && (
-              <div style={{ marginTop: 18 }}>
+              <div style={{ marginTop: 16 }}>
                 <GuideByline
                   guide={guide}
                   size={30}
@@ -1494,7 +1494,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
         {/* -- Main layout -- */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]"
-          style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 80px', gap: 20, alignItems: 'start' }}>
+          style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 48px', gap: 24, alignItems: 'start' }}>
 
           {/* Left column */}
           <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1502,9 +1502,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* The scenario: the situation the learner steps into, in plain words. It is not framed as
                 a note from the manager: the manager speaks for themselves once the experience starts. */}
             {config.background && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
-                {config.company && <p style={{ fontSize: 12.5, fontWeight: 600, color: gp.muted, margin: '0 0 2px' }}>{config.company}</p>}
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 10, fontFamily: displayFont }}>The scenario</h2>
+              <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
+                {config.company && <p style={{ fontSize: 12.5, fontWeight: 600, color: gp.muted, margin: '0 0 4px' }}>{config.company}</p>}
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 12, fontFamily: displayFont }}>The scenario</h2>
                 <div className="rich-content" style={{ fontSize: 14.5, lineHeight: 1.6, color: gp.body }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.background) || '' }} />
               </div>
@@ -1513,11 +1513,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
                 unfilled outcome as an empty string, which rendered as a tick with no text. */}
             {veOutcomes.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 14, fontFamily: displayFont }}>What you&apos;ll learn</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
+              <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>What you&apos;ll learn</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
                   {veOutcomes.map((o: string, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                       <div style={{ width: 18, height: 18, borderRadius: 5, background: `${indColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                         <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
                           <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={indColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1532,7 +1532,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {/* The missions, drawn the way the player's mission list draws them */}
             {modules.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
+              <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
                 <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} divider={gp.divider} />
               </div>
@@ -1540,17 +1540,17 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           </div>
 
           {/* Right sidebar */}
-          <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Enrollment card. A locked experience with plans on sale has its button in the price
                 card below, so this card stays only for the tools. */}
             {(!vePriced || config.tools?.length > 0) && (
-            <div style={{ background: gp.card, borderRadius: 14, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: cardShadow }}>
+            <div style={{ background: gp.card, borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: cardShadow }}>
               {/* Tools */}
               {config.tools?.length > 0 && (
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 700, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tools</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {/* Defensive rather than trusting the stored list: skills also arrive from
                         AI generation, content import and the MCP, so a blank name must not
                         render an empty chip and a duplicate must not collide on its key. */}
@@ -1560,7 +1560,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       .map((t: string, i: number) => {
                       const logo = toolIcon(t);
                       return (
-                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '4px 10px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
+                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, padding: '4px 12px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
                           {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
                           {t}
                         </span>
@@ -1682,9 +1682,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             <img src={(!dark ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: cp.divider, color: cp.muted, fontWeight: 700, letterSpacing: '0.02em' }}>Course</span>
+            <span style={{ fontSize: 11, padding: '4px 12px', borderRadius: 999, background: cp.divider, color: cp.muted, fontWeight: 700, letterSpacing: '0.02em' }}>Course</span>
             {config.difficulty && (
-              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: cp.divider, color: cp.muted, fontWeight: 600, textTransform: 'capitalize' as const }}>{config.difficulty}</span>
+              <span style={{ fontSize: 11, padding: '4px 12px', borderRadius: 999, background: cp.divider, color: cp.muted, fontWeight: 600, textTransform: 'capitalize' as const }}>{config.difficulty}</span>
             )}
           </div>
         </nav>
@@ -1699,20 +1699,20 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 33%, transparent) 0%, #0a0a0a 70%)` }} />
             }
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
-            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
+            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
               {/* Kind, then the category and level on frosted chips, as the experience page shows
                   its company and role. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Course</span>
                 {[courseCategory, config.difficulty ? String(config.difficulty) : ''].filter(Boolean).map(chip => (
-                  <span key={chip} style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
+                  <span key={chip} style={{ fontSize: 11.5, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
                 ))}
               </div>
               {/* One text column at a reading width, so a long title or description wraps well
                   short of the far edge instead of running across the whole hero. The title
                   balances its lines, so a two-line title does not leave one word on the second. */}
               <div style={{ maxWidth: 680 }}>
-                <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: courseDisplayFont }}>
+                <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: courseDisplayFont }}>
                   {config.title || form.title}
                 </h1>
                 {config.tagline && (
@@ -1724,9 +1724,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 )}
               </div>
               {/* What it takes, at a glance */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
                 {[...courseFacts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
-                  <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                  <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
                     <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
                   </span>
                 ))}
@@ -1738,7 +1738,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         {/* Main layout */}
         {!courseStarted && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]"
-            style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 56px', gap: 20, alignItems: 'start' }}>
+            style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 48px', gap: 24, alignItems: 'start' }}>
 
             {/* Left column */}
             <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1748,11 +1748,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
                   unfilled outcome as an empty string, which rendered as a tick with no text. */}
               {courseOutcomes.length > 0 && (
-                <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', boxShadow: courseCardShadow }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 14, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
+                <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
                     {courseOutcomes.map((o: string, i: number) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <div style={{ width: 18, height: 18, borderRadius: 5, background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                           <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
                             <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={accentColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1788,7 +1788,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 }));
 
                 return (
-                  <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', boxShadow: courseCardShadow }}>
+                  <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
                     <h2 style={{ fontSize: 16, fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>Course outline</h2>
                     <MissionOutline modules={outlineGroups} isDark={dark} text={cp.title} muted={cp.muted} divider={cp.divider}
                       collapsed={collapsedSections}
@@ -1804,16 +1804,16 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {/* Right sidebar. It sits below the hero, as on the virtual experience page; on a phone
                 the column stacks first. */}
-            <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Borderless, with a soft drop shadow instead of a hairline border. Heavier shadow
                   in dark mode, where a light one does not read at all. */}
               <div style={{ background: cp.card, borderRadius: 14, boxShadow: courseCardShadow }}>
-                <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>This course includes</p>
-                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>This course includes</p>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: 0, padding: 0, listStyle: 'none' }}>
                       {[...courseFacts.map(f => f.Icon === Zap ? { ...f, label: `${f.label} to earn` } : f), { Icon: BadgeCheck, label: 'Verifiable certificate' }].map(({ Icon, label }) => (
-                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: cp.title }}>
+                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: cp.title }}>
                           <Icon style={{ width: 15, height: 15, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />{label}
                         </li>
                       ))}
@@ -1824,7 +1824,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                     <>
                     <Link
                       href={pricingHrefFor(form.id, 'course')}
-                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                      style={{ width: '100%', padding: '12px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, letterSpacing: '-0.01em' }}
                     >
                       {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
@@ -1832,13 +1832,13 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   )) : signedOut ? (
                     <Link
                       href={backHere}
-                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                      style={{ width: '100%', padding: '12px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, letterSpacing: '-0.01em' }}
                     >
                       Start for free <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                   ) : (
                     <button onClick={() => setCourseStarted(true)}
-                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                      style={{ width: '100%', padding: '12px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, letterSpacing: '-0.01em' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                       Start Course <ArrowRight style={{ width: 15, height: 15 }} />
