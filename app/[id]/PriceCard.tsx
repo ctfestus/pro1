@@ -59,7 +59,7 @@ export function PriceCard({ kind, itemId, unlock, paystackEnabled, palette }: {
         background: palette.dark ? '#3E93FF' : '#F5D77A', color: palette.dark ? '#ffffff' : '#3d2e00',
         fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
       }}>
-        {planName ? `${planName.replace(/\s*plan$/i, '')} plan | ${unlockDurationLabel(best.durationMonths)}` : 'Best value'}
+        {planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Best value'}
       </span>
       {/* The price is the plan's, so the card leads with the plan, not with unlocking this one item. */}
       <p style={{ margin: 0, fontSize: 16, lineHeight: '24px', fontWeight: 700, color: palette.text }}>
