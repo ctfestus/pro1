@@ -37,7 +37,7 @@ export function PaymentsTab({
 
   const sections = [
     { id: 'pay-needs', label: 'Needs a person', n: reviewQueue.length, icon: <ShieldAlert className="w-4 h-4" />, color: P.bad, bg: P.badSoft },
-    { id: 'pay-ready', label: 'Ready to review', n: awaitingReview.length, icon: <Check className="w-4 h-4" />, color: C.cta, bg: P.ctaSoft },
+    { id: 'pay-ready', label: 'Ready to review', n: awaitingReview.length, icon: <Check className="w-4 h-4" />, color: C.text, bg: P.ctaSoft },
     { id: 'pay-waiting', label: 'Waiting for learner', n: awaitingStudent.length, icon: <Clock3 className="w-4 h-4" />, color: P.warn, bg: P.warnSoft },
     { id: 'pay-carts', label: 'Unfinished checkouts', n: openCarts.length, icon: <ShoppingCart className="w-4 h-4" />, color: C.muted, bg: C.pill },
   ];
@@ -136,7 +136,7 @@ export function PaymentsTab({
               const conf = pendingConfirmation(request);
               return (
                 <Row key={request.id} C={C} first={index === 0} className="flex-wrap sm:flex-nowrap">
-                  <Avatar name={learnerName(request.students)} color={C.cta} background={P.ctaSoft} />
+                  <Avatar name={learnerName(request.students)} color={C.text} background={P.ctaSoft} />
                   <div className={`min-w-0 ${WIDE}`}>
                     <div className="text-sm font-semibold flex items-center gap-2 flex-wrap" style={{ color: C.text }}>
                       {learnerName(request.students)}
@@ -151,7 +151,7 @@ export function PaymentsTab({
                       conf?.paid_at && `Paid ${shortDate(conf.paid_at)}`,
                       pastDeadline(request.due_date) && `Due ${shortDate(request.due_date)}, ${plural(daysLate(request.due_date), 'day')} late`,
                       conf?.receipt_url && (
-                        <a href={conf.receipt_url} target="_blank" rel="noreferrer" style={{ color: C.cta }}>Receipt</a>
+                        <a href={conf.receipt_url} target="_blank" rel="noreferrer" style={{ color: C.text }}>Receipt</a>
                       ),
                     ])}
                   </div>

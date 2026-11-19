@@ -66,9 +66,9 @@ export function OverviewTab({
         : collected.length > 1
           ? collected.map((row) => money(row.currency, row.online + row.recorded)).join(', ')
           : 'Payments received this month',
-      icon: <Wallet className="w-4 h-4" />, color: C.cta, bg: P.ctaSoft,
+      icon: <Wallet className="w-4 h-4" />, color: C.text, bg: P.ctaSoft,
       bar: one && collectedTotal > 0
-        ? [{ pct: (one.online / collectedTotal) * 100, color: C.cta }, { pct: (one.recorded / collectedTotal) * 100, color: C.faint }]
+        ? [{ pct: (one.online / collectedTotal) * 100, color: C.text }, { pct: (one.recorded / collectedTotal) * 100, color: C.faint }]
         : undefined,
     },
   ];
@@ -124,7 +124,7 @@ export function OverviewTab({
           ))}
           {awaitingReview.slice(0, 5).map((request, index) => (
             <Row key={request.id} C={C} first={index === 0 && reviewQueue.length === 0}>
-              <Avatar name={learnerName(request.students)} color={C.cta} background={P.ctaSoft} />
+              <Avatar name={learnerName(request.students)} color={C.text} background={P.ctaSoft} />
               <Lines
                 C={C}
                 title={`${learnerName(request.students)} sent a payment`}
@@ -187,7 +187,7 @@ export function OverviewTab({
         />
         {onSale.map((summary, index) => (
           <Row key={summary.plan.id} C={C} first={index === 0} className="flex-wrap sm:flex-nowrap">
-            <IconChip color={C.cta} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip>
+            <IconChip color={C.text} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip>
             <Lines
               wide
               C={C}

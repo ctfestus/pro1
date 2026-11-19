@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -10,7 +10,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  CircleDollarSign,
   Clock3,
   CreditCard,
   Download,
@@ -42,15 +41,17 @@ import {
   type PlanContentOutcome,
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
-import { LIGHT_C, modalStyle } from "@/lib/theme";
-import { effectiveSubscriptionPrice, promotionHeading, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
+import { DARK_C, LIGHT_C, modalStyle } from "@/lib/theme";
+import { effectiveSubscriptionPrice } from "@/lib/subscription-discount";
 import { OverviewTab } from "@/components/dashboard/subscriptions/OverviewTab";
 import { SubscribersTab } from "@/components/dashboard/subscriptions/SubscribersTab";
 import { PaymentsTab } from "@/components/dashboard/subscriptions/PaymentsTab";
 import { PlansTab } from "@/components/dashboard/subscriptions/PlansTab";
 import type { PlanSummary, SubsTab } from "@/components/dashboard/subscriptions/types";
+import { MenuSelect } from "@/components/MenuSelect";
+import { PlanDiscountFields, PlanPriceFields, planDiscountStatus, type PlanDiscountDraft, type PlanPriceDraft } from "@/components/dashboard/subscriptions/PlanForm";
 import {
-  Count, DISPLAY_FONT, IconChip, btnClass, btnStyle, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
+  Count, DISPLAY_FONT, IconChip, OptionCard, btnClass, btnStyle, learnerName, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
   shortDate, subscriberBucket,
 } from "@/components/dashboard/subscriptions/ui";
 
@@ -79,8 +80,9 @@ const freshPayment = () => ({
 });
 
 const PLAN_PRICE_DURATIONS = [1, 3, 6, 12] as const;
+const DURATION_OPTIONS = PLAN_PRICE_DURATIONS.map((months) => ({ value: String(months), label: durationLabel(months) }));
 
-function freshPlanPrices() {
+function freshPlanPrices(): PlanPriceDraft[] {
   return PLAN_PRICE_DURATIONS.map((durationMonths) => ({
     durationMonths: String(durationMonths),
     amount: "",
@@ -89,14 +91,6 @@ function freshPlanPrices() {
     sortOrder: durationMonths,
   }));
 }
-
-type PlanDiscountDraft = {
-  type: "" | "percentage" | "fixed";
-  value: string;
-  startsAt: string;
-  endsAt: string;
-  label: string;
-};
 
 const freshPlanDiscount = (): PlanDiscountDraft => ({
   type: "",
@@ -124,22 +118,6 @@ function planDiscountPayload(discount: PlanDiscountDraft) {
     endsAt: discount.type && discount.endsAt ? `${discount.endsAt}:00.000Z` : null,
     label: discount.type ? discount.label.trim() || null : null,
   };
-}
-
-function planDiscountStatus(discount: PlanDiscountDraft) {
-  if (!discount.type) return null;
-  const now = Date.now();
-  const startsAt = discount.startsAt ? Date.parse(`${discount.startsAt}:00.000Z`) : null;
-  const endsAt = discount.endsAt ? Date.parse(`${discount.endsAt}:00.000Z`) : null;
-  if (startsAt !== null && startsAt > now) return "Scheduled";
-  if (endsAt !== null && endsAt <= now) return "Ended";
-  return "Live";
-}
-
-function discountStatusTone(status: string | null, C: typeof LIGHT_C) {
-  if (status === "Live") return C.successText;
-  if (status === "Scheduled") return "#b45309";
-  return C.muted;
 }
 
 function startingPlanPrice(plan: any) {
@@ -198,29 +176,29 @@ function Modal({
       }}
     >
       <div
-        className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} max-h-[92vh] overflow-hidden rounded-[28px] flex flex-col`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`w-full ${wide ? "max-w-4xl" : "max-w-xl"} max-h-[92vh] overflow-hidden rounded-[20px] flex flex-col`}
         style={modalStyle(C)}
       >
         <div
           className="flex items-start justify-between gap-4 px-6 py-5"
           style={{ borderBottom: `1px solid ${C.divider}` }}
         >
-          <div>
+          <div className="min-w-0">
+            <h3 className="text-[22px] font-bold leading-7" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+              {title}
+            </h3>
             {eyebrow && (
-              <p
-                className="text-[11px] font-bold uppercase tracking-[0.2em] mb-1"
-                style={{ color: C.cta }}
-              >
+              <p className="text-sm mt-1" style={{ color: C.muted }}>
                 {eyebrow}
               </p>
             )}
-            <h3 className="text-base font-bold leading-6" style={{ color: C.text }}>
-              {title}
-            </h3>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
+            className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0 transition-opacity hover:opacity-70"
             style={{ background: C.pill }}
             aria-label="Close"
           >
@@ -260,261 +238,11 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
   );
 }
 
-function PlanPriceFields({
-  prices,
-  setPrices,
-  C,
-  fieldClass,
-  inputStyle,
-}: {
-  prices: ReturnType<typeof freshPlanPrices>;
-  setPrices: Dispatch<SetStateAction<ReturnType<typeof freshPlanPrices>>>;
-  C: typeof LIGHT_C;
-  fieldClass: string;
-  inputStyle: CSSProperties;
-}) {
-  const activePriceCount = prices.filter((price) => price.isActive).length;
-  return (
-    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-2xl grid place-items-center flex-shrink-0" style={{ background: C.card, color: C.text }}>
-            <CircleDollarSign className="w-5 h-5" />
-          </span>
-          <div>
-            <p className="text-sm font-black" style={{ color: C.text }}>Pricing and duration</p>
-            <p className="text-xs mt-0.5" style={{ color: C.faint }}>Choose what learners can buy and set each total price.</p>
-          </div>
-        </div>
-        <span className="text-[11px] font-bold rounded-full px-3 py-2 flex-shrink-0" style={{ background: C.card, color: C.text }}>
-          {activePriceCount} active
-        </span>
-      </div>
-      <div className="grid sm:grid-cols-2 gap-3">
-        {prices.map((price, index) => {
-          const active = price.isActive;
-          return (
-            <div
-              key={price.durationMonths}
-              className="relative overflow-hidden rounded-[20px] p-4 transition-all"
-              style={{
-                background: active ? C.card : C.pill,
-                boxShadow: active ? `inset 0 0 0 1px ${C.divider}` : "none",
-                opacity: active ? 1 : 0.64,
-              }}
-            >
-              <label className="flex items-start justify-between gap-3 cursor-pointer">
-                <span>
-                  <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? C.cta : C.faint }} />
-                    {active ? "Available" : "Hidden"}
-                  </span>
-                  <span className="flex items-baseline gap-1 mt-1" style={{ color: C.text }}>
-                    <span className="text-2xl font-black leading-none">{price.durationMonths}</span>
-                    <span className="text-sm font-bold">month{price.durationMonths === "1" ? "" : "s"}</span>
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
-                  className="sr-only peer"
-                />
-                <span
-                  className="relative w-10 h-6 rounded-full transition-colors after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
-                  style={{ background: active ? C.cta : C.divider }}
-                />
-              </label>
-              <div className="mt-4">
-                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: C.faint }}>Total price</span>
-                <div className="grid grid-cols-[1fr_78px] gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={price.amount}
-                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index
-                      ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
-                      : row))}
-                    placeholder="0.00"
-                    aria-label={`${price.durationMonths} month price`}
-                    className={`${fieldClass} text-base font-black leading-6`}
-                    style={{ ...inputStyle, background: C.page, borderColor: "transparent" }}
-                  />
-                  <input
-                    value={price.currency}
-                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
-                    aria-label={`${price.durationMonths} month currency`}
-                    className={`${fieldClass} text-center font-black`}
-                    style={{ ...inputStyle, background: C.page, borderColor: "transparent", color: C.text }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
 
-function PlanDiscountFields({
-  discount,
-  setDiscount,
-  prices,
-  C,
-  fieldClass,
-  inputStyle,
-}: {
-  discount: PlanDiscountDraft;
-  setDiscount: Dispatch<SetStateAction<PlanDiscountDraft>>;
-  prices: ReturnType<typeof freshPlanPrices>;
-  C: typeof LIGHT_C;
-  fieldClass: string;
-  inputStyle: CSSProperties;
-}) {
-  const example = prices.find((price) => price.isActive && Number(price.amount) > 0);
-  const preview = example && discount.type && Number(discount.value) > 0
-    ? effectiveSubscriptionPrice(example.amount, {
-        discount_type: discount.type,
-        discount_value: discount.value,
-      })
-    : null;
-  const status = planDiscountStatus(discount);
-  const statusTone = discountStatusTone(status, C);
-  const promotionEnabled = Boolean(discount.type);
-  const controlStyle = { ...inputStyle, background: C.card, borderColor: "transparent" };
-  return (
-    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-black" style={{ color: C.text }}>Promotional offer</p>
-          <p className="text-xs mt-0.5" style={{ color: C.faint }}>Optional discount across every active duration.</p>
-        </div>
-        {status && (
-          <span className="rounded-full px-3 py-2 text-[11px] font-bold flex-shrink-0" style={{ background: C.card, color: statusTone }}>
-            {status}
-          </span>
-        )}
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-3 mt-5">
-        <label className="sm:col-span-2 text-xs font-bold" style={{ color: C.muted }}>
-          Promotion name <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
-          <input
-            value={discount.label}
-            disabled={!discount.type}
-            maxLength={PROMOTION_NAME_MAX}
-            onChange={(e) => setDiscount((value) => ({ ...value, label: e.target.value }))}
-            placeholder="Black Friday"
-            className={`${fieldClass} mt-2 disabled:opacity-50`}
-            style={controlStyle}
-          />
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          Offer type
-          <select
-            value={discount.type}
-            onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))}
-            className={`${fieldClass} mt-2`}
-            style={controlStyle}
-          >
-            <option value="">No promotion</option>
-            <option value="percentage">Percentage off</option>
-            <option value="fixed">Fixed amount off</option>
-          </select>
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          {discount.type === "percentage" ? "Percentage off" : "Amount off"}
-          <div className="relative mt-2">
-            <input
-              type="number"
-              min="0.01"
-              max={discount.type === "percentage" ? "99.99" : undefined}
-              step="0.01"
-              value={discount.value}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))}
-              placeholder={discount.type === "percentage" ? "15" : "50.00"}
-              className={`${fieldClass} pr-14 text-base font-black disabled:opacity-50 leading-6`}
-              style={controlStyle}
-            />
-            {promotionEnabled && (
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black" style={{ color: C.muted }}>
-                {discount.type === "percentage" ? "%" : example?.currency || "GHS"}
-              </span>
-            )}
-          </div>
-        </label>
-      </div>
-
-      {preview?.discountActive && example && (
-        <div className="rounded-2xl p-4 mt-4 flex items-center justify-between gap-4" style={{ background: C.card }}>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Price preview</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm line-through" style={{ color: C.faint }}>{money(example.currency, preview.listAmount)}</span>
-              <ArrowRight className="w-3.5 h-3.5" style={{ color: C.muted }} />
-              <span className="text-[22px] font-black leading-7" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
-            </div>
-          </div>
-          <div className="min-w-0 text-right">
-            <span className="rounded-full px-3 py-2 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
-              Save {money(example.currency, preview.discountAmount)}
-            </span>
-            <p className="text-[11px] mt-2 break-words" style={{ color: C.faint }}>
-              Learners see: {promotionHeading(discount.label, "Special offer").toUpperCase()},
-              then {discount.type === "percentage"
-                ? `${preview.discountValue}% off`
-                : `${money(example.currency, preview.discountAmount)} off`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
-        <div className="flex items-center gap-2 mb-3">
-          <CalendarClock className="w-4 h-4" style={{ color: C.muted }} />
-          <div>
-            <p className="text-xs font-black" style={{ color: C.text }}>Offer schedule</p>
-            <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Leave either field empty when no boundary is needed. Times use UTC.</p>
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label className="text-xs font-bold" style={{ color: C.muted }}>
-            Starts at
-            <input
-              type="datetime-local"
-              value={discount.startsAt}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))}
-              className={`${fieldClass} mt-2 disabled:opacity-50`}
-              style={controlStyle}
-            />
-          </label>
-          <label className="text-xs font-bold" style={{ color: C.muted }}>
-            Ends at
-            <input
-              type="datetime-local"
-              value={discount.endsAt}
-              disabled={!discount.type}
-              onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))}
-              className={`${fieldClass} mt-2 disabled:opacity-50`}
-              style={controlStyle}
-            />
-          </label>
-        </div>
-      </div>
-
-      {discount.type === "fixed" && (
-        <p className="text-[11px] mt-3" style={{ color: C.faint }}>All active prices must use the same currency for a fixed discount.</p>
-      )}
-    </section>
-  );
-}
-
-
-export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
+export function SubscriptionsSection({ C: theme }: { C: typeof LIGHT_C }) {
+  // This page uses the dark-mode blue for buttons and selection controls in both modes. Text and
+  // icons never use it: they stay in the neutral text colours.
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
   const dark = C.page === "#17181E";
   const [tab, setTab] = useState<Tab>("overview");
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
@@ -765,12 +493,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const inputStyle = {
     background: C.input,
     color: C.text,
-    border: `1px solid ${C.cardBorder}`,
+    border: `1px solid ${C.inputBorder}`,
   };
   const fieldClass =
-    "w-full rounded-xl px-4 py-3 text-sm outline-none transition-shadow focus:ring-2";
+    "w-full rounded-[10px] px-3 py-3 text-sm outline-none transition-shadow focus:ring-2";
   const primary =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0";
+    "inline-flex items-center justify-center gap-2 h-10 rounded-xl px-4 text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-90 disabled:opacity-50";
 
   function resetPayment() {
     setPayment(freshPayment());
@@ -1851,20 +1579,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     <div className={`grid ${showDeadline ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-3`}>
       <label className="text-xs font-bold" style={{ color: C.muted }}>
         Access duration
-        <select
-          value={payment.durationMonths}
-          onChange={(e) =>
-            updatePayment((v) => ({ ...v, durationMonths: e.target.value }))
-          }
-          className={`${fieldClass} mt-2`}
-          style={inputStyle}
-        >
-          {[1, 3, 6, 12].map((m) => (
-            <option key={m} value={m}>
-              {m} month{m > 1 ? "s" : ""}
-            </option>
-          ))}
-        </select>
+        <div className="mt-2">
+          <MenuSelect
+            field
+            label="Access duration"
+            value={payment.durationMonths}
+            options={DURATION_OPTIONS}
+            onChange={(value) => updatePayment((v) => ({ ...v, durationMonths: value }))}
+            C={C}
+          />
+        </div>
       </label>
       <label className="text-xs font-bold" style={{ color: C.muted }}>
         Amount
@@ -2048,7 +1772,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             className="inline-flex items-center gap-2 px-4 py-3 -mb-px text-sm font-semibold whitespace-nowrap"
             style={{
               color: tab === id ? C.text : C.muted,
-              borderBottom: `2px solid ${tab === id ? C.cta : "transparent"}`,
+              borderBottom: `2px solid ${tab === id ? palette(C).sel : "transparent"}`,
             }}
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
@@ -2221,7 +1945,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 className="w-full flex items-center gap-3 rounded-xl p-2 text-left disabled:opacity-50"
                 style={{ color: C.text }}
               >
-                <IconChip color={C.cta} background={`${C.cta}14`}><Icon className="w-4 h-4" /></IconChip>
+                <IconChip color={C.text} background={C.pill}><Icon className="w-4 h-4" /></IconChip>
                 <span>
                   <span className="block text-sm font-semibold">{label}</span>
                   <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
@@ -2267,7 +1991,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   className="w-full flex items-center gap-3 rounded-xl p-2 text-left"
                   style={{ color: danger ? P.bad : C.text }}
                 >
-                  <IconChip color={danger ? P.bad : C.cta} background={danger ? P.badSoft : P.ctaSoft}><Icon className="w-4 h-4" /></IconChip>
+                  <IconChip color={danger ? P.bad : C.text} background={danger ? P.badSoft : P.ctaSoft}><Icon className="w-4 h-4" /></IconChip>
                   <span>
                     <span className="block text-sm font-semibold">{label}</span>
                     <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
@@ -2282,7 +2006,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {bulkPlan && (
         <Modal
           title="Bulk add learners"
-          eyebrow="CSV or pasted learners"
+          eyebrow="Paste emails or a CSV for one plan"
           onClose={() => setBulkPlan(null)}
           C={C}
           wide
@@ -2290,27 +2014,23 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           <div className="space-y-6">
             <label className="text-xs font-bold" style={{ color: C.muted }}>
               Access plan
-              <select
-                value={bulkPlan.id}
-                onChange={(event) => {
-                  const nextPlan = activePlans.find(
-                    (plan) => plan.id === event.target.value,
-                  );
-                  if (nextPlan) {
-                    setBulkPlan(nextPlan);
-                    setBulkResult(null);
-                    setBulkError("");
-                  }
-                }}
-                className={`${fieldClass} mt-2`}
-                style={inputStyle}
-              >
-                {activePlans.map((plan) => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-2">
+                <MenuSelect
+                  field
+                  label="Access plan"
+                  value={bulkPlan.id as string}
+                  options={activePlans.map((plan) => ({ value: plan.id as string, label: plan.name as string }))}
+                  onChange={(id) => {
+                    const nextPlan = activePlans.find((plan) => plan.id === id);
+                    if (nextPlan) {
+                      setBulkPlan(nextPlan);
+                      setBulkResult(null);
+                      setBulkError("");
+                    }
+                  }}
+                  C={C}
+                />
+              </div>
               <span className="block font-normal mt-2" style={{ color: C.faint }}>
                 Every learner in this import will be assigned to this plan.
               </span>
@@ -2331,52 +2051,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     title: "Already paid",
                     description: "Record verified payments and activate access immediately.",
                   },
-                ]).map(({ value, title, description }) => {
-                  const selected = bulkMode === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setBulkMode(value);
-                        setBulkResult(null);
-                        setBulkError("");
-                      }}
-                      className="flex items-start gap-3 rounded-2xl p-4 text-left"
-                      style={{
-                        background: selected ? `${C.cta}12` : C.card,
-                        border: `1.5px solid ${selected ? C.cta : C.divider}`,
-                      }}
-                    >
-                      <span
-                        className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full"
-                        style={{
-                          background: selected ? C.cta : C.card,
-                          border: `1.5px solid ${selected ? C.cta : C.divider}`,
-                        }}
-                      >
-                        {selected && (
-                          <Check
-                            className="h-3 w-3"
-                            style={{ color: "#ffffff" }}
-                          />
-                        )}
-                      </span>
-                      <span>
-                        <span className="block text-sm font-bold" style={{ color: C.text }}>
-                          {title}
-                        </span>
-                        <span className="mt-1 block text-xs leading-relaxed" style={{ color: C.faint }}>
-                          {description}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
+                ]).map(({ value, title, description }) => (
+                  <OptionCard
+                    key={value}
+                    selected={bulkMode === value}
+                    onClick={() => {
+                      setBulkMode(value);
+                      setBulkResult(null);
+                      setBulkError("");
+                    }}
+                    icon={value === "request" ? <Clock3 className="w-4 h-4" /> : <BadgeCheck className="w-4 h-4" />}
+                    title={title}
+                    sub={description}
+                    C={C}
+                  />
+                ))}
               </div>
             </div>
             <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
-              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.cta }} />
+              <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.muted }} />
               <div>
                 <p className="text-sm font-bold" style={{ color: C.text }}>
                   {bulkMode === "request" ? "Payment approval controls access" : "Access begins immediately"}
@@ -2426,7 +2119,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             <div>
               <p className="text-sm font-bold mb-3" style={{ color: C.text }}>2. Default payment terms</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-2`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<div className="mt-2"><MenuSelect field label="Duration" value={bulkDefaults.durationMonths} options={DURATION_OPTIONS} onChange={(months) => setBulkDefaults(value => ({ ...value, durationMonths: months }))} C={C} /></div></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value.toUpperCase() }))} className={`${fieldClass} mt-2`} style={inputStyle} /></label>
                 {bulkMode === "request" ? (
@@ -2445,7 +2138,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
             {bulkRows.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.divider}` }}>
-                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: `${C.cta}14`, color: C.cta }}>{bulkRows.length} parsed</span></div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.page }}><p className="text-sm font-bold" style={{ color: C.text }}>3. Review learners</p><span className="text-xs font-bold rounded-full px-3 py-1" style={{ background: C.pill, color: C.text }}>{bulkRows.length} parsed</span></div>
                 <div className="max-h-52 overflow-y-auto divide-y" style={{ borderColor: C.divider }}>
                   {bulkRows.slice(0, 12).map((row, index) => <div key={`${row.email}-${index}`} className="grid sm:grid-cols-[36px_1fr_1fr] gap-2 px-4 py-3 text-xs"><span style={{ color: C.faint }}>{index + 1}</span><span className="truncate font-bold" style={{ color: C.text }}>{row.email}</span><span className="truncate" style={{ color: C.muted }}>{row.full_name || "Name not provided"}</span></div>)}
                   {bulkRows.length > 12 && <p className="px-4 py-3 text-xs text-center" style={{ color: C.faint }}>And {bulkRows.length - 12} more learners</p>}
@@ -2467,7 +2160,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {createPlanOpen && (
         <Modal
           title="Create a subscription plan"
-          eyebrow="Plan builder"
+          eyebrow="Name it, choose its content, then set its prices"
           onClose={requestClosePlanBuilder}
           C={C}
           error={error}
@@ -2492,18 +2185,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       }}
                       className="rounded-2xl p-3 text-left transition-all"
                       style={{
-                        background: current ? `${C.cta}12` : C.page,
-                        boxShadow: current ? `inset 0 0 0 1.5px ${C.cta}` : "none",
+                        background: C.page,
+                        boxShadow: current ? `inset 0 0 0 2px ${palette(C).sel}` : "none",
                       }}
                     >
                       <span className="flex items-center gap-2">
                         <span
                           className="w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold"
-                          style={{ background: complete || current ? C.cta : C.card, color: complete || current ? C.ctaText : C.faint }}
+                          style={{ background: complete || current ? palette(C).sel : C.card, color: complete || current ? palette(C).onSel : C.faint }}
                         >
                           {complete ? <Check className="w-3.5 h-3.5" /> : index + 1}
                         </span>
-                        <span className="text-xs font-bold" style={{ color: current ? C.cta : C.text }}>{label}</span>
+                        <span className="text-xs font-bold" style={{ color: C.text }}>{label}</span>
                       </span>
                       <span className="hidden sm:block text-[11px] mt-2" style={{ color: C.faint }}>{helper}</span>
                     </button>
@@ -2555,7 +2248,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Build the learning bundle</h4>
                       <p className="text-sm mt-1" style={{ color: C.muted }}>Select everything learners should unlock with this plan.</p>
                     </div>
-                    <span className="self-start text-xs font-bold rounded-full px-3 py-2" style={{ background: `${C.cta}12`, color: C.cta }}>
+                    <span className="self-start text-xs font-bold rounded-full px-3 py-2" style={{ background: C.pill, color: C.text }}>
                       {newPlanContentKeys.length} selected
                     </span>
                   </div>
@@ -2586,7 +2279,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                               type="button"
                               onClick={() => setNewPlanContentKeys((current) => allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
                               className="text-xs font-bold"
-                              style={{ color: C.cta }}
+                              style={{ color: C.text }}
                             >
                               {allSelected ? "Clear" : "Select all"}
                             </button>
@@ -2601,10 +2294,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                   type="button"
                                   onClick={() => setNewPlanContentKeys((current) => selected ? current.filter((value) => value !== key) : [...current, key])}
                                   className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all"
-                                  style={{ background: selected ? `${C.cta}10` : C.page, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : "none" }}
+                                  style={{ background: C.page, boxShadow: selected ? `inset 0 0 0 2px ${palette(C).sel}` : "none" }}
                                 >
-                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? C.cta : C.card, border: `1px solid ${selected ? C.cta : C.divider}` }}>
-                                    {selected && <Check className="w-3 h-3" style={{ color: "#ffffff" }} />}
+                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? palette(C).sel : C.card, border: `1px solid ${selected ? palette(C).sel : C.divider}` }}>
+                                    {selected && <Check className="w-3 h-3" style={{ color: palette(C).onSel }} />}
                                   </span>
                                   <span className="text-xs font-bold truncate" style={{ color: C.text }}>{item.title}</span>
                                 </button>
@@ -2626,15 +2319,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               )}
 
               {planBuilderStep === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h4 className="text-base font-black leading-6" style={{ color: C.text }}>Make pricing easy to choose</h4>
-                    <p className="text-sm mt-1" style={{ color: C.muted }}>Add one or more purchase options. Entering an amount turns that option on automatically.</p>
-                  </div>
-                  <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
-                  <PlanDiscountFields discount={newPlanDiscount} setDiscount={setNewPlanDiscount} prices={newPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
-                  <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
-                    <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.cta }} />
+                <div>
+                  <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} discount={newPlanDiscount} C={C} />
+                  <PlanDiscountFields discount={newPlanDiscount} setDiscount={setNewPlanDiscount} prices={newPlanPrices} C={C} />
+                  <div className="rounded-2xl p-4 mt-5 flex items-start gap-3" style={{ background: C.page }}>
+                    <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.muted }} />
                     <div>
                       <p className="text-sm font-bold" style={{ color: C.text }}>You control when it goes live</p>
                       <p className="text-xs mt-1" style={{ color: C.faint }}>Save a draft to finish later, or create and activate once content and at least one valid price are ready.</p>
@@ -2692,7 +2381,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
             <aside className="rounded-2xl p-4 self-start lg:sticky lg:top-0" style={{ background: C.page }}>
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4" style={{ color: C.cta }} />
+                <SlidersHorizontal className="w-4 h-4" style={{ color: C.muted }} />
                 <p className="text-sm font-black" style={{ color: C.text }}>Plan readiness</p>
               </div>
               <div className="mt-4 space-y-3">
@@ -2722,7 +2411,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${([Boolean(newPlanName.trim()), newPlanContentKeys.length > 0, newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)].filter(Boolean).length / 3) * 100}%`,
-                      background: C.cta,
+                      background: palette(C).sel,
                     }}
                   />
                 </div>
@@ -2735,66 +2424,46 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {editPlan && (
         <Modal
           title="Plan details"
-          eyebrow="Subscription setup"
+          eyebrow="Name, prices and offer"
           onClose={requestCloseEditPlan}
           C={C}
           error={error}
           wide
         >
-          <div className="space-y-5">
-            <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="w-10 h-10 rounded-2xl grid place-items-center" style={{ background: C.card, color: C.text }}>
-                  <SlidersHorizontal className="w-5 h-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-black" style={{ color: C.text }}>Plan identity</p>
-                  <p className="text-xs mt-0.5" style={{ color: C.faint }}>Give learners a clear reason to choose this plan.</p>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] gap-3">
-                <label className="text-xs font-bold" style={{ color: C.muted }}>
-                  Plan name
-                  <input
-                    autoFocus
-                    value={editPlanName}
-                    onChange={(e) => setEditPlanName(e.target.value)}
-                    placeholder="For example: Professional"
-                    className={`${fieldClass} mt-2 font-bold`}
-                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
-                  />
-                </label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>
-                  Description
-                  <textarea
-                    value={editPlanDescription}
-                    onChange={(e) => setEditPlanDescription(e.target.value)}
-                    placeholder="Describe who this plan is for"
-                    className={`${fieldClass} mt-2 min-h-20 resize-none`}
-                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
-                  />
-                </label>
-              </div>
+          <div>
+            <section>
+              <h4 className="text-base font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>About this plan</h4>
+              <p className="text-xs mt-1 mb-4" style={{ color: C.muted }}>What learners see on the pricing page.</p>
+              <label className="block text-xs font-semibold" style={{ color: C.muted }}>
+                Plan name
+                <input
+                  autoFocus
+                  value={editPlanName}
+                  onChange={(e) => setEditPlanName(e.target.value)}
+                  placeholder="For example: Professional"
+                  className={`${fieldClass} mt-2 font-semibold`}
+                  style={inputStyle}
+                />
+              </label>
+              <label className="block text-xs font-semibold mt-4" style={{ color: C.muted }}>
+                Description
+                <textarea
+                  value={editPlanDescription}
+                  onChange={(e) => setEditPlanDescription(e.target.value)}
+                  maxLength={240}
+                  placeholder="Describe who this plan is for"
+                  className={`${fieldClass} mt-2 min-h-20 resize-none`}
+                  style={inputStyle}
+                />
+                <span className="block text-right text-xs mt-1 font-normal" style={{ color: C.faint }}>{editPlanDescription.length}/240</span>
+              </label>
             </section>
 
-            <PlanPriceFields
-              prices={editPlanPrices}
-              setPrices={setEditPlanPrices}
-              C={C}
-              fieldClass={fieldClass}
-              inputStyle={inputStyle}
-            />
+            <PlanPriceFields prices={editPlanPrices} setPrices={setEditPlanPrices} discount={editPlanDiscount} C={C} />
 
-            <PlanDiscountFields
-              discount={editPlanDiscount}
-              setDiscount={setEditPlanDiscount}
-              prices={editPlanPrices}
-              C={C}
-              fieldClass={fieldClass}
-              inputStyle={inputStyle}
-            />
+            <PlanDiscountFields discount={editPlanDiscount} setDiscount={setEditPlanDiscount} prices={editPlanPrices} C={C} />
 
-            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-5 mt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
               <button
                 onClick={requestCloseEditPlan}
                 disabled={busy}
@@ -2820,7 +2489,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {unsavedPlanDialog && (
         <Modal
           title="Save your changes?"
-          eyebrow="Unsaved plan setup"
+          eyebrow="This plan has changes that are not saved yet"
           onClose={() => setUnsavedPlanDialog(null)}
           C={C}
         >
@@ -2883,7 +2552,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {enrolOpen && (
         <Modal
           title="Assign a subscription"
-          eyebrow="New learner access"
+          eyebrow="Give access now or send a payment request"
           onClose={() => setEnrolOpen(false)}
           C={C}
           error={error}
@@ -2901,23 +2570,19 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     ["new", "New learner", "Create the account and assign the plan", UserPlus],
                   ] as const
                 ).map(([id, title, body, Icon]) => (
-                  <button
+                  <OptionCard
                     key={id}
+                    selected={learnerMode === id}
                     onClick={() => {
                       setLearnerMode(id);
                       setPaidAttemptKey("");
                       setError("");
                     }}
-                    className="rounded-2xl p-4 text-left"
-                    style={{
-                      background: learnerMode === id ? `${C.cta}10` : C.page,
-                      outline: learnerMode === id ? `2px solid ${C.cta}` : "2px solid transparent",
-                    }}
-                  >
-                    <Icon className="w-5 h-5 mb-3" style={{ color: learnerMode === id ? C.cta : C.faint }} />
-                    <p className="text-sm font-bold" style={{ color: C.text }}>{title}</p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>{body}</p>
-                  </button>
+                    icon={<Icon className="w-4 h-4" />}
+                    title={title}
+                    sub={body}
+                    C={C}
+                  />
                 ))}
               </div>
             </div>
@@ -2925,19 +2590,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               {learnerMode === "existing" ? (
                 <label className="text-xs font-bold" style={{ color: C.muted }}>
                   Learner
-                  <select
-                    value={studentId}
-                    onChange={(e) => { setStudentId(e.target.value); setPaidAttemptKey(""); }}
-                    className={`${fieldClass} mt-2`}
-                    style={inputStyle}
-                  >
-                    <option value="">Choose an eligible student</option>
-                    {eligibleStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name || s.email} ({s.email})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-2">
+                    <MenuSelect
+                      field
+                      label="Learner"
+                      placeholder="Choose an eligible student"
+                      value={studentId}
+                      options={eligibleStudents.map((s) => ({ value: s.id as string, label: `${s.full_name || s.email} (${s.email})` }))}
+                      onChange={(id) => { setStudentId(id); setPaidAttemptKey(""); }}
+                      C={C}
+                    />
+                  </div>
                 </label>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3 sm:col-span-2">
@@ -2967,19 +2630,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               )}
               <label className="text-xs font-bold" style={{ color: C.muted }}>
                 Access plan
-                <select
-                  value={planId}
-                  onChange={(e) => { setPlanId(e.target.value); setPaidAttemptKey(""); }}
-                  className={`${fieldClass} mt-2`}
-                  style={inputStyle}
-                >
-                  <option value="">Choose an active plan</option>
-                  {activePlans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-2">
+                  <MenuSelect
+                    field
+                    label="Access plan"
+                    placeholder="Choose an active plan"
+                    value={planId}
+                    options={activePlans.map((p) => ({ value: p.id as string, label: p.name as string }))}
+                    onChange={(id) => { setPlanId(id); setPaidAttemptKey(""); }}
+                    C={C}
+                  />
+                </div>
               </label>
             </div>
             <div>
@@ -3003,29 +2664,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     ],
                   ] as const
                 ).map(([id, title, body, Icon]) => (
-                  <button
+                  <OptionCard
                     key={id}
+                    selected={enrolMode === id}
                     onClick={() => { setEnrolMode(id); setPaidAttemptKey(""); }}
-                    className="rounded-2xl p-4 text-left"
-                    style={{
-                      background: enrolMode === id ? `${C.cta}10` : C.page,
-                      outline:
-                        enrolMode === id
-                          ? `2px solid ${C.cta}`
-                          : "2px solid transparent",
-                    }}
-                  >
-                    <Icon
-                      className="w-5 h-5 mb-3"
-                      style={{ color: enrolMode === id ? C.cta : C.faint }}
-                    />
-                    <p className="text-sm font-bold" style={{ color: C.text }}>
-                      {title}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      {body}
-                    </p>
-                  </button>
+                    icon={<Icon className="w-4 h-4" />}
+                    title={title}
+                    sub={body}
+                    C={C}
+                  />
                 ))}
               </div>
             </div>
@@ -3107,19 +2754,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <p className="text-xs -mt-4" style={{ color: C.faint }}>
                 Price, duration and expiry remain unchanged.
               </p>
-              <select
+              <MenuSelect
+                field
+                label="New plan"
+                placeholder={`Choose a plan (now on ${manageSub.subscription_plans?.name || "another plan"})`}
                 value={changePlanId}
-                onChange={(e) => setChangePlanId(e.target.value)}
-                className={fieldClass}
-                style={inputStyle}
-              >
-                <option value="" disabled>
-                  Choose a plan (now on {manageSub.subscription_plans?.name || "another plan"})
-                </option>
-                {activePlans.filter((p) => p.id !== manageSub.plan_id).map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                options={activePlans.filter((p) => p.id !== manageSub.plan_id).map((p) => ({ value: p.id as string, label: p.name as string }))}
+                onChange={setChangePlanId}
+                C={C}
+              />
               <button
                 onClick={changePlan}
                 disabled={busy || !changePlanId || changePlanId === manageSub.plan_id}
@@ -3195,7 +2838,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               ? "Approve payment confirmation"
               : "Reject payment confirmation"
           }
-          eyebrow="Financial review"
+          eyebrow={learnerName(reviewTarget.request.students)}
           onClose={() => {
             setReviewTarget(null);
             setReviewNotes("");
@@ -3221,7 +2864,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     )}
                   </p>
                 </div>
-                <CreditCard className="w-7 h-7" style={{ color: C.cta }} />
+                <CreditCard className="w-7 h-7" style={{ color: C.muted }} />
               </div>
               <div
                 className="grid grid-cols-2 gap-3 mt-4 pt-4 text-xs"
@@ -3281,59 +2924,45 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       {historyOpen && (
         <Modal
           title="Subscription payment history"
-          eyebrow="Immutable ledger"
+          eyebrow="Every payment and request, kept as recorded"
           onClose={() => setHistoryOpen(false)}
           C={C}
           error={error}
         >
-          <div className="relative pl-5">
-            {history.map((row, index) => (
-              <div key={row.id} className="relative pb-6">
-                <span
-                  className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full"
-                  style={{
-                    background: C.cta,
-                    boxShadow: `0 0 0 4px ${C.page}`,
-                  }}
-                />
-                {index < history.length - 1 && (
-                  <span
-                    className="absolute -left-[16px] top-4 h-full w-px"
-                    style={{ background: C.divider }}
-                  />
-                )}
-                <div className="rounded-xl p-4" style={{ background: C.page }}>
-                  <div className="flex justify-between gap-3">
-                    <p className="font-black" style={{ color: C.text }}>
+          {history.length ? (
+            <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+              {history.map((row, index) => (
+                <div
+                  key={row.id}
+                  className="flex items-start justify-between gap-3 px-4 py-3"
+                  style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}
+                >
+                  <div className="min-w-0">
+                    <p className="text-base font-bold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                       {money(row.currency, row.amount)}
                     </p>
-                    <p className="text-xs" style={{ color: C.faint }}>
-                      {dateLabel(row.paid_at)}
+                    <p className="text-xs mt-1" style={{ color: C.muted }}>
+                      {[row.plan_name, durationLabel(Number(row.duration_months)), row.kind && String(row.kind).replaceAll("_", " ")]
+                        .filter(Boolean)
+                        .join(", ")}
                     </p>
+                    {row.payment_reference && (
+                      <p className="text-xs mt-1" style={{ color: C.faint }}>
+                        Reference {row.payment_reference}
+                      </p>
+                    )}
                   </div>
-                  <p
-                    className="text-xs mt-2 capitalize"
-                    style={{ color: C.muted }}
-                  >
-                    {row.plan_name} - {durationLabel(Number(row.duration_months))} - {row.kind}
+                  <p className="text-xs whitespace-nowrap" style={{ color: C.muted }}>
+                    {dateLabel(row.paid_at)}
                   </p>
-                  {row.payment_reference && (
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Reference: {row.payment_reference}
-                    </p>
-                  )}
                 </div>
-              </div>
-            ))}
-            {history.length === 0 && (
-              <p
-                className="text-sm text-center py-8"
-                style={{ color: C.faint }}
-              >
-                No payments recorded.
-              </p>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-center py-8" style={{ color: C.muted }}>
+              No payments recorded.
+            </p>
+          )}
         </Modal>
       )}
 

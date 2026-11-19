@@ -75,13 +75,16 @@ export function palette(C: ThemeColors) {
         good: '#3DD68C', goodSoft: 'rgba(61,214,140,0.12)',
         warn: '#F5B454', warnSoft: 'rgba(245,180,84,0.14)',
         bad: '#FF7A6E', badSoft: 'rgba(255,122,110,0.14)',
-        gold: C.cta, goldText: '#FFFFFF', ctaSoft: `${C.cta}24`,
+        gold: '#F5D77A', goldText: '#3D2E00', ctaSoft: C.pill,
+        // Selection controls (switches, chosen cards, ticks): the page's blue in both modes.
+        sel: C.cta, onSel: '#FFFFFF',
       }
     : {
         good: '#12A150', goodSoft: 'rgba(18,161,80,0.10)',
         warn: '#B45309', warnSoft: 'rgba(217,119,6,0.12)',
         bad: '#D92D20', badSoft: 'rgba(217,45,32,0.10)',
-        gold: '#F5D77A', goldText: '#3D2E00', ctaSoft: `${C.cta}14`,
+        gold: '#F5D77A', goldText: '#3D2E00', ctaSoft: C.pill,
+        sel: C.cta, onSel: '#FFFFFF',
       };
 }
 
@@ -93,7 +96,7 @@ export function Pill({ tone, dot, C, children }: { tone: Tone; dot?: boolean; C:
     tone === 'good' ? { color: P.good, background: C.card, boxShadow: `inset 0 0 0 1px ${P.goodSoft}` }
     : tone === 'warn' ? { color: P.warn, background: P.warnSoft }
     : tone === 'bad' ? { color: P.bad, background: P.badSoft }
-    : tone === 'cta' ? { color: C.cta, background: P.ctaSoft }
+    : tone === 'cta' ? { color: C.text, background: P.ctaSoft }
     : tone === 'gold' ? { color: P.goldText, background: P.gold }
     : { color: C.muted, background: C.pill };
   return (
@@ -157,7 +160,7 @@ export const btnSmClass = 'inline-flex items-center justify-center gap-2 h-8 px-
 
 export function LinkBtn({ onClick, C, children }: { onClick: () => void; C: ThemeColors; children: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap" style={{ color: C.cta }}>
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap" style={{ color: C.text }}>
       {children}
       <ChevronRight className="w-4 h-4" />
     </button>
@@ -230,4 +233,33 @@ export function pendingConfirmation(request: any) {
 export function reviewTitle(item: any) {
   const reason = String(item.reason || 'review required').replaceAll('_', ' ');
   return reason.charAt(0).toUpperCase() + reason.slice(1);
+}
+
+/** A choice drawn as a card with an icon, a title, a line of detail and a radio mark. */
+export function OptionCard({ selected, onClick, icon, title, sub, C }: {
+  selected: boolean; onClick: () => void; icon: ReactNode; title: string; sub: string; C: ThemeColors;
+}) {
+  const P = palette(C);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onClick}
+      className="flex items-start gap-3 rounded-2xl p-4 text-left"
+      style={{ background: C.page, boxShadow: selected ? `inset 0 0 0 2px ${P.sel}` : 'none' }}
+    >
+      <IconChip color={selected ? P.sel : C.muted} background={selected ? C.card : C.pill}>{icon}</IconChip>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold" style={{ color: C.text }}>{title}</span>
+        <span className="block text-xs mt-1" style={{ color: C.muted }}>{sub}</span>
+      </span>
+      <span
+        className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0"
+        style={{ background: selected ? P.sel : C.card, boxShadow: `inset 0 0 0 1px ${selected ? P.sel : C.divider}` }}
+      >
+        {selected && <span className="w-2 h-2 rounded-full" style={{ background: P.onSel }} />}
+      </span>
+    </button>
+  );
 }

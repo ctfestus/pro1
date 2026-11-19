@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import {
-  Archive, Award, BookOpen, Briefcase, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus, Route, Search,
+  Archive, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus, Search,
   ShieldCheck, Star, Tag, Trash2,
 } from 'lucide-react';
 import type { ThemeColors } from '@/lib/theme';
@@ -11,11 +11,11 @@ import {
 } from './ui';
 import type { PlanSummary } from './types';
 
-const TYPES: { table: string; label: string; plural: string; icon: ReactNode }[] = [
-  { table: 'courses', label: 'Course', plural: 'Courses', icon: <BookOpen className="w-4 h-4" /> },
-  { table: 'virtual_experiences', label: 'Virtual experience', plural: 'Virtual experiences', icon: <Briefcase className="w-4 h-4" /> },
-  { table: 'certifications', label: 'Certification', plural: 'Certifications', icon: <Award className="w-4 h-4" /> },
-  { table: 'learning_paths', label: 'Learning path', plural: 'Learning paths', icon: <Route className="w-4 h-4" /> },
+const TYPES: { table: string; label: string; plural: string }[] = [
+  { table: 'courses', label: 'Course', plural: 'Courses' },
+  { table: 'virtual_experiences', label: 'Virtual experience', plural: 'Virtual experiences' },
+  { table: 'certifications', label: 'Certification', plural: 'Certifications' },
+  { table: 'learning_paths', label: 'Learning path', plural: 'Learning paths' },
 ];
 
 function planStatus(plan: any, C: ThemeColors) {
@@ -115,7 +115,7 @@ export function PlansTab({
               onClick={() => { setPickerOpen(false); onSelect(item.plan); }}
               aria-current={selected}
               className="grid gap-2 p-4 rounded-2xl text-left"
-              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}
+              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${P.sel}` : 'none' }}
             >
               <span className="flex items-center gap-2 flex-wrap text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                 {item.plan.name}
@@ -151,7 +151,7 @@ export function PlansTab({
         {!summary || !plan ? (
           <div className="min-h-[320px] grid place-items-center p-8 text-center">
             <div>
-              <div className="flex justify-center"><IconChip color={C.cta} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip></div>
+              <div className="flex justify-center"><IconChip color={C.text} background={P.ctaSoft}><Layers3 className="w-4 h-4" /></IconChip></div>
               <p className="text-sm font-semibold mt-3" style={{ color: C.text }}>Select a plan to manage it</p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export function PlansTab({
                           className="w-full flex items-center gap-3 rounded-xl px-2 py-2 text-left text-sm font-semibold disabled:opacity-50"
                           style={{ color: item.danger ? P.bad : C.text }}
                         >
-                          <IconChip color={item.danger ? P.bad : C.cta} background={item.danger ? P.badSoft : P.ctaSoft}>{item.icon}</IconChip>
+                          <IconChip color={item.danger ? P.bad : C.text} background={item.danger ? P.badSoft : P.ctaSoft}>{item.icon}</IconChip>
                           {item.label}
                         </button>
                       ))}
@@ -236,7 +236,7 @@ export function PlansTab({
             <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <h4 className="text-sm font-bold" style={{ color: C.text }}>Prices</h4>
-                <button type="button" onClick={() => onEdit(plan)} className="text-xs font-semibold" style={{ color: C.cta }}>Edit prices</button>
+                <button type="button" onClick={() => onEdit(plan)} className="text-xs font-semibold" style={{ color: C.text }}>Edit prices</button>
               </div>
               {summary.prices.length ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -266,17 +266,19 @@ export function PlansTab({
 
               {!pickerOpen && (
                 planContent.length ? (
-                  <div className="grid md:grid-cols-2 gap-2">
-                    {planContent.map((item) => {
+                  <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+                    {planContent.map((item, index) => {
                       const type = TYPES.find((row) => row.table === item.content_table);
                       return (
-                        <div key={`${item.content_table}:${item.content_id}`} className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.page }}>
-                          <IconChip color={C.cta} background={P.ctaSoft}>{type?.icon ?? <Layers3 className="w-4 h-4" />}</IconChip>
-                          <Lines
-                            C={C}
-                            title={<span className="truncate">{titles.get(`${item.content_table}:${item.content_id}`) ?? 'Unpublished item'}</span>}
-                            sub={type?.label ?? 'Content'}
-                          />
+                        <div
+                          key={`${item.content_table}:${item.content_id}`}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                          style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}
+                        >
+                          <span className="text-sm font-semibold truncate" style={{ color: C.text }}>
+                            {titles.get(`${item.content_table}:${item.content_id}`) ?? 'Unpublished item'}
+                          </span>
+                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{type?.label ?? 'Content'}</span>
                         </div>
                       );
                     })}
@@ -327,13 +329,13 @@ export function PlansTab({
                             onClick={() => setSelectedContentKeys((current) =>
                               allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
                             className="text-xs font-semibold"
-                            style={{ color: C.cta }}
+                            style={{ color: C.text }}
                           >
                             {allSelected ? 'Clear group' : 'Select all'}
                           </button>
                         </div>
-                        <div className="grid md:grid-cols-2 gap-2">
-                          {items.map((item) => {
+                        <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+                          {items.map((item, index) => {
                             const key = `${item.content_table}:${item.id}`;
                             const selected = selectedContentKeys.includes(key);
                             return (
@@ -342,14 +344,14 @@ export function PlansTab({
                                 type="button"
                                 onClick={() => toggleContentKey(key)}
                                 aria-pressed={selected}
-                                className="flex items-center gap-3 rounded-xl px-3 py-3 text-left"
-                                style={{ background: selected ? P.ctaSoft : C.page, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                                style={{ background: selected ? P.ctaSoft : 'transparent', borderTop: index ? `1px solid ${C.divider}` : undefined }}
                               >
                                 <span
                                   className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"
-                                  style={{ background: selected ? C.cta : C.card, border: `1px solid ${selected ? C.cta : C.divider}` }}
+                                  style={{ background: selected ? P.sel : C.card, border: `1px solid ${selected ? P.sel : C.divider}` }}
                                 >
-                                  {selected && <Check className="w-3 h-3" style={{ color: '#ffffff' }} />}
+                                  {selected && <Check className="w-3 h-3" style={{ color: P.onSel }} />}
                                 </span>
                                 <span className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.title}</span>
                               </button>
