@@ -3,32 +3,27 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   AlertCircle,
+  ArrowLeftRight,
   ArrowRight,
   BadgeCheck,
   CalendarClock,
   Check,
   CheckCircle2,
-  ChevronRight,
+  ChevronDown,
   CircleDollarSign,
   Clock3,
   CreditCard,
   Download,
-  FileCheck2,
   History,
   Layers3,
-  ShieldAlert,
   LayoutDashboard,
-  FileSpreadsheet,
-  MoreHorizontal,
-  Pencil,
   Plus,
   Search,
+  Send,
   SlidersHorizontal,
   ShieldCheck,
   Sparkles,
   Trash2,
-  Star,
-  Archive,
   Upload,
   UserPlus,
   Users,
@@ -37,7 +32,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { durationLabel, formatMoney } from "@/lib/pricing-offer";
+import { durationLabel } from "@/lib/pricing-offer";
 import {
   applyPlanContentChanges,
   describePlanContentResult,
@@ -47,8 +42,17 @@ import {
   type PlanContentOutcome,
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
-import { LIGHT_C, cardStyle, modalStyle } from "@/lib/theme";
+import { LIGHT_C, modalStyle } from "@/lib/theme";
 import { effectiveSubscriptionPrice, promotionHeading, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
+import { OverviewTab } from "@/components/dashboard/subscriptions/OverviewTab";
+import { SubscribersTab } from "@/components/dashboard/subscriptions/SubscribersTab";
+import { PaymentsTab } from "@/components/dashboard/subscriptions/PaymentsTab";
+import { PlansTab } from "@/components/dashboard/subscriptions/PlansTab";
+import type { PlanSummary, SubsTab } from "@/components/dashboard/subscriptions/types";
+import {
+  Count, DISPLAY_FONT, IconChip, btnClass, btnStyle, dateLabel, daysRemaining, isLive, money, palette, pastDeadline,
+  shortDate, subscriberBucket,
+} from "@/components/dashboard/subscriptions/ui";
 
 const CONTENT_TYPES = [
   { value: "courses", label: "Course" },
@@ -146,7 +150,7 @@ function startingPlanPrice(plan: any) {
   return { ...price, ...effectiveSubscriptionPrice(price.amount, plan) };
 }
 
-type Tab = "overview" | "subscribers" | "payments" | "plans" | "review";
+type Tab = SubsTab;
 
 async function authFetch(url: string, init?: RequestInit) {
   const {
@@ -160,40 +164,6 @@ async function authFetch(url: string, init?: RequestInit) {
     },
   });
 }
-
-/** Live access: marked active and not past its end date. Used for every count and pill on the page. */
-function isLive(sub: any) {
-  return sub.status === "active" && daysRemaining(sub.current_period_end) >= 0;
-}
-
-/** What the page shows for a subscription: an active one past its end date has ended. */
-function shownStatus(sub: any) {
-  return sub.status === "active" && !isLive(sub) ? "expired" : sub.status;
-}
-
-/** Whether a payment request's deadline (a calendar date) has passed, judged in UTC as the server does. */
-function pastDeadline(dueDate?: string | null) {
-  return Boolean(dueDate) && new Date(`${dueDate}T23:59:59Z`).getTime() < Date.now();
-}
-
-function daysRemaining(value?: string | null) {
-  return value
-    ? Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000)
-    : 0;
-}
-
-function dateLabel(value?: string | null) {
-  return value
-    ? new Date(value).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "--";
-}
-
-// The shared formatter, so this page and the pricing pages write amounts the same way.
-const money = (currency: string, amount: number | string) => formatMoney(currency, Number(amount));
 
 function planIsReady(plan: any) {
   return (
@@ -772,25 +742,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     (r) => r.status === "confirmation_submitted",
   );
   const awaitingStudent = paymentRequests.filter((r) => r.status === "pending");
-  const overdue = paymentRequests.filter(
-    (r) =>
-      ["pending", "confirmation_submitted"].includes(r.status) && pastDeadline(r.due_date),
-  );
   const expiring = active
     .filter((s) => daysRemaining(s.current_period_end) <= 30)
     .sort(
       (a, b) =>
         +new Date(a.current_period_end) - +new Date(b.current_period_end),
     );
-  // Every payment recorded this month (online checkouts and recorded payments), from the server.
-  const collectedValue = collected.length === 1
-    ? money(collected[0].currency, collected[0].online + collected[0].recorded)
-    : collected.length > 1 ? `${collected.length} currencies` : "None yet";
-  const collectedDetail = collected.length === 1
-    ? `Online ${money(collected[0].currency, collected[0].online)}, recorded ${money(collected[0].currency, collected[0].recorded)}`
-    : collected.length > 1
-      ? collected.map((row) => money(row.currency, row.online + row.recorded)).join(" | ")
-      : "Payments received this month";
   const filtered = useMemo(
     () =>
       subscriptions.filter((sub) => {
@@ -798,7 +755,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           `${sub.students?.full_name || ""} ${sub.students?.email || ""}`.toLowerCase();
         return (
           (!search || term.includes(search.toLowerCase())) &&
-          (statusFilter === "all" || shownStatus(sub) === statusFilter) &&
+          (statusFilter === "all" || subscriberBucket(sub) === statusFilter) &&
           (planFilter === "all" || sub.plan_id === planFilter)
         );
       }),
@@ -916,8 +873,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setSubscriberMenu({
       sub,
       top:
-        rect.bottom + 310 > window.innerHeight
-          ? Math.max(12, rect.top - 300)
+        rect.bottom + 400 > window.innerHeight
+          ? Math.max(12, rect.top - 390)
           : rect.bottom + 6,
       right: Math.max(12, window.innerWidth - rect.right),
     });
@@ -1994,103 +1951,109 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     </div>
   );
 
-  const heroStyle = {
-    background: dark
-      ? `radial-gradient(circle at 85% 15%, ${C.cta}33, transparent 32%), linear-gradient(135deg, #20232d 0%, #17181e 75%)`
-      : `radial-gradient(circle at 88% 12%, ${C.cta}2b, transparent 30%), linear-gradient(135deg, #0b1220 0%, #14243d 100%)`,
+  const lateRequests = awaitingStudent.filter((r) => pastDeadline(r.due_date));
+  const actionCount = reviewQueue.length + awaitingReview.length + lateRequests.length;
+  const paymentHistory = paymentRequests.filter((r) => !["pending", "confirmation_submitted"].includes(r.status));
+  const planSummaries: PlanSummary[] = plans.map((plan) => {
+    const prices = (plan.subscription_plan_prices ?? [])
+      .filter((price: any) => price.is_active)
+      .sort((a: any, b: any) => Number(a.duration_months) - Number(b.duration_months));
+    const start = startingPlanPrice(plan);
+    const status = planDiscountStatus(planDiscountFromRow(plan));
+    const label = plan.discount_label || "Promotion";
+    const off = plan.discount_type === "percentage"
+      ? `${Number(plan.discount_value)}% off`
+      : plan.discount_type === "fixed" && prices[0] ? `${money(prices[0].currency, plan.discount_value)} off` : "";
+    const when = status === "Live"
+      ? plan.discount_ends_at && `ends ${shortDate(plan.discount_ends_at)}`
+      : status === "Scheduled" ? `starts ${shortDate(plan.discount_starts_at)}` : null;
+    const offerOn = status === "Live" || status === "Scheduled";
+    return {
+      plan,
+      priceCount: prices.length,
+      priceText: !start ? "No price yet" : `${prices.length > 1 ? "From " : ""}${money(start.currency, start.amount)}`,
+      prices: prices.map((price: any) => {
+        const effective = effectiveSubscriptionPrice(price.amount, plan);
+        return {
+          id: price.id,
+          duration: durationLabel(Number(price.duration_months)),
+          now: money(price.currency, effective.amount),
+          list: effective.discountActive ? money(price.currency, effective.listAmount) : null,
+        };
+      }),
+      live: subscriptions.filter((sub) => sub.plan_id === plan.id && isLive(sub)).length,
+      offer: offerOn ? [label, when].filter(Boolean).join(", ") : null,
+      offerDetail: offerOn ? [label, off, when].filter(Boolean).join(", ") : null,
+    };
+  });
+  const selectPlan = (plan: any) => {
+    setPlanCardMenuId(null);
+    setSelectedPlan(plan);
+    loadPlanContent(plan.id).catch((err) => setError(err.message));
   };
 
   return (
     <div className="subscription-typography space-y-6 pb-12">
       <style>{`.subscription-typography .font-black{font-weight:700!important}.subscription-typography .font-bold{font-weight:600!important}`}</style>
-      <section
-        className="relative overflow-hidden rounded-[28px] px-5 py-6 sm:px-8 sm:py-8 text-white"
-        style={heroStyle}
-      >
-        <div className="absolute right-[-70px] bottom-[-100px] w-64 h-64 rounded-full border border-white/10" />
-        <div className="absolute right-8 top-5 w-24 h-24 rounded-full border border-white/10" />
-        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-          <div>
-            <h2
-              className="text-2xl sm:text-[28px] font-black tracking-tight"
-              style={{ color: "#ffffff" }}
-            >
-              Access, revenue and renewals.
-              <br />
-              <span style={{ color: dark ? "#83b9ff" : "#7ef0b5" }}>
-                One clear operating view.
-              </span>
-            </h2>
-            <p
-              className="mt-3 text-sm max-w-xl"
-              style={{ color: "rgba(255,255,255,0.72)" }}
-            >
-              Build reusable access plans, assign flexible durations, verify
-              payments and keep every learner on schedule.
-            </p>
-          </div>
-          <div className="relative self-start lg:self-auto">
-            <button
-              onClick={toggleAssignMenu}
-              className={primary}
-              style={{
-                background: "#fff",
-                color: "#101828",
-                boxShadow: "0 16px 40px rgba(0,0,0,0.22)",
-              }}
-              aria-expanded={assignMenuOpen}
-              aria-haspopup="menu"
-            >
-              <UserPlus className="w-4 h-4" />
-              Assign subscription
-              <ChevronRight
-                className={`w-4 h-4 transition-transform ${assignMenuOpen ? "rotate-90" : ""}`}
-              />
-            </button>
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          {/* The dashboard hides its own section title here, so this is the page heading. */}
+          <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+            Subscriptions
+          </h1>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>
+            Plans, subscribers and payments in one place.
+          </p>
         </div>
-      </section>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={openPlanBuilder} className={btnClass} style={btnStyle("sec", C)}>
+            <Plus className="w-4 h-4" />
+            Create plan
+          </button>
+          <button
+            type="button"
+            onClick={toggleAssignMenu}
+            className={btnClass}
+            style={{ ...btnStyle("pri", C), boxShadow: `0 6px 16px ${C.cta}24` }}
+            aria-expanded={assignMenuOpen}
+            aria-haspopup="menu"
+          >
+            <UserPlus className="w-4 h-4" />
+            Assign subscription
+            <ChevronDown className={`w-4 h-4 transition-transform ${assignMenuOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
 
       <nav
-        className="grid grid-cols-3 sm:grid-cols-5 gap-1 p-2 rounded-2xl w-full"
-        style={{ background: C.card }}
+        role="tablist"
+        aria-label="Subscriptions sections"
+        className="flex gap-1 overflow-x-auto"
+        style={{ borderBottom: `1px solid ${C.divider}` }}
       >
         {(
           [
-            ["overview", "Command center", LayoutDashboard],
-            ["subscribers", "Subscribers", Users],
-            ["payments", "Payments", WalletCards],
-            ["plans", "Plans", Layers3],
-            ["review", "Review", ShieldAlert],
+            ["overview", "Overview", LayoutDashboard, null, false],
+            ["subscribers", "Subscribers", Users, subscriptions.length, false],
+            ["payments", "Payments", WalletCards, actionCount, true],
+            ["plans", "Plans", Layers3, plans.filter((plan) => !plan.archived_at).length, false],
           ] as const
-        ).map(([id, label, Icon]) => (
+        ).map(([id, label, Icon, count, alert]) => (
           <button
             key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className="relative min-w-0 inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl px-2 sm:px-4 py-3 text-[11px] sm:text-sm font-bold transition-all"
+            className="inline-flex items-center gap-2 px-4 py-3 -mb-px text-sm font-semibold whitespace-nowrap"
             style={{
-              background: tab === id ? C.pill : "transparent",
               color: tab === id ? C.text : C.muted,
+              borderBottom: `2px solid ${tab === id ? C.cta : "transparent"}`,
             }}
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{label}</span>
-            {id === "review" && reviewQueue.length > 0 && (
-              <span
-                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[11px] text-white"
-                style={{ background: "#dc2626" }}
-              >
-                {reviewQueue.length}
-              </span>
-            )}
-            {id === "payments" && awaitingReview.length > 0 && (
-              <span
-                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[11px] text-white"
-                style={{ background: "#f97316" }}
-              >
-                {awaitingReview.length}
-              </span>
-            )}
+            {label}
+            {count !== null && (!alert || count > 0) && <Count n={count} alert={alert} C={C} />}
           </button>
         ))}
       </nav>
@@ -2135,1522 +2098,95 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       ) : (
         <>
           {tab === "overview" && (
-            <div className="space-y-5">
-              <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                {[
-                  [
-                    "Active access",
-                    active.length,
-                    "Learners with live access",
-                    BadgeCheck,
-                    C.cta,
-                  ],
-                  [
-                    "Review queue",
-                    awaitingReview.length,
-                    "Confirmations need action",
-                    FileCheck2,
-                    "#f97316",
-                  ],
-                  [
-                    "Due soon",
-                    expiring.length,
-                    "Expiring within 30 days",
-                    CalendarClock,
-                    "#0284c7",
-                  ],
-                  [
-                    "Collected this month",
-                    collectedValue,
-                    collectedDetail,
-                    CircleDollarSign,
-                    "#0ea5e9",
-                  ],
-                ].map(([label, value, sub, Icon, tone]: any) => (
-                  <div
-                    key={label}
-                    className="group rounded-2xl p-5 transition-transform hover:-translate-y-0.5"
-                    style={cardStyle(C)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div
-                        className="w-10 h-10 rounded-xl grid place-items-center"
-                        style={{ background: `${tone}14`, color: tone }}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <ArrowRight
-                        className="w-4 h-4 opacity-0 group-hover:opacity-50 transition-opacity"
-                        style={{ color: C.muted }}
-                      />
-                    </div>
-                    <p
-                      className="text-2xl font-black mt-5"
-                      style={{ color: C.text }}
-                    >
-                      {value}
-                    </p>
-                    <p
-                      className="text-xs font-bold mt-1"
-                      style={{ color: C.text }}
-                    >
-                      {label}
-                    </p>
-                    <p className="text-[11px] mt-1" style={{ color: C.faint }}>
-                      {sub}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="grid xl:grid-cols-[1.15fr_0.85fr] gap-5">
-                <div
-                  className="rounded-2xl overflow-hidden"
-                  style={cardStyle(C)}
-                >
-                  <div
-                    className="px-5 py-4 flex items-center justify-between"
-                    style={{ borderBottom: `1px solid ${C.divider}` }}
-                  >
-                    <div>
-                      <p className="font-bold" style={{ color: C.text }}>
-                        Action queue
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: C.faint }}>
-                        Payments that need your attention
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setTab("payments")}
-                      className="text-xs font-bold"
-                      style={{ color: C.cta }}
-                    >
-                      View all
-                    </button>
-                  </div>
-                  <div className="p-3 space-y-2">
-                    {awaitingReview.slice(0, 5).map((request) => (
-                      <button
-                        key={request.id}
-                        onClick={() => {
-                          setReviewNotes("");
-                          setReviewTarget({ request, decision: "approve" });
-                        }}
-                        className="w-full flex items-center gap-3 rounded-xl p-3 text-left transition-colors"
-                        style={{ background: C.page }}
-                      >
-                        <div
-                          className="w-10 h-10 rounded-full grid place-items-center font-bold text-sm"
-                          style={{ background: `${C.cta}16`, color: C.cta }}
-                        >
-                          {(
-                            request.students?.full_name ||
-                            request.students?.email ||
-                            "?"
-                          ).charAt(0)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className="text-sm font-bold truncate"
-                            style={{ color: C.text }}
-                          >
-                            {request.students?.full_name ||
-                              request.students?.email}
-                          </p>
-                          <p
-                            className="text-xs truncate"
-                            style={{ color: C.faint }}
-                          >
-                            {request.plan_name} -{" "}
-                            {money(request.currency, request.amount)}
-                          </p>
-                        </div>
-                        <span
-                          className="text-[11px] font-bold"
-                          style={{ color: "#f97316" }}
-                        >
-                          Review
-                        </span>
-                        <ChevronRight
-                          className="w-4 h-4"
-                          style={{ color: C.faint }}
-                        />
-                      </button>
-                    ))}
-                    {awaitingReview.length === 0 && (
-                      <div className="py-12 text-center">
-                        <CheckCircle2
-                          className="w-8 h-8 mx-auto mb-3"
-                          style={{ color: C.green }}
-                        />
-                        <p
-                          className="text-sm font-bold"
-                          style={{ color: C.text }}
-                        >
-                          You are all caught up
-                        </p>
-                        <p className="text-xs mt-1" style={{ color: C.faint }}>
-                          No payment confirmations need review.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div
-                  className="rounded-2xl overflow-hidden"
-                  style={cardStyle(C)}
-                >
-                  <div
-                    className="px-5 py-4"
-                    style={{ borderBottom: `1px solid ${C.divider}` }}
-                  >
-                    <p className="font-bold" style={{ color: C.text }}>
-                      Renewal radar
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Closest access deadlines
-                    </p>
-                  </div>
-                  <div className="p-4 space-y-4">
-                    {expiring.slice(0, 5).map((sub) => {
-                      const days = daysRemaining(sub.current_period_end);
-                      return (
-                        <button
-                          key={sub.id}
-                          onClick={() => {
-                            setTab("subscribers");
-                            setSearch(
-                              sub.students?.email || sub.students?.full_name || "",
-                            );
-                          }}
-                          className="w-full flex items-center gap-3 text-left"
-                        >
-                          <div
-                            className="relative w-11 h-11 rounded-xl grid place-items-center"
-                            style={{
-                              background:
-                                days <= 7
-                                  ? "rgba(220,38,38,0.10)"
-                                  : `${C.cta}12`,
-                              color: days <= 7 ? "#dc2626" : C.cta,
-                            }}
-                          >
-                            <span className="font-black text-sm">{days}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className="text-sm font-bold truncate"
-                              style={{ color: C.text }}
-                            >
-                              {sub.students?.full_name || sub.students?.email}
-                            </p>
-                            <p className="text-xs" style={{ color: C.faint }}>
-                              {dateLabel(sub.current_period_end)} -{" "}
-                              {sub.subscription_plans?.name}
-                            </p>
-                          </div>
-                          <ChevronRight
-                            className="w-4 h-4"
-                            style={{ color: C.faint }}
-                          />
-                        </button>
-                      );
-                    })}
-                    {expiring.length === 0 && (
-                      <p
-                        className="text-sm text-center py-10"
-                        style={{ color: C.faint }}
-                      >
-                        No subscriptions expire in the next 30 days.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <OverviewTab
+              C={C}
+              subscriptionCount={subscriptions.length}
+              activeCount={active.length}
+              expiring={expiring}
+              collected={collected}
+              reviewQueue={reviewQueue}
+              awaitingReview={awaitingReview}
+              lateRequests={lateRequests}
+              planSummaries={planSummaries}
+              busy={busy}
+              onGo={setTab}
+              onReview={(request) => {
+                setReviewNotes("");
+                setReviewTarget({ request, decision: "approve" });
+              }}
+              onResolve={resolveIncident}
+              onEnding={(sub) => {
+                setTab("subscribers");
+                setPlanFilter("all");
+                setStatusFilter(sub ? "all" : "soon");
+                setSearch(sub ? sub.students?.email || sub.students?.full_name || "" : "");
+              }}
+            />
           )}
 
           {tab === "subscribers" && (
-            <div className="space-y-4">
-              <div
-                className="flex flex-col lg:flex-row lg:items-center gap-3 rounded-2xl p-3"
-                style={cardStyle(C)}
-              >
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl flex-1"
-                  style={{ background: C.input }}
-                >
-                  <Search className="w-4 h-4" style={{ color: C.faint }} />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by name or email"
-                    className="bg-transparent outline-none text-sm w-full"
-                    style={{ color: C.text }}
-                  />
-                </div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded-xl px-3 py-2 text-sm"
-                  style={inputStyle}
-                >
-                  <option value="all">All statuses</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-                <select
-                  value={planFilter}
-                  onChange={(e) => setPlanFilter(e.target.value)}
-                  className="rounded-xl px-3 py-2 text-sm"
-                  style={inputStyle}
-                >
-                  <option value="all">All plans</option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div
-                className="hidden md:block rounded-2xl overflow-x-auto"
-                style={cardStyle(C)}
-              >
-                <table className="w-full min-w-[900px] text-sm">
-                  <thead>
-                    <tr
-                      style={{
-                        color: C.faint,
-                        borderBottom: `1px solid ${C.divider}`,
-                      }}
-                    >
-                      {[
-                        "Learner",
-                        "Access plan",
-                        "Status",
-                        "Access window",
-                        "Remaining",
-                        "Current terms",
-                        "",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-wider"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((sub) => (
-                      <tr
-                        key={sub.id}
-                        className="group"
-                        style={{ borderBottom: `1px solid ${C.divider}` }}
-                      >
-                        <td className="px-5 py-4">
-                          <div>
-                            <p
-                              className="font-bold"
-                              style={{ color: C.text }}
-                            >
-                              {sub.students?.full_name || "--"}
-                            </p>
-                            <p className="text-xs" style={{ color: C.faint }}>
-                              {sub.students?.email}
-                            </p>
-                          </div>
-                        </td>
-                        <td
-                          className="px-5 py-4 font-semibold"
-                          style={{ color: C.text }}
-                        >
-                          {sub.subscription_plans?.name}
-                        </td>
-                        <td className="px-5 py-4">
-                          <StatusPill status={shownStatus(sub)} C={C} />
-                        </td>
-                        <td className="px-5 py-4">
-                          <p style={{ color: C.text }}>
-                            {dateLabel(sub.current_period_start)}
-                          </p>
-                          <p className="text-xs" style={{ color: C.faint }}>
-                            to {dateLabel(sub.current_period_end)}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span
-                            className="font-bold"
-                            style={{
-                              color:
-                                isLive(sub) && daysRemaining(sub.current_period_end) <= 7
-                                  ? "#dc2626"
-                                  : C.text,
-                            }}
-                          >
-                            {isLive(sub)
-                              ? `${daysRemaining(sub.current_period_end)} days`
-                              : "--"}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4" style={{ color: C.muted }}>
-                          {durationLabel(Number(sub.duration_months))}
-                          <br />
-                          <span className="text-xs">
-                            {money(sub.currency, sub.amount)}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <button
-                            onClick={(event) => toggleSubscriberMenu(event, sub)}
-                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold"
-                            style={{ background: C.pill, color: C.cta }}
-                            aria-label={`Actions for ${sub.students?.full_name || sub.students?.email}`}
-                          >
-                            Actions
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filtered.length === 0 && (
-                  <p
-                    className="p-12 text-center text-sm"
-                    style={{ color: C.faint }}
-                  >
-                    No subscribers match these filters.
-                  </p>
-                )}
-              </div>
-              <div className="md:hidden space-y-3">
-                {filtered.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="w-full rounded-2xl p-4 text-left"
-                    style={cardStyle(C)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold" style={{ color: C.text }}>
-                          {sub.students?.full_name || sub.students?.email}
-                        </p>
-                        <p className="text-xs mt-1" style={{ color: C.faint }}>
-                          {sub.subscription_plans?.name}
-                        </p>
-                      </div>
-                      <StatusPill status={shownStatus(sub)} C={C} />
-                    </div>
-                    <div
-                      className="grid grid-cols-2 gap-3 mt-4 pt-4"
-                      style={{ borderTop: `1px solid ${C.divider}` }}
-                    >
-                      <div>
-                        <p
-                          className="text-[11px] uppercase font-bold"
-                          style={{ color: C.faint }}
-                        >
-                          Expires
-                        </p>
-                        <p className="text-sm mt-1" style={{ color: C.text }}>
-                          {dateLabel(sub.current_period_end)}
-                        </p>
-                      </div>
-                      <div>
-                        <p
-                          className="text-[11px] uppercase font-bold"
-                          style={{ color: C.faint }}
-                        >
-                          Terms
-                        </p>
-                        <p className="text-sm mt-1" style={{ color: C.text }}>
-                          {sub.duration_months} mo -{" "}
-                          {money(sub.currency, sub.amount)}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(event) => toggleSubscriberMenu(event, sub)}
-                      className={`${primary} w-full mt-4`}
-                      style={{ background: C.pill, color: C.cta }}
-                      aria-label={`Actions for ${sub.students?.full_name || sub.students?.email}`}
-                    >
-                      Actions
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {tab === "review" && (
-            <div className="space-y-5">
-              {sweepHeartbeat?.stale && (
-                <div
-                  className="rounded-2xl p-4 flex items-start gap-3"
-                  style={{ background: "rgba(220,38,38,0.10)", border: "1px solid rgba(220,38,38,0.20)", color: "#b91c1c" }}
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold">Subscription expiry has not run recently</p>
-                    <p className="text-xs mt-1 opacity-80">
-                      {sweepHeartbeat.lastSuccessAt
-                        ? `Last completed ${Math.round(sweepHeartbeat.staleHours)} hours ago. `
-                        : "It has never completed on this environment. "}
-                      Expired subscriptions keep their access until it runs. Check the hourly
-                      schedule for /api/cron/subscription-expiry-sweep in the Upstash console.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}>
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div>
-                    <p className="font-black" style={{ color: C.text }}>
-                      Payments needing a person
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Refunds, disputes, payments that could not be applied, and checkouts that
-                      were never completed. The platform does not act on these on its own.
-                    </p>
-                  </div>
-                  <ShieldAlert className="w-5 h-5" style={{ color: C.cta }} />
-                </div>
-
-                {reviewQueue.length === 0 ? (
-                  <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}>
-                    <BadgeCheck className="w-8 h-8 mx-auto" style={{ color: "#16a34a" }} />
-                    <p className="text-sm font-bold mt-3" style={{ color: C.text }}>
-                      Nothing needs attention
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Every Paystack payment is either applied or still in progress.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {reviewQueue.map((item: any) => (
-                      <div
-                        key={`${item.kind}-${item.id}`}
-                        className="rounded-2xl p-4"
-                        style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white"
-                                style={{
-                                  background:
-                                    item.kind === "stalled" ? "#d97706" : "#0ea5e9",
-                                }}
-                              >
-                                {item.kind === "stalled" ? "Never completed" : "Needs review"}
-                              </span>
-                              <p className="text-sm font-black truncate" style={{ color: C.text }}>
-                                {item.studentName || item.studentEmail || item.reference || "Unmatched payment"}
-                              </p>
-                            </div>
-                            <p className="text-xs mt-2" style={{ color: C.muted }}>
-                              {(item.reason || "review required").replaceAll("_", " ")}
-                              {item.planName ? ` on ${item.planName}` : ""}
-                            </p>
-                            <p className="text-[11px] mt-1 font-mono truncate" style={{ color: C.faint }}>
-                              {item.reference || "no reference"}
-                            </p>
-                            {item.notificationError && (
-                              <p className="text-[11px] mt-1" style={{ color: "#b91c1c" }}>
-                                Alert email failed: {item.notificationError}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            {item.amount != null && (
-                              <p className="text-sm font-black" style={{ color: C.text }}>
-                                {item.currency ? `${item.currency} ` : ""}
-                                {Number(item.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                              </p>
-                            )}
-                            <p className="text-[11px] mt-1" style={{ color: C.faint }}>
-                              {new Date(item.occurredAt).toLocaleDateString("en-GB", {
-                                day: "numeric", month: "short", year: "numeric",
-                              })}
-                            </p>
-                            {!item.notifiedAt && item.kind !== "stalled" && (
-                              <p className="text-[11px] mt-1 uppercase tracking-wider font-bold" style={{ color: "#d97706" }}>
-                                Not yet emailed
-                              </p>
-                            )}
-                            {item.kind === "incident" && (
-                              <button
-                                onClick={() => resolveIncident(item)}
-                                disabled={busy}
-                                className="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold disabled:opacity-50"
-                                style={{ background: C.pill, color: C.cta }}
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                Mark resolved
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <SubscribersTab
+              C={C}
+              subscriptions={subscriptions}
+              rows={filtered}
+              plans={plans}
+              search={search}
+              setSearch={setSearch}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              planFilter={planFilter}
+              setPlanFilter={setPlanFilter}
+              onMenu={toggleSubscriberMenu}
+            />
           )}
 
           {tab === "payments" && (
-            <div className="space-y-5">
-              <div className="grid sm:grid-cols-3 gap-4">
-                {[
-                  [
-                    "Awaiting learner",
-                    awaitingStudent.length,
-                    Clock3,
-                    "#0ea5e9",
-                  ],
-                  [
-                    "Ready to review",
-                    awaitingReview.length,
-                    FileCheck2,
-                    "#f97316",
-                  ],
-                  ["Past deadline", overdue.length, CalendarClock, "#dc2626"],
-                ].map(([label, value, Icon, tone]: any) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl p-5 flex items-center gap-4"
-                    style={cardStyle(C)}
-                  >
-                    <div
-                      className="w-11 h-11 rounded-xl grid place-items-center"
-                      style={{ background: `${tone}14`, color: tone }}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p
-                        className="text-2xl font-black"
-                        style={{ color: C.text }}
-                      >
-                        {value}
-                      </p>
-                      <p
-                        className="text-xs font-bold"
-                        style={{ color: C.muted }}
-                      >
-                        {label}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {openCarts.length > 0 && (
-                <section className="rounded-2xl p-5" style={cardStyle(C)}>
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div>
-                      <p className="font-black" style={{ color: C.text }}>
-                        Unfinished checkouts
-                      </p>
-                      <p
-                        className="text-xs mt-1"
-                        style={{ color: C.faint }}
-                      >
-                        Started online and never completed, or left behind when a
-                        payment request closed. Nothing is owed, but the learner
-                        cannot pay another way until one is cleared.
-                      </p>
-                    </div>
-                    <WalletCards
-                      className="w-5 h-5 flex-shrink-0"
-                      style={{ color: C.cta }}
-                    />
-                  </div>
-                  <div className="grid xl:grid-cols-2 gap-3">
-                    {openCarts.map((cart) => (
-                      <div
-                        key={cart.reference}
-                        className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3"
-                        style={{
-                          background: C.page,
-                          border: `1px solid ${C.cardBorder}`,
-                        }}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className="font-bold truncate"
-                            style={{ color: C.text }}
-                          >
-                            {cart.students?.full_name || "Unnamed learner"}
-                          </p>
-                          <p
-                            className="text-xs mt-0.5 truncate"
-                            style={{ color: C.faint }}
-                          >
-                            {cart.students?.email}
-                          </p>
-                          <p
-                            className="text-xs mt-2"
-                            style={{ color: C.muted }}
-                          >
-                            {cart.plan_name} - {durationLabel(Number(cart.duration_months))} -{" "}
-                            {money(cart.currency, cart.amount)}
-                          </p>
-                          <p
-                            className="text-[11px] mt-1"
-                            style={{ color: C.faint }}
-                          >
-                            Started {dateLabel(cart.created_at)} -{" "}
-                            {cart.request_id
-                              ? "left behind by a closed payment request"
-                              : cart.reminder_count === 0
-                                ? "no reminders sent"
-                                : `${cart.reminder_count} reminder${cart.reminder_count === 1 ? "" : "s"} sent`}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => clearCart(cart)}
-                          disabled={busy}
-                          className="text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0 disabled:opacity-50"
-                          style={{ background: C.pill, color: C.muted }}
-                        >
-                          Clear checkout
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <div className="grid xl:grid-cols-2 gap-4">
-                {paymentRequests.map((request) => {
-                  const conf =
-                    request.subscription_payment_confirmations?.find(
-                      (r: any) => r.status === "pending",
-                    ) ?? request.subscription_payment_confirmations?.[0];
-                  const isOverdue =
-                    ["pending", "confirmation_submitted"].includes(
-                      request.status,
-                    ) && pastDeadline(request.due_date);
-                  return (
-                    <article
-                      key={request.id}
-                      className="rounded-2xl p-5"
-                      style={cardStyle(C)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-11 h-11 rounded-full grid place-items-center font-black"
-                            style={{ background: `${C.cta}15`, color: C.cta }}
-                          >
-                            {(
-                              request.students?.full_name ||
-                              request.students?.email ||
-                              "?"
-                            ).charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <p
-                              className="font-bold truncate"
-                              style={{ color: C.text }}
-                            >
-                              {request.students?.full_name || "--"}
-                            </p>
-                            <p
-                              className="text-xs truncate"
-                              style={{ color: C.faint }}
-                            >
-                              {request.students?.email}
-                            </p>
-                          </div>
-                        </div>
-                        <StatusPill status={request.status} C={C} />
-                      </div>
-                      <div
-                        className="grid grid-cols-3 gap-3 mt-5 rounded-xl p-3"
-                        style={{ background: C.page }}
-                      >
-                        <div>
-                          <p
-                            className="text-[11px] font-bold uppercase"
-                            style={{ color: C.faint }}
-                          >
-                            Plan
-                          </p>
-                          <p
-                            className="text-xs font-bold mt-1 truncate"
-                            style={{ color: C.text }}
-                          >
-                            {request.plan_name}
-                          </p>
-                        </div>
-                        <div>
-                          <p
-                            className="text-[11px] font-bold uppercase"
-                            style={{ color: C.faint }}
-                          >
-                            Amount
-                          </p>
-                          <p
-                            className="text-xs font-bold mt-1"
-                            style={{ color: C.text }}
-                          >
-                            {money(request.currency, request.amount)}
-                          </p>
-                        </div>
-                        <div>
-                          <p
-                            className="text-[11px] font-bold uppercase"
-                            style={{ color: C.faint }}
-                          >
-                            Deadline
-                          </p>
-                          <p
-                            className="text-xs font-bold mt-1"
-                            style={{ color: isOverdue ? "#dc2626" : C.text }}
-                          >
-                            {dateLabel(request.due_date)}
-                          </p>
-                        </div>
-                      </div>
-                      {conf && (
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="text-xs" style={{ color: C.muted }}>
-                            <p>{conf.method || "Payment method not stated"}</p>
-                            <p style={{ color: C.faint }}>
-                              {conf.reference || "No transaction reference"}
-                              {conf.receipt_url && (
-                                <>
-                                  {" "}
-                                  -{" "}
-                                  <a
-                                    href={conf.receipt_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ color: C.cta }}
-                                  >
-                                    Receipt
-                                  </a>
-                                </>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      <div
-                        className="flex items-center justify-end gap-2 mt-5 pt-4"
-                        style={{ borderTop: `1px solid ${C.divider}` }}
-                      >
-                        {request.status === "confirmation_submitted" && (
-                          <>
-                            <button
-                              disabled={busy}
-                              onClick={() => {
-                                setReviewNotes("");
-                                setReviewTarget({
-                                  request,
-                                  decision: "reject",
-                                });
-                              }}
-                              className={`${primary} px-3 py-2`}
-                              style={{
-                                background: C.deleteBg,
-                                color: C.deleteText,
-                              }}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              Reject
-                            </button>
-                            <button
-                              disabled={busy}
-                              onClick={() => {
-                                setReviewNotes("");
-                                setReviewTarget({
-                                  request,
-                                  decision: "approve",
-                                });
-                              }}
-                              className={`${primary} px-3 py-2`}
-                              style={{ background: C.cta, color: C.ctaText }}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Review payment
-                            </button>
-                          </>
-                        )}
-                        {["pending", "confirmation_submitted"].includes(
-                          request.status,
-                        ) && (
-                          <button
-                            onClick={() => cancelRequest(request.id)}
-                            className="text-xs font-bold px-2"
-                            style={{ color: C.faint }}
-                          >
-                            Cancel request
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-              {paymentRequests.length === 0 && (
-                <div
-                  className="rounded-2xl py-16 text-center"
-                  style={cardStyle(C)}
-                >
-                  <WalletCards
-                    className="w-9 h-9 mx-auto"
-                    style={{ color: C.faint }}
-                  />
-                  <p className="font-bold mt-3" style={{ color: C.text }}>
-                    No payment activity yet
-                  </p>
-                  <p className="text-sm mt-1" style={{ color: C.faint }}>
-                    Assigned payment requests will appear here.
-                  </p>
-                </div>
-              )}
-            </div>
+            <PaymentsTab
+              C={C}
+              reviewQueue={reviewQueue}
+              awaitingReview={awaitingReview}
+              awaitingStudent={awaitingStudent}
+              openCarts={openCarts}
+              history={paymentHistory}
+              sweepHeartbeat={sweepHeartbeat}
+              busy={busy}
+              onResolve={resolveIncident}
+              onReview={(request, decision) => {
+                setReviewNotes("");
+                setReviewTarget({ request, decision });
+              }}
+              onCancelRequest={cancelRequest}
+              onClearCart={clearCart}
+            />
           )}
 
           {tab === "plans" && (
-            <div className="space-y-5">
-              <section
-                className="relative overflow-hidden rounded-[24px] p-5 sm:p-6"
-                style={{
-                  background: dark
-                    ? `linear-gradient(135deg, ${C.card} 0%, ${C.pill} 100%)`
-                    : `linear-gradient(135deg, ${C.cta}12 0%, ${C.card} 62%)`,
-                }}
-              >
-                <div className="absolute -right-10 -top-14 w-40 h-40 rounded-full" style={{ background: `${C.cta}0d` }} />
-                <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-                  <div className="flex items-start gap-4">
-                    <span className="w-11 h-11 rounded-2xl grid place-items-center flex-shrink-0" style={{ background: C.cta, color: C.ctaText }}>
-                      <Sparkles className="w-5 h-5" />
-                    </span>
-                    <div>
-                      <p className="text-base font-black leading-6" style={{ color: C.text }}>Build an offer learners understand</p>
-                      <p className="text-sm mt-1 max-w-2xl" style={{ color: C.muted }}>
-                        Bring the plan story, included learning and purchase options together in one guided flow.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={openPlanBuilder}
-                    className={`${primary} self-start lg:self-auto px-5 py-3`}
-                    style={{ background: C.cta, color: C.ctaText }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    Create plan
-                  </button>
-                </div>
-              </section>
-              <section className="rounded-2xl p-4 sm:p-5" style={cardStyle(C)}>
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div>
-                    <p className="font-black" style={{ color: C.text }}>
-                      Your plans
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Select a plan to manage its content, pricing and availability.
-                    </p>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-2 text-xs font-bold" style={{ color: C.faint }}>
-                    <span className="rounded-full px-3 py-1" style={{ background: C.page }}>{plans.length} total</span>
-                    <span className="rounded-full px-3 py-1" style={{ background: C.page }}>{activePlans.length} active</span>
-                  </div>
-                </div>
-                {(() => {
-                  const archivedCount = plans.filter((p: any) => p.archived_at).length;
-                  if (!archivedCount) return null;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setShowArchivedPlans((v) => !v)}
-                      className="mb-3 text-xs font-bold underline"
-                      style={{ color: C.muted }}
-                    >
-                      {showArchivedPlans
-                        ? "Hide archived plans"
-                        : `Show ${archivedCount} archived plan${archivedCount === 1 ? "" : "s"}`}
-                    </button>
-                  );
-                })()}
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {plans
-                    .filter((plan: any) => showArchivedPlans || !plan.archived_at)
-                    .map((plan) => {
-                      const startingPrice = startingPlanPrice(plan);
-                      const promotionStatus = planDiscountStatus(planDiscountFromRow(plan));
-                      return (
-                        <div
-                          key={plan.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            setPlanCardMenuId(null);
-                            setSelectedPlan(plan);
-                            loadPlanContent(plan.id).catch((err) =>
-                              setError(err.message),
-                            );
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSelectedPlan(plan);
-                              loadPlanContent(plan.id).catch((err) =>
-                                setError(err.message),
-                              );
-                            }
-                          }}
-                          className="group relative overflow-visible rounded-[22px] p-5 text-left transition-all cursor-pointer hover:-translate-y-0.5"
-                          style={{
-                            background:
-                              selectedPlan?.id === plan.id ? `${C.cta}0c` : C.page,
-                            boxShadow:
-                              selectedPlan?.id === plan.id
-                                ? `inset 0 0 0 2px ${C.cta}, 0 12px 30px ${C.cta}12`
-                                : `0 8px 24px ${dark ? "rgba(0,0,0,0.12)" : "rgba(15,23,42,0.05)"}`,
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div
-                              className="w-10 h-10 rounded-2xl grid place-items-center"
-                              style={{ background: `${C.cta}14`, color: C.cta }}
-                            >
-                              <ShieldCheck className="w-5 h-5" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <StatusPill status={plan.status} C={C} />
-                              <div className="relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPlanCardMenuId((current) =>
-                                      current === plan.id ? null : plan.id,
-                                    );
-                                  }}
-                                  className="w-8 h-8 rounded-lg grid place-items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                                  style={{ background: C.card, color: C.text }}
-                                  aria-label={`Actions for ${plan.name}`}
-                                >
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </button>
-                                {planCardMenuId === plan.id && (
-                                  <div
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="absolute right-0 top-10 z-30 w-52 rounded-xl p-2"
-                                    style={modalStyle(C)}
-                                  >
-                                    <button
-                                      onClick={() => openEditPlan(plan)}
-                                      disabled={busy}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
-                                      style={{ color: C.text }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{
-                                          background: `${C.cta}14`,
-                                          color: C.cta,
-                                        }}
-                                      >
-                                        <Pencil className="w-4 h-4" />
-                                      </span>
-                                      Edit plan details
-                                    </button>
-                                    <button
-                                      onClick={() => togglePlan(plan)}
-                                      // Archived means put away. Switching it back on here would
-                                      // put it on sale while it stays hidden from this list.
-                                      disabled={busy || !!plan.archived_at}
-                                      title={
-                                        plan.archived_at
-                                          ? "Restore this plan before switching it back on."
-                                          : undefined
-                                      }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
-                                      style={{ color: C.text }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{
-                                          background: `${C.cta}14`,
-                                          color: C.cta,
-                                        }}
-                                      >
-                                        <ShieldCheck className="w-4 h-4" />
-                                      </span>
-                                      {plan.status === "active"
-                                        ? "Deactivate plan"
-                                        : "Activate plan"}
-                                    </button>
-                                    <button
-                                      onClick={() => openBulkImport(plan)}
-                                      disabled={busy || plan.status !== "active"}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
-                                      style={{ color: C.text }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{
-                                          background: `${C.cta}14`,
-                                          color: C.cta,
-                                        }}
-                                      >
-                                        <FileSpreadsheet className="w-4 h-4" />
-                                      </span>
-                                      Bulk add students
-                                    </button>
-                                    <button
-                                      onClick={() => setPlanRecommended(plan, !plan.recommended)}
-                                      // Only a plan visitors can actually see. Inactive keeps it off
-                                      // the pricing page just as surely as archived hides it.
-                                      disabled={
-                                        busy
-                                        || (!plan.recommended
-                                            && (!!plan.archived_at || plan.status !== "active"))
-                                      }
-                                      title={
-                                        plan.archived_at
-                                          ? "An archived plan is not shown to visitors."
-                                          : plan.status !== "active"
-                                            ? "Activate this plan before marking it as best value."
-                                            : undefined
-                                      }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
-                                      style={{ color: C.text }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{ background: `${C.cta}14`, color: C.cta }}
-                                      >
-                                        <Star className="w-4 h-4" />
-                                      </span>
-                                      {plan.recommended ? "Remove best value" : "Mark as best value"}
-                                    </button>
-                                    <button
-                                      onClick={() => setPlanArchived(plan, !plan.archived_at)}
-                                      disabled={busy || (!plan.archived_at && plan.status === "active")}
-                                      title={
-                                        !plan.archived_at && plan.status === "active"
-                                          ? "Deactivate this plan first, so nobody loses a plan that is still on sale."
-                                          : undefined
-                                      }
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold disabled:opacity-50"
-                                      style={{ color: C.text }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{ background: C.pill, color: C.muted }}
-                                      >
-                                        <Archive className="w-4 h-4" />
-                                      </span>
-                                      {plan.archived_at ? "Restore plan" : "Archive plan"}
-                                    </button>
-                                    <button
-                                      onClick={() => deletePlan(plan)}
-                                      disabled={busy}
-                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
-                                      style={{ color: C.deleteText }}
-                                    >
-                                      <span
-                                        className="w-8 h-8 rounded-lg grid place-items-center"
-                                        style={{ background: C.deleteBg }}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </span>
-                                      Delete plan
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-4">
-                            <p className="text-base font-black" style={{ color: C.text }}>
-                              {plan.name}
-                            </p>
-                            <p
-                              className="text-xs mt-2 leading-relaxed line-clamp-2 min-h-9"
-                              style={{ color: C.faint }}
-                            >
-                              {plan.description ||
-                                "Reusable subscription access plan"}
-                            </p>
-                            <div className="mt-4 rounded-2xl p-4" style={{ background: C.card }}>
-                            {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
-                              <>
-                                <p className="text-[11px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
-                                <div className="flex items-end justify-between gap-3 mt-1">
-                                  <p className="text-[22px] font-black leading-7" style={{ color: C.text }}>
-                                    {money(
-                                      startingPrice?.currency,
-                                      startingPrice?.amount,
-                                    )}
-                                  </p>
-                                  <p className="text-[11px] font-bold" style={{ color: C.cta }}>
-                                    {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length} option{(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length === 1 ? "" : "s"}
-                                  </p>
-                                </div>
-                                {promotionStatus && (
-                                  <div className="flex items-center gap-2 mt-2 text-[11px] font-bold" style={{ color: discountStatusTone(promotionStatus, C) }}>
-                                    {startingPrice?.discountActive && <span className="line-through">{money(startingPrice.currency, startingPrice.listAmount)}</span>}
-                                    <span>{(plan.discount_label || "Promotion")} {promotionStatus.toLowerCase()}</span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <div className="flex items-start gap-2" style={{ color: "#b45309" }}>
-                                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="text-xs font-bold">Pricing needed</p>
-                                  <p className="text-[11px] mt-0.5">Add a price before publishing.</p>
-                                </div>
-                              </div>
-                            )}
-                            </div>
-                          </div>
-                          <div
-                            className="grid grid-cols-2 gap-2 mt-3"
-                          >
-                            <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
-                              <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
-                              <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
-                                {subscriptions.filter((s) => s.plan_id === plan.id && isLive(s)).length}
-                              </p>
-                            </div>
-                            <div className="rounded-xl px-3 py-3" style={{ background: C.card }}>
-                              <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
-                              <p className="text-sm font-black mt-0.5" style={{ color: planIsReady(plan) ? C.green : "#b45309" }}>
-                                {planIsReady(plan) ? "Ready" : "Needs setup"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedPlan(plan);
-                              loadPlanContent(plan.id).catch((err) => setError(err.message));
-                            }}
-                            className={`${primary} w-full mt-3`}
-                            style={{
-                              background: selectedPlan?.id === plan.id ? C.cta : C.card,
-                              color: selectedPlan?.id === plan.id ? C.ctaText : C.text,
-                            }}
-                          >
-                            {selectedPlan?.id === plan.id ? "Managing plan" : "Manage plan"}
-                            <ArrowRight className="w-4 h-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  {plans.length === 0 && (
-                    <button
-                      onClick={openPlanBuilder}
-                      className="sm:col-span-2 xl:col-span-3 rounded-2xl py-10 text-center"
-                      style={{ background: C.page }}
-                    >
-                      <Plus
-                        className="w-7 h-7 mx-auto"
-                        style={{ color: C.cta }}
-                      />
-                      <p
-                        className="text-sm font-bold mt-3"
-                        style={{ color: C.text }}
-                      >
-                        Create your first subscription plan
-                      </p>
-                    </button>
-                  )}
-                </div>
-              </section>
-              <section
-                className="rounded-2xl min-h-[520px]"
-                style={cardStyle(C)}
-              >
-                {selectedPlan ? (
-                  <>
-                    <div
-                      className="p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
-                      style={{ borderBottom: `1px solid ${C.divider}` }}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <StatusPill status={selectedPlan.status} C={C} />
-                          <span
-                            className="text-[11px] uppercase tracking-widest font-bold"
-                            style={{ color: C.faint }}
-                          >
-                            Reusable access blueprint
-                          </span>
-                        </div>
-                        <h3
-                          className="text-[22px] font-black leading-7"
-                          style={{ color: C.text }}
-                        >
-                          {selectedPlan.name}
-                        </h3>
-                        <p
-                          className="text-sm mt-2 max-w-xl"
-                          style={{ color: C.muted }}
-                        >
-                          {selectedPlan.description ||
-                            "No description has been added yet."}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 self-start">
-                        <button
-                          onClick={() => openEditPlan(selectedPlan)}
-                          disabled={busy}
-                          className={primary}
-                          style={{ background: C.pill, color: C.text }}
-                        >
-                          <Pencil className="w-4 h-4" />
-                          Edit details and pricing
-                        </button>
-                        <button
-                          onClick={togglePlan}
-                          disabled={busy || !!selectedPlan.archived_at}
-                          title={
-                            selectedPlan.archived_at
-                              ? "Restore this plan before switching it back on."
-                              : undefined
-                          }
-                          className={primary}
-                          style={{
-                            background:
-                              selectedPlan.status === "active"
-                                ? C.deleteBg
-                                : C.successBg,
-                            color:
-                              selectedPlan.status === "active"
-                                ? C.deleteText
-                                : C.successText,
-                          }}
-                        >
-                          {selectedPlan.status === "active"
-                            ? "Deactivate plan"
-                            : "Activate plan"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="p-6">
-                      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
-                        <div>
-                          <p className="font-bold" style={{ color: C.text }}>
-                            Included experiences
-                          </p>
-                          <p
-                            className="text-xs mt-1"
-                            style={{ color: C.faint }}
-                          >
-                            Select multiple items, then save once. Changes apply
-                            to every subscriber.
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="text-xs font-bold px-3 py-2 rounded-full"
-                            style={{ background: `${C.cta}12`, color: C.cta }}
-                          >
-                            {selectedContentKeys.length} selected
-                          </span>
-                          <button
-                            onClick={savePlanContentSelection}
-                            disabled={
-                              busy ||
-                              new Set(selectedContentKeys).size !==
-                                selectedContentKeys.length ||
-                              (selectedContentKeys.length ===
-                                planContent.length &&
-                                selectedContentKeys.every((key) =>
-                                  planContent.some(
-                                    (item) =>
-                                      `${item.content_table}:${item.content_id}` ===
-                                      key,
-                                  ),
-                                ))
-                            }
-                            className={primary}
-                            style={{ background: C.cta, color: C.ctaText }}
-                          >
-                            <Check
-                              className="w-4 h-4"
-                              style={{ color: "#ffffff" }}
-                            />
-                            {busy ? "Saving..." : "Save selection"}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="relative mb-5">
-                        <Search
-                          className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2"
-                          style={{ color: C.faint }}
-                        />
-                        <input
-                          value={contentSearch}
-                          onChange={(e) => setContentSearch(e.target.value)}
-                          placeholder="Search published content..."
-                          className={`${fieldClass} pl-10`}
-                          style={inputStyle}
-                        />
-                      </div>
-                      <div className="space-y-6">
-                        {CONTENT_TYPES.map((type) => {
-                          const items = contentOptions.filter(
-                            (item) =>
-                              item.content_table === type.value &&
-                              (!contentSearch ||
-                                item.title
-                                  .toLowerCase()
-                                  .includes(contentSearch.toLowerCase())),
-                          );
-                          if (!items.length) return null;
-                          const groupKeys = items.map(
-                            (item) => `${item.content_table}:${item.id}`,
-                          );
-                          const allSelected = groupKeys.every((key) =>
-                            selectedContentKeys.includes(key),
-                          );
-                          return (
-                            <div key={type.value}>
-                              <div className="flex items-center justify-between mb-2">
-                                <div>
-                                  <p
-                                    className="text-xs font-bold uppercase tracking-[0.16em]"
-                                    style={{ color: C.faint }}
-                                  >
-                                    {type.label}
-                                    {type.label.endsWith("s") ? "" : "s"}
-                                  </p>
-                                  <p
-                                    className="text-[11px] mt-0.5"
-                                    style={{ color: C.faint }}
-                                  >
-                                    {
-                                      groupKeys.filter((key) =>
-                                        selectedContentKeys.includes(key),
-                                      ).length
-                                    }{" "}
-                                    of {items.length} selected
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() =>
-                                    setSelectedContentKeys((current) =>
-                                      allSelected
-                                        ? current.filter(
-                                            (key) => !groupKeys.includes(key),
-                                          )
-                                        : [
-                                            ...new Set([
-                                              ...current,
-                                              ...groupKeys,
-                                            ]),
-                                          ],
-                                    )
-                                  }
-                                  className="text-xs font-bold"
-                                  style={{ color: C.cta }}
-                                >
-                                  {allSelected ? "Clear group" : "Select all"}
-                                </button>
-                              </div>
-                              <div className="grid md:grid-cols-2 gap-2">
-                                {items.map((item) => {
-                                  const key = `${item.content_table}:${item.id}`;
-                                  const selected =
-                                    selectedContentKeys.includes(key);
-                                  return (
-                                    <button
-                                      key={key}
-                                      onClick={() => toggleContentKey(key)}
-                                      className="flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all"
-                                      style={{
-                                        background: selected
-                                          ? `${C.cta}10`
-                                          : C.page,
-                                        boxShadow: selected
-                                          ? `inset 0 0 0 1.5px ${C.cta}`
-                                          : "none",
-                                      }}
-                                    >
-                                      <span
-                                        className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"
-                                        style={{
-                                          background: selected
-                                            ? C.cta
-                                            : C.card,
-                                          border: `1.5px solid ${selected ? C.cta : C.divider}`,
-                                        }}
-                                      >
-                                        {selected && (
-                                          <Check
-                                            className="w-3 h-3"
-                                            style={{ color: "#ffffff" }}
-                                          />
-                                        )}
-                                      </span>
-                                      <span
-                                        className="text-sm font-semibold truncate"
-                                        style={{ color: C.text }}
-                                      >
-                                        {item.title}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {contentOptions.length === 0 && (
-                          <div
-                            className="rounded-2xl py-14 text-center"
-                            style={{ background: C.page }}
-                          >
-                            <Layers3
-                              className="w-8 h-8 mx-auto"
-                              style={{ color: C.faint }}
-                            />
-                            <p
-                              className="text-sm mt-3"
-                              style={{ color: C.muted }}
-                            >
-                              No published content is available.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="h-full min-h-[520px] grid place-items-center text-center p-8">
-                    <div>
-                      <ShieldCheck
-                        className="w-10 h-10 mx-auto"
-                        style={{ color: C.faint }}
-                      />
-                      <p className="font-bold mt-3" style={{ color: C.text }}>
-                        Select a plan to begin
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </section>
-            </div>
+            <PlansTab
+              C={C}
+              summaries={planSummaries}
+              selectedPlan={selectedPlan}
+              onSelect={selectPlan}
+              showArchived={showArchivedPlans}
+              setShowArchived={setShowArchivedPlans}
+              busy={busy}
+              menuOpen={!!selectedPlan && planCardMenuId === selectedPlan.id}
+              setMenuOpen={(open) => setPlanCardMenuId(open && selectedPlan ? selectedPlan.id : null)}
+              onCreate={openPlanBuilder}
+              onEdit={openEditPlan}
+              onToggle={togglePlan}
+              onBulk={openBulkImport}
+              onRecommend={setPlanRecommended}
+              onArchive={setPlanArchived}
+              onDelete={deletePlan}
+              planContent={planContent}
+              contentOptions={contentOptions}
+              selectedContentKeys={selectedContentKeys}
+              setSelectedContentKeys={setSelectedContentKeys}
+              toggleContentKey={toggleContentKey}
+              contentSearch={contentSearch}
+              setContentSearch={setContentSearch}
+              onSaveContent={savePlanContentSelection}
+            />
           )}
         </>
       )}
@@ -3673,35 +2209,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               border: `1px solid ${C.divider}`,
             }}
           >
-            <button
-              role="menuitem"
-              onClick={openEnrol}
-              className="w-full flex items-start gap-3 rounded-xl px-3 py-3 text-left"
-              style={{ color: C.text }}
-            >
-              <UserPlus className="w-4 h-4 mt-0.5" style={{ color: C.cta }} />
-              <span>
-                <span className="block text-sm font-bold">Single learner</span>
-                <span className="block text-xs mt-1" style={{ color: C.faint }}>
-                  Select an existing learner or create a new account.
+            {[
+              { label: "One learner", sub: "Give access now or send a payment request", icon: UserPlus, onClick: openEnrol, disabled: false },
+              { label: "Many learners", sub: "Paste emails or a CSV for one plan", icon: Upload, onClick: () => openBulkImport(), disabled: activePlans.length === 0 },
+            ].map(({ label, sub, icon: Icon, onClick, disabled }) => (
+              <button
+                key={label}
+                role="menuitem"
+                onClick={onClick}
+                disabled={disabled}
+                className="w-full flex items-center gap-3 rounded-xl p-2 text-left disabled:opacity-50"
+                style={{ color: C.text }}
+              >
+                <IconChip color={C.cta} background={`${C.cta}14`}><Icon className="w-4 h-4" /></IconChip>
+                <span>
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
                 </span>
-              </span>
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => openBulkImport()}
-              disabled={activePlans.length === 0}
-              className="w-full flex items-start gap-3 rounded-xl px-3 py-3 text-left disabled:opacity-50"
-              style={{ color: C.text }}
-            >
-              <FileSpreadsheet className="w-4 h-4 mt-0.5" style={{ color: C.cta }} />
-              <span>
-                <span className="block text-sm font-bold">Bulk learners</span>
-                <span className="block text-xs mt-1" style={{ color: C.faint }}>
-                  Upload CSV or paste multiple learner emails.
-                </span>
-              </span>
-            </button>
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -3714,102 +2240,41 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             onClick={() => setSubscriberMenu(null)}
           />
           <div
-            className="fixed z-[75] w-52 rounded-xl p-2"
-            style={{
-              ...modalStyle(C),
-              top: subscriberMenu.top,
-              right: subscriberMenu.right,
-              background: dark ? C.pill : C.card,
-              border: `1px solid ${C.divider}`,
-            }}
+            role="menu"
+            className="fixed z-[75] w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2 grid"
+            style={{ ...modalStyle(C), top: subscriberMenu.top, right: subscriberMenu.right }}
           >
             {[
-              {
-                label: "Change plan",
-                tooltip: "Switch plans without changing price, duration, or expiry.",
-                icon: Layers3,
-                onClick: () =>
-                  openSubscriberAction(subscriberMenu.sub, "change-plan"),
-              },
-              {
-                label: "Request payment",
-                tooltip: "Send a renewal request; access extends after approval.",
-                icon: Clock3,
-                onClick: () =>
-                  openSubscriberAction(subscriberMenu.sub, "request-payment"),
-              },
-              {
-                label: "Extend access",
-                tooltip: "Record a verified payment and extend access immediately.",
-                icon: CalendarClock,
-                onClick: () =>
-                  openSubscriberAction(subscriberMenu.sub, "extend-access"),
-              },
-              {
-                label: "History",
-                tooltip: "View the learner's subscription payment history.",
-                icon: History,
-                onClick: () => showHistory(subscriberMenu.sub),
-              },
-            ].map(({ label, tooltip, icon: Icon, onClick }) => (
-              <div key={label} className="group/action relative">
+              { label: "Change plan", sub: "Keeps the dates and price", icon: ArrowLeftRight, onClick: () => openSubscriberAction(subscriberMenu.sub, "change-plan") },
+              { label: "Request payment", sub: "Send a renewal request", icon: Send, onClick: () => openSubscriberAction(subscriberMenu.sub, "request-payment") },
+              { label: "Extend access", sub: "Add time, paid or free", icon: CalendarClock, onClick: () => openSubscriberAction(subscriberMenu.sub, "extend-access") },
+              { label: "Payment history", sub: "Every payment and request", icon: History, onClick: () => showHistory(subscriberMenu.sub) },
+              null,
+              subscriberMenu.sub.status === "active"
+                ? { label: "Revoke access", sub: "Ends access today", icon: XCircle, onClick: () => cancelSubscription(subscriberMenu.sub), danger: true }
+                : undefined,
+              { label: "Delete account", sub: "Removes the learner for good", icon: Trash2, onClick: () => deleteSubscriberAccount(subscriberMenu.sub), danger: true },
+            ].map((item, index) => {
+              if (item === undefined) return null;
+              if (item === null) return <div key={index} className="my-1 mx-2" style={{ borderTop: `1px solid ${C.divider}` }} />;
+              const { label, sub, icon: Icon, onClick, danger } = item;
+              const P = palette(C);
+              return (
                 <button
+                  key={label}
+                  role="menuitem"
                   onClick={onClick}
-                  title={tooltip}
-                  className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
-                  style={{ color: C.text }}
+                  className="w-full flex items-center gap-3 rounded-xl p-2 text-left"
+                  style={{ color: danger ? P.bad : C.text }}
                 >
-                  <Icon className="w-4 h-4" style={{ color: C.cta }} />
-                  {label}
+                  <IconChip color={danger ? P.bad : C.cta} background={danger ? P.badSoft : P.ctaSoft}><Icon className="w-4 h-4" /></IconChip>
+                  <span>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
+                  </span>
                 </button>
-                <span
-                  role="tooltip"
-                  className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
-                  style={{ background: C.text, color: C.card }}
-                >
-                  {tooltip}
-                </span>
-              </div>
-            ))}
-            <div className="my-1" style={{ borderTop: `1px solid ${C.divider}` }} />
-            {subscriberMenu.sub.status === "active" && (
-              <div className="group/action relative">
-                <button
-                  onClick={() => cancelSubscription(subscriberMenu.sub)}
-                  title="Cancel the subscription but keep the learner account."
-                  className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
-                  style={{ color: C.deleteText }}
-                >
-                  <XCircle className="w-4 h-4" />
-                  Revoke access
-                </button>
-                <span
-                  role="tooltip"
-                  className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
-                  style={{ background: C.text, color: C.card }}
-                >
-                  Cancel the subscription but keep the learner account.
-                </span>
-              </div>
-            )}
-            <div className="group/action relative">
-              <button
-                onClick={() => deleteSubscriberAccount(subscriberMenu.sub)}
-                title="Permanently delete the learner while retaining anonymized financial history."
-                className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold"
-                style={{ color: C.deleteText }}
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete account
-              </button>
-              <span
-                role="tooltip"
-                className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
-                style={{ background: C.text, color: C.card }}
-              >
-                Permanently delete the learner while retaining anonymized financial history.
-              </span>
-            </div>
+              );
+            })}
           </div>
         </>
       )}
