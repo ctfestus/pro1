@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { buildShareMetadata } from '@/lib/content-share-metadata';
+import { buildContentJsonLd, buildShareMetadata } from '@/lib/content-share-metadata';
 import { getPricingPageData } from '@/lib/get-pricing-page-data';
 import { planPromotions, type PromotionTeaser } from '@/lib/pricing-offer';
 import { publicEventRedirect } from '@/lib/events/store';
@@ -47,5 +47,10 @@ export default async function Page({ params, searchParams }: {
     loadContentInstructor(id, catalogueType),
   ]);
   const publicEventPath = publicEvent ? `/events/${encodeURIComponent(publicEvent.slug)}` : null;
-  return <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} paystackEnabled={paystackIsConfigured()} instructor={instructor} />;
+  const jsonLd = await buildContentJsonLd(id, catalogueType, instructor);
+  return <>
+    {/* JSON in a script tag: escape "<" so a title can never close the tag. */}
+    {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />}
+    <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} paystackEnabled={paystackIsConfigured()} instructor={instructor} />
+  </>;
 }
