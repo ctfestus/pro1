@@ -41,6 +41,14 @@ const KIND_DESCRIPTION: Record<PurchasableContentTable, string> = {
   certifications: 'Prove what you have completed',
 };
 
+/** The plan's price at the chosen length, or at the length it is sold at closest to it. */
+function priceForLength(prices: PricingPlan['prices'], months: number | null) {
+  if (!prices.length) return null;
+  if (months === null) return prices[0];
+  return prices.find(row => row.durationMonths === months)
+    ?? [...prices].sort((a, b) => Math.abs(a.durationMonths - months) - Math.abs(b.durationMonths - months) || a.durationMonths - b.durationMonths)[0];
+}
+
 function billingLabel(months: number): string {
   if (months === 1) return 'Monthly';
   if (months === 3) return 'Quarterly';
@@ -56,7 +64,6 @@ export interface PricingSectionProps extends PricingPageData {
   signedIn: boolean;
   /** Whether a card checkout can be opened from here at all. */
   paystackEnabled: boolean;
-  supportEmail?: string;
   midAds?: AdCard[];
   durationOptions: number[];
   selectedDuration: number | null;
@@ -74,7 +81,6 @@ export function PricingSection({
   bodyFont,
   signedIn,
   paystackEnabled,
-  supportEmail,
   midAds,
   durationOptions,
   selectedDuration,
@@ -106,7 +112,7 @@ export function PricingSection({
       style={{ fontFamily: bFont }}
     >
       <div className="rounded-[30px] bg-white p-5 sm:p-8" style={{ boxShadow: '0 24px 80px rgba(16,24,40,0.12)' }}>
-        <div>
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-[28px] leading-9 font-black tracking-[-0.035em] sm:text-4xl sm:leading-[44px]" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
               Flexible Payment Plans
@@ -125,7 +131,21 @@ export function PricingSection({
             </p>
             )}
           </div>
-
+          {/* One switch for every plan, so it is plain that it changes all of them. */}
+          {durationOptions.length === 2 && durationOptions[0] !== durationOptions[1] && (
+            <div role="radiogroup" aria-label="Access length" className="inline-flex shrink-0 gap-1 rounded-full p-1" style={{ background: '#EEF1F5' }}>
+              {durationOptions.map(option => {
+                const selected = option === selectedDuration;
+                return (
+                  <button key={option} type="button" role="radio" aria-checked={selected} onClick={() => onSelectDuration(option)}
+                    className="rounded-full px-4 py-2 text-sm font-bold transition-colors"
+                    style={{ background: selected ? primaryColor : 'transparent', color: selected ? '#FFFFFF' : '#475467' }}>
+                    {billingLabel(option)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -145,9 +165,6 @@ export function PricingSection({
               hFont={hFont}
               primaryColor={primaryColor}
               accentColor={accentColor}
-              durationOptions={durationOptions}
-              selectedDuration={selectedDuration}
-              onSelectDuration={onSelectDuration}
               buyLabel={buyLabel}
               busy={busyPriceId}
               onBuy={buy}
@@ -162,7 +179,6 @@ export function PricingSection({
           </div>
         )}
 
-        <TeamsStrip supportEmail={supportEmail} accentColor={accentColor} hFont={hFont} />
       </div>
 
       <TrustRail />
@@ -192,22 +208,20 @@ export function PricingSection({
 }
 
 function PlanCard({
-  plan, months, hFont, primaryColor, accentColor, durationOptions, selectedDuration,
-  onSelectDuration, buyLabel, busy, onBuy,
+  plan, months, hFont, primaryColor, accentColor, buyLabel, busy, onBuy,
 }: {
   plan: PricingPlan;
   months: number | null;
   hFont?: string;
   primaryColor: string;
   accentColor: string;
-  durationOptions: number[];
-  selectedDuration: number | null;
-  onSelectDuration: (months: number) => void;
   buyLabel: string;
   busy: string;
   onBuy: (price: PricingPlan['prices'][number]) => void;
 }) {
-  const price = plan.prices.find(row => row.durationMonths === months) ?? null;
+  const price = priceForLength(plan.prices, months);
+  // Not sold at the chosen length: the card shows the length it is sold at, with its own button.
+  const otherLength = price !== null && months !== null && price.durationMonths !== months;
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
   const benefits = planBenefits(plan.coverage);
   const promotion = Boolean(price?.listAmount && price.listAmount > price.amount);
@@ -216,9 +230,6 @@ function PlanCard({
     ? `${price.discountValue}% off`
     : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`;
   const planSurface = plan.recommended ? '#FFFFFF' : '#F7F9FB';
-  const shortDuration = durationOptions[0] ?? null;
-  const longDuration = durationOptions[1] ?? null;
-  const longDurationSelected = longDuration !== null && selectedDuration === longDuration;
 
   return (
     <article
@@ -242,30 +253,6 @@ function PlanCard({
           )}
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 text-[22px] leading-7 font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
-            {plan.recommended && shortDuration !== null && longDuration !== null && shortDuration !== longDuration && (
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={longDurationSelected}
-                  aria-label={`Pay ${billingLabel(longDuration).toLowerCase()}`}
-                  onClick={() => onSelectDuration(longDurationSelected ? shortDuration : longDuration)}
-                  className="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none"
-                  style={{ background: longDurationSelected ? '#FFCC00' : '#D0D5DD' }}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`absolute left-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full shadow-sm transition-transform duration-200 motion-reduce:transition-none ${longDurationSelected ? 'translate-x-4' : ''}`}
-                    style={{ background: longDurationSelected ? '#101828' : '#FFFFFF', color: '#FFFFFF' }}
-                  >
-                    {longDurationSelected && <Check className="h-3 w-3" strokeWidth={3} />}
-                  </span>
-                </button>
-                <span className="text-xs font-black whitespace-nowrap" style={{ color: longDurationSelected ? '#101828' : '#667085' }}>
-                  Pay {billingLabel(longDuration).toLowerCase()}
-                </span>
-              </div>
-            )}
           </div>
           <p className="mt-2 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
             {plan.description || 'Full access while your selected term runs.'}
@@ -293,6 +280,11 @@ function PlanCard({
               <p className="text-4xl font-black tracking-[-0.045em]" style={{ fontFamily: hFont, color: '#101828' }}>{money(price.currency, price.amount)}</p>
               <p className="pb-1 text-xs font-semibold" style={{ color: '#667085' }}>for {durationLabel(price.durationMonths)}</p>
             </div>
+            {otherLength && months !== null && (
+              <p className="mt-2 text-xs font-semibold" style={{ color: '#475467' }}>
+                Not sold for {durationLabel(months)}. Shown for {durationLabel(price.durationMonths)}.
+              </p>
+            )}
             {price.listAmount && price.listAmount > price.amount && (
               <p className="mt-2 text-xs" style={{ color: '#667085' }}>
                 Usually <span className="line-through" style={{ color: '#98A2B3' }}>{money(price.currency, price.listAmount)}</span>
@@ -440,8 +432,11 @@ function ComparisonTable({
   const columns = [
     { key: 'starter', name: 'Starter', note: 'Free' },
     ...plans.map(plan => {
-      const price = plan.prices.find(row => row.durationMonths === months);
-      return { key: plan.id, name: plan.name, note: price ? money(price.currency, price.amount) : 'Unavailable' };
+      const price = priceForLength(plan.prices, months);
+      const note = !price ? 'Unavailable'
+        : price.durationMonths === months ? money(price.currency, price.amount)
+        : `${money(price.currency, price.amount)} / ${durationLabel(price.durationMonths)}`;
+      return { key: plan.id, name: plan.name, note };
     }),
   ];
 
@@ -501,33 +496,3 @@ function ComparisonTable({
   );
 }
 
-function TeamsStrip({ supportEmail, accentColor, hFont }: { supportEmail?: string; accentColor: string; hFont?: string }) {
-  return (
-    <section className="relative mt-8 overflow-hidden rounded-[26px] px-6 py-7 sm:px-8" style={{ background: accentColor, color: '#101828' }}>
-      <div aria-hidden="true" className="absolute -right-14 -top-24 h-64 w-64 rounded-full bg-white opacity-25 blur-3xl" />
-      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828' }}>
-            <Building2 className="h-5 w-5" />
-          </span>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[22px] leading-7 font-black" style={{ color: '#101828', fontFamily: hFont }}>Learning for teams</h3>
-              <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
-            </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'rgba(16,24,40,0.72)' }}>
-              Shared billing, seats for your organisation, and a clear view of group progress.
-            </p>
-          </div>
-        </div>
-        {supportEmail ? (
-          <a href={`mailto:${supportEmail}?subject=Teams%20plan`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
-            Register interest <ArrowRight className="h-4 w-4" />
-          </a>
-        ) : (
-          <span className="shrink-0 rounded-xl px-4 py-3 text-center text-sm font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
-        )}
-      </div>
-    </section>
-  );
-}

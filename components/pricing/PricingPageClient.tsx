@@ -189,7 +189,6 @@ export function PricingPageClient(props: PricingPageClientProps) {
           bodyFont={bodyFont}
           signedIn={signedIn}
           paystackEnabled={paystackEnabled}
-          supportEmail={supportEmail}
           midAds={midAds}
           durationOptions={billingDurationOptions}
           selectedDuration={selectedDuration}

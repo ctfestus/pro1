@@ -63,7 +63,7 @@ describe('the purchase moment', () => {
 describe('price comparison', () => {
   it('uses the shared, tested calculation rather than inlining its own', () => {
     expect(component).toContain("import { comparePlanPrice } from '@/lib/plan-price-comparison'");
-    expect(component).toContain('comparePlanPrice(price, prices)');
+    expect(component).toContain('comparePlanPrice(selectedPrice, prices)');
     expect(component).not.toContain('Math.round((1 - perMonth');
   });
 

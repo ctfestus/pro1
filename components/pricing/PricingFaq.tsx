@@ -48,10 +48,6 @@ export function PricingFaq({ headingFont, bodyFont, supportEmail, paidPlanName }
       q: 'Can I switch to a different plan?',
       a: 'You hold one plan at a time. Renewing or extending the plan you already have is something you can do yourself; moving to a different one needs the learning team, so get in touch and we will sort it.',
     },
-    {
-      q: 'Do you offer plans for teams?',
-      a: 'Not yet. Team access with shared billing and group reporting is something we are building. Register your interest and we will come back to you when it is ready.',
-    },
   ];
 
   return (
