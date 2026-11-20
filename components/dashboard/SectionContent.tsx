@@ -1,16 +1,13 @@
 'use client';
 
 import { useState, useEffect, useContext } from 'react';
-import Link from 'next/link';
-import { CalendarDays, Plus, Users, Megaphone, BadgePercent } from 'lucide-react';
-import { PROMO_PLACEMENTS, promoStatus } from '@/lib/promotions';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
-import { GenericListSection } from '@/components/dashboard/primitives';
+import { LIGHT_C } from '@/lib/theme';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { STAFF_SECTION_IDS, COMING_SOON, ComingSoon, type SectionId } from '@/components/dashboard/nav';
-import { getFormType, EventCard } from '@/components/dashboard/content-cards';
+import { getFormType } from '@/components/dashboard/content-cards';
 import { CoursesSection } from '@/components/dashboard/courses/CoursesSection';
-import { SchedulesManageSection } from '@/components/dashboard/SchedulesManageSection';
+import { AnnouncementsSection, CommunitySection, PromotionsSection, SchedulesSection } from '@/components/dashboard/engagement/pages';
+import { EventsSection } from '@/components/dashboard/engagement/EventsSection';
 import { RecordingsManageSection } from '@/components/dashboard/RecordingsManageSection';
 import { VirtualExperiencesManageSection } from '@/components/dashboard/VirtualExperiencesManageSection';
 import { CertificationsManageSection } from '@/components/dashboard/CertificationsManageSection';
@@ -33,9 +30,8 @@ import { ApplicationsSection } from '@/components/dashboard/ApplicationsSection'
 import { EmailTemplatesSection } from '@/components/dashboard/EmailTemplatesSection';
 import { BooksManageSection } from '@/components/dashboard/books/BooksManageSection';
 
-export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen, setFormToDelete, onDuplicated, C }: {
-  section: SectionId; forms: any[]; shareMenuOpen: string | null;
-  setShareMenuOpen: (id: string | null) => void; setFormToDelete: (id: string) => void;
+export function SectionContent({ section, forms, setFormToDelete, onDuplicated, C }: {
+  section: SectionId; forms: any[]; setFormToDelete: (id: string) => void;
   onDuplicated: (newForm: any) => void; C: typeof LIGHT_C;
 }) {
   const isStaff = useContext(IsStaffContext);
@@ -69,72 +65,14 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
 
   if (section === 'certifications') return <CertificationsManageSection C={C} />;
 
-  if (section === 'community') return <GenericListSection table="communities" label="Communities" createHref="/create/community" createLabel="New Community" Icon={Users} C={C} renderRow={item => (
-    <div className="min-w-0">
-      <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.name}</p>
-      {item.description && <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>{item.description}</p>}
-      <span className="inline-flex text-xs px-2 py-1 rounded-lg mt-2" style={{ background: C.pill, color: C.muted }}>{item.status}</span>
-    </div>
-  )}/>;
-
-  if (section === 'announcements') return <GenericListSection table="announcements" label="Announcements" createHref="/create/announcement" createLabel="New Announcement" Icon={Megaphone} C={C} renderRow={item => (
-    <div className="min-w-0">
-      <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.title}</p>
-      <p className="text-xs mt-0.5" style={{ color: C.faint }}>{new Date(item.published_at).toLocaleDateString()}{item.is_pinned ? ' · Pinned' : ''}</p>
-    </div>
-  )}/>;
-
-  if (section === 'promotions') return <GenericListSection table="promotions" label="Promotions" createHref="/create/promotion" createLabel="New Promotion" Icon={BadgePercent} C={C} renderRow={item => {
-    const status = promoStatus(item);
-    return (
-      <div className="min-w-0">
-        <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.title}</p>
-        <p className="text-xs mt-0.5" style={{ color: C.faint }}>
-          {item.kind === 'events' ? 'Events - ' : ''}
-          {(item.placements ?? []).map((p: string) => PROMO_PLACEMENTS.find(x => x.id === p)?.label ?? p).join(', ')}
-          {item.cohort_ids?.length ? ` - ${item.cohort_ids.length} audience${item.cohort_ids.length === 1 ? '' : 's'}` : ' - Everyone'}
-        </p>
-        <span className="inline-flex text-xs px-2 py-1 rounded-lg mt-2"
-          style={status === 'Live' ? { background: C.green, color: '#fff' } : { background: C.pill, color: C.muted }}>{status}</span>
-      </div>
-    );
-  }}/>;
+  if (section === 'community')     return <CommunitySection C={C} />;
+  if (section === 'announcements') return <AnnouncementsSection C={C} />;
+  if (section === 'promotions')    return <PromotionsSection C={C} />;
+  if (section === 'schedule')      return <SchedulesSection C={C} />;
+  if (section === 'events')        return <EventsSection events={forms.filter(f => getFormType(f) === 'event')} setFormToDelete={setFormToDelete} C={C} />;
 
   if (section === 'courses') return <CoursesSection courses={forms.filter(f => getFormType(f) === 'course')} setFormToDelete={setFormToDelete} C={C} />;
 
-  if (section === 'schedule')    return <SchedulesManageSection C={C}/>;
   if (section === 'recordings') return <RecordingsManageSection C={C}/>;
-
-  const filtered = forms.filter(f => getFormType(f) === 'event');
-
-  if (filtered.length === 0) {
-    return (
-      <div className="text-center py-24 rounded-3xl" style={{ ...cardStyle(C) }}>
-        <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: C.lime }}>
-          <CalendarDays className="w-7 h-7" style={{ color: C.green }}/>
-        </div>
-        <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No events yet</h2>
-        <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first event to get started.</p>
-        <div className="flex items-center justify-center gap-3 flex-wrap">
-          <Link href="/create?type=event" className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
-            style={{ background: C.cta, color: C.ctaText }}>
-            <Plus className="w-4 h-4"/> New event
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Only Events is left to reach here.
-  const sorted = [...filtered].sort((a, b) => {
-    const da = a.config?.eventDetails?.date ? new Date(a.config.eventDetails.date).getTime() : 0;
-    const db = b.config?.eventDetails?.date ? new Date(b.config.eventDetails.date).getTime() : 0;
-    return db - da;
-  });
-  return (
-    <div>{sorted.map((form, i) => (
-      <EventCard key={form.id} form={form} index={i} isLast={i === sorted.length - 1}
-        shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen} setFormToDelete={setFormToDelete}/>
-    ))}</div>
-  );
+  return null;
 }

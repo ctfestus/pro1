@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Plus, Trash2, Sun, Moon, Download, Menu } from 'lucide-react';
+import { Loader2, Trash2, Sun, Moon, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
@@ -14,8 +14,13 @@ import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { NAV_ITEMS, STAFF_SECTION_IDS, type SectionId } from '@/components/dashboard/nav';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SectionContent } from '@/components/dashboard/SectionContent';
-import { getFormType } from '@/components/dashboard/content-cards';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+
+// Sections that draw their own page heading, so the dashboard does not add one above them.
+const OWN_HEADING = new Set<SectionId>([
+  'learning_paths', 'subscriptions', 'payments', 'students', 'cohorts', 'courses', 'assignments',
+  'virtual_experiences', 'certifications', 'events', 'community', 'announcements', 'promotions', 'schedule',
+]);
 
 // --- Cache ---
 const _cache: { forms: any[] | null; profile: any | null; user: any | null } = { forms: null, profile: null, user: null };
@@ -36,7 +41,6 @@ export default function DashboardPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const deletingForm = forms.find(f => f.id === formToDelete);
   const deletingName = deletingForm?.config?.title || deletingForm?.title || 'this item';
-  const [shareMenuOpen, setShareMenuOpen] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('courses');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isStaff = profile?.role === 'staff';
@@ -255,7 +259,6 @@ export default function DashboardPage() {
 
   // -- Main render ---
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)!;
-  const eventCount  = forms.filter(f => getFormType(f) === 'event').length;
 
   return (
     <div className="platform-font-scope min-h-screen flex flex-col" style={{ background: C.page }}>
@@ -294,32 +297,17 @@ export default function DashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Section header */}
-            <div className={`flex flex-wrap items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8 ${activeSection === 'learning_paths' || activeSection === 'subscriptions' || activeSection === 'payments' || activeSection === 'students' || activeSection === 'cohorts' || activeSection === 'courses' || activeSection === 'assignments' || activeSection === 'virtual_experiences' || activeSection === 'certifications' ? 'hidden' : ''}`}>
-              <div>
+            {/* Section header: pages in the newer admin style draw their own heading. */}
+            {!OWN_HEADING.has(activeSection) && (
+              <div className="flex flex-wrap items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8">
                 <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.text }}>{activeItem.label}</h1>
-                {activeSection === 'events' && (
-                  <p className="text-sm mt-1" style={{ color: C.faint }}>{`${eventCount} event${eventCount !== 1 ? 's' : ''}`}</p>
-                )}
               </div>
-              {activeSection === 'events' && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href="/create?type=event"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
-                    style={{ background: C.cta, color: C.ctaText }}>
-                    <Plus className="w-4 h-4"/> New Event
-                  </Link>
-                </div>
-              )}
-            </div>
+            )}
 
             <IsStaffContext.Provider value={isStaff}>
               <SectionContent
                 section={activeSection}
                 forms={forms}
-                shareMenuOpen={shareMenuOpen}
-                setShareMenuOpen={setShareMenuOpen}
                 setFormToDelete={setFormToDelete}
                 onDuplicated={newForm => {
                   const updated = [newForm, ...forms];

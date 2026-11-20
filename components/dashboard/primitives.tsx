@@ -4,9 +4,9 @@
 // so sections can import them as they get split into their own files.
 // No behavior or styling changes.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Send, Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Send, Plus, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 
@@ -165,89 +165,6 @@ export function PushAllButton({ items, C, className, style }: {
       style={style ?? { background: C.card, color: state.status === 'done' ? C.green : C.muted }}>
       <Send className={style ? 'w-4 h-4' : 'w-3.5 h-3.5'} /> {label}
     </button>
-  );
-}
-
-export function GenericListSection({ table, label, createHref, createLabel, Icon, C, renderRow }: {
-  table: string; label: string; createHref: string; createLabel: string;
-  Icon: React.ElementType; C: typeof LIGHT_C;
-  renderRow: (item: any) => React.ReactNode;
-}) {
-  const [items, setItems]   = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.from(table).select('*').order('created_at', { ascending: false }).then(({ data }) => {
-      setItems(data ?? []);
-      setLoading(false);
-    });
-  }, [table]);
-
-  async function deleteItem(id: string) {
-    const singular = label.endsWith('s') ? label.slice(0, -1).toLowerCase() : label.toLowerCase();
-    const confirmed = window.confirm(`Delete this ${singular}? This action cannot be undone.`);
-    if (!confirmed) return;
-
-    setDeletingId(id);
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    setDeletingId(null);
-    if (error) {
-      window.alert(error.message || `Failed to delete ${singular}.`);
-      return;
-    }
-    setItems(prev => prev.filter(item => item.id !== id));
-  }
-
-  if (loading) return (
-    <div className="space-y-3">
-      {[0,1,2].map(i => <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: C.card }}/>)}
-    </div>
-  );
-
-  if (!items.length) return (
-    <div className="text-center py-24 rounded-3xl" style={{ ...cardStyle(C) }}>
-      <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: C.lime }}>
-        <Icon className="w-7 h-7" style={{ color: C.green }}/>
-      </div>
-      <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No {label} yet</h2>
-      <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first {label.toLowerCase()} to get started.</p>
-      <Link href={createHref} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ background: C.cta, color: C.ctaText }}>
-        <Plus className="w-4 h-4"/> {createLabel}
-      </Link>
-    </div>
-  );
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold" style={{ color: C.text }}>{label}</h2>
-        <Link href={createHref} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-          style={{ background: C.cta, color: C.ctaText }}>
-          <Plus className="w-4 h-4"/> {createLabel}
-        </Link>
-      </div>
-      <div className="space-y-3">
-        {items.map(item => (
-          <div key={item.id} className="flex items-center justify-between gap-3 p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
-            <div className="min-w-0 flex-1">{renderRow(item)}</div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Link href={`${createHref}?edit=${item.id}`}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                style={{ background: C.pill, color: C.muted, textDecoration: 'none' }}>
-                <Edit2 className="w-3.5 h-3.5"/> Edit
-              </Link>
-              <button onClick={() => deleteItem(item.id)} disabled={deletingId === item.id}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`, cursor: deletingId === item.id ? 'not-allowed' : 'pointer', opacity: deletingId === item.id ? 0.6 : 1 }}>
-                <Trash2 className="w-3.5 h-3.5"/> {deletingId === item.id ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
