@@ -46,10 +46,9 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
   const open = () => router.push(`/dashboard/${course.id}`);
   const P = palette(C);
   const reachText = audience(course, reach);
-  // The status sits on the cover: a see-through, blurred background keeps it readable over any image.
-  const glass = C.page === DARK_C.page ? 'rgba(30,31,38,0.72)' : 'rgba(255,255,255,0.78)';
+  // The status sits on the cover, so it has a solid background to stay readable over any image.
   const tag = (text: string, color: string, dot = false) => (
-    <span className="inline-flex items-center gap-2 rounded-full px-2 text-xs font-semibold leading-6 whitespace-nowrap backdrop-blur-md" style={{ background: glass, color }}>
+    <span className="inline-flex items-center gap-2 rounded-full px-2 text-xs font-semibold leading-6 whitespace-nowrap" style={{ background: C.card, color, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
       {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} />}
       {text}
     </span>
