@@ -2,20 +2,22 @@
 
 // Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
 
-import { useState, useEffect, useMemo, useRef, isValidElement, cloneElement } from 'react';
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Database, Download, Edit2, Eye, FileCode, FileText, GripVertical, Loader2, Plus, Save, Search, Sparkles, Trash2, Upload, Video, X } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Copy, Database, Download, Edit2, Eye, FileCode, FileText, GripVertical, Loader2, Plus, Sparkles, Trash2, Upload, Video, X, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { downloadJSON } from '@/lib/dashboard-export';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
-import { LIGHT_C, DARK_C, cardStyle } from '@/lib/theme';
+import { LIGHT_C, DARK_C, type ThemeColors } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
 import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, matchesFilters, type Status } from '@/components/dashboard/content/kit';
 import { BUTTON, FIELD, Modal, inputStyle as fieldStyle } from '@/components/dashboard/subscriptions/Modal';
-import { Card, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+import { Switch } from '@/components/dashboard/subscriptions/PlanForm';
+import { Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
 
 function WhatsAppIcon({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -48,6 +50,20 @@ const BLANK_DATASET: Omit<DatasetRow, 'id' | 'created_at'> = {
   files: [],
   row_count: null, source: null, source_url: null, scenario: null, disclaimer: null, table_type: null, sql_workbench_enabled: true, is_published: false,
 };
+
+/** One titled block of the dataset editor's card; blocks after the first get a divider line. */
+function Sect({ title, aside, action, first, children, C }: { title: string; aside?: string; action?: React.ReactNode; first?: boolean; children: React.ReactNode; C: ThemeColors }) {
+  return (
+    <div className="p-5 grid grid-cols-[minmax(0,1fr)] gap-4" style={first ? undefined : { borderTop: `1px solid ${C.divider}` }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-base font-semibold flex-1" style={{ color: C.text }}>{title}</h3>
+        {aside && <span className="text-xs" style={{ color: C.muted }}>{aside}</span>}
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
   const [datasets, setDatasets]   = useState<DatasetRow[]>([]);
@@ -569,512 +585,361 @@ export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
     syncAnalystSections(sections);
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '9px 12px', borderRadius: 10, fontSize: 14,
-    border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text,
-    outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-  };
-  const font = 'var(--font-sans, Inter, sans-serif)';
-  const isDark = C === DARK_C;
-  const cardBorder = isDark ? 'none' : `1px solid ${C.cardBorder}`;
-
   if (view === 'editor') {
-    const EDITOR_TABS = [
-      { id: 'overview' as const,   label: 'Overview',        hint: 'Title, category and cover', Icon: FileText },
-      { id: 'dataset' as const,    label: 'Dataset',         hint: 'File and SQL workbench',     Icon: Database },
-      { id: 'phases' as const,     label: 'Analysis Phases', hint: 'Tasks for students',         Icon: Search },
-      { id: 'disclaimer' as const, label: 'Disclaimer',      hint: 'Usage notes',                Icon: AlertTriangle },
-    ];
-
-    // VE-style: one cohesive C.cta accent for every section head (the `accent` arg is ignored).
-    const sectionHead = (icon: React.ReactNode, label: string, _accent?: string) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 9, background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {isValidElement(icon) ? cloneElement(icon as React.ReactElement<{ color?: string }>, { color: C.muted }) : icon}
-        </div>
-        <span style={{ fontWeight: 700, fontSize: 15, color: C.text }}>{label}</span>
-      </div>
-    );
-
-    const card = (children: React.ReactNode) => (
-      <div style={{ ...cardStyle(C), borderRadius: 18, padding: 24 }}>
-        {children}
-      </div>
-    );
-
+    // The admin editor style: the dark-mode blue for buttons and selection controls, fields from the shared kit.
+    const EC = LC;
+    const P = palette(EC);
+    const TABS = [['overview', 'Overview'], ['dataset', 'Dataset'], ['phases', 'Analysis phases'], ['disclaimer', 'Disclaimer']] as const;
     const analystSections = normalizeAnalystSections(form.analyst_sections, form.sample_questions, form.sample_question_types);
-
-    // Quiet, clickable type tag: shows the current task type and toggles between Analytics/SQL on click.
-    const typeToggle = (active: DatasetQuestionType, onSelect: (t: DatasetQuestionType) => void) => (
-      <button type="button"
-        onClick={() => onSelect(active === 'sql' ? 'analytics' : 'sql')}
-        title="Click to switch between Analytics and SQL"
-        style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 20, border: 'none', background: active === 'sql' ? 'rgba(22,163,74,0.12)' : C.input, color: active === 'sql' ? '#16a34a' : C.faint, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-        {active === 'sql' ? 'SQL' : 'Analytics'}
-      </button>
-    );
-
-    const analystSectionEditor = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {analystSections.length === 0 && (
-          <div style={{ padding: '28px 16px', borderRadius: 12, background: C.page, textAlign: 'center' }}>
-            <p style={{ margin: 0, color: C.faint, fontSize: 13 }}>No analysis phases yet. Add one to get started.</p>
-          </div>
-        )}
-        {analystSections.map((section, sectionIndex) => {
-          const sectionId = section.id || `section-${sectionIndex + 1}`;
-          const expanded = expandedAnalystSections[sectionId] !== false;
-          const isDragging = dragState?.kind === 'section' && dragState.id === sectionId;
-          const isDropTarget = dragState?.kind === 'section' && dragOverId === sectionId && dragState.id !== sectionId;
-          return (
-            <div key={sectionId}
-              data-phasecard
-              onDragOver={e => { if (dragState?.kind === 'section') { e.preventDefault(); setDragOverId(sectionId); } }}
-              onDrop={e => { if (dragState?.kind === 'section') { e.preventDefault(); reorderAnalystSections(dragState.id, sectionId); } setDragOverId(null); }}
-              style={{ background: C.page, borderRadius: 14, overflow: 'hidden', opacity: isDragging ? 0.45 : 1, outline: isDropTarget ? `2px solid ${C.cta}` : 'none', outlineOffset: -2 }}>
-              {/* Phase header */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '12px 14px' }}>
-                <span
-                  draggable
-                  onDragStart={e => { setDragState({ kind: 'section', sectionId, id: sectionId }); e.dataTransfer.effectAllowed = 'move'; const card = (e.currentTarget as HTMLElement).closest('[data-phasecard]'); if (card) e.dataTransfer.setDragImage(card, 20, 20); }}
-                  onDragEnd={() => { setDragState(null); setDragOverId(null); }}
-                  title="Drag to reorder phase"
-                  style={{ cursor: 'grab', color: C.faint, display: 'flex', flexShrink: 0, padding: '0 2px' }}
-                >
-                  <GripVertical size={16} />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setExpandedAnalystSections(prev => ({ ...prev, [sectionId]: !expanded }))}
-                  style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', color: C.faint, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-                >
-                  {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-                <span style={{ fontSize: 12, fontWeight: 800, color: C.faint, flexShrink: 0 }}>{sectionIndex + 1}</span>
-                <input
-                  value={section.title}
-                  onChange={e => updateAnalystSection(sectionId, { title: e.target.value })}
-                  placeholder="Phase title, e.g. Channel and audience breakdown"
-                  style={{ flex: 1, border: 'none', background: 'transparent', fontWeight: 700, fontSize: 15, color: C.text, outline: 'none', padding: '4px 0', fontFamily: 'inherit', minWidth: 0 }}
-                />
-                <span style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>{section.tasks.length} {section.tasks.length === 1 ? 'task' : 'tasks'}</span>
-                <button onClick={() => removeAnalystSection(sectionId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint, display: 'flex', flexShrink: 0, padding: 4 }}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
-              {expanded && (
-                <div style={{ padding: '0 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <RichTextEditor
-                    value={section.brief ?? ''}
-                    onChange={html => updateAnalystSection(sectionId, { brief: html })}
-                    placeholder="Briefly describe what this phase asks the learner to investigate."
-                    bgOverride={C.card}
-                    enableAiAssist
-                  />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 150px', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.card, borderRadius: 10, padding: '0 12px', border: `1px solid ${C.cardBorder}` }}>
-                      <Video size={15} style={{ color: C.faint, flexShrink: 0 }} />
-                      <input
-                        value={section.videoUrl ?? ''}
-                        onChange={e => updateAnalystSection(sectionId, { videoUrl: e.target.value })}
-                        placeholder="Embed link (optional)"
-                        style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13, color: C.text, padding: '9px 0', fontFamily: 'inherit', minWidth: 0 }}
-                      />
-                      {/* Interactive HTML embed: uploads to the public form-assets bucket; the player
-                          renders it sandboxed at full height (same treatment as Canva) */}
-                      <label title="Upload a self-contained HTML file with inline assets (max 10 MB)" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                        <input type="file" accept=".html,.htm,text/html" style={{ display: 'none' }} onChange={async e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          e.target.value = '';
-                          if (file.size > 10 * 1024 * 1024) { setError(`HTML file is too large (${(file.size / 1048576).toFixed(1)} MB). Maximum is 10 MB.`); return; }
-                          setError('');
-                          try {
-                            const url = await uploadToStorage(file, 'lesson-html');
-                            updateAnalystSection(sectionId, { videoUrl: url });
-                          } catch (err: any) { setError(err?.message || 'HTML upload failed. Please try again.'); }
-                        }} />
-                        <FileCode size={15} style={{ color: C.faint }} />
-                      </label>
-                    </div>
-                    <select
-                      value={section.difficulty ?? ''}
-                      onChange={e => updateAnalystSection(sectionId, { difficulty: e.target.value })}
-                      style={{ ...inputStyle, background: C.card, fontSize: 13, cursor: 'pointer' }}
-                    >
-                      <option value="">Difficulty: Auto</option>
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                    </select>
-                    <input
-                      value={section.duration ?? ''}
-                      onChange={e => updateAnalystSection(sectionId, { duration: e.target.value })}
-                      placeholder="Duration: Auto"
-                      style={{ ...inputStyle, background: C.card, fontSize: 13 }}
-                    />
-                  </div>
-                  {(() => {
-                    const embedUrl = safeEmbedUrl(section.videoUrl ?? '');
-                    if (!embedUrl) return null;
-                    const isHtml = isHtmlEmbedUrl(embedUrl);
-                    return (
-                      <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.cardBorder}` }}>
-                        <iframe src={embedUrl}
-                          style={{ width: '100%', border: 'none', display: 'block', ...(isHtml ? { height: 480 } : { aspectRatio: '16 / 9' }) }}
-                          sandbox={isHtml ? HTML_EMBED_SANDBOX : undefined}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-                      </div>
-                    );
-                  })()}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {section.tasks.map((task, taskIndex) => {
-                      const taskId = task.id || `task-${sectionIndex + 1}-${taskIndex + 1}`;
-                      const taskDragging = dragState?.kind === 'task' && dragState.id === taskId;
-                      const taskDropTarget = dragState?.kind === 'task' && dragState.sectionId === sectionId && dragOverId === taskId && dragState.id !== taskId;
-                      return (
-                        <div key={taskId}
-                          data-taskcard
-                          onDragOver={e => { if (dragState?.kind === 'task' && dragState.sectionId === sectionId) { e.preventDefault(); e.stopPropagation(); setDragOverId(taskId); } }}
-                          onDrop={e => { if (dragState?.kind === 'task' && dragState.sectionId === sectionId) { e.preventDefault(); e.stopPropagation(); reorderAnalystTasks(sectionId, dragState.id, taskId); } setDragOverId(null); }}
-                          style={{ background: C.card, borderRadius: 10, padding: 10, opacity: taskDragging ? 0.45 : 1, outline: taskDropTarget ? `2px solid ${C.cta}` : 'none', outlineOffset: -2 }}>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                            <span
-                              draggable
-                              onDragStart={e => { setDragState({ kind: 'task', sectionId, id: taskId }); e.dataTransfer.effectAllowed = 'move'; const card = (e.currentTarget as HTMLElement).closest('[data-taskcard]'); if (card) e.dataTransfer.setDragImage(card, 20, 20); }}
-                              onDragEnd={() => { setDragState(null); setDragOverId(null); }}
-                              title="Drag to reorder task"
-                              style={{ cursor: 'grab', color: C.faint, display: 'flex', flexShrink: 0, marginTop: 3 }}
-                            >
-                              <GripVertical size={14} />
-                            </span>
-                            <textarea
-                              value={task.prompt}
-                              onChange={e => updateAnalystTask(sectionId, taskId, { prompt: e.target.value })}
-                              rows={1}
-                              ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
-                              onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }}
-                              placeholder={task.type === 'sql' ? 'e.g. Which channel has the highest conversion rate?' : 'e.g. What targeting recommendation should the team make?'}
-                              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 600, color: C.text, fontFamily: 'inherit', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, padding: '2px 0' }}
-                            />
-                            {typeToggle(task.type ?? 'analytics', t => updateAnalystTask(sectionId, taskId, { type: t }))}
-                            <button onClick={() => removeAnalystTask(sectionId, taskId)} style={{ marginTop: 2, background: 'none', border: 'none', cursor: 'pointer', color: C.faint, display: 'flex', flexShrink: 0, padding: 2 }}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                          <textarea
-                            value={task.description ?? ''}
-                            onChange={e => updateAnalystTask(sectionId, taskId, { description: e.target.value })}
-                            rows={1}
-                            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
-                            onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }}
-                            placeholder="Instructions for the student (optional)"
-                            style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.muted, resize: 'none', overflow: 'hidden', lineHeight: 1.5, fontFamily: 'inherit', marginTop: 6, boxSizing: 'border-box' }}
-                          />
-                        </div>
-                      );
-                    })}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      <button onClick={() => addAnalystTask(sectionId, 'analytics')} style={{ fontSize: 12.5, color: C.muted, background: C.input, border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600, padding: '7px 11px' }}>
-                        <Plus size={13} /> Analytics task
-                      </button>
-                      <button onClick={() => addAnalystTask(sectionId, 'sql')} style={{ fontSize: 12.5, color: C.muted, background: C.input, border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600, padding: '7px 11px' }}>
-                        <Plus size={13} /> SQL task
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <button onClick={addAnalystSection} style={{ alignSelf: 'flex-start', fontSize: 13, color: C.cta, background: 'transparent', border: `1px solid ${C.cta}`, borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, padding: '9px 14px' }}>
-          <Plus size={15} /> Add analysis phase
-        </button>
-      </div>
+    const files = normalizeDatasetFiles(form);
+    const taskCount = analystSections.reduce((n, s) => n + s.tasks.length, 0);
+    const field = fieldStyle(EC);
+    // Fields inside a grey phase block take the card colour, so they do not vanish into it.
+    const onGrey = { ...field, background: EC.card };
+    const label = 'text-xs font-semibold mb-2 block';
+    const iconBtn = 'w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0 transition-opacity hover:opacity-80 disabled:opacity-30';
+    const chip = (on: boolean) => (on ? { background: P.sel, color: P.onSel } : { color: EC.muted });
+    const CATEGORIES = ['Finance', 'Human Resources', 'Fintech', 'E-Commerce', 'Marketing', 'Health Care', 'Hospitality', 'Sport', 'Retail', 'Banking', 'Telecom', 'Other'];
+    const isOtherCategory = !!form.category && !CATEGORIES.slice(0, -1).includes(form.category);
+    const categoryValue = isOtherCategory ? 'Other' : (form.category ?? '');
+    const note = (tone: 'good' | 'warn', children: React.ReactNode) => (
+      <div className="mt-2 px-3.5 py-2.5 rounded-xl text-[12.5px] leading-relaxed" style={tone === 'good'
+        ? { background: EC.successBg, color: EC.successText, border: `1px solid ${EC.successBorder}` }
+        : { background: P.warnSoft, color: P.warn }}>{children}</div>
     );
 
     return (
-      <div style={{ fontFamily: font }}>
-        {/* Sticky VE-style toolbar */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px', marginBottom: 24, background: C.page }}>
-          <button onClick={() => setView('list')} title="Back to datasets"
-            style={{ width: 34, height: 34, borderRadius: 9, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <ArrowLeft size={16} />
-          </button>
-          <span style={{ fontWeight: 700, fontSize: 15, color: C.text }}>{editing ? 'Edit Dataset' : 'Create Dataset'}</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={generateMetadata}
-              disabled={generating || !form.file_url}
-              title={!form.file_url ? 'Add a file URL or upload a file first' : 'Auto-fill title, description, tags, category and sample questions using AI'}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 12, border: 'none', background: C.card, color: form.file_url ? C.text : C.faint, fontWeight: 600, fontSize: 13, cursor: form.file_url && !generating ? 'pointer' : 'default', opacity: generating ? 0.7 : 1 }}>
-              {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {generating ? 'Generating...' : 'Generate with AI'}
+      <div className="pb-12">
+        <button type="button" onClick={() => setView('list')} className="inline-flex items-center gap-2 text-[13px] font-semibold mb-3 hover:opacity-80" style={{ color: EC.muted }}>
+          <ArrowLeft className="w-4 h-4"/>All datasets
+        </button>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: EC.text, fontFamily: DISPLAY_FONT }}>{form.title.trim() || 'New dataset'}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: EC.muted }}>
+              {editing?.is_published ? <Pill tone="good" dot C={EC}>Published</Pill> : <Pill tone="warn" C={EC}>Draft</Pill>}
+              <span>{plural(files.length, 'file')}</span>
+              {form.row_count != null && <span>{plural(form.row_count, 'row')}</span>}
+              <span>{plural(analystSections.length, 'phase')}, {plural(taskCount, 'task')}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={generateMetadata} disabled={generating || !form.file_url} className={btnClass} style={btnStyle('sec', EC)}
+              title={!form.file_url ? 'Add a file link or upload a file first' : 'Fill the title, description, tags, category and tasks with AI'}>
+              {generating ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+              {generating ? 'Filling...' : 'Fill with AI'}
             </button>
             {editing && (
-              <a href="/data-playground" target="_blank" rel="noreferrer" title="Open the Data Playground"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 12, border: 'none', background: C.card, color: C.muted, fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
-                <Eye size={14} /> Preview
+              <a href="/data-playground" target="_blank" rel="noreferrer" className={`${btnClass} no-underline`} style={btnStyle('sec', EC)}>
+                <Eye className="w-4 h-4"/>Preview
               </a>
             )}
-            <button onClick={() => save(false)} disabled={saving}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 12, border: 'none', background: C.card, color: C.muted, fontWeight: 600, fontSize: 13, cursor: saving ? 'default' : 'pointer' }}>
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft
+            <button type="button" onClick={() => save(false)} disabled={saving} className={btnClass} style={btnStyle('sec', EC)}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save draft
             </button>
-            <button onClick={() => save(true)} disabled={saving}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 12, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {editing ? 'Update' : 'Publish'}
+            <button type="button" onClick={() => save(true)} disabled={saving} className={btnClass} style={btnStyle('pri', EC)}>
+              {editing?.is_published ? 'Publish changes' : 'Publish'}
             </button>
           </div>
         </div>
-
-        {error && <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 14, color: '#ef4444', fontWeight: 600 }}>{error}</div>}
-
-        {/* Large option switcher */}
-        <div className="hide-scrollbar" style={{ display: 'flex', gap: 12, marginBottom: 20, maxWidth: 1100, overflowX: 'auto' }}>
-          {EDITOR_TABS.map(t => {
-            const active = editorTab === t.id;
-            return (
-              <button key={t.id} onClick={() => setEditorTab(t.id)}
-                style={{ flex: '1 1 0', minWidth: 168, display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px', borderRadius: 14, border: 'none', background: active ? C.cta : C.card, cursor: 'pointer', textAlign: 'left', fontFamily: font, transition: 'background 0.15s' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: active ? 'rgba(255,255,255,0.2)' : C.pill }}>
-                  <t.Icon size={19} color={active ? C.ctaText : C.muted} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14.5, color: active ? C.ctaText : C.text, whiteSpace: 'nowrap' }}>{t.label}</div>
-                  <div style={{ fontSize: 12, color: active ? 'rgba(255,255,255,0.85)' : C.faint, marginTop: 2, whiteSpace: 'nowrap' }}>{t.hint}</div>
-                </div>
-              </button>
-            );
-          })}
+        <div role="tablist" aria-label="Dataset sections" className="inline-flex max-w-full gap-1 p-1 mt-5 rounded-[14px] overflow-x-auto" style={{ background: EC.card }}>
+          {TABS.map(([id, name]) => (
+            <button key={id} type="button" role="tab" aria-selected={editorTab === id} onClick={() => setEditorTab(id)}
+              className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+              style={editorTab === id ? { background: P.sel, color: P.onSel } : { color: EC.muted }}>{name}</button>
+          ))}
         </div>
+        {error && (
+          <div role="alert" className="mt-4 rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: EC.errorBg, color: EC.errorText, border: `1px solid ${EC.errorBorder}` }}>
+            <XCircle className="w-4 h-4 flex-shrink-0"/><span className="flex-1">{error}</span>
+            <button type="button" onClick={() => setError('')} aria-label="Dismiss" className="w-6 h-6 grid place-items-center rounded-full flex-shrink-0"><X className="w-4 h-4"/></button>
+          </div>
+        )}
 
-        <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <Card C={EC} className="mt-4 overflow-hidden">
           {editorTab === 'overview' && (<>
-
-            {/* Basics card */}
-            {card(<>
-              {sectionHead(<FileText size={16} color="white" />, 'Basic Info', '#374151')}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Sect C={EC} title="About the dataset" first>
+              <div>
+                <label htmlFor="ds-title" className={label} style={{ color: EC.muted }}>Title</label>
+                <input id="ds-title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="For example, West Africa Retail Sales 2020-2023" className={FIELD} style={field}/>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Title *</label>
-                  <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. West Africa Retail Sales 2020-2023" style={{ ...inputStyle, fontSize: 16, fontWeight: 600, padding: '11px 14px' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Category</label>
-                  {(() => {
-                    const CATEGORIES = ['Finance', 'Human Resources', 'Fintech', 'E-Commerce', 'Marketing', 'Health Care', 'Hospitality', 'Sport', 'Retail', 'Banking', 'Telecom', 'Other'];
-                    const isOther = !!form.category && !CATEGORIES.slice(0, -1).includes(form.category);
-                    const selectVal = isOther ? 'Other' : (form.category ?? '');
-                    return (
-                      <>
-                        <select
-                          value={selectVal}
-                          onChange={e => {
-                            if (e.target.value === 'Other') setForm(f => ({ ...f, category: '' }));
-                            else setForm(f => ({ ...f, category: e.target.value }));
-                          }}
-                          style={{ ...inputStyle, background: 'none', backgroundColor: C.input, appearance: 'none', WebkitAppearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 34, cursor: 'pointer' }}
-                        >
-                          <option value="">Select category...</option>
-                          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        {(selectVal === 'Other' || isOther) && (
-                          <input
-                            autoFocus
-                            value={isOther ? form.category ?? '' : ''}
-                            onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                            placeholder="Specify category..."
-                            style={{ ...inputStyle, marginTop: 8 }}
-                          />
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-                <div>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Description</label>
-                  <textarea value={form.description ?? ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder="Describe the dataset, its source, and what students can learn from it." style={{ ...inputStyle, resize: 'vertical' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Source</label>
-                  <input value={form.source ?? ''} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} placeholder="e.g. World Bank, Kaggle, Government of Ghana" style={inputStyle} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Source URL <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 12 }}>(optional)</span></label>
-                  <input value={form.source_url ?? ''} onChange={e => setForm(f => ({ ...f, source_url: e.target.value }))} placeholder="https://data.worldbank.org/..." style={inputStyle} />
+                  <span className={label} style={{ color: EC.muted }}>Category</span>
+                  <MenuSelect label="Category" field value={categoryValue} placeholder="Select category" C={EC}
+                    options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                    onChange={v => setForm(f => ({ ...f, category: v === 'Other' ? '' : v }))}/>
+                  {categoryValue === 'Other' && (
+                    <input autoFocus value={isOtherCategory ? form.category ?? '' : ''} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                      placeholder="Name the category" aria-label="Category name" className={`${FIELD} mt-2`} style={field}/>
+                  )}
                 </div>
               </div>
-            </>)}
-
-            {/* Cover image card */}
-            {card(<>
-              {sectionHead(<Upload size={16} color="white" />, 'Cover Image', '#10a37f')}
+              <div>
+                <label htmlFor="ds-desc" className={label} style={{ color: EC.muted }}>Description</label>
+                <textarea id="ds-desc" value={form.description ?? ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4}
+                  placeholder="The dataset, its source, and what learners can learn from it." className={`${FIELD} resize-y`} style={field}/>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="ds-source" className={label} style={{ color: EC.muted }}>Source</label>
+                  <input id="ds-source" value={form.source ?? ''} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} placeholder="For example, World Bank or Kaggle" className={FIELD} style={field}/>
+                </div>
+                <div>
+                  <label htmlFor="ds-source-url" className={label} style={{ color: EC.muted }}>Source URL</label>
+                  <input id="ds-source-url" value={form.source_url ?? ''} onChange={e => setForm(f => ({ ...f, source_url: e.target.value }))} placeholder="https://data.worldbank.org/" className={FIELD} style={field}/>
+                  <p className="text-xs mt-2" style={{ color: EC.muted }}>Optional</p>
+                </div>
+              </div>
+            </Sect>
+            <Sect C={EC} title="Cover image">
               <PexelsImagePicker
                 value={form.cover_image_url}
                 altValue={form.cover_image_alt}
                 onChange={(url, alt) => setForm(f => ({ ...f, cover_image_url: url, cover_image_alt: alt }))}
                 onClear={() => setForm(f => ({ ...f, cover_image_url: null, cover_image_alt: null }))}
-                C={C}
+                C={EC}
                 token=""
                 previewMaxWidth={360}
               />
-            </>)}
+            </Sect>
           </>)}
 
-          {/* File card */}
-          {editorTab === 'dataset' && card(<>
-              {sectionHead(<Download size={16} color="white" />, 'Dataset File', '#0891b2')}
-
-              {/* Mode toggle */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: C.page, borderRadius: 10, padding: 4 }}>
+          {editorTab === 'dataset' && (<>
+            <Sect C={EC} title="Files" first>
+              <div className="inline-flex gap-1 p-1 rounded-xl w-fit" style={{ background: EC.page }} role="group" aria-label="How to add the file">
                 {(['link', 'upload'] as const).map(mode => (
-                  <button key={mode} onClick={() => setFileMode(mode)}
-                    style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
-                      background: fileMode === mode ? C.card : 'transparent',
-                      color: fileMode === mode ? C.text : C.faint,
-                      boxShadow: fileMode === mode ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                    }}>
-                    {mode === 'link' ? 'Paste URL' : 'Upload File'}
+                  <button key={mode} type="button" aria-pressed={fileMode === mode} onClick={() => setFileMode(mode)}
+                    className="h-8 px-3.5 rounded-[9px] text-[13px] font-semibold" style={chip(fileMode === mode)}>
+                    {mode === 'link' ? 'Paste a link' : 'Upload files'}
                   </button>
                 ))}
               </div>
-
               {fileMode === 'link' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>File URL</label>
-                    <input
-                      value={form.file_url ?? ''}
-                      placeholder="https://..."
-                      style={inputStyle}
+                    <label htmlFor="ds-file-url" className={label} style={{ color: EC.muted }}>File link</label>
+                    <input id="ds-file-url" value={form.file_url ?? ''} placeholder="https://" className={FIELD} style={field}
                       onChange={e => {
                         let url = e.target.value;
-                        // Auto-convert GitHub blob URLs to raw URLs
-                        if (/github\.com\/.+\/blob\//i.test(url)) {
-                          url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
-                        }
+                        // GitHub file pages become raw links, so the file itself is fetched.
+                        if (/github\.com\/.+\/blob\//i.test(url)) url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
                         setForm(f => ({ ...f, file_url: url }));
-                      }}
-                    />
-                    {/github\.com|raw\.githubusercontent\.com/i.test(form.file_url ?? '') && (
-                      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #86efac', fontSize: 12.5, color: '#166534', lineHeight: 1.6 }}>
-                        <strong>GitHub link detected.</strong> {/raw\.githubusercontent\.com/i.test(form.file_url ?? '') ? 'Raw URL confirmed - AI systems can fetch this file directly.' : 'Converted to raw URL automatically so AI systems can fetch the file directly.'}
-                      </div>
-                    )}
-                    {/box\.com/i.test(form.file_url ?? '') && (
-                      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 10, background: '#fef3c7', border: '1px solid #fbbf24', fontSize: 12.5, color: '#92400e', lineHeight: 1.6 }}>
-                        <strong>Box link detected.</strong> Box direct download links require a paid plan and are not available on free accounts. AI systems cannot read a standard Box shared link.<br /><br />
-                        <strong>Free alternatives that work:</strong><br />
-                        - <strong>GitHub (recommended):</strong> Upload to a public repo, copy the file URL - it will be auto-converted to a raw link here<br />
-                        - <strong>Google Drive:</strong> Share publicly, change <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 4 }}>/file/d/ID/view</code> to <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 4 }}>/uc?export=download&id=ID</code><br />
-                        - <strong>Dropbox:</strong> Share the file, change <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 4 }}>?dl=0</code> to <code style={{ background: 'rgba(0,0,0,0.08)', padding: '1px 4px', borderRadius: 4 }}>?dl=1</code><br />
-                        - <strong>Upload directly</strong> using the Upload File option above
-                      </div>
-                    )}
+                      }}/>
                   </div>
                   <div>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>File Name</label>
-                    <input value={form.file_name ?? ''} onChange={e => setForm(f => ({ ...f, file_name: e.target.value }))} placeholder="sales_data.csv" style={inputStyle} />
+                    <label htmlFor="ds-file-name" className={label} style={{ color: EC.muted }}>File name</label>
+                    <input id="ds-file-name" value={form.file_name ?? ''} onChange={e => setForm(f => ({ ...f, file_name: e.target.value }))} placeholder="sales_data.csv" className={FIELD} style={field}/>
+                  </div>
+                  <div className="sm:col-span-2">
+                    {/github\.com|raw\.githubusercontent\.com/i.test(form.file_url ?? '') && note('good', <>
+                      <strong>GitHub link.</strong> {/raw\.githubusercontent\.com/i.test(form.file_url ?? '') ? 'It is a raw link, so the file can be read directly.' : 'Changed to a raw link so the file can be read directly.'}
+                    </>)}
+                    {/box\.com/i.test(form.file_url ?? '') && note('warn', <>
+                      <strong>Box link.</strong> Box direct downloads need a paid plan, so a standard Box shared link cannot be read.<br/>
+                      Free options that work: a public GitHub repo (the link is changed to a raw link here); Google Drive shared publicly, with <code>/file/d/ID/view</code> changed to <code>/uc?export=download&id=ID</code>; Dropbox with <code>?dl=0</code> changed to <code>?dl=1</code>; or upload the file directly.
+                    </>)}
                   </div>
                 </div>
               )}
-
               {fileMode === 'upload' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div
-                    onClick={() => !fileUploading && dataFileRef.current?.click()}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = C.cta; }}
-                    onDragLeave={e => { e.currentTarget.style.borderColor = C.cardBorder; }}
-                    onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = C.cardBorder; if (e.dataTransfer.files.length) handleDataFilesUpload(e.dataTransfer.files); }}
-                    style={{ border: `2px dashed ${C.cardBorder}`, borderRadius: 12, padding: '28px 20px', textAlign: 'center', cursor: fileUploading ? 'default' : 'pointer', background: C.page, transition: 'border-color 0.15s' }}
-                  >
-                    {fileUploading
-                      ? <><Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 8px', color: C.cta, display: 'block' }} /><p style={{ fontSize: 14, color: C.faint, margin: 0 }}>Uploading...</p></>
-                      : <>
-                          <Upload size={24} style={{ margin: '0 auto 8px', color: C.faint, display: 'block' }} />
-                          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>Click to upload or drag and drop</p>
-                          <p style={{ fontSize: 12, color: C.faint, margin: 0 }}>CSV, Excel (.xlsx), JSON, ZIP, PDF - max 50 MB</p>
-                        </>
-                    }
-                    <input ref={dataFileRef} type="file" multiple accept=".csv,.xlsx,.json,.zip,.pdf" style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) handleDataFilesUpload(e.target.files); }} />
-                  </div>
-
-                  {/* Uploaded files */}
-                  {normalizeDatasetFiles(form).length > 0 && (
-                    <div style={{ border: `1px solid ${C.cardBorder}`, borderRadius: 10, overflow: 'hidden' }}>
-                      <p style={{ margin: 0, padding: '8px 14px', fontSize: 12, fontWeight: 700, color: C.muted, background: C.page, borderBottom: `1px solid ${C.cardBorder}` }}>Uploaded files</p>
-                      {normalizeDatasetFiles(form).map((file, i, files) => {
-                        const isPrimary = file.url === form.file_url;
-                        return (
-                          <div key={file.url} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderBottom: i < files.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
-                            <FileText size={13} style={{ color: isPrimary ? C.cta : C.faint, flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, color: C.text, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                            {isPrimary ? (
-                              <span style={{ fontSize: 11, color: C.cta, fontWeight: 800, flexShrink: 0 }}>Primary</span>
-                            ) : (
-                              <button onClick={() => setPrimaryFile(file)} style={{ fontSize: 11, color: C.cta, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, flexShrink: 0 }}>Make primary</button>
-                            )}
-                            <button onClick={() => navigator.clipboard.writeText(file.url)} style={{ fontSize: 11, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, flexShrink: 0 }}>Copy URL</button>
-                            <button onClick={() => removeDatasetFile(file.url)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                <div
+                  role="button" tabIndex={0}
+                  onClick={() => !fileUploading && dataFileRef.current?.click()}
+                  onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !fileUploading) { e.preventDefault(); dataFileRef.current?.click(); } }}
+                  onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = EC.cta; }}
+                  onDragLeave={e => { e.currentTarget.style.borderColor = EC.divider; }}
+                  onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = EC.divider; if (e.dataTransfer.files.length) handleDataFilesUpload(e.dataTransfer.files); }}
+                  className="rounded-xl px-5 py-6 text-center cursor-pointer" style={{ border: `2px dashed ${EC.divider}`, color: EC.muted }}>
+                  {fileUploading
+                    ? <><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2"/><p className="text-sm">Uploading...</p></>
+                    : <>
+                        <Upload className="w-6 h-6 mx-auto mb-2"/>
+                        <p className="text-sm font-semibold" style={{ color: EC.text }}>Click to upload or drag files here</p>
+                        <p className="text-xs mt-1">CSV, Excel, JSON, ZIP or PDF, up to 50 MB</p>
+                      </>}
+                  <input ref={dataFileRef} type="file" multiple accept=".csv,.xlsx,.json,.zip,.pdf" className="hidden" onChange={e => { if (e.target.files?.length) handleDataFilesUpload(e.target.files); }}/>
                 </div>
               )}
-
-              <div style={{ marginTop: 16 }}>
-                <label style={{ fontSize: 13, fontWeight: 700, color: C.muted, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Table Structure</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {(['single', 'multiple'] as const).map(opt => (
-                    <button key={opt} onClick={() => setForm(f => ({ ...f, table_type: f.table_type === opt ? null : opt }))}
-                      style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: form.table_type === opt ? `${C.cta}1f` : C.input, color: form.table_type === opt ? C.cta : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
-                      {opt === 'single' ? 'Single Table' : 'Multiple Tables'}
-                    </button>
-                  ))}
+              {files.length > 0 && (
+                <div>
+                  {files.map((file, i) => {
+                    const isPrimary = file.url === form.file_url;
+                    return (
+                      <div key={file.url} className="flex items-center gap-3 py-2.5 px-0.5" style={i ? { borderTop: `1px solid ${EC.divider}` } : undefined}>
+                        <FileText className="w-4 h-4 flex-shrink-0" style={{ color: EC.muted }}/>
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: EC.text }}>{file.name}</span>
+                        {isPrimary
+                          ? <Pill tone="mute" C={EC}>Primary</Pill>
+                          : <button type="button" onClick={() => setPrimaryFile(file)} className={btnSmClass} style={btnStyle('ghost', EC)}>Make primary</button>}
+                        <button type="button" onClick={() => navigator.clipboard.writeText(file.url)} aria-label={`Copy link to ${file.name}`} className={iconBtn} style={{ color: EC.muted }}><Copy className="w-4 h-4"/></button>
+                        <button type="button" onClick={() => removeDatasetFile(file.url)} aria-label={`Remove ${file.name}`} className={iconBtn} style={{ color: EC.muted }}><X className="w-4 h-4"/></button>
+                      </div>
+                    );
+                  })}
                 </div>
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>Single = one CSV/sheet. Multiple = ZIP or workbook with several related tables.</p>
+              )}
+            </Sect>
+            <Sect C={EC} title="Tables">
+              <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Tables">
+                {([['single', 'Single table', 'One CSV or sheet'], ['multiple', 'Multiple tables', 'A ZIP or workbook with related tables']] as const).map(([opt, name, sub]) => {
+                  const on = form.table_type === opt;
+                  return (
+                    <button key={opt} type="button" role="radio" aria-checked={on} onClick={() => setForm(f => ({ ...f, table_type: f.table_type === opt ? null : opt }))}
+                      className="flex items-start gap-3 p-4 rounded-2xl text-left" style={{ background: EC.page, boxShadow: on ? `inset 0 0 0 2px ${P.sel}` : 'none' }}>
+                      <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={on ? { background: P.sel } : { background: EC.card, boxShadow: `inset 0 0 0 1px ${EC.divider}` }}>
+                        {on && <span className="w-2 h-2 rounded-full" style={{ background: P.onSel }}/>}
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold" style={{ color: EC.text }}>{name}</span>
+                        <span className="block text-xs" style={{ color: EC.muted }}>{sub}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            </Sect>
+            <div className="p-5 flex items-center gap-4" style={{ borderTop: `1px solid ${EC.divider}` }}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold" style={{ color: EC.text }}>SQL workbench</p>
+                <p className="text-xs" style={{ color: EC.muted }}>Learners can practise SQL on this data in the browser (CSV, Excel or ZIP tables).</p>
+              </div>
+              <Switch on={form.sql_workbench_enabled} onChange={on => setForm(f => ({ ...f, sql_workbench_enabled: on }))} label="SQL workbench" C={EC}/>
+            </div>
+          </>)}
 
-              <button onClick={() => setForm(f => ({ ...f, sql_workbench_enabled: !f.sql_workbench_enabled }))}
-                style={{ marginTop: 16, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 12, border: 'none', background: form.sql_workbench_enabled ? 'rgba(22,163,74,0.08)' : C.input, cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800, color: C.text }}>SQL Workbench</span>
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 12, color: C.faint, lineHeight: 1.45 }}>Show browser SQL practice for CSV, Excel, or ZIP table datasets.</span>
-                </span>
-                <span style={{ width: 38, height: 22, borderRadius: 999, background: form.sql_workbench_enabled ? '#16a34a' : C.faint, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', top: 3, left: form.sql_workbench_enabled ? 19 : 3, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
-                </span>
-              </button>
-            </>)}
+          {editorTab === 'phases' && (
+            <Sect C={EC} title="Analysis phases" first>
+              <p className="text-xs -mt-2" style={{ color: EC.muted }}>Break the dataset into phases, each with its own tasks. Mark a task SQL only if a SELECT or WITH query can answer it.</p>
+              {analystSections.length === 0 && (
+                <p className="px-3 py-5 rounded-xl text-[13px] text-center" style={{ border: `2px dashed ${EC.divider}`, color: EC.muted }}>No analysis phases yet. Add one to get started.</p>
+              )}
+              {analystSections.map((section, sectionIndex) => {
+                const sectionId = section.id || `section-${sectionIndex + 1}`;
+                const expanded = expandedAnalystSections[sectionId] !== false;
+                const isDragging = dragState?.kind === 'section' && dragState.id === sectionId;
+                const isDropTarget = dragState?.kind === 'section' && dragOverId === sectionId && dragState.id !== sectionId;
+                const embedUrl = safeEmbedUrl(section.videoUrl ?? '');
+                return (
+                  <div key={sectionId} data-phasecard
+                    onDragOver={e => { if (dragState?.kind === 'section') { e.preventDefault(); setDragOverId(sectionId); } }}
+                    onDrop={e => { if (dragState?.kind === 'section') { e.preventDefault(); reorderAnalystSections(dragState.id, sectionId); } setDragOverId(null); }}
+                    className="rounded-[14px]" style={{ background: EC.page, opacity: isDragging ? 0.45 : 1, outline: isDropTarget ? `2px solid ${P.sel}` : 'none', outlineOffset: -2 }}>
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 px-3 py-2.5">
+                      <span draggable title="Drag to reorder phase" className="cursor-grab flex-shrink-0" style={{ color: EC.faint }}
+                        onDragStart={e => { setDragState({ kind: 'section', sectionId, id: sectionId }); e.dataTransfer.effectAllowed = 'move'; const card = (e.currentTarget as HTMLElement).closest('[data-phasecard]'); if (card) e.dataTransfer.setDragImage(card, 20, 20); }}
+                        onDragEnd={() => { setDragState(null); setDragOverId(null); }}>
+                        <GripVertical className="w-4 h-4"/>
+                      </span>
+                      <span className="w-7 h-7 rounded-full grid place-items-center text-xs font-bold flex-shrink-0" style={{ background: P.sel, color: P.onSel }}>{sectionIndex + 1}</span>
+                      <input value={section.title} onChange={e => updateAnalystSection(sectionId, { title: e.target.value })} aria-label="Phase title"
+                        placeholder="Phase title, for example Channel and audience breakdown"
+                        className="flex-1 min-w-0 basis-[calc(100%-84px)] sm:basis-auto bg-transparent outline-none text-[15px] font-semibold py-1" style={{ color: EC.text }}/>
+                      <span className="text-xs flex-shrink-0 ml-auto sm:ml-0" style={{ color: EC.muted }}>{plural(section.tasks.length, 'task')}</span>
+                      <button type="button" onClick={() => setExpandedAnalystSections(prev => ({ ...prev, [sectionId]: !expanded }))} aria-label={expanded ? 'Collapse phase' : 'Expand phase'} className={iconBtn} style={{ color: EC.muted }}>
+                        {expanded ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
+                      </button>
+                      <button type="button" onClick={() => removeAnalystSection(sectionId)} aria-label="Delete phase" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>
+                    </div>
+                    {expanded && (
+                      <div className="px-3 pb-3 grid grid-cols-[minmax(0,1fr)] gap-2.5">
+                        <RichTextEditor value={section.brief ?? ''} onChange={html => updateAnalystSection(sectionId, { brief: html })}
+                          placeholder="Briefly describe what this phase asks the learner to investigate." bgOverride={EC.card} enableAiAssist/>
+                        <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                          <div className="field-shell flex items-center gap-2 rounded-[10px] px-3" style={onGrey}>
+                            <Video className="w-4 h-4 flex-shrink-0" style={{ color: EC.faint }}/>
+                            <input value={section.videoUrl ?? ''} onChange={e => updateAnalystSection(sectionId, { videoUrl: e.target.value })} placeholder="Embed link (optional)" aria-label="Embed link"
+                              className="flex-1 min-w-0 bg-transparent outline-none text-sm py-3" style={{ color: EC.text }}/>
+                            {/* Interactive HTML embed: uploads to the public form-assets bucket; the player
+                                renders it sandboxed at full height (same treatment as Canva) */}
+                            <label title="Upload a self-contained HTML file with inline assets (max 10 MB)" className="cursor-pointer flex items-center flex-shrink-0">
+                              <input type="file" accept=".html,.htm,text/html" className="hidden" onChange={async e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                e.target.value = '';
+                                if (file.size > 10 * 1024 * 1024) { setError(`HTML file is too large (${(file.size / 1048576).toFixed(1)} MB). Maximum is 10 MB.`); return; }
+                                setError('');
+                                try {
+                                  const url = await uploadToStorage(file, 'lesson-html');
+                                  updateAnalystSection(sectionId, { videoUrl: url });
+                                } catch (err: any) { setError(err?.message || 'HTML upload failed. Please try again.'); }
+                              }}/>
+                              <FileCode className="w-4 h-4" style={{ color: EC.faint }}/>
+                            </label>
+                          </div>
+                          <MenuSelect label="Difficulty" field value={section.difficulty ?? ''} onChange={v => updateAnalystSection(sectionId, { difficulty: v })} C={{ ...EC, input: EC.card }}
+                            options={[{ value: '', label: 'Difficulty: Auto' }, { value: 'Beginner', label: 'Beginner' }, { value: 'Intermediate', label: 'Intermediate' }, { value: 'Advanced', label: 'Advanced' }]}/>
+                          <input value={section.duration ?? ''} onChange={e => updateAnalystSection(sectionId, { duration: e.target.value })} placeholder="Duration: Auto" aria-label="Duration" className={FIELD} style={onGrey}/>
+                        </div>
+                        {embedUrl && (
+                          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${EC.divider}` }}>
+                            <iframe src={embedUrl} title="Phase embed"
+                              style={{ width: '100%', border: 'none', display: 'block', ...(isHtmlEmbedUrl(embedUrl) ? { height: 480 } : { aspectRatio: '16 / 9' }) }}
+                              sandbox={isHtmlEmbedUrl(embedUrl) ? HTML_EMBED_SANDBOX : undefined}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>
+                          </div>
+                        )}
+                        {section.tasks.map((task, taskIndex) => {
+                          const taskId = task.id || `task-${sectionIndex + 1}-${taskIndex + 1}`;
+                          const taskDragging = dragState?.kind === 'task' && dragState.id === taskId;
+                          const taskDropTarget = dragState?.kind === 'task' && dragState.sectionId === sectionId && dragOverId === taskId && dragState.id !== taskId;
+                          const type = task.type ?? 'analytics';
+                          return (
+                            <div key={taskId} data-taskcard
+                              onDragOver={e => { if (dragState?.kind === 'task' && dragState.sectionId === sectionId) { e.preventDefault(); e.stopPropagation(); setDragOverId(taskId); } }}
+                              onDrop={e => { if (dragState?.kind === 'task' && dragState.sectionId === sectionId) { e.preventDefault(); e.stopPropagation(); reorderAnalystTasks(sectionId, dragState.id, taskId); } setDragOverId(null); }}
+                              className="flex flex-wrap sm:flex-nowrap items-start gap-2.5 rounded-xl px-3 py-2.5"
+                              style={{ background: EC.card, opacity: taskDragging ? 0.45 : 1, outline: taskDropTarget ? `2px solid ${P.sel}` : 'none', outlineOffset: -2 }}>
+                              <span draggable title="Drag to reorder task" className="cursor-grab flex-shrink-0 mt-1" style={{ color: EC.faint }}
+                                onDragStart={e => { setDragState({ kind: 'task', sectionId, id: taskId }); e.dataTransfer.effectAllowed = 'move'; const card = (e.currentTarget as HTMLElement).closest('[data-taskcard]'); if (card) e.dataTransfer.setDragImage(card, 20, 20); }}
+                                onDragEnd={() => { setDragState(null); setDragOverId(null); }}>
+                                <GripVertical className="w-4 h-4"/>
+                              </span>
+                              <div className="min-w-0 flex-1 basis-[calc(100%-40px)] sm:basis-auto">
+                                <textarea value={task.prompt} onChange={e => updateAnalystTask(sectionId, taskId, { prompt: e.target.value })} rows={1} aria-label="Task"
+                                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                                  onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }}
+                                  placeholder={type === 'sql' ? 'For example, which channel has the highest conversion rate?' : 'For example, what targeting should the team recommend?'}
+                                  className="w-full bg-transparent outline-none resize-none overflow-hidden text-sm font-semibold leading-normal" style={{ color: EC.text }}/>
+                                <textarea value={task.description ?? ''} onChange={e => updateAnalystTask(sectionId, taskId, { description: e.target.value })} rows={1} aria-label="Instructions"
+                                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                                  onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }}
+                                  placeholder="Instructions for the learner (optional)"
+                                  className="w-full bg-transparent outline-none resize-none overflow-hidden text-xs leading-normal mt-0.5" style={{ color: EC.muted }}/>
+                              </div>
+                              <div className="inline-flex gap-0.5 p-0.5 rounded-full flex-shrink-0 ml-7 sm:ml-0" style={{ boxShadow: `inset 0 0 0 1px ${EC.divider}` }} role="group" aria-label="Task type">
+                                {(['analytics', 'sql'] as const).map(t => (
+                                  <button key={t} type="button" aria-pressed={type === t} onClick={() => updateAnalystTask(sectionId, taskId, { type: t })}
+                                    className="h-6 px-2.5 rounded-full text-[11px] font-semibold" style={chip(type === t)}>{t === 'sql' ? 'SQL' : 'Analytics'}</button>
+                                ))}
+                              </div>
+                              <button type="button" onClick={() => removeAnalystTask(sectionId, taskId)} aria-label="Remove task" className={iconBtn} style={{ color: EC.muted }}><X className="w-4 h-4"/></button>
+                            </div>
+                          );
+                        })}
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => addAnalystTask(sectionId, 'analytics')} className={btnSmClass} style={btnStyle('sec', EC)}><Plus className="w-3.5 h-3.5"/>Analytics task</button>
+                          <button type="button" onClick={() => addAnalystTask(sectionId, 'sql')} className={btnSmClass} style={btnStyle('sec', EC)}><Plus className="w-3.5 h-3.5"/>SQL task</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div><button type="button" onClick={addAnalystSection} className={btnClass} style={btnStyle('sec', EC)}><Plus className="w-4 h-4"/>Add analysis phase</button></div>
+            </Sect>
+          )}
 
-
-            {/* Analyst task sections card */}
-            {editorTab === 'phases' && card(<>
-              {sectionHead(<Search size={16} color="white" />, 'Analysis Phases', '#d97706')}
-              <p style={{ fontSize: 12.5, color: C.faint, margin: '-6px 0 16px', lineHeight: 1.5 }}>
-                Break the dataset into phases, each with its own tasks. Mark only tasks answerable with SELECT/WITH queries as SQL.
-              </p>
-              {analystSectionEditor}
-            </>)}
-
-            {/* Disclaimer card */}
-            {editorTab === 'disclaimer' && card(<>
-              {sectionHead(<AlertTriangle size={16} color="white" />, 'Disclaimer', '#7c3aed')}
-              <textarea
-                value={form.disclaimer ?? ''}
-                onChange={e => setForm(f => ({ ...f, disclaimer: e.target.value }))}
-                rows={3}
-                placeholder="Optional. Note any usage restrictions, data accuracy limitations, or attribution requirements."
-                style={{ ...inputStyle, resize: 'vertical' }}
-              />
-            </>)}
-        </div>
+          {editorTab === 'disclaimer' && (
+            <Sect C={EC} title="Disclaimer" first>
+              <div>
+                <textarea value={form.disclaimer ?? ''} onChange={e => setForm(f => ({ ...f, disclaimer: e.target.value }))} rows={3} aria-label="Disclaimer"
+                  placeholder="Usage limits, accuracy notes or attribution." className={`${FIELD} resize-y`} style={field}/>
+                <p className="text-xs mt-2" style={{ color: EC.muted }}>Optional. Usage limits, accuracy notes or attribution.</p>
+              </div>
+            </Sect>
+          )}
+        </Card>
       </div>
     );
   }
