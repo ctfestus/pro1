@@ -25,7 +25,7 @@ export default async function TermsPage() {
     listNavBooks(),
     listNavEvents(),
   ]);
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
 
   return (
     <LegalPageClient

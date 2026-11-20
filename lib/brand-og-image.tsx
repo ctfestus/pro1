@@ -59,12 +59,12 @@ export async function brandOgImage() {
     }
   }
 
-  const config = resolveConfig(settings.template, settings.config);
+  const config = resolveConfig(settings.config);
   const appName = tenant.appName || tenant.orgName || 'Learning platform';
   const primary = safeColor(config.primaryColor || tenant.primaryColor, '#0056d2');
   const accent = safeColor(config.accentColor || tenant.accentColor, '#ff9933');
-  const headline = compact(config.heroTitle || config.tracksHeading || config.offeringsHeading || 'Build skills that move your career forward', 48);
-  const highlight = compact(config.heroTitleAccent || config.tracksHeadingAccent || '', 52);
+  const headline = compact(config.heroTitle || 'Build skills that move your career forward', 48);
+  const highlight = compact(config.heroTitleAccent || '', 52);
   const description = compact(tenant.appDescription || `Build job-ready skills with courses, guided projects and learning paths from ${appName}.`, 120);
   const initials = appName
     .split(/\s+/)

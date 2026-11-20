@@ -170,12 +170,10 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
   );
 }
 
-export function PromoCard({ placement, bottomOffset = 0, light = false }: {
+export function PromoCard({ placement, light = false }: {
   placement: PromoPlacement;
   /** Ignore the viewer's dark mode, for the landing pages, which are always light. */
   light?: boolean;
-  /** Extra space below the card, for pages with their own bottom bar. */
-  bottomOffset?: number;
 }) {
   const themed = useC();
   const { primaryColor } = useTenant();
@@ -298,11 +296,11 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
           className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[380px]"
           style={{
-            bottom: 16 + bottomOffset, zIndex: 45,
+            bottom: 16, zIndex: 45,
             // Six event cards can outgrow a short phone screen; they then scroll inside. The cap
             // leaves room for a page's top bar (about 64px), so the close button never slides
             // under it.
-            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`,
+            maxHeight: 'calc(100dvh - 96px)',
             overflowY: scrollable ? 'auto' : 'visible',
             // While scrolling, side room for the shadows, cancelled by the negative margin so the
             // cards keep their width and position (only the sides: padding above or below would

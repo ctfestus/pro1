@@ -29,7 +29,7 @@ export default async function ProductPreviewPage({ params }: Params) {
     listStoreBooksOrEmpty(),
     listNavEvents(),
   ]);
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
   const accentColor = config.accentColor || tenant.accentColor || primaryColor;
   const navBooks = books.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));

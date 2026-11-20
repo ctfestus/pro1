@@ -35,7 +35,7 @@ export default async function PricingPage() {
     listNavBooks(),
     listNavEvents(),
   ]);
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
 
   return (
     <PricingPageClient

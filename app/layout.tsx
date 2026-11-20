@@ -81,7 +81,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // C.cta in the app rendered #2563eb rather than the configured colour, while the pricing hero
   // beside it rendered the real one. One source, resolved the same way the pricing page resolves
   // it, so template defaults still apply when a tenant has saved no colour of its own.
-  const siteConfig = resolveConfig(site.template, site.config);
+  const siteConfig = resolveConfig(site.config);
   const branding = {
     ...tenantSettings,
     primaryColor: siteConfig.primaryColor || tenantSettings.primaryColor,
