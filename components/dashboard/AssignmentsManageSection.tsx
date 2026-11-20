@@ -13,10 +13,11 @@ import { ScenarioGradingPanel, draftsToTaskGrades, taskScoreValue, taskScoreVali
 import { requestSolutionCleanup, type AssignmentSolution } from '@/lib/assignment-solutions';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { useTheme } from '@/components/ThemeProvider';
-import { DARK_C, LIGHT_C, cardStyle } from '@/lib/theme';
-import { StudentAvatar } from '@/components/dashboard/primitives';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { excelReviewSaveErrorMessage } from '@/lib/excel-review-config';
 import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
+import { Bar, Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, shortDate } from '@/components/dashboard/subscriptions/ui';
+import { SolutionFilesList } from '@/components/SolutionFilesList';
 import { AssignmentReport } from '@/components/dashboard/assignments/AssignmentReport';
 import { AssignmentsList } from '@/components/dashboard/assignments/AssignmentsList';
 
@@ -344,58 +345,72 @@ export function AssignmentsManageSection({ C: themeC }: { C: typeof LIGHT_C }) {
     const scenarioRec = parseSubmissionRecord(viewingSub.response_text);
     const stats = scenarioRec ? taskGradeStats(scenarioRec.answers, draftGrades) : null;
     const scorePct = score.trim() === '' ? null : parseFloat(score);
-    const scoreIsPass = scorePct != null && Number.isFinite(scorePct) && scorePct >= passMark;
+    const scoreSet = scorePct != null && Number.isFinite(scorePct);
+    const scoreIsPass = scoreSet && scorePct >= passMark;
+    const P = palette(C);
+    const learner = viewingSub.student?.full_name || viewingSub.student?.email || 'Learner';
+    const statusPill = viewingSub.status === 'graded' ? <Pill tone="good" dot C={C}>Graded</Pill>
+      : viewingSub.status === 'submitted' ? <Pill tone="warn" dot C={C}>To grade</Pill>
+      : <Pill tone="mute" C={C}>{viewingSub.status === 'draft' ? 'Draft' : String(viewingSub.status).replaceAll('_', ' ')}</Pill>;
+    const section = (title: string, children: React.ReactNode, aside?: React.ReactNode) => (
+      <Card C={C} className="overflow-hidden">
+        <div className="flex items-baseline justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <h3 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
+          {aside}
+        </div>
+        <div className="px-5 py-4">{children}</div>
+      </Card>
+    );
+    const veCards = (() => {
+      if (!veAttemptProgress) return null;
+      const cards: React.ReactNode[] = [];
+      for (const [reqId, entry] of Object.entries(veAttemptProgress)) {
+        const rec = parseReviewNotes((entry as any)?.notes);
+        if (!rec) continue;
+        // Only render entries that look like AI reviews (typed, inferable, or a legacy lean with a score).
+        const type = rec.type ?? inferReviewType(rec.report);
+        if (!type && typeof rec.report?.overallScore !== 'number') continue;
+        cards.push(<div key={reqId}><ReviewReportView rec={rec} isDark={isDark} /></div>);
+      }
+      return cards.length ? cards : null;
+    })();
+
     return (
-      <div>
-        <button onClick={() => { setViewingSub(null); setVeAttemptProgress(null); }} className="flex items-center gap-2 mb-6 text-sm font-medium hover:opacity-70 transition-opacity" style={{ color: C.muted, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          <ArrowLeft className="w-4 h-4"/> Back to responses
+      <div className="space-y-5 pb-12">
+        <button type="button" onClick={() => { setViewingSub(null); setVeAttemptProgress(null); }} className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: C.muted }}>
+          <ArrowLeft className="w-4 h-4"/>
+          {selected?.title ?? 'Back to responses'}
         </button>
+        <div className="min-w-0">
+          <h1 className="text-[28px] leading-9 font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{learner}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: C.muted }}>
+            {statusPill}
+            {viewingSub.student?.email && viewingSub.student.email !== learner && <span>{viewingSub.student.email}</span>}
+            {viewingSub.updated_at && <span>Handed in <b className="font-semibold" style={{ color: C.text }}>{shortDate(viewingSub.updated_at)}</b></span>}
+          </div>
+        </div>
 
         {gradeSuccess && (
-          <div className="flex items-center gap-3 rounded-2xl px-5 py-4 mb-5" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: '#10b981' }}/>
-            <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Grade saved successfully.</p>
+          <div role="status" className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` }}>
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0"/>
+            Grade saved. The learner gets an email about it.
           </div>
         )}
 
-        {/* Student card */}
-        <div className="rounded-2xl p-5 mb-4" style={{ ...cardStyle(C) }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <StudentAvatar name={viewingSub.student?.full_name} email={viewingSub.student?.email} size={40} C={C}/>
-              <div>
-                <p className="font-semibold text-sm" style={{ color: C.text }}>{viewingSub.student?.full_name || viewingSub.student?.email || 'Student'}</p>
-                <p className="text-xs mt-0.5" style={{ color: C.faint }}>{viewingSub.student?.email}{viewingSub.updated_at ? ` · ${new Date(viewingSub.updated_at).toLocaleDateString()}` : ''}</p>
-              </div>
-            </div>
-            <span className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: viewingSub.status === 'graded' ? 'rgba(22,163,74,0.12)' : viewingSub.status === 'submitted' ? 'rgba(37,99,235,0.12)' : C.pill, color: viewingSub.status === 'graded' ? '#16a34a' : viewingSub.status === 'submitted' ? '#2563eb' : C.faint }}>
-              {viewingSub.status.charAt(0).toUpperCase() + viewingSub.status.slice(1)}
-            </span>
-          </div>
-
-          {/* Scenario submissions: grading progress here, the task-by-task marking below. */}
-          {stats && (
-            <div>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Grading progress</p>
-                <p className="text-xs font-semibold" style={{ color: C.text }}>{stats.scored} of {stats.total} tasks scored</p>
-              </div>
-              <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ background: C.pill }}>
-                <div style={{ width: `${stats.total ? Math.round((stats.scored / stats.total) * 100) : 0}%`, height: '100%', background: C.green, transition: 'width 0.2s ease' }}/>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {stats.average != null && (
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Task average {stats.average}%</span>
-                )}
-                <span className="text-[11px] font-semibold px-3 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>{stats.commented} comment{stats.commented === 1 ? '' : 's'}</span>
-                {scenarioMcq?.subtotal != null && (
-                  <span className="text-[11px] font-semibold px-3 py-1 rounded-full" style={{ background: C.pill, color: C.muted }}>Multiple choice auto-marked {scenarioMcq.subtotal}%</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!scenarioRec && (viewingSub.response_text ? (() => {
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
+          {/* The hand-in */}
+          <div className="grid gap-4 min-w-0">
+            {scenarioRec ? (
+              <ScenarioGradingPanel
+                record={scenarioRec}
+                mcq={scenarioMcq?.grades ?? {}}
+                drafts={taskDrafts}
+                onChange={(taskId, patch) => setTaskDrafts(prev => ({ ...prev, [taskId]: { ...(prev[taskId] ?? { score: '', feedback: '' }), ...patch } }))}
+                C={C}
+                isDark={isDark}
+              />
+            ) : section('Response', <>
+            {viewingSub.response_text ? (() => {
             const subAssignType = selected?.type ?? 'standard';
             if (REVIEW_TYPES.includes(subAssignType)) {
               const rec = parseReviewNotes(viewingSub.response_text);
@@ -407,17 +422,17 @@ export function AssignmentsManageSection({ C: themeC }: { C: typeof LIGHT_C }) {
                   return (
                     <div className="mb-3 space-y-3">
                       {fileUrl && (
-                        <div className="rounded-xl px-4 py-3" style={{ background: C.input }}>
+                        <div className="rounded-xl px-4 py-3" style={{ background: C.page }}>
                           <a href={fileUrl} target="_blank" rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-70"
-                            style={{ color: C.green }}>
+                            className="inline-flex items-center gap-2 text-sm font-semibold transition-opacity hover:opacity-70"
+                            style={{ color: C.text }}>
                             <Download className="w-3 h-3" /> Download submitted report
                             {rec.report?.fileName && <span className="font-normal ml-1 opacity-60">({rec.report.fileName})</span>}
                           </a>
                         </div>
                       )}
                       {isManual
-                        ? <div className="rounded-xl px-4 py-3" style={{ background: C.input }}><span className="text-sm" style={{ color: C.faint }}>Submitted for instructor review.</span></div>
+                        ? <p className="text-sm" style={{ color: C.muted }}>Handed in for you to review.</p>
                         : <ReviewReportView rec={{ ...rec, type: 'document_review' }} isDark={isDark} />}
                     </div>
                   );
@@ -431,142 +446,95 @@ export function AssignmentsManageSection({ C: themeC }: { C: typeof LIGHT_C }) {
             }
 
             return (
-              <div className="rounded-xl p-4 mb-3" style={{ background: C.input }}>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Response</p>
-                <div className="rich-content text-sm" dangerouslySetInnerHTML={{ __html: sanitizeRichText(viewingSub.response_text) }}/>
-              </div>
+              <div className="rich-content text-sm" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: sanitizeRichText(viewingSub.response_text) }}/>
             );
-          })() : (
-            <p className="text-sm mb-3" style={{ color: C.faint }}>No written response.</p>
-          ))}
-
-          {veAttemptProgress && (() => {
-            const cards: React.ReactNode[] = [];
-            for (const [reqId, entry] of Object.entries(veAttemptProgress)) {
-              const rec = parseReviewNotes((entry as any)?.notes);
-              if (!rec) continue;
-              // Only render entries that look like AI reviews (typed, inferable, or a legacy lean with a score).
-              const type = rec.type ?? inferReviewType(rec.report);
-              if (!type && typeof rec.report?.overallScore !== 'number') continue;
-              cards.push(
-                <div key={reqId} className="mb-3">
-                  <ReviewReportView rec={rec} isDark={isDark} />
-                </div>
-              );
-            }
-            return cards.length > 0 ? <>{cards}</> : null;
-          })()}
-
-          {subFiles.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: C.faint }}>Attachments</p>
-              {subFiles.map((f: any) => (
-                <a key={f.id} href={f.file_url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl transition-opacity hover:opacity-75"
-                  style={{ background: C.page, color: C.green, border: `1px solid ${C.divider}`, textDecoration: 'none' }}>
-                  {f.file_name ? <FileText className="w-4 h-4 flex-shrink-0"/> : <ExternalLink className="w-4 h-4 flex-shrink-0"/>}
-                  <span className="truncate font-medium">{f.file_name || f.file_url}</span>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Task-by-task marking (scenario assignments) */}
-        {scenarioRec && (
-          <div className="mb-4">
-            <ScenarioGradingPanel
-              record={scenarioRec}
-              mcq={scenarioMcq?.grades ?? {}}
-              drafts={taskDrafts}
-              onChange={(taskId, patch) => setTaskDrafts(prev => ({ ...prev, [taskId]: { ...(prev[taskId] ?? { score: '', feedback: '' }), ...patch } }))}
-              C={C}
-              isDark={isDark}
-            />
-          </div>
-        )}
-
-        {/* Grade panel */}
-        <div className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold" style={{ color: C.text }}>{scenarioRec ? 'Final grade' : 'Grade Submission'}</h3>
-            <span className="text-xs" style={{ color: C.faint }}>Passmark: {passMark}%</span>
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-xs font-semibold mb-2" style={{ color: C.faint }}>Score <span style={{ color: C.faint, fontWeight: 400 }}>(out of 100)</span></label>
-            <div className="flex items-center flex-wrap gap-2">
-              <input type="number" min={0} max={100} value={score} onChange={e => { setScore(e.target.value); setScoreTouched(true); }} placeholder="e.g. 90"
-                style={{ width: 160, padding: '10px 14px', borderRadius: 12, border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 15, fontWeight: 600, outline: 'none', boxSizing: 'border-box' as const }}/>
-              {score && (
-                <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full"
-                  style={{ background: scoreIsPass ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: scoreIsPass ? '#10b981' : '#ef4444' }}>
-                  {scoreIsPass ? 'Pass' : 'Fail'}
-                </span>
-              )}
-              {scenarioRec && taskAverage != null && (
-                scoreTouched ? (
-                  <button onClick={() => { setScoreTouched(false); setScore(String(taskAverage)); }}
-                    className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-75 transition-opacity"
-                    style={{ background: C.pill, color: C.muted, border: 'none', cursor: 'pointer' }}>
-                    <RotateCcw className="w-3 h-3"/> Use task average ({taskAverage}%)
-                  </button>
-                ) : (
-                  <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>Following the task average</span>
-                )
-              )}
-            </div>
-            {scenarioRec && (
-              <p className="text-xs mt-2" style={{ color: C.faint }}>
-                {taskAverage != null
-                  ? `Average of the ${stats?.scored ?? 0} scored task${(stats?.scored ?? 0) === 1 ? '' : 's'}: ${taskAverage}%. Type a different number to set the final grade yourself.`
-                  : 'Score the tasks above and the final grade fills in from their average, or set it here yourself.'}
-              </p>
+            })() : (
+              <p className="text-sm" style={{ color: C.muted }}>No written response.</p>
             )}
-          </div>
 
-          <div className={scenarioRec ? '' : 'mb-5'}>
-            <label className="block text-xs font-semibold mb-2" style={{ color: C.faint }}>{scenarioRec ? 'Overall feedback to student' : 'Feedback to student'}</label>
-            <RichTextEditor value={feedback} onChange={setFeedback}
-              placeholder={scenarioRec ? 'Sum up the whole submission. Task comments are saved with each task above.' : 'Write feedback for the student'}
-              bgOverride={C.input} fontFamily="var(--font-mono)" enableAiAssist/>
-          </div>
-
-          {!scenarioRec && (
-            <>
-              {gradeError && <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{gradeError}</p>}
-              <button onClick={saveGrade} disabled={grading || gradeSuccess}
-                className="px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: gradeSuccess ? '#10b981' : C.cta, color: C.ctaText, border: 'none', cursor: (grading || gradeSuccess) ? 'not-allowed' : 'pointer', opacity: grading ? 0.6 : 1 }}>
-                {grading ? 'Saving...' : gradeSuccess ? 'Grade saved' : viewingSub.status === 'graded' ? 'Update Grade' : 'Save Grade'}
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Action bar -- stays in view while marking a long submission, so the task scores, the
-            final grade, and Save are always one glance apart. */}
-        {scenarioRec && stats && (
-          <div style={{ position: 'sticky', bottom: 12, zIndex: 20, marginTop: 16 }}>
-            <div className="flex items-center gap-4 flex-wrap px-4 py-3 rounded-2xl"
-              style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 10px 30px rgba(0,0,0,0.45)' : '0 10px 30px rgba(15,23,42,0.12)' }}>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Final grade</p>
-                <p className="text-sm font-bold" style={{ color: scorePct == null || !Number.isFinite(scorePct) ? C.faint : scoreIsPass ? '#16a34a' : '#ef4444' }}>
-                  {scorePct == null || !Number.isFinite(scorePct) ? 'Not set' : `${scorePct}% ${scoreIsPass ? 'Pass' : 'Fail'}`}
-                </p>
+            </>)}
+            {veCards && section('AI reviews', <div className="grid gap-3">{veCards}</div>, <span className="text-xs" style={{ color: C.muted }}>From the virtual experience</span>)}
+            {subFiles.length > 0 && section('Attachments', (
+              <div className="grid gap-2">
+                {subFiles.map((f: any) => (
+                  <a key={f.id} href={f.file_url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-3 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-75"
+                    style={{ background: C.page, color: C.text, textDecoration: 'none' }}>
+                    {f.file_name ? <FileText className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }}/> : <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }}/>}
+                    <span className="truncate flex-1">{f.file_name || f.file_url}</span>
+                    <span className="text-xs font-normal" style={{ color: C.muted }}>Open</span>
+                  </a>
+                ))}
               </div>
-              <span className="text-xs font-semibold" style={{ color: C.faint }}>{stats.scored} of {stats.total} tasks scored</span>
-              {gradeError && <span className="text-xs font-semibold" style={{ color: '#ef4444' }}>{gradeError}</span>}
-              {!gradeError && gradeWarning && <span className="text-xs font-semibold" style={{ color: '#d97706' }}>{gradeWarning}</span>}
-              <button onClick={saveGrade} disabled={grading || gradeSuccess}
-                className="ml-auto px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: gradeSuccess ? '#10b981' : C.cta, color: C.ctaText, border: 'none', cursor: (grading || gradeSuccess) ? 'not-allowed' : 'pointer', opacity: grading ? 0.6 : 1 }}>
-                {grading ? 'Saving...' : gradeSuccess ? 'Grade saved' : viewingSub.status === 'graded' ? 'Update grade' : 'Save grade'}
-              </button>
-            </div>
+            ), <span className="text-xs" style={{ color: C.muted }}>{subFiles.length} file{subFiles.length === 1 ? '' : 's'}</span>)}
           </div>
-        )}
+
+          {/* The grade: stays in view while a long hand-in scrolls. */}
+          <div className="grid gap-4 lg:sticky lg:top-4">
+            <Card C={C} className="overflow-hidden">
+              <div className="flex items-baseline justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
+                <h3 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{scenarioRec ? 'Final grade' : 'Grade'}</h3>
+                <span className="text-xs" style={{ color: C.muted }}>Pass mark <b className="font-semibold" style={{ color: C.text }}>{passMark}%</b></span>
+              </div>
+              <div className="px-5 py-4 grid gap-4">
+                {stats && (
+                  <div className="grid gap-2">
+                    <div className="flex items-baseline justify-between gap-3 text-xs">
+                      <span className="font-semibold" style={{ color: C.text }}>{stats.scored} of {stats.total} tasks scored</span>
+                      <span style={{ color: C.muted }}>{stats.commented} comment{stats.commented === 1 ? '' : 's'}</span>
+                    </div>
+                    <Bar parts={[{ pct: stats.total ? (stats.scored / stats.total) * 100 : 0, color: P.good }]} C={C} />
+                    {scenarioMcq?.subtotal != null && <p className="text-xs" style={{ color: C.muted }}>Multiple choice marked automatically: {scenarioMcq.subtotal}%</p>}
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="final-score" className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>{scenarioRec ? 'Final score' : 'Score'}</label>
+                  <div className="flex items-center gap-3">
+                    <input id="final-score" type="number" min={0} max={100} value={score} onChange={e => { setScore(e.target.value); setScoreTouched(true); }} placeholder="--"
+                      className="field-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ width: 96, height: 52, borderRadius: 12, border: `1px solid ${C.inputBorder}`, background: C.input, color: C.text, fontSize: 22, fontWeight: 600, textAlign: 'center', outline: 'none', boxSizing: 'border-box', fontFamily: DISPLAY_FONT }}/>
+                    <span className="text-sm" style={{ color: C.muted }}>/ 100</span>
+                    {scoreSet && <Pill tone={scoreIsPass ? 'good' : 'bad'} C={C}>{scoreIsPass ? 'Pass' : 'Fail'}</Pill>}
+                  </div>
+                  {scenarioRec && (
+                    <div className="mt-2 grid gap-2">
+                      <p className="text-xs" style={{ color: C.muted }}>
+                        {taskAverage == null
+                          ? 'Score the tasks and this fills in from their average, or set it yourself.'
+                          : scoreTouched
+                            ? `The task average is ${taskAverage}%. You have set your own score.`
+                            : `Follows the task average (${taskAverage}%). Type a number to set it yourself.`}
+                      </p>
+                      {taskAverage != null && scoreTouched && (
+                        <button type="button" onClick={() => { setScoreTouched(false); setScore(String(taskAverage)); }} className={`${btnSmClass} justify-self-start`} style={btnStyle('ghost', C)}>
+                          <RotateCcw className="w-3.5 h-3.5"/> Use task average ({taskAverage}%)
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>{scenarioRec ? 'Overall feedback' : 'Feedback to the learner'}</p>
+                  <RichTextEditor value={feedback} onChange={setFeedback}
+                    placeholder={scenarioRec ? 'Sum up the whole hand-in. Task comments are saved with each task.' : 'Write feedback for the learner'}
+                    bgOverride={C.input} enableAiAssist/>
+                </div>
+                {gradeError && <p role="alert" className="text-xs" style={{ color: P.bad }}>{gradeError}</p>}
+                {!gradeError && gradeWarning && <p className="text-xs" style={{ color: P.warn }}>{gradeWarning}</p>}
+                <button type="button" onClick={saveGrade} disabled={grading || gradeSuccess} className={`${btnClass} w-full`} style={btnStyle('pri', C)}>
+                  {grading ? 'Saving...' : gradeSuccess ? 'Grade saved' : viewingSub.status === 'graded' ? 'Update grade' : 'Save grade'}
+                </button>
+                <p className="text-xs" style={{ color: C.muted }}>The learner gets an email when the grade is saved.</p>
+              </div>
+            </Card>
+            {solutions.length > 0 && section('Model answer', (
+              <div className="grid gap-3">
+                <SolutionFilesList solutions={solutions} C={C}/>
+                <p className="text-xs" style={{ color: C.muted }}>Only you see these while grading. Learners get them once they are graded.</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

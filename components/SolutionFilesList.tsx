@@ -39,10 +39,10 @@ export function SolutionFilesList({ solutions, C }: { solutions: AssignmentSolut
       {solutions.map(s => {
         const body = (
           <>
-            <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.10)' }}>
+            <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.card }}>
               {s.kind === 'file'
-                ? <FileText className="w-4 h-4" style={{ color: '#10b981' }}/>
-                : <ExternalLink className="w-4 h-4" style={{ color: '#10b981' }}/>}
+                ? <FileText className="w-4 h-4" style={{ color: C.muted }}/>
+                : <ExternalLink className="w-4 h-4" style={{ color: C.muted }}/>}
             </div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-[13px] font-medium truncate" style={{ color: C.text }}>{s.name}</p>
