@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
-import { DISPLAY_FONT, Pill, btnClass, btnStyle, plural } from '@/components/dashboard/subscriptions/ui';
+import { DISPLAY_FONT, Pill, btnClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import FormEditor from '@/components/FormEditor';
@@ -2691,18 +2691,8 @@ export default function FormDetailPage() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0">
                   <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: hdrTextPrim, fontFamily: DISPLAY_FONT }}>{form.title}</h1>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: hdrTextMut }}>
+                  <div className="mt-2">
                     {form.status === 'published' ? <Pill tone="good" dot C={pageC}>Published</Pill> : <Pill tone="warn" C={pageC}>Draft</Pill>}
-                    {type === 'course' && (() => {
-                      const qs: any[] = form.config?.questions ?? [];
-                      const modules = qs.filter(q => q.isSection).length;
-                      return <span>{modules ? `${plural(modules, 'module')}, ` : ''}{plural(qs.length - modules, 'item')}</span>;
-                    })()}
-                    {type === 'course' && <span>{form.available_to_everyone ? 'Everyone' : plural((form.cohort_ids ?? []).length, 'cohort')}</span>}
-                    {type === 'event' && form.config?.eventDetails?.date && (
-                      <span><b style={{ color: hdrTextPrim }}>{new Date(`${form.config.eventDetails.date}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
-                    )}
-                    {type === 'course' && form.config?.passmark != null && <span>Pass mark <b style={{ color: hdrTextPrim }}>{form.config.passmark}%</b></span>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
