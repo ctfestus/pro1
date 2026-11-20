@@ -26,13 +26,13 @@ type Reach = { plans: Record<string, number>; paths: Record<string, number> };
 
 /** Every way learners can reach the course: open to everyone, cohorts, plans and paths. */
 function audience(course: any, reach: Reach | null) {
-  if (course.available_to_everyone) return 'Open to everyone, free';
+  if (course.available_to_everyone) return 'Free';
   const parts = [
     course.cohort_ids?.length ? plural(course.cohort_ids.length, 'cohort') : '',
     reach?.plans[course.id] ? plural(reach.plans[course.id], 'plan') : '',
-    reach?.paths[course.id] ? plural(reach.paths[course.id], 'learning path') : '',
+    reach?.paths[course.id] ? plural(reach.paths[course.id], 'path') : '',
   ].filter(Boolean);
-  return parts.length ? `In ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')}` : null;
+  return parts.length ? parts.join(', ') : null;
 }
 
 function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach | null; onDelete: (id: string) => void; C: ThemeColors }) {
@@ -79,7 +79,7 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
           {status}
           {audience(course, reach)
             ? <span className="text-xs" style={{ color: C.muted }}>{audience(course, reach)}</span>
-            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not given to anyone yet</span>}
+            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not given</span>}
         </span>
       </button>
       {menu && <FloatingMenu position={menu.position} label="course actions" items={items} onClose={() => setMenu(null)} C={C} />}
