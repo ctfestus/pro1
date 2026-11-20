@@ -67,7 +67,7 @@ export function EnrollmentsView({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[220px] max-w-[380px]" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
+        <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[220px]" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
           <Search className="w-4 h-4 flex-shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email or cohort" className="bg-transparent outline-none text-sm w-full" style={{ color: C.text }} />
         </label>
@@ -104,7 +104,7 @@ export function EnrollmentsView({
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[780px] text-sm table-fixed">
-                <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '15%' }} /><col style={{ width: '12%' }} /><col style={{ width: '15%' }} /><col style={{ width: '15%' }} /><col style={{ width: '5%' }} /></colgroup>
+                <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '15%' }} /><col style={{ width: '12%' }} /><col style={{ width: '15%' }} /><col style={{ width: '15%' }} /><col style={{ width: 72 }} /></colgroup>
                 <thead>
                   <tr>{['Learner', 'Fee', 'Paid', 'Balance', 'Status', 'Next due', ''].map((h, i) => <th key={i} className={th} style={{ color: C.faint }}>{h}</th>)}</tr>
                 </thead>
@@ -140,7 +140,7 @@ export function EnrollmentsView({
                         </td>
                         <td className="px-4 py-3"><StatusPill status={r.access_status} C={C} /></td>
                         <td className="px-4 py-3 text-xs" style={{ color: late ? P.bad : due ? C.text : C.muted }}>{due ?? '--'}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="pl-2 pr-5 py-3 text-right">
                           {r.enrollment_id && (
                             <button
                               type="button"
