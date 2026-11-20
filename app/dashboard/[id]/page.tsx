@@ -6,12 +6,14 @@ import { supabase } from '@/lib/supabase';
 import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
   ExternalLink, Pencil,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
-import { DISPLAY_FONT, Pill, btnClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
+import { Bar as SharedBar, Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, type Tone } from '@/components/dashboard/subscriptions/ui';
+import { Kpis } from '@/components/dashboard/content/kit';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import FormEditor from '@/components/FormEditor';
@@ -19,8 +21,6 @@ import { useTheme } from '@/components/ThemeProvider';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { isAnswerRight } from '@/lib/answer-rules';
-import { questionNumbers } from '@/lib/course-validation';
 import { ReviewReportView, LegacyReviewSummary, REVIEW_TYPES, REVIEW_LABELS } from '@/components/ReviewReportView';
 import { parseReviewNotes } from '@/lib/reviewRecord';
 import VeFileReportEditor from '@/components/dashboard/VeFileReportEditor';
@@ -107,6 +107,7 @@ function ResponsesTab({
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [reviewStudent, setReviewStudent] = useState<any | null>(null);
   const [learnerFilter, setLearnerFilter] = useState<'all' | 'passed' | 'failed' | 'in_progress' | 'not_started'>('all');
+  const [learnerSearch, setLearnerSearch] = useState('');
   const [shares, setShares] = useState<any[]>(linkedInShares);
   useEffect(() => { setShares(linkedInShares); }, [linkedInShares]);
 
@@ -196,28 +197,6 @@ function ResponsesTab({
       : null;
     const topScore = completedAttempts.length ? Math.max(...completedAttempts.map((p: any) => p.score ?? 0)) : 0;
 
-    // Code exercises are judged by their stored pass flags; everything else by the shared answer rules.
-    const isRight = (q: any, answer: any) => {
-      if (q.type === 'sql_exercise' || q.type === 'python_exercise') {
-        try {
-          const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer;
-          return !!parsed?.passed && !parsed?.skipped && !parsed?.solutionViewed && (q.type === 'sql_exercise' || !!parsed?.proof);
-        } catch { return false; }
-      }
-      if (q.type === 'document_review') {
-        try { return JSON.parse(answer)?.completed === true; } catch { return answer === 'completed'; }
-      }
-      return isAnswerRight(q, answer);
-    };
-    // Graded questions only, numbered Q1, Q2 ... as learners see them (lessons, modules, downloads
-    // and share slides are not questions).
-    const qNumbers = questionNumbers(questions);
-    const questionStats = questions.map((q: any, i: number) => ({ q, no: qNumbers[i] })).filter((x: any) => x.no > 0).map(({ q, no }: any) => {
-      const answered = completedAttempts.filter((p: any) => p.answers?.[q.id]);
-      const correct = answered.filter((p: any) => isRight(q, p.answers?.[q.id])).length;
-      return { no, text: q.question || q.lesson?.title || `Question ${no}`, correct, total: answered.length, pct: answered.length ? Math.round((correct / answered.length) * 100) : 0 };
-    });
-
     // Learners: finished (best attempt), in progress, and cohort members who have not started.
     const completedByEmail = new Map<string, any>();
     for (const p of completedAttempts) {
@@ -251,115 +230,93 @@ function ResponsesTab({
     ];
     const counts: Record<LearnerStatus, number> = { passed: 0, failed: 0, in_progress: 0, not_started: 0 };
     for (const l of learners) counts[l.status] += 1;
-    const shown = learnerFilter === 'all' ? learners : learners.filter(l => l.status === learnerFilter);
 
-    const soft = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
-    const line = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
-    const good = isDark ? '#5fd39a' : '#00a656';
-    const bad = isDark ? '#F28B82' : '#D93025';
-    const wait = isDark ? '#f5b454' : '#b45309';
-    const statusLook: Record<LearnerStatus, { label: string; color: string }> = {
-      passed: { label: 'Passed', color: good }, failed: { label: 'Failed', color: bad },
-      in_progress: { label: 'In progress', color: wait }, not_started: { label: 'Not started', color: isDark ? '#7d8896' : '#888' },
+    // The dashboard colours (with the shared blue) for the tiles, pills and chips.
+    const PC = isDark ? DARK_C : { ...LIGHT_C, cta: DARK_C.cta };
+    const P = palette(PC);
+    const statusLook: Record<LearnerStatus, { label: string; tone: Tone; color: string }> = {
+      passed: { label: 'Passed', tone: 'good', color: P.good }, failed: { label: 'Failed', tone: 'bad', color: P.bad },
+      in_progress: { label: 'In progress', tone: 'warn', color: P.warn }, not_started: { label: 'Not started', tone: 'mute', color: PC.faint },
     };
-    const shortDate = (d?: string) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
-    const Bar = ({ pct, color }: { pct: number; color: string }) => (
-      <div className="h-1.5 w-20 flex-shrink-0 overflow-hidden rounded-full" style={{ background: soft }}>
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    );
-    const summary = startedCount === 0 && notStartedStudents.length === 0 ? 'No learners yet.' : [
-      `${startedCount} learner${startedCount === 1 ? '' : 's'}: ${completedByEmail.size} finished, ${inProgressStudents.length} in progress`,
-      notStartedStudents.length ? `${notStartedStudents.length} not started` : '',
-    ].filter(Boolean).join(', ');
+    const term = learnerSearch.trim().toLowerCase();
+    const shown = (learnerFilter === 'all' ? learners : learners.filter(l => l.status === learnerFilter))
+      .filter(l => !term || `${l.name ?? ''} ${l.email ?? ''}`.toLowerCase().includes(term));
+    const best = completedAttempts.length ? completedAttempts.reduce((a: any, b: any) => ((b.score ?? 0) > (a.score ?? 0) ? b : a)) : null;
+    const none = 'No finished attempts yet';
+    const lastActive = (d?: string) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
 
     return (
-      <div className="space-y-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className={`text-sm ${textSub}`}>{summary}</p>
-          <button onClick={onExport} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Started',       value: startedCount || '--',                              Icon: Users },
-            { label: 'Average score', value: avgScore !== null ? `${avgScore}%` : '--',          Icon: BarChart2 },
-            { label: 'Pass rate',     value: completedAttempts.length ? `${passRate}%` : '--',   Icon: TrendingUp },
-            { label: 'Top score',     value: completedAttempts.length ? `${topScore}%` : '--',   Icon: Trophy },
-          ].map(({ label, value, Icon }) => (
-            <div key={label} className="rounded-xl p-4" style={{ background: soft }}>
-              <p className={`flex items-center gap-2 text-xs font-medium ${textMut}`}><Icon className="h-3.5 w-3.5" />{label}</p>
-              <p className={`mt-2 text-2xl font-bold tabular-nums ${textPrim}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-
-        {completedAttempts.length > 0 && questionStats.length > 0 && (
-          <section>
-            <h3 className={`mb-2 text-base font-semibold ${textPrim}`}>Questions</h3>
-            {questionStats.map((q: { no: number; text: string; correct: number; total: number; pct: number }) => (
-              <div key={q.no} className="flex items-center gap-3 py-3" style={{ borderTop: `1px solid ${line}` }}>
-                <span className={`w-7 flex-shrink-0 text-xs ${textMut}`}>Q{q.no}</span>
-                <p className={`min-w-0 flex-1 text-sm ${textSub}`}>{q.text}</p>
-                <span className="hidden sm:block"><Bar pct={q.pct} color={q.pct >= 50 ? good : bad} /></span>
-                <span className={`w-16 flex-shrink-0 text-right text-xs font-semibold tabular-nums ${textPrim}`}>{q.correct} of {q.total}</span>
-              </div>
-            ))}
-          </section>
-        )}
+      <div className="space-y-4">
+        <Kpis C={PC} items={[
+          { label: 'Learners', n: learners.length, color: PC.text,
+            sub: startedCount ? `${startedCount} started, ${counts.not_started} not started` : 'None started yet' },
+          { label: 'Average score', n: `${avgScore ?? 0}%`, color: PC.text, sub: completedAttempts.length ? 'Across finished attempts' : none },
+          { label: 'Pass rate', n: `${completedAttempts.length ? passRate : 0}%`, color: PC.text,
+            sub: completedAttempts.length ? `${passedAttempts.length} of ${completedAttempts.length} finished passed` : none },
+          { label: 'Top score', n: `${completedAttempts.length ? topScore : 0}%`, color: completedAttempts.length ? P.good : PC.text,
+            sub: best ? (best.student_name || best.student_email || '') : none },
+        ]} />
 
         {/* LinkedIn shares -- post URLs are only pattern-checked, so spot-check them by hand. */}
         {shares.length > 0 && (
-          <section>
-            <h3 className={`flex items-center gap-2 text-base font-semibold ${textPrim}`}>
-              <LinkedInIcon className="w-4 h-4" style={{ color: '#0A66C2' }} /> LinkedIn shares
-            </h3>
-            <p className={`mt-0.5 mb-2 text-xs ${textMut}`}>
-              Each link was checked when submitted: a real LinkedIn post URL, naming the profile saved
-              on that student&apos;s account, and not already claimed. That is a consistency check and a
-              deterrent, not proof the LinkedIn account belongs to them -- and it says nothing about
-              whether the post is still live.
-            </p>
-            {shares.map((s: any) => (
-              <div key={s.id} className="flex flex-wrap items-center gap-3 py-3" style={{ borderTop: `1px solid ${line}` }}>
+          <Card C={PC} className="overflow-hidden">
+            <div className="px-5 py-4" style={{ borderBottom: `1px solid ${PC.divider}` }}>
+              <h3 className="flex items-center gap-2 text-base font-semibold" style={{ color: PC.text }}>
+                <LinkedInIcon className="w-4 h-4" style={{ color: '#0A66C2' }} /> LinkedIn shares
+              </h3>
+              <p className="mt-1 text-xs" style={{ color: PC.muted }}>
+                Each link was checked when submitted: a real LinkedIn post URL, naming the profile saved
+                on that student&apos;s account, and not already claimed. That is a consistency check and a
+                deterrent, not proof the LinkedIn account belongs to them, and it says nothing about
+                whether the post is still live.
+              </p>
+            </div>
+            {shares.map((s: any, i: number) => (
+              <div key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3" style={i ? { borderTop: `1px solid ${PC.divider}` } : undefined}>
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-medium ${textPrim}`}>{s.studentName || s.studentEmail || 'Unknown'}</p>
-                  <a href={s.postUrl} target="_blank" rel="noreferrer" className="break-all text-xs hover:underline" style={{ color: '#0A66C2' }}>{s.postUrl}</a>
+                  <p className="truncate text-sm font-semibold" style={{ color: PC.text }}>{s.studentName || s.studentEmail || 'Unknown'}</p>
+                  <a href={s.postUrl} target="_blank" rel="noreferrer" className="break-all text-xs hover:underline" style={{ color: PC.muted }}>{s.postUrl}</a>
                 </div>
-                <span className={`flex-shrink-0 text-[11px] font-medium ${textMut}`}>{s.points > 0 ? `${s.points} XP` : 'Recorded'}</span>
+                <span className="flex-shrink-0 text-xs font-semibold" style={{ color: PC.muted }}>{s.points > 0 ? `${s.points} XP` : 'Recorded'}</span>
               </div>
             ))}
-          </section>
+          </Card>
         )}
 
-        <section>
-          <h3 className={`mb-2 text-base font-semibold ${textPrim}`}>Learners</h3>
-          {learners.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <h3 className="text-base font-semibold" style={{ color: PC.text }}>Learners</h3>
+          <button type="button" onClick={onExport} className={btnSmClass} style={btnStyle('sec', PC)}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
+        {learners.length > 0 && (
+          <>
+            <div className="flex"><SearchBox value={learnerSearch} onChange={setLearnerSearch} placeholder="Search learners" C={PC} /></div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter learners">
               {([['all', 'All', learners.length], ['passed', 'Passed', counts.passed], ['failed', 'Failed', counts.failed],
                  ['in_progress', 'In progress', counts.in_progress], ['not_started', 'Not started', counts.not_started]] as const).map(([key, label, n]) => {
                 const on = learnerFilter === key;
                 return (
-                  <button key={key} type="button" onClick={() => setLearnerFilter(key)} aria-pressed={on}
-                    className="rounded-full px-3 py-1 text-xs transition-colors"
-                    style={on ? { background: `color-mix(in srgb, ${courseAccent} 14%, transparent)`, color: courseAccent, fontWeight: 600 } : { background: soft, color: isDark ? '#A8B5C2' : '#555' }}>
+                  <button key={key} type="button" onClick={() => setLearnerFilter(key)} aria-pressed={on} className="h-8 px-3 rounded-full text-xs font-semibold"
+                    style={on ? { background: P.sel, color: P.onSel } : { background: PC.card, color: PC.muted, boxShadow: `inset 0 0 0 1px ${PC.divider}` }}>
                     {label} {n}
                   </button>
                 );
               })}
             </div>
-          )}
+          </>
+        )}
+        <Card C={PC} className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+              <colgroup><col style={{ width: hasReview ? '30%' : '34%' }} /><col style={{ width: '18%' }} /><col style={{ width: hasReview ? '26%' : '30%' }} /><col style={{ width: '14%' }} />{hasReview && <col style={{ width: '12%' }} />}</colgroup>
               <thead>
-                <tr className={`text-xs ${textMut}`}>
-                  <th className="px-2 py-2 font-medium">Learner</th>
-                  <th className="px-2 py-2 font-medium">Status</th>
-                  <th className="px-2 py-2 font-medium">Score or progress</th>
-                  <th className="px-2 py-2 font-medium">Last active</th>
-                  {hasReview && <th className="px-2 py-2 font-medium">Reviews</th>}
+                <tr className="text-xs" style={{ color: PC.faint }}>
+                  <th className="px-4 py-3 font-semibold">Learner</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Score or progress</th>
+                  <th className="px-4 py-3 font-semibold">Last active</th>
+                  {hasReview && <th className="px-4 py-3 font-semibold">Reviews</th>}
                 </tr>
               </thead>
               <tbody>
@@ -370,28 +327,21 @@ function ResponsesTab({
                     return ans === 'completed' || ans === 'failed';
                   }) : [];
                   return (
-                    <tr key={l.key} className={`transition-colors ${tableRow}`} style={{ borderTop: `1px solid ${line}` }}>
-                      <td className="px-2 py-3">
-                        <p className={`font-medium ${textPrim}`}>{l.name || <span className={`italic ${textMut}`}>Unknown</span>}</p>
-                        <p className={`text-xs ${textMut}`}>{l.email || ''}</p>
+                    <tr key={l.key} style={{ borderTop: `1px solid ${PC.divider}` }}>
+                      <td className="px-4 py-3">
+                        <p className="truncate font-semibold" style={{ color: PC.text }}>{l.name || 'Unknown'}</p>
+                        <p className="truncate text-xs" style={{ color: PC.muted }}>{l.email || ''}</p>
                       </td>
-                      <td className="px-2 py-3">
-                        <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: look.color, border: `1px solid ${line}`, background: isDark ? 'transparent' : '#fff' }}>
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: look.color }} />{look.label}
-                        </span>
+                      <td className="px-4 py-3"><Pill tone={look.tone} dot={l.status !== 'not_started'} C={PC}>{look.label}</Pill></td>
+                      <td className="px-4 py-3">
+                        <p className="mb-1.5 text-xs" style={{ color: PC.text }}>{l.detail}</p>
+                        <SharedBar parts={[{ pct: l.pct, color: look.color }]} C={PC} />
                       </td>
-                      <td className="px-2 py-3">
-                        <div className="flex items-center gap-2">
-                          <Bar pct={l.pct} color={look.color} />
-                          <span className={`whitespace-nowrap text-xs ${textSub}`}>{l.detail}</span>
-                        </div>
-                      </td>
-                      <td className={`whitespace-nowrap px-2 py-3 text-xs ${textMut}`}>{shortDate(l.updatedAt)}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: PC.muted }}>{lastActive(l.updatedAt)}</td>
                       {hasReview && (
-                        <td className="px-2 py-3">
+                        <td className="px-4 py-3">
                           {submittedDocs.length > 0 && (
-                            <button onClick={() => setReviewStudent({ ...l.progress, reviewQs: reviewQuestions })}
-                              className={`rounded-lg px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
+                            <button type="button" onClick={() => setReviewStudent({ ...l.progress, reviewQs: reviewQuestions })} className={btnSmClass} style={btnStyle('sec', PC)}>
                               View {submittedDocs.length}
                             </button>
                           )}
@@ -401,14 +351,14 @@ function ResponsesTab({
                   );
                 })}
                 {shown.length === 0 && (
-                  <tr><td colSpan={hasReview ? 5 : 4} className={`px-2 py-10 text-center text-sm ${textMut}`}>
-                    {learners.length === 0 ? 'No learners yet. Share the course link to get started.' : 'No learners in this group.'}
+                  <tr><td colSpan={hasReview ? 5 : 4} className="px-4 py-10 text-center text-sm" style={{ color: PC.muted, borderTop: `1px solid ${PC.divider}` }}>
+                    {learners.length === 0 ? 'No learners yet. Share the course link to get started.' : term ? 'No learners match.' : 'No learners in this group.'}
                   </td></tr>
                 )}
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
 
       {/* Document review modal */}
       {reviewStudent && (() => {
@@ -2763,7 +2713,8 @@ export default function FormDetailPage() {
                         publishFooter: <DuplicateRow kind={type} onClone={handleClone} />,
                       } : {})} />
                   ) : (
-                    <div className="mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full" style={{ background: isLight ? '#ffffff' : '#1E1F26' }}>
+                    <div className={shownTab === 'responses' && type === 'course' ? 'mt-4 w-full' : 'mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full'}
+                      style={shownTab === 'responses' && type === 'course' ? undefined : { background: isLight ? '#ffffff' : '#1E1F26' }}>
                       {shownTab === 'responses' && type !== 'virtual_experience' && (
                         <ResponsesTab
                           form={form}
