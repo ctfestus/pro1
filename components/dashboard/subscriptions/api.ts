@@ -16,12 +16,17 @@ async function authFetch(url: string, init?: RequestInit) {
   });
 }
 
-/** GET an action, throwing the server's message (or `fallback`) when it fails. */
-export async function getPayments(query: string, fallback: string) {
-  const res = await authFetch(`/api/payments?${query}`);
+/** GET any of our API routes, throwing the server's message (or `fallback`) when it fails. */
+export async function getJson(url: string, fallback: string) {
+  const res = await authFetch(url);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || fallback);
   return data;
+}
+
+/** GET a /api/payments action. */
+export function getPayments(query: string, fallback: string) {
+  return getJson(`/api/payments?${query}`, fallback);
 }
 
 /** POST an action, throwing the server's message (or `fallback`) when it fails. */

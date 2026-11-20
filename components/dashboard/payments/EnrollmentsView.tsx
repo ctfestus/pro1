@@ -67,7 +67,7 @@ export function EnrollmentsView({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[220px] max-w-[380px]" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
+        <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[220px]" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
           <Search className="w-4 h-4 flex-shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email or cohort" className="bg-transparent outline-none text-sm w-full" style={{ color: C.text }} />
         </label>
