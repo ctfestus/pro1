@@ -19,7 +19,7 @@ export type SiteConfig = {
   // Headline: the page's H1 for screen readers, the browser title and the link preview image.
   heroTitle:       string;
   heroTitleAccent: string;
-  // Picture beside the pricing page's tools list
+  // Picture beside the pricing page's tools list, set under Pricing Page in Site settings
   heroImageUrl:    string;
   // Closing call to action ('1' = hidden)
   ctaHeading:       string;

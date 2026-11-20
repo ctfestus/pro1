@@ -377,6 +377,13 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
           </>
         )}
 
+        {Sec('pricing', 'Pricing Page',
+          <></>,
+          <>
+            {imgUpload('heroImageUrl', 'Picture', 'Shown beside the tools list on the pricing page. Leave blank to let the list fill the width.')}
+          </>
+        )}
+
         {Sec('c-darkmode', 'Dark Mode',
           <></>,
           <>
