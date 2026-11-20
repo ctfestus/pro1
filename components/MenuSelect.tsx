@@ -3,10 +3,11 @@
 // A select drawn as a field and a floating menu: the filter bars (Explore), and with `field` a
 // form question (application forms). Same keyboard behaviour as a native select: arrows move,
 // Home and End jump, Enter or Space picks, Escape closes, and focus leaving the control closes it.
+// With `searchable`, a box at the top of the list narrows it as you type, for long lists.
 
 import { useId, useRef, useState, type ElementType, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Search } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
 
 // The selected option's tick and icon: the ocean blue the student menu uses.
@@ -14,7 +15,7 @@ const PICKED = '#3E93FF';
 
 export type MenuOption<V extends string> = { value: V; label: string; icon?: ElementType };
 
-export function MenuSelect<V extends string>({ label, value, options, onChange, C, field = false, placeholder, disabled = false, autoFocus = false, className = '' }: {
+export function MenuSelect<V extends string>({ label, value, options, onChange, C, field = false, placeholder, disabled = false, autoFocus = false, className = '', searchable = false }: {
   /** What the control chooses, for screen readers ("Content type"). */
   label: string;
   value: V;
@@ -29,9 +30,14 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   autoFocus?: boolean;
   /** Extra classes on the trigger, e.g. a form's own focus ring. */
   className?: string;
+  /** A search box at the top of the list, for lists too long to scroll through. */
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [query, setQuery] = useState('');
+  const term = query.trim().toLowerCase();
+  const shown = term ? options.filter(o => o.label.toLowerCase().includes(term)) : options;
   const listId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const current = options.find(o => o.value === value) ?? (placeholder === undefined ? options[0] : undefined);
@@ -41,6 +47,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
 
   const show = () => {
     if (disabled || !options.length) return;
+    setQuery('');
     setActive(Math.max(0, options.findIndex(o => o.value === value)));
     setOpen(true);
     // Safari does not focus a clicked button, and closing on outside click relies on blur.
@@ -52,20 +59,21 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
     buttonRef.current?.focus();
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!open) { show(); return; }
-      setActive(i => (i + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length);
+      if (shown.length) setActive(i => (i + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length);
     } else if ((e.key === 'Home' || e.key === 'End') && open) {
       e.preventDefault();
-      setActive(e.key === 'Home' ? 0 : options.length - 1);
+      setActive(e.key === 'Home' ? 0 : Math.max(0, shown.length - 1));
     } else if (e.key === 'Escape' && open) {
       e.preventDefault();
       setOpen(false);
-    } else if ((e.key === 'Enter' || e.key === ' ') && open) {
+      buttonRef.current?.focus();
+    } else if ((e.key === 'Enter' || (e.key === ' ' && e.currentTarget === buttonRef.current)) && open) {
       e.preventDefault();
-      choose(options[active].value);
+      if (shown[active]) choose(shown[active].value);
     }
   };
 
@@ -113,7 +121,25 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
               boxShadow: isLight ? '0 16px 40px rgba(15,23,42,0.14), 0 2px 6px rgba(15,23,42,0.06)' : '0 16px 40px rgba(0,0,0,0.5)',
             }}
           >
-            {options.map((o, i) => {
+            {searchable && (
+              <label className="sticky -top-1.5 z-10 -mx-1.5 -mt-1.5 mb-1.5 flex items-center gap-2 px-4 py-3" style={{ background: C.card, borderBottom: `1px solid ${C.cardBorder}` }}>
+                <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={e => { setQuery(e.target.value); setActive(0); }}
+                  onKeyDown={onKeyDown}
+                  placeholder="Type to search"
+                  aria-label={`Search ${label.toLowerCase()}`}
+                  aria-controls={listId}
+                  aria-activedescendant={shown.length ? `${listId}-${active}` : undefined}
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none"
+                  style={{ color: C.text }}
+                />
+              </label>
+            )}
+            {searchable && !shown.length && <p className="px-3 py-3 text-sm" style={{ color: C.muted }}>No matches</p>}
+            {shown.map((o, i) => {
               const selected = o.value === value;
               const Icon = o.icon;
               return (
