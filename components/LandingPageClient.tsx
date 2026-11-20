@@ -633,6 +633,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
   // Drives the decorative orbs in the closing band. The margin starts them just before
   // the section arrives, so nothing visibly kicks into motion mid-view.
+  const pathsRef = useRef<HTMLElement>(null);
+  const pathsInView = useInView(pathsRef, { margin: '200px' });
   const ctaRef   = useRef<HTMLElement>(null);
   const ctaInView   = useInView(ctaRef,   { margin: '200px' });
 
@@ -762,13 +764,19 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {paths.length > 0 && (
         // A white section on the grey page (its dark equivalent on a dark page), so the coloured
         // cards and the notch around each button read cleanly.
-        <section id="section-paths" className={SECTION_Y} style={{ background: isPageDark ? '#161b22' : '#ffffff' }}>
-          <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
+        <section id="section-paths" ref={pathsRef} className={`relative ${SECTION_Y} overflow-hidden`}
+          style={{ background: isPageDark
+            ? `linear-gradient(140deg, #0d1117 0%, ${shade(BLUE, -0.72)} 100%)`
+            : `linear-gradient(140deg, ${shade(BLUE, -0.4)} 0%, ${BLUE} 62%, ${shade(BLUE, -0.12)} 100%)` }}>
+          {!reduced && <>
+            <Orb x="78%" y="-40%" size={360} color={shade(BLUE, 0.55)} delay={1} active={pathsInView} />
+            <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
+          </>}
+          <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
             <MSectionHeading title="Learning paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+              color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
             {/* Site settings takes the colour as free text, so anything but #rrggbb falls back. */}
-            <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont}
+            <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont} hoverColor={AMBER}
               color={/^#[0-9a-fA-F]{6}$/.test(pathCardColor) ? pathCardColor : SITE_DEFAULTS.pathCardColor} />
           </div>
         </section>

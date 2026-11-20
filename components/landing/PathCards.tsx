@@ -33,24 +33,28 @@ const CARD_CSS = `
 .path-card:hover .pc-cover, .path-card:focus-visible .pc-cover { opacity: 0; }
 .path-card:hover .pc-desc, .path-card:focus-visible .pc-desc { opacity: 1; transform: none; }
 .path-card .pc-btn { position: absolute; right: 0; bottom: 0; height: 52px; display: inline-flex; align-items: center; gap: 10px; padding: 0 24px;
-  border-radius: 999px; background: var(--deep); color: #ffffff; white-space: nowrap; }
+  border-radius: 999px; background: var(--deep); color: #ffffff; white-space: nowrap; transition: background-color 0.25s ease; }
+/* The platform's accent colour on hover, so the button answers the pointer. */
+.path-card:hover .pc-btn, .path-card:focus-visible .pc-btn { background: var(--hover); }
 .path-card .pc-btn svg { transition: transform 0.25s; }
 .path-card:hover .pc-btn svg { transform: translateX(3px); }
-.path-card:focus-visible .pc-btn { box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px var(--deep); }
+.path-card:focus-visible .pc-btn { box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px var(--hover); }
 @media (hover: none) {
   .path-card .pc-layer { transform: none; }
   .path-card .pc-cover { opacity: 1; }
   .path-card .pc-desc { opacity: 1; transform: none; -webkit-line-clamp: 2; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .path-card .pc-layer, .path-card .pc-desc, .path-card .pc-cover, .path-card .pc-btn svg { transition: none; }
+  .path-card .pc-layer, .path-card .pc-desc, .path-card .pc-cover, .path-card .pc-btn, .path-card .pc-btn svg { transition: none; }
 }
 `;
 
-export function PathCards({ paths, color, user, hFont, bFont }: {
+export function PathCards({ paths, color, hoverColor, user, hFont, bFont }: {
   paths: ProgrammeItem[];
   /** A #rrggbb colour. */
   color: string;
+  /** The button on hover: the platform's accent colour. */
+  hoverColor: string;
   user: unknown;
   hFont?: string;
   bFont?: string;
@@ -68,7 +72,7 @@ export function PathCards({ paths, color, user, hFont, bFont }: {
           return (
             <Link key={path.id} href={landingHref(path, user)}
               className="path-card flex-[0_0_82%] snap-start sm:flex-auto"
-              style={{ ['--tint' as string]: `color-mix(in srgb, ${color} 16%, #ffffff)`, ['--deep' as string]: color }}>
+              style={{ ['--tint' as string]: `color-mix(in srgb, ${color} 16%, #ffffff)`, ['--deep' as string]: color, ['--hover' as string]: hoverColor }}>
               <div className="pc-panel">
                 <div className="pc-cover" style={{ backgroundImage: path.imageUrl ? `url(${path.imageUrl})` : undefined }} />
                 <div className="pc-layer">
