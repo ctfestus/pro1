@@ -43,17 +43,19 @@ a feature so it lands in the right place and follows the patterns the codebase a
     are exceptions — follow the established pattern for that route family, don't force them onto
     `requireUser`.
 - **Theme:** use `useC()` + tokens from `lib/theme` (`C.card`, `C.text`, `C.cta`, …).
-  *Exception:* the create editor has its **own** local theme in `components/create/theme.ts`
-  (different token shape). Inside that editor use the local one; don't cross them. Unifying the
-  two is a deliberate future PR, not incidental work.
+  The course and event editor (`components/FormEditor.tsx`) maps its own `FE` tokens onto
+  `lib/theme`, with the shared blue for controls.
+  *Exception:* the AI course starters (`app/create/page.tsx`), the certification creator and the
+  book editor still use the **local** theme in `components/create/theme.ts` (different token
+  shape). Inside those use the local one; don't cross them. Moving them over is a deliberate PR.
 
 ## Cross-cutting rules
 
 - **New course/content field — wire the whole path:**
   1. type in `lib/course-schema.ts`
   2. persist in `app/api/forms/route.ts` (+ migration + `festman-fresh-schema.sql`)
-  3. authoring UI in **both** `app/create/page.tsx` and `components/FormEditor.tsx` (create and
-     edit are two separate editors)
+  3. authoring UI in `components/FormEditor.tsx`, the one course editor for new and existing
+     courses (`app/create/page.tsx` only holds the AI course starters, which hand off to it)
   4. **runtime consumers** — wherever it renders/is used: usually `components/CourseTaker.tsx`
      and the relevant `components/student/*` / `components/dashboard/*` display.
   Missing step 4 is the easy one to forget.
@@ -117,6 +119,6 @@ go through `supabase` under RLS (student-owned) or a new `app/api/...` route if 
 service role.
 
 **Add a "difficulty" field to courses:** type in `lib/course-schema.ts` → persist in
-`app/api/forms/route.ts` (+ migration + schema sync) → control in **both** `app/create/page.tsx`
-and `components/FormEditor.tsx` → render in `components/CourseTaker.tsx` and
+`app/api/forms/route.ts` (+ migration + schema sync) → control in `components/FormEditor.tsx`
+→ render in `components/CourseTaker.tsx` and
 `components/student/courses-paths.tsx`.

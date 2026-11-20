@@ -7,8 +7,11 @@ import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
+  ExternalLink, Pencil,
 } from 'lucide-react';
 import Link from 'next/link';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
+import { DISPLAY_FONT, Pill, btnClass, btnStyle, plural } from '@/components/dashboard/subscriptions/ui';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import FormEditor from '@/components/FormEditor';
@@ -1650,12 +1653,11 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusWarning, setStatusWarning] = useState('');
   const [currentStatus, setCurrentStatus] = useState<'draft' | 'published'>(form?.status ?? 'published');
-  const courseAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || '#00bf63';
-  const textPrim = isLight ? '#111' : '#fff';
-  const textMut  = isLight ? '#555' : '#71717a';
+  const pageC = isLight ? { ...LIGHT_C, cta: DARK_C.cta } : DARK_C;
+  const textPrim = pageC.text;
+  const textMut  = pageC.muted;
   const published = currentStatus === 'published';
   const blocked = !published && (!ready || unsaved);
-  const btn = 'inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-45 flex-shrink-0';
 
   const handleStatusToggle = async (newStatus: 'draft' | 'published') => {
     if (newStatus === currentStatus || statusUpdating) return;
@@ -1684,14 +1686,11 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-4"
-        style={{ background: published ? `${courseAccent}1a` : (isLight ? 'rgba(217,119,6,0.10)' : 'rgba(245,180,84,0.12)') }}>
+      <h3 className="text-base font-semibold" style={{ color: textPrim }}>Status</h3>
+      <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-sm font-semibold" style={{ color: textPrim }}>
-            <span className="h-2 w-2 rounded-full" style={{ background: published ? courseAccent : '#d97706' }} />
-            {published ? 'Published' : 'Draft'}
-          </p>
-          <p className="mt-0.5 text-sm" style={{ color: textMut }}>
+          {published ? <Pill tone="good" dot C={pageC}>Published</Pill> : <Pill tone="warn" C={pageC}>Draft</Pill>}
+          <p className="mt-1.5 text-sm" style={{ color: textMut }}>
             {published ? `Learners it is assigned to can open this ${kind}.`
               : unsaved ? 'Save your changes, then publish.'
               : !ready ? 'Fix the items below, then publish.'
@@ -1699,7 +1698,7 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
           </p>
         </div>
         <button onClick={() => handleStatusToggle(published ? 'draft' : 'published')} disabled={statusUpdating || blocked}
-          className={btn} style={published ? { background: isLight ? '#ffffff' : '#1E1F26', color: textPrim } : { background: courseAccent, color: '#fff' }}>
+          className={btnClass} style={btnStyle(published ? 'sec' : 'pri', pageC)}>
           {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
         </button>
       </div>
@@ -1728,8 +1727,7 @@ function DuplicateRow({ kind, onClone }: { kind: string; onClone: () => Promise<
         <p className="text-xs" style={{ color: isLight ? '#555' : '#71717a' }}>Makes a draft copy you can change.</p>
       </div>
       <button onClick={handleClone} disabled={cloning || cloned}
-        className="inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0"
-        style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: isLight ? '#111' : '#fff' }}>
+        className={btnClass} style={btnStyle('sec', isLight ? { ...LIGHT_C, cta: DARK_C.cta } : DARK_C)}>
         {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? 'Copy made' : `Duplicate ${kind}`}
       </button>
     </div>
@@ -2651,6 +2649,8 @@ export default function FormDetailPage() {
   const textMut  = isLight ? '#555' : '#71717a';
   const green    = '#00bf63';
 
+  // The dashboard colours, with the shared blue, for the heading's pill and buttons.
+  const pageC = isLight ? { ...LIGHT_C, cta: DARK_C.cta } : DARK_C;
   const hdrTextPrim = textPrim;
   const hdrTextMut  = textMut;
 
@@ -2662,7 +2662,6 @@ export default function FormDetailPage() {
   }
 
   const type = getFormType(form.config);
-  const tabAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || green;
 
   return (
     <main className="min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
@@ -2681,66 +2680,77 @@ export default function FormDetailPage() {
             : tab.id === 'responses' && type === 'event' ? 'Registrations'
             : tab.id === 'settings' && (type === 'course' || type === 'event') ? 'Edit' : tab.label;
           return (
-            <div className="max-w-6xl mx-auto flex flex-col gap-4">
-              {/* One card: the title row, the tabs and the tab's content on the same surface. */}
-              <div className="w-full min-w-0 rounded-2xl" style={{ background: isLight ? '#ffffff' : '#1E1F26', boxShadow: isLight ? '0 16px 38px rgba(15,23,42,0.045)' : 'none' }}>
-              {(
-          <div className="px-5 sm:px-6 pt-4 pb-2 flex items-center gap-3">
-            <Link href="/dashboard" aria-label="Back to dashboard" className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] transition-opacity hover:opacity-70" style={{ color: hdrTextMut, background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)' }}>
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-
-            {/* What this is, then its name */}
-            <div className="min-w-0">
-              <p className="text-[12px]" style={{ color: hdrTextMut }}>{type === 'virtual_experience' ? 'Virtual experience' : type === 'course' ? 'Course' : type === 'event' ? 'Event' : 'Form'}</p>
-              <p className="text-base font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</p>
-            </div>
-
-            {/* Right actions */}
-            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-              {type === 'virtual_experience' ? (
-                <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
-                  Edit
-                </Link>
-              ) : type === 'course' || type === 'event' ? null : (
-                <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
-                  Edit
-                </button>
-              )}
-              <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
-                View
-              </a>
-              {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center px-4 py-2 rounded-[10px] text-sm font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }} title="Download this as a file you can import into another workspace">
-                Export content
-              </button>}
-              <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors ff-hover" title="Toggle theme" style={{ color: hdrTextMut }}>
-                {isLight ? <Moon className="w-4 h-4"/> : <Sun className="w-4 h-4"/>}
-              </button>
-            </div>
-          </div>
-              )}
-              <nav className="flex items-center gap-6 overflow-x-auto px-5 sm:px-6" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${navBord}` }}>
+            <div className="max-w-6xl mx-auto flex flex-col">
+              {/* The page heading as on the other admin pages: back to the list, the name, its status and
+                  key facts, then the buttons. The editor puts its save status and button in the two slots. */}
+              <Link href={`/dashboard#${type === 'course' ? 'courses' : type === 'event' ? 'events' : 'virtual_experiences'}`}
+                className="inline-flex w-fit items-center gap-2 text-[13px] font-semibold mb-3 no-underline hover:opacity-80" style={{ color: hdrTextMut }}>
+                <ArrowLeft className="w-4 h-4" />
+                {type === 'course' ? 'All courses' : type === 'event' ? 'All events' : type === 'virtual_experience' ? 'All virtual experiences' : 'Dashboard'}
+              </Link>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: hdrTextPrim, fontFamily: DISPLAY_FONT }}>{form.title}</h1>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: hdrTextMut }}>
+                    {form.status === 'published' ? <Pill tone="good" dot C={pageC}>Published</Pill> : <Pill tone="warn" C={pageC}>Draft</Pill>}
+                    {type === 'course' && (() => {
+                      const qs: any[] = form.config?.questions ?? [];
+                      const modules = qs.filter(q => q.isSection).length;
+                      return <span>{modules ? `${plural(modules, 'module')}, ` : ''}{plural(qs.length - modules, 'item')}</span>;
+                    })()}
+                    {type === 'course' && <span>{form.available_to_everyone ? 'Everyone' : plural((form.cohort_ids ?? []).length, 'cohort')}</span>}
+                    {type === 'event' && form.config?.eventDetails?.date && (
+                      <span><b style={{ color: hdrTextPrim }}>{new Date(`${form.config.eventDetails.date}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
+                    )}
+                    {type === 'course' && form.config?.passmark != null && <span>Pass mark <b style={{ color: hdrTextPrim }}>{form.config.passmark}%</b></span>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {shownTab === 'settings' && (type === 'course' || type === 'event') && <span id="editor-save-status" className="contents" />}
+                  {type === 'virtual_experience' ? (
+                    <Link href={`/create/guided-project?id=${form.id}`} className={`${btnClass} no-underline`} style={btnStyle('sec', pageC)}>
+                      <Pencil className="w-4 h-4" />Edit
+                    </Link>
+                  ) : type === 'course' || type === 'event' ? null : (
+                    <button type="button" onClick={() => setActiveTab('settings')} className={btnClass} style={btnStyle('sec', pageC)}>
+                      <Pencil className="w-4 h-4" />Edit
+                    </button>
+                  )}
+                  <a href={formUrl} target="_blank" rel="noreferrer" className={`${btnClass} no-underline`} style={btnStyle('sec', pageC)}>
+                    <ExternalLink className="w-4 h-4" />View
+                  </a>
+                  {!isStaff && (
+                    <button type="button" onClick={() => exportContent(form)} className={btnClass} style={btnStyle('sec', pageC)} title="Download this as a file you can import into another workspace">
+                      <Download className="w-4 h-4" />Export
+                    </button>
+                  )}
+                  {shownTab === 'settings' && (type === 'course' || type === 'event') && <span id="editor-save-button" className="contents" />}
+                  <button type="button" onClick={toggleTheme} aria-label="Switch light or dark" title="Switch light or dark"
+                    className="grid h-10 w-10 place-items-center rounded-xl transition-opacity hover:opacity-80" style={{ color: hdrTextMut }}>
+                    {isLight ? <Moon className="w-4 h-4"/> : <Sun className="w-4 h-4"/>}
+                  </button>
+                </div>
+              </div>
+              <nav className="flex items-center gap-6 overflow-x-auto mt-5" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${navBord}` }}>
                 {visibleTabs.map(tab => {
                   const isActive = shownTab === tab.id;
+                  const count = tab.id === 'responses' ? (type === 'virtual_experience' ? veLearnerCount : totalCount) : 0;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       aria-current={isActive ? 'page' : undefined}
-                      className="flex items-center gap-2 whitespace-nowrap pt-3 pb-3 text-left text-sm transition-colors"
-                      style={{ color: isActive ? (isLight ? '#111' : '#f0f0f0') : hdrTextMut, fontWeight: 600, borderBottom: `2px solid ${isActive ? tabAccent : 'transparent'}`, marginBottom: -1 }}
+                      className="flex items-center gap-2 whitespace-nowrap pb-3 text-left text-sm transition-colors"
+                      style={{ color: isActive ? hdrTextPrim : hdrTextMut, fontWeight: 600, borderBottom: `2px solid ${isActive ? DARK_C.cta : 'transparent'}`, marginBottom: -1 }}
                     >
                       <span>{tabLabel(tab)}</span>
-                      {tab.id === 'responses' && (type === 'virtual_experience' ? veLearnerCount : totalCount) > 0 && (
-                        <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold" style={{ background: isActive ? `color-mix(in oklab, ${tabAccent} 18%, transparent)` : (isLight ? 'rgba(0,0,0,0.06)' : '#3f3f46'), color: isActive ? tabAccent : hdrTextMut }}>
-                          {type === 'virtual_experience' ? veLearnerCount : totalCount}
-                        </span>
+                      {count > 0 && (
+                        <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold" style={{ background: pageC.pill, color: hdrTextMut }}>{count}</span>
                       )}
                     </button>
                   );
                 })}
               </nav>
-
               <div className="w-full min-w-0">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -2762,7 +2772,7 @@ export default function FormDetailPage() {
                         publishFooter: <DuplicateRow kind={type} onClone={handleClone} />,
                       } : {})} />
                   ) : (
-                    <div className="px-4 sm:px-6 py-6 sm:py-8 w-full">
+                    <div className="mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full" style={{ background: isLight ? '#ffffff' : '#1E1F26' }}>
                       {shownTab === 'responses' && type !== 'virtual_experience' && (
                         <ResponsesTab
                           form={form}
@@ -2798,7 +2808,6 @@ export default function FormDetailPage() {
                   )}
                   </motion.div>
                 </AnimatePresence>
-              </div>
               </div>
             </div>
           );
