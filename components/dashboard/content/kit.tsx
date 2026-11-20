@@ -129,6 +129,11 @@ export function GroupHeading({ name, count, noun, C }: { name: string; count: nu
   );
 }
 
+/** The menu's height, so it opens right by its button: rows of about 52px, dividers of 9px, 16px padding. */
+function menuHeight(items: (MenuItem | null)[]) {
+  return items.reduce((h, item) => h + (item ? 52 : 9), 16);
+}
+
 export const CARD_GRID = 'grid sm:grid-cols-2 lg:grid-cols-3 gap-4';
 
 /**
@@ -175,7 +180,7 @@ export function ContentCard({ item, cover, Icon, detail, reach, onOpen, menu, ov
         {overlay}
         <div className="absolute left-3 bottom-3">{status}</div>
         <button type="button" aria-label={`Actions for ${item.title}`}
-          onClick={(e) => { e.stopPropagation(); setOpen(open ? null : { position: menuPosition(e.currentTarget, 400), from: e.currentTarget.getBoundingClientRect() }); }}
+          onClick={(e) => { e.stopPropagation(); setOpen(open ? null : { position: menuPosition(e.currentTarget, menuHeight(menu(close, null))), from: e.currentTarget.getBoundingClientRect() }); }}
           className="absolute top-3 right-3 w-8 h-8 rounded-[10px] grid place-items-center"
           style={open ? { background: C.text, color: C.card } : { background: C.card, color: C.muted }}>
           <MoreHorizontal className="w-4 h-4" />
