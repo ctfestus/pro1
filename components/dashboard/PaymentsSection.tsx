@@ -153,7 +153,7 @@ export function PaymentsSection({ C: theme }: { C: ThemeColors }) {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Payments sections" className="inline-flex max-w-full overflow-x-auto gap-1 p-1 rounded-2xl" style={{ background: C.pill }}>
+      <div role="tablist" aria-label="Payments sections" className="inline-flex max-w-full overflow-x-auto gap-1 p-1 rounded-2xl" style={{ background: C.card }}>
         {SECTIONS.map(([id, label]) => (
           <button
             key={id}
@@ -162,10 +162,10 @@ export function PaymentsSection({ C: theme }: { C: ThemeColors }) {
             aria-selected={section === id}
             onClick={() => setSection(id)}
             className="inline-flex items-center gap-2 h-9 px-4 rounded-[10px] text-sm font-semibold whitespace-nowrap"
-            style={section === id ? { background: C.card, color: C.text, boxShadow: '0 1px 2px rgba(16,24,40,0.08)' } : { color: C.muted }}
+            style={section === id ? { background: P.sel, color: P.onSel } : { color: C.muted }}
           >
             {label}
-            {id === 'proofs' && pendingProofs > 0 && <span className="w-2 h-2 rounded-full" style={{ background: P.bad }} aria-label={`${pendingProofs} waiting for review`} />}
+            {id === 'proofs' && pendingProofs > 0 && <span className="w-2 h-2 rounded-full" style={{ background: section === id ? '#FFFFFF' : P.bad }} aria-label={`${pendingProofs} waiting for review`} />}
           </button>
         ))}
       </div>
