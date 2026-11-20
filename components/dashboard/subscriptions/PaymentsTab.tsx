@@ -43,7 +43,7 @@ export function PaymentsTab({
   ];
   const head = (id: string, title: string, n: number, alert = false) => (
     <div id={id} className="flex items-center gap-2 pt-2 scroll-mt-24">
-      <h3 className="text-base font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
+      <h3 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
       <Count n={n} alert={alert && n > 0} C={C} />
     </div>
   );
@@ -64,7 +64,7 @@ export function PaymentsTab({
         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: P.badSoft, color: P.bad }}>
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-bold">Subscription expiry has not run recently</p>
+            <p className="text-sm font-semibold">Subscription expiry has not run recently</p>
             <p className="text-xs mt-1">
               {sweepHeartbeat.lastSuccessAt
                 ? `Last completed ${Math.round(sweepHeartbeat.staleHours)} hours ago. `
@@ -87,7 +87,7 @@ export function PaymentsTab({
           >
             <IconChip color={section.color} background={section.bg}>{section.icon}</IconChip>
             <span className="min-w-0">
-              <b className="block text-[22px] leading-7 font-bold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{section.n}</b>
+              <b className="block text-[22px] leading-7 font-semibold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{section.n}</b>
               <span className="block text-xs" style={{ color: C.muted }}>{section.label}</span>
             </span>
           </button>

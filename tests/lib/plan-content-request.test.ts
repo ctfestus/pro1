@@ -6,6 +6,7 @@
 // contract and the fact that every caller goes through it.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { subscriptionsPageSource } from '../helpers/subscriptionsPageSource';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyPlanContentChange,
@@ -126,7 +127,7 @@ describe('batches', () => {
 });
 
 describe('every caller goes through this module', () => {
-  const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+  const dashboard = subscriptionsPageSource();
   const picker = read('components/PlanAccessPicker.tsx');
 
   it('leaves no caller posting the action by hand', () => {
@@ -249,7 +250,7 @@ describe('activating a newly created plan', () => {
   });
 
   it('is what the dashboard actually gates activation on', () => {
-    const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+    const dashboard = subscriptionsPageSource();
     expect(dashboard).toContain('decideNewPlanActivation');
     expect(dashboard).toContain('if (decision.activate) {');
     // One message from one decision, rather than an error followed by a success.

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import {
-  Archive, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus, Search,
+  Archive, Check, ChevronDown, FileSpreadsheet, Layers3, Pencil, Plus,
   ShieldCheck, Star, Tag, Trash2,
 } from 'lucide-react';
 import type { ThemeColors } from '@/lib/theme';
@@ -10,13 +10,9 @@ import {
   Card, DISPLAY_FONT, IconChip, Lines, Pill, btnClass, btnSmClass, btnStyle, palette, plural,
 } from './ui';
 import type { PlanSummary } from './types';
+import { ContentPicker } from './ContentPicker';
+import { CONTENT_TYPES } from './drafts';
 
-const TYPES: { table: string; label: string; plural: string }[] = [
-  { table: 'courses', label: 'Course', plural: 'Courses' },
-  { table: 'virtual_experiences', label: 'Virtual experience', plural: 'Virtual experiences' },
-  { table: 'certifications', label: 'Certification', plural: 'Certifications' },
-  { table: 'learning_paths', label: 'Learning path', plural: 'Learning paths' },
-];
 
 function planStatus(plan: any, C: ThemeColors) {
   if (plan.archived_at) return <Pill tone="mute" C={C}>Archived</Pill>;
@@ -27,7 +23,7 @@ function planStatus(plan: any, C: ThemeColors) {
 export function PlansTab({
   C, summaries, selectedPlan, onSelect, showArchived, setShowArchived, busy, menuOpen, setMenuOpen,
   onCreate, onEdit, onToggle, onBulk, onRecommend, onArchive, onDelete,
-  planContent, contentOptions, selectedContentKeys, setSelectedContentKeys, toggleContentKey, contentSearch, setContentSearch, onSaveContent,
+  planContent, contentOptions, selectedContentKeys, setSelectedContentKeys, onSaveContent,
 }: {
   C: ThemeColors;
   summaries: PlanSummary[];
@@ -48,10 +44,7 @@ export function PlansTab({
   planContent: any[];
   contentOptions: any[];
   selectedContentKeys: string[];
-  setSelectedContentKeys: (update: (current: string[]) => string[]) => void;
-  toggleContentKey: (key: string) => void;
-  contentSearch: string;
-  setContentSearch: (value: string) => void;
+  setSelectedContentKeys: (keys: string[]) => void;
   onSaveContent: () => void;
 }) {
   const P = palette(C);
@@ -117,7 +110,7 @@ export function PlansTab({
               className="grid gap-2 p-4 rounded-2xl text-left"
               style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 2px ${P.sel}` : 'none' }}
             >
-              <span className="flex items-center gap-2 flex-wrap text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+              <span className="flex items-center gap-2 flex-wrap text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                 {item.plan.name}
                 {item.plan.recommended && <Pill tone="gold" C={C}>Best Value</Pill>}
               </span>
@@ -160,7 +153,7 @@ export function PlansTab({
             <div className="flex flex-wrap items-start justify-between gap-3 p-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{plan.name}</h3>
+                  <h3 className="text-[22px] leading-7 font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{plan.name}</h3>
                   {plan.recommended && <Pill tone="gold" C={C}>Best Value</Pill>}
                   {planStatus(plan, C)}
                   {!summary.priceCount || !planContent.length ? <Pill tone="warn" C={C}>Needs setup</Pill> : null}
@@ -219,7 +212,7 @@ export function PlansTab({
                 [String(planContent.length), 'Items included'],
               ].map(([value, label], index) => (
                 <div key={label} className="px-4 sm:px-5 py-4 min-w-0" style={index ? { borderLeft: `1px solid ${C.divider}` } : undefined}>
-                  <b className="block text-base sm:text-[22px] leading-6 sm:leading-7 font-bold tabular-nums break-words" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{value}</b>
+                  <b className="block text-base sm:text-[22px] leading-6 sm:leading-7 font-semibold tabular-nums break-words" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{value}</b>
                   <span className="block text-xs" style={{ color: C.muted }}>{label}</span>
                 </div>
               ))}
@@ -235,7 +228,7 @@ export function PlansTab({
 
             <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <div className="flex items-center justify-between gap-3 mb-3">
-                <h4 className="text-sm font-bold" style={{ color: C.text }}>Prices</h4>
+                <h4 className="text-sm font-semibold" style={{ color: C.text }}>Prices</h4>
                 <button type="button" onClick={() => onEdit(plan)} className="text-xs font-semibold" style={{ color: C.text }}>Edit prices</button>
               </div>
               {summary.prices.length ? (
@@ -243,7 +236,7 @@ export function PlansTab({
                   {summary.prices.map((price) => (
                     <div key={price.id} className="rounded-xl p-3" style={{ background: C.page }}>
                       <p className="text-xs" style={{ color: C.muted }}>{price.duration}</p>
-                      <p className="text-[22px] leading-7 font-bold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{price.now}</p>
+                      <p className="text-[22px] leading-7 font-semibold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{price.now}</p>
                       {price.list
                         ? <s className="text-xs" style={{ color: C.faint }}>{price.list}</s>
                         : <span className="text-xs" style={{ color: C.muted }}>Full price</span>}
@@ -257,7 +250,7 @@ export function PlansTab({
 
             <div className="px-5 py-4">
               <div className="flex items-center justify-between gap-3 mb-3">
-                <h4 className="text-sm font-bold" style={{ color: C.text }}>Included content ({planContent.length})</h4>
+                <h4 className="text-sm font-semibold" style={{ color: C.text }}>Included content ({planContent.length})</h4>
                 <button type="button" onClick={() => setPickerOpen(!pickerOpen)} className={btnSmClass} style={btnStyle('ghost', C)}>
                   {pickerOpen ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   {pickerOpen ? 'Done' : 'Add or remove'}
@@ -268,7 +261,7 @@ export function PlansTab({
                 planContent.length ? (
                   <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
                     {planContent.map((item, index) => {
-                      const type = TYPES.find((row) => row.table === item.content_table);
+                      const type = CONTENT_TYPES.find((row) => row.value === item.content_table);
                       return (
                         <div
                           key={`${item.content_table}:${item.content_id}`}
@@ -289,82 +282,23 @@ export function PlansTab({
               )}
 
               {pickerOpen && (
-                <div className="grid gap-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <label
-                      className="flex items-center gap-2 h-10 px-3 rounded-xl flex-1"
-                      style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}
-                    >
-                      <Search className="w-4 h-4 flex-shrink-0" />
-                      <input
-                        value={contentSearch}
-                        onChange={(event) => setContentSearch(event.target.value)}
-                        placeholder="Search published content"
-                        className="bg-transparent outline-none text-sm w-full"
-                        style={{ color: C.text }}
-                      />
-                    </label>
-                    <span className="text-xs font-semibold" style={{ color: C.muted }}>{selectedContentKeys.length} selected</span>
-                    <button type="button" onClick={onSaveContent} disabled={saveDisabled} className={btnClass} style={btnStyle('pri', C)}>
-                      <Check className="w-4 h-4" />
-                      {busy ? 'Saving' : 'Save selection'}
-                    </button>
-                  </div>
-                  <p className="text-xs" style={{ color: C.muted }}>Select several items, then save once. Changes apply to every subscriber.</p>
-                  {TYPES.map((type) => {
-                    const items = contentOptions.filter((item) =>
-                      item.content_table === type.table
-                      && (!contentSearch || item.title.toLowerCase().includes(contentSearch.toLowerCase())));
-                    if (!items.length) return null;
-                    const groupKeys = items.map((item) => `${item.content_table}:${item.id}`);
-                    const allSelected = groupKeys.every((key) => selectedContentKeys.includes(key));
-                    return (
-                      <div key={type.table}>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold" style={{ color: C.muted }}>
-                            {type.plural}, {groupKeys.filter((key) => selectedContentKeys.includes(key)).length} of {items.length} selected
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedContentKeys((current) =>
-                              allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
-                            className="text-xs font-semibold"
-                            style={{ color: C.text }}
-                          >
-                            {allSelected ? 'Clear group' : 'Select all'}
-                          </button>
-                        </div>
-                        <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
-                          {items.map((item, index) => {
-                            const key = `${item.content_table}:${item.id}`;
-                            const selected = selectedContentKeys.includes(key);
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => toggleContentKey(key)}
-                                aria-pressed={selected}
-                                className="w-full flex items-center gap-3 px-4 py-3 text-left"
-                                style={{ background: selected ? P.ctaSoft : 'transparent', borderTop: index ? `1px solid ${C.divider}` : undefined }}
-                              >
-                                <span
-                                  className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"
-                                  style={{ background: selected ? P.sel : C.card, border: `1px solid ${selected ? P.sel : C.divider}` }}
-                                >
-                                  {selected && <Check className="w-3 h-3" style={{ color: P.onSel }} />}
-                                </span>
-                                <span className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.title}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {contentOptions.length === 0 && (
-                    <p className="text-sm py-6 text-center" style={{ color: C.muted }}>No published content is available.</p>
-                  )}
-                </div>
+                <ContentPicker
+                  options={contentOptions}
+                  selected={selectedContentKeys}
+                  onChange={setSelectedContentKeys}
+                  empty="No published content is available."
+                  note="Select several items, then save once. Changes apply to every subscriber."
+                  C={C}
+                  aside={
+                    <>
+                      <span className="text-xs font-semibold" style={{ color: C.muted }}>{selectedContentKeys.length} selected</span>
+                      <button type="button" onClick={onSaveContent} disabled={saveDisabled} className={btnClass} style={btnStyle('pri', C)}>
+                        <Check className="w-4 h-4" />
+                        {busy ? 'Saving...' : 'Save selection'}
+                      </button>
+                    </>
+                  }
+                />
               )}
             </div>
           </>

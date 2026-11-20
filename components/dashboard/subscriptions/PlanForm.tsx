@@ -39,7 +39,7 @@ function Section({ title, sub, action, children, C }: { title: string; sub: stri
     <section className="pt-5 mt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h4 className="text-base font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h4>
+          <h4 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h4>
           <p className="text-xs mt-1" style={{ color: C.muted }}>{sub}</p>
         </div>
         {action}
@@ -231,7 +231,7 @@ function DateTimeField({ label, value, onChange, emptyText, defaultTime, C }: {
                 <button type="button" onClick={() => move(-1)} aria-label="Previous month" className="w-8 h-8 grid place-items-center rounded-lg" style={{ color: C.muted }}>
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <b className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{MONTHS[view.month]} {view.year}</b>
+                <b className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{MONTHS[view.month]} {view.year}</b>
                 <button type="button" onClick={() => move(1)} aria-label="Next month" className="w-8 h-8 grid place-items-center rounded-lg" style={{ color: C.muted }}>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -433,7 +433,7 @@ export function PlanDiscountFields({ discount, setDiscount, prices, C }: {
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[28px] leading-9 font-bold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+                <span className="text-[28px] leading-9 font-semibold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
                   {money(example.currency, preview.amount)}
                 </span>
                 <s className="text-sm ml-2" style={{ color: C.faint }}>{money(example.currency, preview.listAmount)}</s>
