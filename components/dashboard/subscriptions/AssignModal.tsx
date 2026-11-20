@@ -120,6 +120,7 @@ export function AssignModal({ eligibleStudents, activePlans, currency, onClose, 
                 <MenuSelect
                   field
                   label="Learner"
+                  searchable
                   placeholder="Choose an eligible student"
                   value={studentId}
                   options={eligibleStudents.map((s) => ({ value: s.id as string, label: `${s.full_name || s.email} (${s.email})` }))}
