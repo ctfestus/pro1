@@ -4,7 +4,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Download, ExternalLink, Eye, Pencil, Send, Share2, Trash2 } from 'lucide-react';
+import { BarChart3, BookOpen, Download, ExternalLink, Pencil, Send, Share2, Trash2 } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { exportAllInSection, exportContent } from '@/lib/dashboard-export';
 import { SYNC_ENABLED } from '@/lib/sync';
@@ -25,8 +25,8 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
     <ContentCard item={course} cover={course.config?.coverImage} Icon={BookOpen} reach={reach} onOpen={open} C={C}
       overlay={<PushStatusPill state={pushState} msg={pushMsg} className="top-3 left-3" />}
       menu={(close, from) => [
-        { label: 'Open', sub: 'Lessons, learners and results', icon: Eye, onClick: () => { close(); open(); } },
-        { label: 'Settings', sub: 'Cohorts, pass mark, look', icon: Pencil, onClick: () => { close(); router.push(`/dashboard/${course.id}?tab=settings`); } },
+        { label: 'Edit', sub: 'Lessons, settings and publishing', icon: Pencil, onClick: () => { close(); open(); } },
+        { label: 'Report', sub: 'Learners and results', icon: BarChart3, onClick: () => { close(); router.push(`/dashboard/${course.id}?tab=responses`); } },
         { label: 'Preview', sub: 'As a learner sees it', icon: ExternalLink, onClick: () => { close(); window.open(`/${course.slug || course.id}`, '_blank', 'noopener'); } },
         // Share opens by the menu's own button.
         { label: 'Share', sub: 'Link and social posts', icon: Share2, onClick: () => { setShareFrom(from); close(); } },
