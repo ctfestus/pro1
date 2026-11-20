@@ -529,7 +529,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
         )}
 
         {lpSection === 'content' && (
-          <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-2 gap-4 items-start">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
             <Card C={C} className="overflow-hidden">
               <SectionHead C={C} title="Add content" aside="Published only"/>
               <div className="px-5 py-4 grid grid-cols-[minmax(0,1fr)] gap-3">
@@ -546,7 +546,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                 ) : pickable.length === 0 ? (
                   <p className="text-sm py-6 text-center" style={{ color: C.muted }}>No content matches.</p>
                 ) : (
-                  <div className="max-h-[560px] overflow-y-auto">
+                  <div className="max-h-[400px] overflow-y-auto">
                     {pickable.map((f: any, i: number) => {
                       const on = selectedIds.includes(f.id);
                       return (
