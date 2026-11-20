@@ -125,8 +125,8 @@ export function AssignmentReport({ assignment, submissions, assignedStudents, lo
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: C.muted }}>
             {assignment.status === 'published' ? <Pill tone="good" dot C={C}>Published</Pill> : <Pill tone="warn" C={C}>Draft</Pill>}
             <span>{typeLabel(assignment)}</span>
-            <span>{assignment.deadline_date ? `Due ${shortDate(String(assignment.deadline_date).slice(0, 10))}` : 'No due date'}</span>
-            <span>Pass mark {passMark}%</span>
+            <span>{assignment.deadline_date ? <>Due <b className="font-semibold" style={{ color: C.text }}>{shortDate(String(assignment.deadline_date).slice(0, 10))}</b></> : 'No due date'}</span>
+            <span>Pass mark <b className="font-semibold" style={{ color: C.text }}>{passMark}%</b></span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
