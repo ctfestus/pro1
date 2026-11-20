@@ -173,9 +173,10 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
   const isMobile = containerW > 0 && containerW < 640;
-  // Two whole cards side by side on a wide screen, one on a phone or in full-width mode. Sizing
-  // the cards to the track means the last one is never cut off at the edge.
-  const perView = fullWidth || isMobile ? 1 : 2;
+  // Two whole cards side by side only when each still gets close to 500px; below that (tablets) the
+  // text wrapped line by line and pushed the button out of the card, so it is one card at a time.
+  // Sizing the cards to the track means the last one is never cut off at the edge.
+  const perView = fullWidth || containerW < 1000 ? 1 : 2;
   const max = Math.max(0, cards.length - perView);
   // Clamped on read: switching off the card on screen shortens the list under a stored index,
   // which would otherwise point past the end and leave the track scrolled onto nothing.
@@ -360,7 +361,9 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       {body}
                     </div>
                     <div style={{ flex: isMobile ? '0 0 50%' : '0 0 44%', position: 'relative', overflow: 'hidden' }}>
-                      <img src={ad.bgImage} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: isMobile ? 'contain' : 'cover' }} />
+                      {/* Fitted, not cropped: these are usually cut-out figures, and cover cut off
+                          heads and arms at the card's edge. They sit on the bottom corner. */}
+                      <img src={ad.bgImage} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain', objectPosition: isMobile ? 'center bottom' : 'right bottom' }} />
                     </div>
                   </motion.div>
                 ) : (
