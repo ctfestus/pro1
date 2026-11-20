@@ -117,7 +117,7 @@ export function StudentDrawer({ student, cohortName, onClose, C }: { student: an
           </Section>
 
           <Section title="Account setup" aside={<Pill tone={status.tone} dot C={C}>{status.label}</Pill>} C={C}>
-            <ol className="rounded-xl px-4 py-3" style={{ background: C.page }}>
+            <ol className="pt-2">
               {SETUP_STEPS.map(([key, label], i) => {
                 const at = student[key];
                 const last = i === SETUP_STEPS.length - 1;
