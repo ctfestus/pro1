@@ -1,21 +1,16 @@
 'use client';
 
-import { toPlainText } from '@/lib/plain-text';
-import { useState, useEffect, useLayoutEffect, useRef, useContext, type CSSProperties } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import {
-  Plus, FileText, BarChart3, ExternalLink, Trash2, Edit2, Share2, Check, Copy, X, CalendarDays, ChevronDown, MapPin, Download, Video, Database, MoreVertical, Code2, ShieldCheck, Lock,
+  Plus, FileText, Check, Copy, X, ChevronDown, Video, Database, MoreVertical, Code2, ShieldCheck,
 } from 'lucide-react';
 import { LIGHT_C, useC, cardStyle } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { contentPath } from '@/lib/content-link';
-import { exportContent } from '@/lib/dashboard-export';
-import { getLastScheduledSessionDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
-import { IsStaffContext } from '@/components/dashboard/context';
 import { SHARE_PLATFORMS } from '@/components/share-platforms';
 
 // --- Social share targets: components/share-platforms.tsx ---
@@ -601,165 +596,3 @@ export function groupFormsByCategory(forms: any[]): [string, any[]][] {
   });
 }
 
-// --- EventCard (timeline) ---
-const MEETING_LOGOS: Record<string, string> = {
-  meet:  'https://gmokwtuyxccnjwpmifug.supabase.co/storage/v1/object/public/form-assets/Logos/Meet.png',
-  zoom:  'https://gmokwtuyxccnjwpmifug.supabase.co/storage/v1/object/public/form-assets/Logos/Zoom.png',
-  teams: 'https://gmokwtuyxccnjwpmifug.supabase.co/storage/v1/object/public/form-assets/Logos/Teams.png',
-};
-function MeetingProviderIcon({ provider, isVirtual }: { provider?: string; isVirtual: boolean }) {
-  if (!isVirtual) return <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#888' }}/>;
-  const p = (provider || '').toLowerCase();
-  const src = p.includes('zoom') ? MEETING_LOGOS.zoom : p.includes('teams') || p.includes('microsoft') ? MEETING_LOGOS.teams : MEETING_LOGOS.meet;
-  return <img src={src} alt={provider} style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }}/>;
-}
-
-export function EventCard({ form, index, isLast, shareMenuOpen, setShareMenuOpen, setFormToDelete }: {
-  form: any; index: number; isLast: boolean; shareMenuOpen: string | null; setShareMenuOpen: (id: string | null) => void; setFormToDelete: (id: string) => void;
-}) {
-  const C = useC();
-  const isStaff = useContext(IsStaffContext);
-  const ev = form.config?.eventDetails ?? {};
-  const schedule = {
-    event_date: ev.date ?? null,
-    timezone: ev.timezone ?? null,
-    recurrence: ev.recurrence ?? 'once',
-    recurrence_end_date: ev.recurrenceEndDate ?? null,
-    recurrence_days: Array.isArray(ev.recurrenceDays) ? ev.recurrenceDays : [],
-  };
-  const nextSessionDate = getNextScheduledSessionDate(schedule);
-  const lastSessionDate = nextSessionDate ? null : getLastScheduledSessionDate(schedule);
-  const displayDate = nextSessionDate ?? lastSessionDate ?? ev.date ?? null;
-  const dateObj = displayDate ? new Date(`${displayDate}T00:00:00`) : null;
-  const _today = new Date(); _today.setHours(0, 0, 0, 0);
-  const isPast = dateObj
-    ? !nextSessionDate && dateObj < _today
-    : false;
-  const isPrivate = !!ev.isPrivate;
-  const isVirtual = (ev.eventType || '').toLowerCase() === 'virtual';
-  const [coverError, setCoverError] = useState(false);
-  const showImage = !!(form.config?.coverImage && !coverError);
-
-  const eventRepeats = !!ev.recurrence && ev.recurrence !== 'once';
-  const displayDateLabel = dateObj
-    ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null;
-  const dateLabel = displayDateLabel && eventRepeats && !isPast && nextSessionDate
-    ? `Next: ${displayDateLabel}`
-    : displayDateLabel;
-
-  const providerName = isVirtual
-    ? ((ev.meetingLink || '').includes('zoom') ? 'Zoom' : (ev.meetingLink || '').includes('teams') ? 'Microsoft Teams' : 'Google Meet')
-    : 'In-Person';
-
-  return (
-    <div className="relative flex gap-3">
-      {/* Timeline */}
-      <div className="flex flex-col items-center flex-shrink-0" style={{ paddingTop: '26px' }}>
-        <div className="w-3 h-3 rounded-full border-2 z-10 flex-shrink-0"
-          style={{ borderColor: isPast ? '#ccc' : C.green, background: isPast ? '#e0e0e0' : C.lime }}/>
-        {!isLast && (
-          <div className="w-px mt-1 flex-1"
-            style={{ background: `repeating-linear-gradient(to bottom, ${C.faint}70 0px, ${C.faint}70 5px, transparent 5px, transparent 9px)` }}/>
-        )}
-      </div>
-
-      {/* Content */}
-      <motion.div
-        className="flex-1 mb-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: isPast ? 0.65 : 1, y: 0 }}
-        whileHover={{ opacity: 1 }}
-        transition={{ delay: index * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {/* Card with padding -- padding IS the whitespace around the rounded thumbnail. Flat at rest (border = the separator), soft lift on hover. */}
-        <div className="relative rounded-2xl p-4 flex gap-4 group transition-shadow duration-200"
-          style={{ ...cardStyle(C) }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = C.hoverShadow; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}>
-          <div className="absolute top-3 right-3 z-10">
-            <CardActionsMenu form={form} shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen}
-              actions={[
-                { key: 'edit', label: 'Edit', Icon: Edit2, href: `/dashboard/${form.id}?tab=settings` },
-                { key: 'preview', label: 'Preview', Icon: ExternalLink, href: `/${form.slug || form.id}`, external: true },
-                { key: 'share', label: 'Share', Icon: Share2, share: true },
-                { key: 'export', label: 'Export', Icon: Download, onClick: () => exportContent(form) },
-                ...(!isStaff ? [{ key: 'delete', label: 'Delete', Icon: Trash2, danger: true, onClick: () => setFormToDelete(form.id) }] : []),
-              ]}/>
-          </div>
-
-          {/* Rounded square cover image -- 180×180 */}
-          <div className="relative w-[180px] h-[180px] rounded-2xl overflow-hidden flex-shrink-0 group/img"
-            style={{ background: C.thumbBg }}>
-            {showImage
-              ? <img src={resolveCoverUrl(form.config.coverImage)} alt={form.title} onError={() => setCoverError(true)}
-                  className="w-full h-full object-cover"/>
-              : <div className="w-full h-full flex flex-col items-center justify-center gap-0.5">
-                  {dateObj
-                    ? <>
-                        <span className="text-2xl font-black leading-none" style={{ color: C.green }}>{dateObj.toLocaleDateString(undefined, { day: '2-digit' })}</span>
-                        <span className="text-[11px] font-bold tracking-widest" style={{ color: C.green }}>{dateObj.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}</span>
-                      </>
-                    : <CalendarDays className="w-8 h-8" style={{ color: C.faint }}/>
-                  }
-                </div>
-            }
-          </div>
-
-          {/* Text content */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
-            {/* Row 1: Date · Time pill + Mode pill */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {dateLabel && (
-                <span className="text-xs font-medium px-3 py-1 rounded-full"
-                  style={{ background: C.pill, color: C.muted }}>
-                  {dateLabel}{ev.time && ` · ${ev.time}`}
-                </span>
-              )}
-              <span className="text-xs font-semibold px-3 py-1 rounded-full"
-                style={{ border: `1.5px solid ${isVirtual ? C.green + '70' : C.faint + '60'}`, color: isVirtual ? C.green : C.muted }}>
-                {isVirtual ? 'Virtual' : 'In-Person'}
-              </span>
-              {isPrivate && <span className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full" style={{ background: '#fff0f0', color: '#ef4444' }}><Lock className="w-3 h-3" />Private</span>}
-              {isPast && <span className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: C.pill, color: C.faint }}>Past</span>}
-            </div>
-
-            {/* Row 2: Provider logo + name + note / location */}
-            <div className="flex items-center gap-2">
-              <MeetingProviderIcon provider={providerName} isVirtual={isVirtual}/>
-              <span className="text-xs" style={{ color: C.muted }}>
-                <span className="font-medium">{providerName}</span>
-                {isVirtual
-                  ? <span style={{ color: C.faint }}> · Link shared after registration</span>
-                  : ev.location
-                  ? <span style={{ color: C.faint }}> · {ev.location}</span>
-                  : null
-                }
-              </span>
-            </div>
-
-            {/* Title */}
-            <h3 className="text-sm font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{form.title}</h3>
-            {form.status === 'draft' && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
-            )}
-
-            {/* Description */}
-            {form.config?.description && (
-              // A two-line card: plain text, so an image in the description cannot fill or break it.
-              <p className="text-xs leading-relaxed line-clamp-2" style={{ color: C.muted }}>{toPlainText(form.config.description)}</p>
-            )}
-
-            {/* Footer: responses + Insights (actions live in the card's top-right menu) */}
-            <div className="flex items-center justify-between pt-2 border-t mt-1" style={{ borderColor: C.divider }}>
-              <span className="text-xs flex items-center gap-1" style={{ color: C.faint }}>
-                <BarChart3 className="w-3 h-3"/>{form._response_count ?? 0} responses
-              </span>
-              <Link href={`/dashboard/${form.id}`} className="text-xs font-medium hover:opacity-60 transition-opacity" style={{ color: C.green }}>Insights</Link>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
