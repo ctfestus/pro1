@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useContext } from 'react';
 import Link from 'next/link';
-import { BookOpen, CalendarDays, Plus, Users, Megaphone, BadgePercent } from 'lucide-react';
+import { CalendarDays, Plus, Users, Megaphone, BadgePercent } from 'lucide-react';
 import { PROMO_PLACEMENTS, promoStatus } from '@/lib/promotions';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { GenericListSection } from '@/components/dashboard/primitives';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { STAFF_SECTION_IDS, COMING_SOON, ComingSoon, type SectionId } from '@/components/dashboard/nav';
-import { getFormType, groupFormsByCategory, CreateCourseMenu, EventCard, CourseToolRow } from '@/components/dashboard/content-cards';
+import { getFormType, EventCard } from '@/components/dashboard/content-cards';
+import { CoursesSection } from '@/components/dashboard/courses/CoursesSection';
 import { SchedulesManageSection } from '@/components/dashboard/SchedulesManageSection';
 import { RecordingsManageSection } from '@/components/dashboard/RecordingsManageSection';
 import { VirtualExperiencesManageSection } from '@/components/dashboard/VirtualExperiencesManageSection';
@@ -99,57 +100,41 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
     );
   }}/>;
 
+  if (section === 'courses') return <CoursesSection courses={forms.filter(f => getFormType(f) === 'course')} setFormToDelete={setFormToDelete} C={C} />;
+
   if (section === 'schedule')    return <SchedulesManageSection C={C}/>;
   if (section === 'recordings') return <RecordingsManageSection C={C}/>;
 
-  const filtered = section === 'courses'
-    ? forms.filter(f => getFormType(f) === 'course')
-    : forms.filter(f => getFormType(f) === 'event');
+  const filtered = forms.filter(f => getFormType(f) === 'event');
 
   if (filtered.length === 0) {
-    const href = section === 'courses' ? '/create?type=course' : '/create?type=event';
-    const label = section === 'courses' ? 'course' : 'event';
     return (
       <div className="text-center py-24 rounded-3xl" style={{ ...cardStyle(C) }}>
         <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: C.lime }}>
-          {section === 'courses' ? <BookOpen className="w-7 h-7" style={{ color: C.green }}/> : <CalendarDays className="w-7 h-7" style={{ color: C.green }}/>}
+          <CalendarDays className="w-7 h-7" style={{ color: C.green }}/>
         </div>
-        <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No {label}s yet</h2>
-        <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first {label} to get started.</p>
+        <h2 className="text-base font-semibold mb-1" style={{ color: C.text }}>No events yet</h2>
+        <p className="text-sm mb-5" style={{ color: C.faint }}>Create your first event to get started.</p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
-          {section === 'courses' ? (
-            <CreateCourseMenu C={C} />
-          ) : (
-            <Link href={href} className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
-              style={{ background: C.cta, color: C.ctaText }}>
-              <Plus className="w-4 h-4"/> New {label}
-            </Link>
-          )}
+          <Link href="/create?type=event" className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
+            style={{ background: C.cta, color: C.ctaText }}>
+            <Plus className="w-4 h-4"/> New event
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (section === 'events') {
-    const sorted = [...filtered].sort((a, b) => {
-      const da = a.config?.eventDetails?.date ? new Date(a.config.eventDetails.date).getTime() : 0;
-      const db = b.config?.eventDetails?.date ? new Date(b.config.eventDetails.date).getTime() : 0;
-      return db - da;
-    });
-    return (
-      <div>{sorted.map((form, i) => (
-        <EventCard key={form.id} form={form} index={i} isLast={i === sorted.length - 1}
-          shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen} setFormToDelete={setFormToDelete}/>
-      ))}</div>
-    );
-  }
-
+  // Only Events is left to reach here.
+  const sorted = [...filtered].sort((a, b) => {
+    const da = a.config?.eventDetails?.date ? new Date(a.config.eventDetails.date).getTime() : 0;
+    const db = b.config?.eventDetails?.date ? new Date(b.config.eventDetails.date).getTime() : 0;
+    return db - da;
+  });
   return (
-    <div>
-      {groupFormsByCategory(filtered).map(([tool, list]) => (
-        <CourseToolRow key={tool} tool={tool} forms={list}
-          shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen} setFormToDelete={setFormToDelete}/>
-      ))}
-    </div>
+    <div>{sorted.map((form, i) => (
+      <EventCard key={form.id} form={form} index={i} isLast={i === sorted.length - 1}
+        shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen} setFormToDelete={setFormToDelete}/>
+    ))}</div>
   );
 }

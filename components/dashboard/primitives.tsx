@@ -120,7 +120,11 @@ export function PushButton({ type, id, C }: { type: string; id: string; C: typeo
   );
 }
 
-export function PushAllButton({ items, C }: { items: { type: string; id: string }[]; C: typeof LIGHT_C }) {
+export function PushAllButton({ items, C, className, style }: {
+  items: { type: string; id: string }[]; C: typeof LIGHT_C;
+  /** The button's look on pages in the newer admin style. */
+  className?: string; style?: React.CSSProperties;
+}) {
   type PushAllState = { status: 'idle' } | { status: 'pushing'; current: number; total: number } | { status: 'done'; pushed: number; updated: number; failed: number };
   const [state, setState] = useState<PushAllState>({ status: 'idle' });
 
@@ -153,13 +157,13 @@ export function PushAllButton({ items, C }: { items: { type: string; id: string 
     ? `${state.current}/${state.total}`
     : state.status === 'done'
     ? `+${state.pushed} ~${state.updated} x${state.failed}`
-    : 'Push All';
+    : 'Push all';
 
   return (
     <button onClick={pushAll} disabled={busy || !items.length}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40"
-      style={{ background: C.card, color: state.status === 'done' ? C.green : C.muted }}>
-      <Send className="w-3.5 h-3.5" /> {label}
+      className={className ?? 'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-40'}
+      style={style ?? { background: C.card, color: state.status === 'done' ? C.green : C.muted }}>
+      <Send className={style ? 'w-4 h-4' : 'w-3.5 h-3.5'} /> {label}
     </button>
   );
 }
