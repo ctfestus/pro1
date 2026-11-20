@@ -87,7 +87,7 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
         <span className="text-sm font-semibold line-clamp-2" style={{ color: C.text }}>{course.title || 'Untitled'}</span>
         {reachText
           ? <span className="text-xs" style={{ color: C.muted }}>{reachText}</span>
-          : reach && <span className="text-xs font-semibold" style={{ color: P.warn }}>Not assigned</span>}
+          : reach && course.status === 'published' && <span className="text-xs font-semibold" style={{ color: P.warn }}>Not assigned</span>}
       </button>
       {menu && <FloatingMenu position={menu.position} label="course actions" items={items} onClose={() => setMenu(null)} C={C} />}
       {shareFrom && <ShareMenu form={course} triggerRect={shareFrom} onClose={() => setShareFrom(null)} />}
@@ -127,7 +127,8 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
   const tools = groups.map(([name]) => name);
   const published = courses.filter((c) => c.status === 'published').length;
   const drafts = courses.filter((c) => c.status === 'draft').length;
-  const notReachable = reach ? courses.filter((c) => !audience(c, reach)).length : null;
+  // Only published courses: learners never see a draft, so a draft with nobody assigned is expected.
+  const notReachable = reach ? courses.filter((c) => c.status === 'published' && !audience(c, reach)).length : null;
   const term = search.trim().toLowerCase();
   const shown = groups
     .filter(([name]) => tool === 'all' || name === tool)
@@ -138,7 +139,7 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
   const kpis = [
     { label: 'Courses', n: courses.length, sub: tools.length ? toolList(tools) : 'None yet', color: C.text },
     { label: 'Published', n: published, sub: drafts ? `${drafts} still in draft` : 'No drafts', color: published ? P.good : C.text },
-    { label: 'Not assigned', n: notReachable ?? '--', sub: notReachable ? 'No cohort, plan, path or open access' : notReachable === 0 ? 'Every course reaches learners' : 'Checking plans and paths', color: notReachable ? P.warn : C.text },
+    { label: 'Not assigned', n: notReachable ?? '--', sub: notReachable ? 'Published, but no cohort, plan, path or open access' : notReachable === 0 ? 'Every published course reaches learners' : 'Checking plans and paths', color: notReachable ? P.warn : C.text },
   ];
 
   return (
