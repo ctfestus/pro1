@@ -22,6 +22,7 @@ import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
 import { itemCategory, pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
+import { cleanList, previewFacts } from '@/lib/catalogue-preview-facts';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { isLicenseExpired } from '@/lib/books/schema';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
@@ -67,26 +68,6 @@ export interface CatalogueItem {
    * to My Books for it instead of to a store page that would not find it.
    */
   inStore?: boolean;
-}
-
-const cleanList = (list: string[] | null | undefined) =>
-  (list ?? []).map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
-
-/** What the Explore preview says about an item beyond its description; only what it has. */
-function previewFacts(r: Row) {
-  // A digital product's skills are what the buyer gets from it.
-  const outcomes = cleanList(r.learn_outcomes ?? r.skills).slice(0, 3);
-  const topics = cleanList(r.topics).slice(0, 4);
-  const tools = cleanList(r.tools);
-  return {
-    ...(outcomes.length ? { outcomes } : {}),
-    ...(r.difficulty ? { level: r.difficulty.charAt(0).toUpperCase() + r.difficulty.slice(1) } : {}),
-    ...(r.duration ? { duration: r.duration } : {}),
-    ...(tools.length ? { tools } : {}),
-    ...(topics.length ? { topics } : {}),
-    ...(r.time_limit && r.time_limit > 0 ? { examMinutes: r.time_limit } : {}),
-    ...(r.passmark ? { passmark: r.passmark } : {}),
-  };
 }
 
 type Partner = { name: string; logo_url: string | null; is_active: boolean };

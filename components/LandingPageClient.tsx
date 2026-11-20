@@ -9,6 +9,9 @@ import { useTenant } from '@/components/TenantProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
+import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
+import { normalizePathItemType } from '@/lib/catalogue-path-items';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
@@ -130,7 +133,6 @@ const bannerItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
 };
 
-const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience', certification: 'Certification' } as const;
 // One neutral ground for an item without a cover, readable on the light and the dark page.
 const NO_COVER_BG = 'rgba(127,127,127,0.16)';
 const LAND_C = { card: 'white', text: '#1C1D1F', muted: '#6E7383', faint: '#9CA3AF', cardBorder: '#E8EBEF' };
@@ -431,104 +433,32 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
 }
 
 
-// Hover popup content for landing page items
-function LandingCoursePreview({ item, typeColor, buttonColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
-  // Courses, virtual experiences and learning paths have public detail pages for signed-out
-  // visitors. Learning paths are addressed by id because they do not have slugs.
-  const hasPublicPage = ((item.type === 've' || item.type === 'course' || item.type === 'certification') && !!item.slug) || (item.type === 'path' && !!item.id);
-  const href = landingHref(item, user);
-  // One preview serves every type, so the button has to name what it actually opens. A
-  // certification is an exam sat once its rules allow, not something you start learning, and the
-  // link goes to the overview either way -- so it says view rather than promising a start.
-  const viewLabel  = item.type === 'certification' ? 'View certification'
-                   : item.type === 've' ? 'View virtual experience'
-                   : 'View course';
-  const startLabel = item.type === 'certification' ? 'View certification' : 'Start learning';
-  const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+// The hover preview is Explore's, so a visitor sees what a signed-in learner sees there.
+const PREVIEW_TYPE = { course: 'course', path: 'learning_path', ve: 'virtual_experience', certification: 'certification' } as const;
 
-  if (item.type === 'path') {
-    const courses = item.pathCourses ?? [];
-    const popupW = Math.min(640, Math.max(360, courses.length * 120 + 32));
-    return (
-      <div className="rounded-2xl overflow-hidden" style={{ width: popupW, background: isDark ? '#22242d' : 'white', boxShadow: isDark ? '0 4px 28px rgba(0,0,0,0.50)' : '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)' }}>
-        {/* Path header */}
-        <div className="p-4 pb-0">
-          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md mb-2" style={{ background: typeColor, color: 'white' }}>Learning Path</span>
-          <h3 className="text-lg font-bold leading-snug line-clamp-2 mb-1.5" style={{ color: isDark ? 'white' : '#111', fontFamily: hFont }}>{item.title}</h3>
-          {desc && <p className="text-sm leading-relaxed line-clamp-2 mb-0" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>}
-        </div>
-        {/* Course list */}
-        <div className="p-4">
-          {courses.length > 0 ? (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>
-                {courses.length} item{courses.length !== 1 ? 's' : ''} in this path
-              </p>
-              <div className="flex flex-wrap gap-2.5">
-                {courses.map(c => (
-                  <div key={c.id} className="flex-shrink-0" style={{ width: 110 }}>
-                    <div className="rounded-lg overflow-hidden mb-1.5" style={{ aspectRatio: '16/9', background: c.imageUrl ? '#0b0b0d' : (isDark ? '#2c303a' : '#F0F6FF') }}>
-                      {c.imageUrl
-                        ? <img src={c.imageUrl} alt={c.title} loading="lazy" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center"><BookOpen className="w-5 h-5" style={{ color: '#9CA3AF' }} /></div>
-                      }
-                    </div>
-                    <p className="text-[11px] font-medium leading-snug line-clamp-2" style={{ color: isDark ? 'rgba(255,255,255,0.85)' : '#333', fontFamily: hFont }}>{c.title}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            desc && <p className="text-sm leading-relaxed line-clamp-3 mb-1" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>
-          )}
-          <Link href={href}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
-            style={{ background: buttonColor, color: 'white' }}>
-            <Play className="w-3.5 h-3.5" />
-            {user ? 'Start path' : hasPublicPage ? 'View details' : 'Log in to access'}
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ background: isDark ? '#22242d' : 'white', boxShadow: isDark ? '0 4px 28px rgba(0,0,0,0.50)' : '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
-      <div className="relative w-full aspect-video" style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
-        {item.imageUrl
-          ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover"/>
-          : <div className="w-full h-full flex items-center justify-center" style={{ background: NO_COVER_BG }}>
-              <BookOpen className="w-10 h-10" style={{ color: LAND_C.faint }}/>
-            </div>
-        }
-        {/* One tag, and it says the most specific thing available: the category if the item has
-            one, the content type otherwise. The type used to print here AND again above the
-            title, so a certification announced itself twice and told you nothing either time. */}
-        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
-          style={{ background: typeColor, color: 'white' }}>
-          {item.category || LAND_TYPE_LABEL[item.type]}
-        </span>
-      </div>
-      <div className="p-5">
-        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: isDark ? 'white' : '#111', fontFamily: hFont }}>{item.title}</h3>
-        {item.partnerName && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: isDark ? 'rgba(255,255,255,0.5)' : '#777' }}>
-            {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-            <span>Offered by {item.partnerName}</span>
-          </div>
-        )}
-        {desc && <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>}
-        {item.difficulty && <p className="text-xs mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>{item.difficulty}</p>}
-        <Link href={href}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
-          style={{ background: buttonColor, color: 'white' }}>
-          <Play className="w-3.5 h-3.5"/>
-          {user ? startLabel : hasPublicPage ? viewLabel : 'Log in to access'}
-        </Link>
-      </div>
-    </div>
-  );
+function toPreviewItem(item: ProgrammeItem): CatalogueItem {
+  return {
+    id: item.id,
+    type: PREVIEW_TYPE[item.type],
+    title: item.title,
+    slug: item.slug || null,
+    coverImage: item.imageUrl || null,
+    description: item.description,
+    category: item.category || null,
+    byline: item.partnerName ? `Offered by ${item.partnerName}` : item.byline ?? null,
+    bylineLogo: item.partnerLogoUrl ?? null,
+    outcomes: item.outcomes,
+    level: item.level,
+    duration: item.duration,
+    tools: item.tools,
+    examMinutes: item.examMinutes,
+    passmark: item.passmark,
+    locked: false,
+    pathItems: item.pathCourses?.map(c => ({
+      id: c.id, type: normalizePathItemType(c.type), title: c.title, slug: c.slug || null,
+      coverImage: c.imageUrl || null, description: null, category: null,
+    })),
+  };
 }
 
 /** Four across, two down. */
@@ -573,8 +503,8 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
   const { hover, open: openPreview, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
   // Path previews widen with the path's contents so their thumbnails lay out in rows.
   const openHover = (item: ProgrammeItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 320,
-    height: 500,
+    width: item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 340,
+    height: 560,
   });
 
   const toolIcon = useToolIcons();
@@ -659,10 +589,6 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
                   }
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                     style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
-                  <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
-                    style={{ background: 'white', color: '#101828' }}>
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
                 </div>
                 <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: rowText, fontFamily: hFont }}>{item.title}</p>
                 {item.partnerName && (
@@ -690,7 +616,14 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
-              <LandingCoursePreview item={hover.item} typeColor={typeColor} buttonColor={buttonColor} user={user} hFont={hFont} bFont={bFont} isDark={popupDark !== undefined ? popupDark : isDark} />
+              <CataloguePreview
+                item={toPreviewItem(hover.item)}
+                accent={typeColor}
+                href={landingHref(hover.item, user)}
+                onOpen={() => { window.location.href = landingHref(hover.item, user); }}
+                viewOnly={!user}
+                C={{ ...((popupDark ?? isDark) ? DARK_C : LIGHT_C), cta: buttonColor }}
+              />
             </HoverPreviewCard>
           )}
         </AnimatePresence>,
