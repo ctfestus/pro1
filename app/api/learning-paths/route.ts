@@ -12,7 +12,6 @@ function cleanAuthored(value: unknown): string | null {
 }
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requireStudentUser, requireRole, isAuthError } from '@/lib/api-auth';
-import { isPathCardColor } from '@/lib/path-card-colors';
 import { createClient } from '@supabase/supabase-js';
 import { sendPathNotification } from '@/lib/send-path-notification';
 import { reconcilePathCompletion } from '@/lib/learning-path-progress';
@@ -115,7 +114,7 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
-            overview, skills, who_should_take, tools, tracks, tracks_optional, card_color } = body;
+            overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
     const openAccess = available_to_everyone === true;
@@ -147,9 +146,6 @@ export async function POST(req: NextRequest) {
       item_ids: item_ids ?? [],
       tracks: normalizeTracks(tracks, item_ids ?? []),
       tracks_optional: tracks_optional === true,
-      // Written only when picked (migration 246); no choice leaves it NULL and the landing page
-      // assigns one by position.
-      ...(isPathCardColor(card_color) ? { card_color } : {}),
       cohort_ids: targetCohorts,
       available_to_everyone: openAccess,
       status: status ?? 'draft',
@@ -200,7 +196,7 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
-            overview, skills, who_should_take, tools, tracks, tracks_optional, card_color } = body;
+            overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
     // Checked before saving: normalizeTracks would drop a bad track, silently making its items
     // core content required of everyone.
@@ -259,7 +255,6 @@ export async function POST(req: NextRequest) {
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
     if (tools           !== undefined) updateData.tools           = Array.isArray(tools) ? tools : [];
-    if (card_color      !== undefined) updateData.card_color      = isPathCardColor(card_color) ? card_color : null;
     if (cohort_ids      !== undefined) updateData.cohort_ids      = cohort_ids;
     // LAST word on access, deliberately after cohort_ids above: open access and cohort targeting
     // are mutually exclusive in the database, so a path being opened up must not also resubmit the

@@ -15,7 +15,6 @@ import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { LearningPathReport, SectionHead } from '@/components/dashboard/LearningPathReport';
 import type { PathTrack } from '@/lib/learning-path-tracks';
-import { PATH_CARD_COLORS, isPathCardColor, type PathCardColor } from '@/lib/path-card-colors';
 import { MenuSelect } from '@/components/MenuSelect';
 import { ConfirmModal, Tick } from '@/components/dashboard/cohorts/CohortModals';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
@@ -536,25 +535,6 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
               {showCoverLibrary && (
                 <ImageLibrary uploadFolder="covers" initialFolder="covers" onSelect={url => setEditing((p: any) => ({ ...p, cover_image: url }))} onClose={() => setShowCoverLibrary(false)}/>
               )}
-            </Sect>
-
-            <Sect C={C} title="Card colour" aside="Home page">
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Card colour">
-                {([['', 'Automatic'], ...Object.entries(PATH_CARD_COLORS).map(([key, c]) => [key, c.label])] as [PathCardColor | '', string][]).map(([key, name]) => {
-                  const on = (isPathCardColor(editing.card_color) ? editing.card_color : '') === key;
-                  const swatch = key ? PATH_CARD_COLORS[key] : null;
-                  return (
-                    <button key={key || 'auto'} type="button" role="radio" aria-checked={on}
-                      onClick={() => setEditing((p: any) => ({ ...p, card_color: key || null }))}
-                      className="inline-flex items-center gap-2 h-8 pl-2 pr-3 rounded-full text-xs font-semibold" style={chip(on)}>
-                      <span className="w-4 h-4 rounded-full flex-shrink-0"
-                        style={swatch ? { background: swatch.tint, boxShadow: `inset 0 0 0 4px ${swatch.tint}, inset 0 0 0 8px ${swatch.deep}` } : { background: C.page, boxShadow: `inset 0 0 0 1px ${C.divider}` }} />
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs" style={{ color: C.muted }}>The colour of this path on the home page. Automatic picks one by its place in the row.</p>
             </Sect>
           </Card>
         )}

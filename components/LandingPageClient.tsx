@@ -6,7 +6,7 @@ import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScrol
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
-import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
+import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
@@ -637,7 +637,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   const ctaInView   = useInView(ctaRef,   { margin: '200px' });
 
   const {
-    primaryColor, accentColor, headingFont, bodyFont,
+    primaryColor, accentColor, pathCardColor, headingFont, bodyFont,
     heroTitle, heroTitleAccent,
     ctaHeading, ctaHeadingAccent, ctaSubtext, ctaButton,
     footerTagline, footerLinksHeading,
@@ -767,7 +767,9 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Learning paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont} />
+            {/* Site settings takes the colour as free text, so anything but #rrggbb falls back. */}
+            <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont}
+              color={/^#[0-9a-fA-F]{6}$/.test(pathCardColor) ? pathCardColor : SITE_DEFAULTS.pathCardColor} />
           </div>
         </section>
       )}

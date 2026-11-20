@@ -29,8 +29,6 @@ export type ProgrammeItem = {
   partnerLogoUrl?: string;
   /** An experience's role and company, under the title in the hover preview. */
   byline?: string;
-  /** A learning path's card colour, chosen in the path editor (lib/path-card-colors.ts). */
-  cardColor?: string;
   pathCourses?: PathCourse[];
 } & PreviewFacts;
 
@@ -130,8 +128,8 @@ const getProgrammes = unstable_cache(
       console.warn('[landing] certification cards unavailable:', certificationsResult.error.message);
     }
 
-    // The hover preview's details (what you will learn, duration, tools, exam time, pass mark) and
-    // a path's card colour are not in the public views. They are display text, read with the service role and only for the
+    // The hover preview's details (what you will learn, duration, tools, exam time, pass mark) are
+    // not in the public views. They are display text, read with the service role and only for the
     // rows the gate above already offers to everyone. A failure costs the preview its details,
     // never the catalogue.
     const db = adminClient();
@@ -139,7 +137,6 @@ const getProgrammes = unstable_cache(
       courseIds.length ? db.from('courses').select('id,learn_outcomes').in('id', courseIds) : empty,
       experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools').in('id', experienceIds) : empty,
       certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
-      offeredPathIds.length ? db.from('learning_paths').select('id,card_color').in('id', offeredPathIds) : empty,
     ]);
     const extras = new Map<string, any>();
     for (const result of extraResults) {
@@ -226,7 +223,6 @@ const getProgrammes = unstable_cache(
       slug: '',
       category: '',
       pathCourses: pathCourseMap[row.id] ?? [],
-      cardColor: extras.get(row.id)?.card_color ?? undefined,
     }));
 
     return [...courses, ...experiences, ...certifications, ...paths];

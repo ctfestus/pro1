@@ -6,14 +6,13 @@
  * bottom right. Hovering or focusing the card slides the body up over the cover to show the
  * description; on a touch screen, which has no hover, the description shows from the start.
  *
- * The colour is the one the instructor picked in the path editor (lib/path-card-colors.ts), or one
- * by position when they picked none. The whole card is one link to the path's public page.
+ * Every card takes one colour, set under Brand & Style in Site settings: the button in that colour
+ * and the body in a pale tint of it. The whole card is one link to the path's public page.
  */
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
-import { pathCardColor } from '@/lib/path-card-colors';
 import { toPlainText } from '@/lib/plain-text';
 import { M3 } from '@/components/landing/type';
 
@@ -48,8 +47,10 @@ const CARD_CSS = `
 }
 `;
 
-export function PathCards({ paths, user, hFont, bFont }: {
+export function PathCards({ paths, color, user, hFont, bFont }: {
   paths: ProgrammeItem[];
+  /** A #rrggbb colour. */
+  color: string;
   user: unknown;
   hFont?: string;
   bFont?: string;
@@ -61,14 +62,13 @@ export function PathCards({ paths, user, hFont, bFont }: {
           wide screen. */}
       <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-6 sm:overflow-visible"
         style={{ scrollbarWidth: 'none' }}>
-        {paths.map((path, i) => {
-          const color = pathCardColor(path.cardColor, i);
+        {paths.map(path => {
           const count = path.pathCourses?.length ?? 0;
           const desc = toPlainText(path.description);
           return (
             <Link key={path.id} href={landingHref(path, user)}
               className="path-card flex-[0_0_82%] snap-start sm:flex-auto"
-              style={{ ['--tint' as string]: color.tint, ['--deep' as string]: color.deep }}>
+              style={{ ['--tint' as string]: `color-mix(in srgb, ${color} 16%, #ffffff)`, ['--deep' as string]: color }}>
               <div className="pc-panel">
                 <div className="pc-cover" style={{ backgroundImage: path.imageUrl ? `url(${path.imageUrl})` : undefined }} />
                 <div className="pc-layer">

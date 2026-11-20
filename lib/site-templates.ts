@@ -13,6 +13,8 @@ export type SiteConfig = {
   // Colours
   primaryColor:    string;
   accentColor:     string;
+  // Learning path cards: the button colour; the card body is a pale tint of it
+  pathCardColor:   string;
   // Typography
   headingFont:     string;
   bodyFont:        string;
@@ -58,6 +60,8 @@ export type SiteConfig = {
 export const SITE_DEFAULTS: SiteConfig = {
   primaryColor: '#0056D2',
   accentColor:  '#FF9933',
+  // The platform blue, as on primary buttons in the app.
+  pathCardColor: '#3E93FF',
   headingFont:  'Inter',
   bodyFont:     'Inter',
   // Empty means the platform name stands in.

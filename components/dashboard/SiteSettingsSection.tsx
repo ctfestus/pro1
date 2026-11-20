@@ -361,6 +361,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
               {cf('primaryColor', 'Primary colour', '#0e09dd', 'Nav, hero, buttons.')}
               {cf('accentColor',  'Accent colour',  '#ff9933', 'Highlights, icons, links.')}
             </div>
+            {cf('pathCardColor', 'Learning path cards', '#3E93FF', 'Button colour on every learning path card; the card is a pale tint of it.')}
             {Sub('Typography')}
             {fontPicker('headingFont', 'Heading Font', 'Inter')}
             {fontPicker('bodyFont', 'Body Font', 'Inter')}
