@@ -588,7 +588,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                           {idx < selectedIds.length - 1 && (
                             <span aria-hidden className="absolute left-[15px] top-[46px] -bottom-1.5" style={{ borderLeft: `2px dashed ${C.faint}`, opacity: 0.5 }}/>
                           )}
-                          <span className="absolute left-0 top-2.5 w-8 h-8 rounded-full grid place-items-center text-xs font-bold" style={{ background: C.card, color: C.text, boxShadow: `inset 0 0 0 2px ${C.divider}` }}>{idx + 1}</span>
+                          <span className="absolute left-0 top-2.5 w-8 h-8 rounded-full grid place-items-center text-xs font-bold" style={{ background: P.sel, color: P.onSel }}>{idx + 1}</span>
                           <div className="rounded-xl px-3 py-2.5" style={{ background: C.page }}>
                           <div className="flex items-center gap-3">
                             <span className="min-w-0 flex-1">
