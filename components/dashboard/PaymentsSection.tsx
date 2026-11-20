@@ -210,10 +210,10 @@ export function PaymentsSection({ C: theme }: { C: ThemeColors }) {
           confs={confs}
           currencyFor={(c) => currencyByEnrollment.get(c.enrollment_id) ?? null}
           busy={busy}
-          onApprove={(c) => {
-            if (!confirm(`Approve this payment of ${amountText(currencyByEnrollment.get(c.enrollment_id), c.amount)} and record it?`)) return;
-            run(() => postPayments({ action: 'approve-confirmation', confirmationId: c.id }, 'Failed to approve the payment proof'), 'Payment approved and recorded.');
-          }}
+          onApprove={(c) => run(
+            () => postPayments({ action: 'approve-confirmation', confirmationId: c.id }, 'Failed to approve the payment proof'),
+            `${amountText(currencyByEnrollment.get(c.enrollment_id), c.amount)} from ${c.students?.full_name || c.students?.email || 'the learner'} approved and recorded.`,
+          )}
           onReject={(c, note) => run(
             () => postPayments({ action: 'reject-confirmation', confirmationId: c.id, adminNotes: note }, 'Failed to reject the payment proof'),
             'Payment proof rejected. The learner can send another.',

@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { modalStyle, type ThemeColors } from '@/lib/theme';
 import { DISPLAY_FONT } from './ui';
 
-export const FIELD = 'w-full rounded-[10px] px-3 py-3 text-sm outline-none transition-shadow focus:ring-2';
+export const FIELD = 'field-focus w-full rounded-[10px] px-3 py-3 text-sm outline-none transition-shadow';
 export const NUMBER_FIELD = `${FIELD} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`;
 export const BUTTON = 'inline-flex items-center justify-center gap-2 h-10 rounded-xl px-4 text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-90 disabled:opacity-50';
 export const inputStyle = (C: ThemeColors) => ({ background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` });

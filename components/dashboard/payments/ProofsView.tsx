@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { ThemeColors } from '@/lib/theme';
 import { BUTTON, FIELD, Modal, inputStyle } from '../subscriptions/Modal';
-import { Avatar, Card, DISPLAY_FONT, Pill, btnSmClass, btnStyle, learnerName, shortDate } from '../subscriptions/ui';
+import { Avatar, Card, DISPLAY_FONT, Pill, btnStyle, dateLabel, learnerName } from '../subscriptions/ui';
 import { amountText } from './shared';
 
 const FILTERS = [
@@ -21,10 +21,12 @@ export function ProofsView({ C, confs, currencyFor, busy, onApprove, onReject }:
   /** The proof's currency, from the enrollment it belongs to. */
   currencyFor: (conf: any) => string | null;
   busy: boolean;
-  onApprove: (conf: any) => void;
+  onApprove: (conf: any) => Promise<boolean>;
   onReject: (conf: any, note: string) => Promise<boolean>;
 }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('pending');
+  const [open, setOpen] = useState<any>(null);
+  // Set while the reason for a rejection is being written, inside the details pop-up.
   const [rejecting, setRejecting] = useState<any>(null);
   const [note, setNote] = useState('');
   const shown = confs.filter((c) => filter === 'all' || c.status === filter);
@@ -55,65 +57,89 @@ export function ProofsView({ C, confs, currencyFor, busy, onApprove, onReject }:
             {filter === 'pending' ? 'No payment proofs are waiting for review.' : filter === 'all' ? 'No payment proofs yet.' : `No ${filter} proofs.`}
           </p>
         )}
-        {shown.map((c, index) => {
-          const currency = currencyFor(c);
-          return (
-            <div key={c.id} className="flex flex-wrap items-center gap-3 px-5 py-4" style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}>
-              <Avatar name={learnerName(c.students)} color={C.text} background={C.pill} />
-              <div className="min-w-[220px] flex-1">
-                <div className="text-sm font-semibold flex items-center gap-2 flex-wrap" style={{ color: C.text }}>
-                  {learnerName(c.students)}
-                  {c.status === 'approved' && <Pill tone="good" dot C={C}>Approved</Pill>}
-                  {c.status === 'rejected' && <Pill tone="bad" dot C={C}>Rejected</Pill>}
-                </div>
-                <p className="text-xs" style={{ color: C.muted }}>
-                  {[c.cohorts?.name, c.created_at && `sent ${shortDate(c.created_at)}`].filter(Boolean).join(', ')}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  {[c.method, c.reference, c.paid_at && `Paid ${shortDate(c.paid_at)}`, c.notes].filter(Boolean).map((t, i) => (
-                    <span key={i} className="text-xs px-2 rounded-lg leading-5" style={{ background: C.pill, color: C.muted }}>{t}</span>
-                  ))}
-                  {c.receipt_url && (
-                    <a href={c.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-semibold underline underline-offset-2" style={{ color: C.text }}>View receipt</a>
-                  )}
-                </div>
-                {c.admin_notes && <p className="text-xs mt-2" style={{ color: C.muted }}>Note to learner: {c.admin_notes}</p>}
-              </div>
-              {c.amount != null && <span className="text-base font-semibold tabular-nums whitespace-nowrap" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{amountText(currency, c.amount)}</span>}
-              {c.status === 'pending' && (
-                <div className="flex items-center gap-2">
-                  <button type="button" disabled={busy} onClick={() => { setNote(''); setRejecting(c); }} className={btnSmClass} style={btnStyle('danger', C)}>Reject</button>
-                  <button type="button" disabled={busy} onClick={() => onApprove(c)} className={btnSmClass} style={btnStyle('pri', C)}>
-                    <Check className="w-4 h-4" />
-                    Approve
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {shown.map((c, index) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => { setRejecting(null); setOpen(c); }}
+            className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors hover:opacity-90"
+            style={index ? { borderTop: `1px solid ${C.divider}` } : undefined}
+          >
+            <Avatar name={learnerName(c.students)} color={C.text} background={C.pill} />
+            <span className="min-w-0 flex-1 text-sm font-semibold truncate" style={{ color: C.text }}>{learnerName(c.students)}</span>
+            {c.status === 'approved' && <Pill tone="good" dot C={C}>Approved</Pill>}
+            {c.status === 'rejected' && <Pill tone="bad" dot C={C}>Rejected</Pill>}
+            <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: C.faint }} />
+          </button>
+        ))}
       </Card>
 
-      {rejecting && (
-        <Modal title="Reject payment proof" eyebrow={learnerName(rejecting.students)} onClose={() => setRejecting(null)} C={C}>
-          <label className="block text-xs font-semibold" style={{ color: C.muted }}>
-            Reason <span className="font-normal" style={{ color: C.faint }}>(optional, the learner sees it)</span>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs to be corrected" className={`${FIELD} mt-2 min-h-24`} style={inputStyle(C)} />
-          </label>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-5">
-            <button type="button" onClick={() => setRejecting(null)} className={BUTTON} style={{ background: C.pill, color: C.text }}>Cancel</button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={async () => { if (await onReject(rejecting, note)) setRejecting(null); }}
-              className={BUTTON}
-              style={{ background: C.deleteText, color: '#FFFFFF' }}
-            >
-              {busy ? 'Rejecting...' : 'Reject proof'}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {open && (() => {
+        const currency = currencyFor(open);
+        const details: [string, ReactNode][] = [
+          ['Cohort', open.cohorts?.name],
+          ['Sent', open.created_at && dateLabel(open.created_at)],
+          ['Paid on', open.paid_at && dateLabel(open.paid_at)],
+          ['Method', open.method],
+          ['Reference', open.reference],
+          ['Learner note', open.notes],
+          ['Note to learner', open.admin_notes],
+          ['Receipt', open.receipt_url && <a href={open.receipt_url} target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2" style={{ color: C.text }}>View receipt</a>],
+        ];
+        return (
+          <Modal title="Payment proof" eyebrow={learnerName(open.students)} onClose={() => setOpen(null)} C={C}>
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between gap-3 rounded-xl p-4" style={{ background: C.page }}>
+                <span className="text-[28px] leading-9 font-semibold tabular-nums" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+                  {open.amount != null ? amountText(currency, open.amount) : '--'}
+                </span>
+                {open.status === 'pending' ? <Pill tone="warn" dot C={C}>Waiting for review</Pill>
+                  : open.status === 'approved' ? <Pill tone="good" dot C={C}>Approved</Pill> : <Pill tone="bad" dot C={C}>Rejected</Pill>}
+              </div>
+              <dl className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+                {details.filter(([, value]) => value).map(([name, value], i) => (
+                  <div key={name} className="flex items-start justify-between gap-4 px-4 py-3 text-sm" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                    <dt style={{ color: C.muted }}>{name}</dt>
+                    <dd className="text-right break-words min-w-0" style={{ color: C.text }}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {rejecting && (
+                <label className="block text-xs font-semibold" style={{ color: C.muted }}>
+                  Reason <span className="font-normal" style={{ color: C.faint }}>(optional, the learner sees it)</span>
+                  <textarea autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs to be corrected" className={`${FIELD} mt-2 min-h-24`} style={inputStyle(C)} />
+                </label>
+              )}
+            </div>
+            {open.status === 'pending' && (
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
+                {rejecting ? (
+                  <>
+                    <button type="button" onClick={() => setRejecting(null)} className={BUTTON} style={{ background: C.pill, color: C.text }}>Back</button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => { if (await onReject(open, note)) setOpen(null); }}
+                      className={BUTTON}
+                      style={{ background: C.deleteText, color: '#FFFFFF' }}
+                    >
+                      {busy ? 'Rejecting...' : 'Reject proof'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" disabled={busy} onClick={() => { setNote(''); setRejecting(open); }} className={BUTTON} style={btnStyle('danger', C)}>Reject</button>
+                    <button type="button" disabled={busy} onClick={async () => { if (await onApprove(open)) setOpen(null); }} className={BUTTON} style={{ background: C.cta, color: C.ctaText }}>
+                      <Check className="w-4 h-4" />
+                      {busy ? 'Approving...' : 'Approve and record'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

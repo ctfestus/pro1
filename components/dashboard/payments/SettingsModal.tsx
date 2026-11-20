@@ -77,7 +77,7 @@ export function SettingsModal({ cohorts, outstandingCohortId, gracePeriods, onCl
                     onChange={(e) => setDays((v) => ({ ...v, [c.id]: e.target.value }))}
                     placeholder="None"
                     aria-label={`Grace days for ${c.name}`}
-                    className="w-20 h-10 rounded-[10px] px-3 text-sm outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="field-focus w-20 h-10 rounded-[10px] px-3 text-sm outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     style={{ background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` }}
                   />
                   <span className="text-xs" style={{ color: C.muted }}>days</span>

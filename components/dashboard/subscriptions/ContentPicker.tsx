@@ -29,7 +29,7 @@ export function ContentPicker({ options, selected, onChange, aside, note, empty,
   return (
     <div className="grid gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <label className="flex items-center gap-2 h-10 px-3 rounded-xl flex-1" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
+        <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
           <Search className="w-4 h-4 flex-shrink-0" />
           <input
             value={search}

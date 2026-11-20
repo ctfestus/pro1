@@ -36,7 +36,7 @@ function Summary({ row, C }: { row: any; C: ThemeColors }) {
 
 function AmountInput({ currency, value, onChange, C, autoFocus }: { currency: string; value: string; onChange: (v: string) => void; C: ThemeColors; autoFocus?: boolean }) {
   return (
-    <div className="flex items-center gap-2 h-11 px-3 rounded-[10px]" style={inputStyle(C)}>
+    <div className="field-shell flex items-center gap-2 h-11 px-3 rounded-[10px]" style={inputStyle(C)}>
       {currency && <b className="text-xs font-semibold" style={{ color: C.muted }}>{currency}</b>}
       <input
         autoFocus={autoFocus}
@@ -46,7 +46,7 @@ function AmountInput({ currency, value, onChange, C, autoFocus }: { currency: st
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="w-full bg-transparent outline-none focus-visible:!outline-none text-sm tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-full bg-transparent outline-none text-sm tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         style={{ color: C.text }}
       />
     </div>
