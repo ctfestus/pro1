@@ -196,6 +196,7 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
             </label>
             <MenuSelect
               searchable
+              fixed
               label="Filter by cohort"
               value={cohortFilter}
               options={[

@@ -46,8 +46,12 @@ function fieldStyle(C: PickerColors, open: boolean): CSSProperties {
 function popoverPosition(field: HTMLElement, width: number, height: number, alignRight: boolean): CSSProperties {
   const rect = field.getBoundingClientRect();
   const left = Math.min(Math.max(8, alignRight ? rect.right - width : rect.left), window.innerWidth - width - 8);
-  const up = window.innerHeight - rect.bottom < height + 16 && rect.top > height + 16;
-  return up ? { position: 'fixed', left, bottom: window.innerHeight - rect.top + 8 } : { position: 'fixed', left, top: rect.bottom + 8 };
+  const roomBelow = window.innerHeight - rect.bottom;
+  const up = roomBelow < height + 16 && rect.top > roomBelow;
+  // On a short screen neither side may fit: open towards the bigger gap, then keep it on screen
+  // even if that means covering the field.
+  const top = up ? rect.top - 8 - height : rect.bottom + 8;
+  return { position: 'fixed', left, top: Math.max(8, Math.min(top, window.innerHeight - height - 8)) };
 }
 
 /** Open and close a pop-up drawn in a portal: closes on Escape, on focus leaving, and on scroll. */

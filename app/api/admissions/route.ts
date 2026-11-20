@@ -124,10 +124,16 @@ export async function POST(req: NextRequest) {
       gracePeriodDays = parsed;
     }
 
+    // Never a guessed currency: the tenant decides what it charges in.
+    const currency = String(body.settings.currency ?? '').trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      return NextResponse.json({ error: 'Enter the currency as a three-letter code, for example USD or NGN.' }, { status: 400 });
+    }
+
     const payload = {
       cohort_id:                   cohortId,
       total_fee:                   totalFee,
-      currency:                    String(body.settings.currency || 'GHS').trim() || 'GHS',
+      currency,
       deposit_percent:             Number(body.settings.deposit_percent ?? 50),
       payment_plan:                body.settings.payment_plan || 'flexible',
       installment_count:           Number(body.settings.installment_count ?? 3),
