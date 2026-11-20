@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadCoverImage } from '@/lib/uploadToCloudinary';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ImageLibrary } from '@/components/ImageLibrary';
-import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
+import { DARK_C, useC, type ThemeColors } from '@/lib/theme';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, Loader2, Save, Link as LinkIcon, Upload, X, Briefcase, ClipboardList, Eye, Images, FileText, Blocks, Video, FolderOpen, Settings, CheckCircle2, Circle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, Plus, Trash2, Loader2, Link as LinkIcon, Upload, X, XCircle, Eye } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const AssignmentExperiencePlayer = dynamic(() => import('@/components/AssignmentExperiencePlayer'), { ssr: false });
 const StandardAssignmentPlayer = dynamic(() => import('@/components/StandardAssignmentPlayer'), { ssr: false });
@@ -25,6 +25,10 @@ import { RubricFileImportActions } from '@/components/RubricFileImportActions';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 import { excelReviewSaveErrorMessage, normalizeReviewSheetNames } from '@/lib/excel-review-config';
 import { DateField } from '@/components/DatePicker';
+import { MenuSelect } from '@/components/MenuSelect';
+import { Tick } from '@/components/dashboard/cohorts/CohortModals';
+import { FIELD, inputStyle } from '@/components/dashboard/subscriptions/Modal';
+import { Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, plural, shortDate } from '@/components/dashboard/subscriptions/ui';
 
 
 type AssignmentType = 'standard' | 'code_review' | 'excel_review' | 'dashboard_critique' | 'virtual_experience' | 'document_review';
@@ -32,9 +36,9 @@ type AssignmentType = 'standard' | 'code_review' | 'excel_review' | 'dashboard_c
 // The two types offered when creating a NEW assignment. A Standard assignment is now built
 // from scenarios + tasks (any mix of formats). The legacy single-purpose AI types below are
 // no longer offered up front, but existing assignments of those types stay fully editable.
-const ASSIGNMENT_TYPES: { value: AssignmentType; label: string; icon: React.ReactNode; description: string }[] = [
-  { value: 'standard',            label: 'Standard',           icon: <ClipboardList style={{ width: 15, height: 15 }}/>,    description: 'Build scenarios and tasks of any kind (written, upload, multiple choice, AI review)' },
-  { value: 'virtual_experience',  label: 'Virtual Experience', icon: <Briefcase style={{ width: 15, height: 15 }}/>,        description: 'Embed a full virtual experience' },
+const ASSIGNMENT_TYPES: { value: AssignmentType; label: string }[] = [
+  { value: 'standard',            label: 'Standard' },
+  { value: 'virtual_experience',  label: 'Virtual Experience' },
 ];
 
 // Labels for every type, including the retired ones, so an existing legacy assignment still
@@ -79,33 +83,29 @@ function isMissingSolutionsTable(err: any): boolean {
   return code === '42P01' || code === 'PGRST205' || /schema cache/i.test(err?.message ?? '');
 }
 
-function inputStyle(C: typeof LIGHT_C) {
-  return {
-    width: '100%', minHeight: 46, padding: '11px 14px', borderRadius: 12, border: `1px solid ${C.cardBorder}`,
-    background: C.card, color: C.text, fontSize: 14, outline: 'none',
-    boxShadow: '0 1px 0 rgba(15,23,42,.02)', transition: 'border-color .15s ease, box-shadow .15s ease',
-  } as React.CSSProperties;
-}
-function textareaStyle(C: typeof LIGHT_C) {
-  return { ...inputStyle(C), minHeight: 112, resize: 'vertical' as const, lineHeight: 1.6, fontFamily: 'inherit' };
-}
-function labelStyle(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 12, fontWeight: 750, color: C.muted, marginBottom: 8, letterSpacing: '.01em' } as React.CSSProperties;
-}
-function hintStyle(C: typeof LIGHT_C) {
-  return { fontSize: 12, lineHeight: 1.5, color: C.faint, marginTop: 6 } as React.CSSProperties;
+/** One titled section of the editor card; sections after the first get a divider line. */
+function Sect({ title, aside, action, first, children, C }: { title: string; aside?: string; action?: ReactNode; first?: boolean; children: ReactNode; C: ThemeColors }) {
+  return (
+    <div className="p-5 grid gap-4" style={first ? undefined : { borderTop: `1px solid ${C.divider}` }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold flex-1" style={{ color: C.text }}>{title}</h3>
+        {aside && <span className="text-xs" style={{ color: C.muted }}>{aside}</span>}
+        {action}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 export default function CreateAssignmentPage() {
-  const activePalette = useC();
-  const isDark = activePalette.page === DARK_C.page;
-  // Keep Assignment Studio green in light mode without changing the tenant palette elsewhere.
-  // Dark mode retains its existing canonical ocean accent.
-  const C = isDark ? activePalette : LIGHT_C;
+  const theme = useC();
+  const isDark = theme.page === DARK_C.page;
+  // As on the admin pages: the dark-mode blue for buttons and selection controls.
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
   const router = useRouter();
 
   const [editId, setEditId]       = useState<string | null>(null);
-  const [activeStudioTab, setActiveStudioTab] = useState<'type' | 'build' | 'content' | 'resources' | 'settings' | 'publish'>('type');
+  const [activeStudioTab, setActiveStudioTab] = useState<'type' | 'details' | 'content' | 'resources' | 'settings'>('type');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
   const [courses, setCourses]     = useState<Course[]>([]);
@@ -364,8 +364,11 @@ export default function CreateAssignmentPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // `target` is the status this save asks for: the header's Save draft and Publish pass it in, so
+  // the save does not depend on a status update that has not landed yet.
+  async function handleSubmit(e: React.FormEvent | null, target: 'draft' | 'published' = status) {
+    e?.preventDefault();
+    setStatus(target);
     setError('');
     const trimmedTitle = title.trim();
     if (!trimmedTitle) { setError('Title is required.'); return; }
@@ -380,7 +383,7 @@ export default function CreateAssignmentPage() {
       if (normalized.error) { setError(normalized.error); return; }
     }
     // Block publishing an incomplete scenario assignment (drafts may stay incomplete).
-    if (assignmentType === 'standard' && status === 'published') {
+    if (assignmentType === 'standard' && target === 'published') {
       const vErrs = validateScenarioConfig({ scenarios });
       if (vErrs.length) { setError(vErrs.slice(0, 3).join(' ') + (vErrs.length > 3 ? ` (+${vErrs.length - 3} more)` : '')); return; }
     }
@@ -390,7 +393,7 @@ export default function CreateAssignmentPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/auth'); return; }
 
-      const wantPublished = status === 'published';
+      const wantPublished = target === 'published';
 
       // B-lite publish safety: a published assignment must never exist without its matching
       // answer keys / resources. So always write the CONTENT as a draft first (creating, or
@@ -573,57 +576,38 @@ export default function CreateAssignmentPage() {
   const isLegacyType = !ASSIGNMENT_TYPES.some(t => t.value === assignmentType) && assignmentType !== 'standard';
   const showContentFields = assignmentType !== 'virtual_experience';
   const studioTabs = [
-    { id: 'type', label: 'Type', description: 'Choose assignment type', Icon: ClipboardList },
-    { id: 'build', label: 'Build', description: 'Build workspace', Icon: Blocks },
-    { id: 'content', label: 'Content', description: 'Content workspace', Icon: Video },
-    { id: 'resources', label: 'Resources', description: 'Resources workspace', Icon: FolderOpen },
-    { id: 'settings', label: 'Settings', description: 'Settings workspace', Icon: Settings },
-    { id: 'publish', label: 'Publish', description: 'Publish workspace', Icon: CheckCircle2 },
+    { id: 'type', label: 'Type' },
+    { id: 'details', label: 'Details' },
+    { id: 'content', label: 'Content' },
+    { id: 'resources', label: 'Resources' },
+    { id: 'settings', label: 'Settings' },
   ] as const;
-  const activeStudioIndex = studioTabs.findIndex(tab => tab.id === activeStudioTab);
-  const activeStudioConfig = studioTabs[activeStudioIndex];
-  const studioPanelStyle: React.CSSProperties = {
-    background: C.card,
-    border: `1px solid ${C.cardBorder}`,
-    borderRadius: 20,
-    boxShadow: isDark ? 'none' : '0 14px 38px rgba(15,23,42,0.05)',
-    padding: 24,
-  };
-  const tabPanelSectionStyle: React.CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 0,
-    boxShadow: 'none',
-    padding: 0,
-  };
-  const fieldGroupStyle: React.CSSProperties = {
-    padding: 16,
-    borderRadius: 15,
-    background: C.page,
-  };
-  const sectionEyebrowStyle: React.CSSProperties = {
-    color: C.cta,
-    fontSize: 11,
-    fontWeight: 800,
-    textTransform: 'uppercase',
-    letterSpacing: '.14em',
-    margin: '0 0 6px',
-  };
-  const contentReady = assignmentType === 'virtual_experience'
-    ? Boolean(veFormId)
-    : assignmentType === 'standard'
-      ? scenarios.length > 0
-      : Boolean(scenario || brief || tasks || requirements);
-  const readinessChecks = [
-    { label: 'Assignment title', complete: Boolean(title.trim()) },
-    { label: 'Assignment content', complete: contentReady },
-    { label: 'Target audience', complete: selectedCohortIds.length > 0 || selectedGroupIds.length > 0 },
-    { label: 'Cover image', complete: Boolean(coverImage) },
-  ];
-  const readinessComplete = readinessChecks.filter(item => item.complete).length;
-  const goToStudioTab = (id: typeof studioTabs[number]['id']) => {
-    setActiveStudioTab(id);
-  };
+  const P = palette(C);
+  const field = inputStyle(C);
+  const labelCls = 'text-xs font-semibold mb-2 block';
+  const typeLabel = assignmentType === 'standard' ? 'Standard'
+    : assignmentType === 'virtual_experience' ? 'Virtual experience'
+    : LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType;
+  const taskCount = scenarios.reduce((n, s) => n + s.tasks.length, 0);
+  const chip = (on: boolean) => (on ? { background: P.sel, color: P.onSel } : { color: C.muted });
+  // A page-coloured choice with a radio; the chosen one gets a blue ring.
+  const choice = (on: boolean, onClick: () => void, title: string, sub: string) => (
+    <button key={title} type="button" role="radio" aria-checked={on} onClick={onClick}
+      className="flex items-start gap-3 p-4 rounded-2xl text-left" style={{ background: C.page, boxShadow: on ? `inset 0 0 0 2px ${P.sel}` : 'none' }}>
+      <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={on ? { background: P.sel } : { background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+        {on && <span className="w-2 h-2 rounded-full" style={{ background: P.onSel }}/>}
+      </span>
+      <span>
+        <span className="block text-sm font-semibold" style={{ color: C.text }}>{title}</span>
+        <span className="block text-xs" style={{ color: C.muted }}>{sub}</span>
+      </span>
+    </button>
+  );
+  const removeBtn = (onClick: () => void, label: string) => (
+    <button type="button" onClick={onClick} aria-label={label} className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: P.badSoft, color: P.bad }}>
+      <Trash2 className="w-4 h-4"/>
+    </button>
+  );
 
   const openPreview = async () => {
     if (assignmentType === 'virtual_experience' && veFormId) {
@@ -677,575 +661,363 @@ export default function CreateAssignmentPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.page }}>
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: C.nav, borderBottom: `1px solid ${C.navBorder}`,
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-      }}>
-        <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center' }}>
-          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.muted, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>
-            <ArrowLeft style={{ width: 16, height: 16 }}/> Back
-          </Link>
+      <main className="max-w-[1040px] mx-auto px-4 sm:px-6 pt-7 pb-16">
+        {/* Header: back to the list, the name with its saved status and key facts, and the buttons. */}
+        <Link href="/dashboard#assignments" className="inline-flex items-center gap-2 text-[13px] font-semibold mb-3 no-underline hover:opacity-80" style={{ color: C.muted }}>
+          <ArrowLeft className="w-4 h-4"/>All assignments
+        </Link>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title.trim() || 'New assignment'}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm" style={{ color: C.muted }}>
+              {originalStatus === 'published' ? <Pill tone="good" dot C={C}>Published</Pill> : <Pill tone="warn" C={C}>Draft</Pill>}
+              <span>{typeLabel}</span>
+              {assignmentType === 'standard' && <span>{plural(scenarios.length, 'scenario')}, {plural(taskCount, 'task')}</span>}
+              {deadlineDate && <span>Due <b style={{ color: C.text }}>{shortDate(deadlineDate)}</b></span>}
+              <span>Pass mark <b style={{ color: C.text }}>{passingScore}%</b></span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button ref={previewButtonRef} type="button" onClick={openPreview} disabled={loadingPreviewVe} className={btnClass} style={btnStyle('sec', C)}>
+              {loadingPreviewVe ? <Loader2 className="w-4 h-4 animate-spin"/> : <Eye className="w-4 h-4"/>}Preview
+            </button>
+            <button type="button" onClick={() => handleSubmit(null, 'draft')} disabled={loading} className={btnClass} style={btnStyle('sec', C)}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save draft
+            </button>
+            <button type="button" onClick={() => handleSubmit(null, 'published')} disabled={loading} className={btnClass} style={btnStyle('pri', C)}>
+              {originalStatus === 'published' ? 'Publish changes' : 'Publish'}
+            </button>
+          </div>
         </div>
-      </header>
+        <div role="tablist" aria-label="Assignment sections" className="inline-flex max-w-full gap-1 p-1 mt-5 rounded-[14px] overflow-x-auto" style={{ background: C.card }}>
+          {studioTabs.map(tab => (
+            <button key={tab.id} type="button" role="tab" aria-selected={activeStudioTab === tab.id} onClick={() => setActiveStudioTab(tab.id)}
+              className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap" style={activeStudioTab === tab.id ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {error && (
+          <div role="alert" className="mt-4 rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+            <XCircle className="w-4 h-4 flex-shrink-0"/>
+            <span className="flex-1">{error}</span>
+            <button type="button" onClick={() => setError('')} aria-label="Dismiss" className="w-6 h-6 grid place-items-center rounded-full flex-shrink-0"><X className="w-4 h-4"/></button>
+          </div>
+        )}
 
-      <main style={{ maxWidth: 1040, margin: '0 auto', padding: '28px 24px 120px' }}>
-        <section style={{ ...studioPanelStyle, padding: 0, overflow: 'hidden', marginBottom: 0, borderRadius: '20px 20px 0 0', borderBottom: 'none', boxShadow: 'none' }}>
-          {/* Wraps on a phone: the actions drop under the title instead of squeezing it to a few letters. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '20px 24px 14px' }}>
-            <div style={{ minWidth: 0, flex: '1 1 220px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ position: 'relative', width: 10, height: 10, display: 'grid', placeItems: 'center' }} aria-hidden="true">
-                  <span className="animate-ping" style={{ position: 'absolute', width: 10, height: 10, borderRadius: '50%', background: C.cta, opacity: .2 }}/>
-                  <span style={{ position: 'relative', width: 6, height: 6, borderRadius: '50%', background: C.cta }}/>
-                </span>
-                <span style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.16em' }}>Assignment Studio</span>
+        <form id="assignment-form" onSubmit={e => handleSubmit(e)} noValidate>
+        <Card C={C} className="mt-4 overflow-hidden">
+
+          {/* -- Type --- */}
+          {activeStudioTab === 'type' && (
+            <Sect title="How learners complete it" first C={C}>
+              <div role="radiogroup" aria-label="Assignment type" className="grid gap-3 sm:grid-cols-2">
+                {choice(assignmentType === 'standard', () => setAssignmentType('standard'), 'Standard', 'Scenarios and tasks of any kind: written, upload, multiple choice, AI review')}
+                {choice(assignmentType === 'virtual_experience', () => setAssignmentType('virtual_experience'), 'Virtual experience', 'Learners complete a full virtual experience')}
               </div>
-              <h1 style={{ color: C.text, fontSize: 22, lineHeight: 1.2, fontWeight: 750, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || (editId ? 'Edit assignment' : 'Untitled assignment')}</h1>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-              <button ref={previewButtonRef} type="button" onClick={openPreview} disabled={loadingPreviewVe} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 38, padding: '8px 13px', borderRadius: 12, border: 'none', cursor: 'pointer', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700 }}>
-                {loadingPreviewVe ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin"/> : <Eye style={{ width: 14, height: 14 }}/>} Preview
-              </button>
-              <span style={{ color: C.faint, fontSize: 11 }}>{editId ? 'Editing assignment' : 'New assignment'}</span>
-            </div>
-          </div>
-          <nav aria-label="Assignment studio sections" style={{ display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto', padding: '0 20px 14px', scrollbarWidth: 'none' }}>
-            {studioTabs.map(tab => {
-              const active = activeStudioTab === tab.id;
-              return <button key={tab.id} type="button" aria-current={active ? 'page' : undefined} onClick={() => goToStudioTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 38, padding: '8px 12px', border: 'none', borderRadius: 12, whiteSpace: 'nowrap', cursor: 'pointer', background: active ? `${C.cta}14` : 'transparent', color: active ? C.cta : C.faint, fontSize: 12, fontWeight: 700, transition: 'all .15s ease' }}><tab.Icon style={{ width: 14, height: 14 }}/> {tab.label}</button>;
-            })}
-          </nav>
-        </section>
-        <section style={{ padding: '22px 24px', borderLeft: `1px solid ${C.cardBorder}`, borderRight: `1px solid ${C.cardBorder}`, borderTop: `1px solid ${C.divider}`, borderBottom: `1px solid ${C.divider}`, background: C.card }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ minWidth: 0 }}>
-              <h2 style={{ color: C.text, fontSize: 22, fontWeight: 750, lineHeight: 1.2, margin: 0 }}>{activeStudioConfig.label}</h2>
-              <p style={{ color: C.faint, fontSize: 11, fontWeight: 600, margin: '7px 0 0' }}>{activeStudioConfig.description}</p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button type="button" aria-label="Previous" disabled={activeStudioIndex <= 0} onClick={() => goToStudioTab(studioTabs[activeStudioIndex - 1].id)} style={{ width: 42, height: 42, display: 'grid', placeItems: 'center', borderRadius: '50%', border: `1px solid ${C.cardBorder}`, background: 'transparent', color: C.muted, cursor: activeStudioIndex <= 0 ? 'default' : 'pointer', opacity: activeStudioIndex <= 0 ? .3 : 1 }}><ChevronLeft style={{ width: 17, height: 17 }}/></button>
-              <button type="button" aria-label="Next" disabled={activeStudioIndex >= studioTabs.length - 1} onClick={() => goToStudioTab(studioTabs[activeStudioIndex + 1].id)} style={{ width: 42, height: 42, display: 'grid', placeItems: 'center', borderRadius: '50%', border: `1px solid ${C.cardBorder}`, background: 'transparent', color: C.muted, cursor: activeStudioIndex >= studioTabs.length - 1 ? 'default' : 'pointer', opacity: activeStudioIndex >= studioTabs.length - 1 ? .3 : 1 }}><ChevronRight style={{ width: 17, height: 17 }}/></button>
-            </div>
-          </div>
-        </section>
-        <form id="assignment-form" onSubmit={handleSubmit} noValidate>
-
-          <section aria-live="polite" style={{ ...studioPanelStyle, minHeight: 360, marginTop: 0, borderRadius: '0 0 20px 20px', borderTop: 'none', boxShadow: 'none' }}>
-
-          {error && (
-            <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}`, fontSize: 14 }}>
-              {error}
-            </div>
+              <p className="text-xs" style={{ color: C.muted }}>This decides what the Content tab offers.</p>
+              {isLegacyType && (
+                <p className="text-xs" style={{ color: C.muted }}>
+                  You are editing an older {LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType} assignment. Its settings still work. New assignments are built as Standard scenarios and tasks.
+                </p>
+              )}
+            </Sect>
           )}
 
-          {/* -- Assignment Type --- */}
-          <section id="assignment-section-type" style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'type' ? 'block' : 'none' }}>
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.14em', margin: '0 0 6px' }}>Assignment format</p>
-              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>How should learners complete this assignment?</h3>
-              <p style={{ ...hintStyle(C), margin: '7px 0 0', maxWidth: 620 }}>Choose a flexible task-based assignment or connect an immersive virtual experience. This choice determines the tools available in the next tabs.</p>
-            </div>
-              <div role="radiogroup" aria-label="Assignment type" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
-                {ASSIGNMENT_TYPES.map(t => {
-                  const active = assignmentType === t.value;
-                  return (
-                    <button key={t.value} type="button" role="radio" aria-checked={active} onClick={() => setAssignmentType(t.value)}
-                      style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 13, minWidth: 0, minHeight: 92, padding: 16, borderRadius: 15, border: `1px solid ${active ? C.cta : C.divider}`, background: active ? `${C.cta}0e` : C.page, color: active ? C.cta : C.muted, textAlign: 'left', cursor: 'pointer', transition: 'all .15s ease' }}>
-                      <span style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: 'grid', placeItems: 'center', background: active ? `${C.cta}18` : C.card, color: active ? C.cta : C.faint }}>{t.icon}</span>
-                      <span style={{ minWidth: 0, paddingRight: 22 }}>
-                        <strong style={{ display: 'block', color: active ? C.cta : C.text, fontSize: 14, lineHeight: 1.3 }}>{t.label}</strong>
-                        <span style={{ display: 'block', color: C.faint, fontSize: 12, lineHeight: 1.45, marginTop: 5 }}>{t.description}</span>
-                      </span>
-                      {active && (
-                        <CheckCircle2 style={{ position: 'absolute', right: 14, top: 14, width: 16, height: 16, color: C.cta }}/>
-                      )}
-                    </button>
-                  );
-                })}
+          {/* -- Details --- */}
+          {activeStudioTab === 'details' && (
+            <Sect title="Details" first C={C}>
+              <div>
+                <label htmlFor="asg-title" className={labelCls} style={{ color: C.muted }}>Title</label>
+                <input id="asg-title" type="text" value={title} onChange={e => setTitle(sanitizePlainText(e.target.value))}
+                  placeholder="For example, Week 3 data analysis" className={FIELD} style={field} required maxLength={255}/>
               </div>
-            {isLegacyType && (
-              <p style={{ ...hintStyle(C), marginTop: 10 }}>
-                You are editing a legacy {LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType} assignment. Its settings below still work. New assignments are built as Standard scenarios and tasks.
-              </p>
-            )}
-          </section>
-
-          {/* -- Type-specific Config --- */}
-          {assignmentType !== 'standard' && (
-            <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'content' ? 'block' : 'none', marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.divider}` }}>
-              <p style={sectionEyebrowStyle}>{assignmentType === 'virtual_experience' ? 'Connected experience' : 'AI assessment'}</p>
-              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'virtual_experience' ? 'Virtual Experience' : 'AI review settings'}</h3>
-              <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>{assignmentType === 'virtual_experience' ? 'Select the immersive experience learners will complete.' : 'Define the rubric, context, and score used for automated review.'}</p>
-
-              {assignmentType === 'virtual_experience' ? (
-                <div style={fieldGroupStyle}>
-                  <label style={labelStyle(C)}>Select Virtual Experience <span style={{ color: C.errorText }}>*</span></label>
-                  {veForms.length === 0 ? (
-                    <p style={{ fontSize: 14, color: C.faint }}>No Virtual Experiences found. Create one first from the dashboard.</p>
-                  ) : (
-                    <select value={veFormId} onChange={e => setVeFormId(e.target.value)}
-                      style={{ ...inputStyle(C), appearance: 'auto' }}>
-                      <option value="">Select a Virtual Experience</option>
-                      {veForms.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
-                    </select>
-                  )}
+              <div>
+                <span className={labelCls} style={{ color: C.muted }}>Cover image</span>
+                <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload}/>
+                <div className="rounded-xl p-4 grid gap-3 text-center text-[13px]" style={{ border: `2px dashed ${C.divider}`, color: C.muted }}>
+                  {coverImage
+                    ? <img src={resolveCoverUrl(coverImage)} alt="Cover" className="w-full h-[190px] rounded-xl object-cover" onError={e => (e.target as HTMLImageElement).style.display = 'none'}/>
+                    : <span>A clear image learners recognise at a glance</span>}
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading} className={btnSmClass} style={btnStyle('sec', C)}>
+                      {coverUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+                      {coverUploading ? 'Uploading...' : coverImage ? 'Change' : 'Upload'}
+                    </button>
+                    <button type="button" onClick={() => setShowCoverLibrary(true)} className={btnSmClass} style={btnStyle('sec', C)}>Browse library</button>
+                    {coverImage && <button type="button" onClick={() => setCoverImage('')} className={btnSmClass} style={btnStyle('danger', C)}>Remove</button>}
+                  </div>
                 </div>
+                <input type="text" value={coverImage} onChange={e => setCoverImage(e.target.value)} aria-label="Cover image link"
+                  placeholder="Or paste an image link" className={`${FIELD} mt-2`} style={field}/>
+              </div>
+              {showCoverLibrary && (
+                <ImageLibrary uploadFolder="covers" initialFolder="covers" returnPublicId onSelect={ref => setCoverImage(ref)} onClose={() => setShowCoverLibrary(false)}/>
+              )}
+            </Sect>
+          )}
+
+          {/* -- Content: an older AI-review or virtual experience assignment's own settings --- */}
+          {activeStudioTab === 'content' && assignmentType !== 'standard' && (
+            <Sect title={assignmentType === 'virtual_experience' ? 'Virtual experience' : 'AI review settings'} first C={C}>
+              <p className="text-xs -mt-2" style={{ color: C.muted }}>{assignmentType === 'virtual_experience' ? 'The experience learners complete.' : 'The rubric, context and score used for the automated review.'}</p>
+              {assignmentType === 'virtual_experience' ? (
+                veForms.length === 0
+                  ? <p className="text-sm" style={{ color: C.muted }}>No virtual experiences yet. Create one from the dashboard first.</p>
+                  : <MenuSelect label="Virtual experience" field searchable value={veFormId} onChange={setVeFormId} C={C} placeholder="Select a virtual experience"
+                      options={veForms.map(f => ({ value: f.id, label: f.title }))}/>
               ) : (
                 <>
-                  {/* Rubric */}
-                  <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-                    <label style={labelStyle(C)}>Grading Rubric</label>
-
-                    <div style={{ marginBottom: 10 }}>
-                      <RubricFileImportActions
-                        busy={extracting}
-                        background={C.card}
-                        color={C.muted}
-                        onSelect={handleExtractRubric}
-                      />
+                  <div>
+                    <span className={labelCls} style={{ color: C.muted }}>Grading rubric</span>
+                    <div className="mb-2.5">
+                      <RubricFileImportActions busy={extracting} background={C.card} color={C.muted} onSelect={handleExtractRubric}/>
                     </div>
-                    <p style={{ ...hintStyle(C), marginBottom: 8 }}>Upload completed work or your own rubric file to set the criteria.</p>
-
-                    <textarea
-                      value={rubricText}
-                      onChange={e => setRubricText(e.target.value)}
-                      placeholder={"Enter one criterion per line:\nCode follows DRY principles\nQueries are optimised\nResults are correct"}
-                      style={textareaStyle(C)}
-                    />
-                    <p style={hintStyle(C)}>Each line becomes a separate rubric criterion the AI will grade against.</p>
+                    <p className="text-xs mb-2" style={{ color: C.muted }}>Upload completed work or your own rubric file to set the criteria.</p>
+                    <textarea value={rubricText} onChange={e => setRubricText(e.target.value)} rows={5}
+                      placeholder={'One criterion per line\nCode follows DRY principles\nQueries are optimised'} className={FIELD} style={field}/>
+                    <p className="text-xs mt-2" style={{ color: C.muted }}>Each line is a separate criterion the AI grades against.</p>
                   </div>
-
-                  {/* Context (excel_review / document_review) */}
                   {assignmentType === 'document_review' && (
-                    <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-                      <label style={labelStyle(C)}>Report scope / context <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
-                      <textarea
-                        value={context}
-                        onChange={e => setContext(e.target.value)}
-                        placeholder="Describe what the report should cover, the market, industry, or company context the AI should use when reviewing..."
-                        style={textareaStyle(C)}
-                      />
+                    <div>
+                      <span className={labelCls} style={{ color: C.muted }}>Report scope or context (optional)</span>
+                      <textarea value={context} onChange={e => setContext(e.target.value)} rows={4}
+                        placeholder="What the report should cover: the market, industry or company the AI should use when reviewing." className={FIELD} style={field}/>
                     </div>
                   )}
-
-                  {/* Min Score */}
                   {(assignmentType === 'code_review' || assignmentType === 'excel_review' || assignmentType === 'document_review') && (
-                    <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-                      <label style={labelStyle(C)}>Minimum Pass Score <span style={{ fontSize: 12, fontWeight: 400 }}>(out of 100)</span></label>
-                      <input
-                        type="number" min={1} max={100} value={minScore}
-                        onChange={e => setMinScore(Number(e.target.value))}
-                        style={{ ...inputStyle(C), width: 100 }}
-                      />
+                    <div>
+                      <span className={labelCls} style={{ color: C.muted }}>Minimum pass score (out of 100)</span>
+                      <input type="number" min={1} max={100} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className={FIELD} style={{ ...field, width: 120 }}/>
                     </div>
                   )}
-
-                  {/* Schema (code_review only) */}
                   {assignmentType === 'code_review' && (
-                    <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-                      <label style={labelStyle(C)}>Database Schema <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional, for SQL review)</span></label>
-                      <textarea
-                        value={schema}
-                        onChange={e => setSchema(e.target.value)}
-                        placeholder="CREATE TABLE orders (id INT, ...);"
-                        style={{ ...textareaStyle(C), fontFamily: 'monospace', fontSize: 12 }}
-                      />
+                    <div>
+                      <span className={labelCls} style={{ color: C.muted }}>Database schema (optional, for SQL review)</span>
+                      <textarea value={schema} onChange={e => setSchema(e.target.value)} rows={4} placeholder="CREATE TABLE orders (id INT, ...);" className={`${FIELD} font-mono text-xs`} style={field}/>
                     </div>
                   )}
-
-                  {/* Context (excel_review) */}
                   {assignmentType === 'excel_review' && (
                     <>
-                      <div style={fieldGroupStyle}>
-                        <label style={labelStyle(C)}>Business Context <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
-                        <textarea
-                          value={context}
-                          onChange={e => setContext(e.target.value)}
-                          placeholder="Describe the business scenario or rules the AI should apply when reviewing the spreadsheet..."
-                          style={textareaStyle(C)}
-                        />
+                      <div>
+                        <span className={labelCls} style={{ color: C.muted }}>Business context (optional)</span>
+                        <textarea value={context} onChange={e => setContext(e.target.value)} rows={4}
+                          placeholder="The business scenario or rules the AI should apply when reviewing the spreadsheet." className={FIELD} style={field}/>
                       </div>
-                      <div style={fieldGroupStyle}>
-                        <label style={labelStyle(C)}>Worksheets to evaluate <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional, one per line)</span></label>
-                        <textarea
-                          value={reviewSheetNamesText}
-                          onChange={e => setReviewSheetNamesText(e.target.value)}
-                          placeholder={'Revenue Forecast\nSummary Dashboard'}
-                          style={{ ...textareaStyle(C), fontFamily: 'monospace', fontSize: 12 }}
-                        />
-                        <p style={hintStyle(C)}>Only these worksheets are sent to the AI reviewer. Names are matched without regard to letter case.</p>
+                      <div>
+                        <span className={labelCls} style={{ color: C.muted }}>Worksheets to evaluate (optional, one per line)</span>
+                        <textarea value={reviewSheetNamesText} onChange={e => setReviewSheetNamesText(e.target.value)} rows={3}
+                          placeholder={'Revenue Forecast\nSummary Dashboard'} className={`${FIELD} font-mono text-xs`} style={field}/>
+                        <p className="text-xs mt-2" style={{ color: C.muted }}>Only these worksheets go to the AI reviewer. Letter case does not matter.</p>
                       </div>
                     </>
                   )}
-
                 </>
               )}
-            </section>
+            </Sect>
           )}
 
-          {/* -- Section: Details --- */}
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'build' ? 'block' : 'none' }}>
-            <div style={{ marginBottom: 20 }}>
-              <p style={sectionEyebrowStyle}>Assignment identity</p>
-              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Set the learner-facing details</h3>
-              <p style={{ ...hintStyle(C), marginTop: 6 }}>Use a clear title and a focused cover image learners can recognize at a glance.</p>
-            </div>
-
-            <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-              <label style={labelStyle(C)}>Title <span style={{ color: C.errorText }}>*</span></label>
-              <input
-                type="text" value={title} onChange={e => setTitle(sanitizePlainText(e.target.value))}
-                placeholder="e.g. Week 3 Data Analysis Assignment"
-                style={inputStyle(C)} required maxLength={255}
-              />
-            </div>
-
-            {/* Cover Image */}
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle(C)}>Cover Image</label>
-              <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload}/>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <input type="text" value={coverImage} onChange={e => setCoverImage(e.target.value)}
-                  placeholder="Paste an image URL or upload" style={{ ...inputStyle(C), flex: '1 1 260px' }}/>
-                <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 46, padding: '10px 14px', borderRadius: 12, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  <Upload style={{ width: 14, height: 14 }}/>{coverUploading ? 'Uploading...' : 'Upload'}
-                </button>
-                <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
-                  style={{ display: 'flex', alignItems: 'center', minHeight: 46, padding: '10px 13px', borderRadius: 12, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
-                  <Images style={{ width: 14, height: 14 }}/>
-                </button>
-              </div>
-              {coverImage && (
-                <div style={{ marginTop: 12, borderRadius: 14, overflow: 'hidden', position: 'relative', background: C.thumbBg }}>
-                  <img src={resolveCoverUrl(coverImage)} alt="Cover" style={{ width: '100%', height: 190, objectFit: 'cover', display: 'block' }} onError={e => (e.target as HTMLImageElement).style.display = 'none'}/>
-                  <button type="button" onClick={() => setCoverImage('')}
-                    style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                    <X style={{ width: 14, height: 14, color: 'white' }}/>
-                  </button>
-                </div>
-              )}
-              {showCoverLibrary && (
-                <ImageLibrary
-                  uploadFolder="covers"
-                  initialFolder="covers"
-                  returnPublicId
-                  onSelect={ref => setCoverImage(ref)}
-                  onClose={() => setShowCoverLibrary(false)}
-                />
-              )}
-            </div>
-
-          </section>
-
-          {/* -- Section: Content (hidden for VE type) --- */}
-          {showContentFields && (
-            <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'content' ? 'block' : 'none', marginBottom: assignmentType === 'standard' ? 28 : 0, paddingBottom: assignmentType === 'standard' ? 28 : 0, borderBottom: assignmentType === 'standard' ? `1px solid ${C.divider}` : 'none' }}>
-              <p style={sectionEyebrowStyle}>{assignmentType === 'standard' ? 'Learner briefing' : 'Assignment content'}</p>
-              <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>{assignmentType === 'standard' ? 'Introduce the assignment' : 'Shape the learner brief'}</h3>
-              <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>{assignmentType === 'standard' ? 'Give learners the context they need before starting the scenarios.' : 'Explain the situation, expected work, and completion requirements.'}</p>
-              {isLegacyType && (
-                <p style={{ ...hintStyle(C), marginBottom: 16 }}>This text is shown to students as a briefing before they interact with the {LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType} tool.</p>
-              )}
-
+          {/* -- Content: overview or learner brief --- */}
+          {activeStudioTab === 'content' && showContentFields && (
+            <Sect title={assignmentType === 'standard' ? 'Overview' : 'Learner brief'} first={assignmentType === 'standard'} C={C}>
+              <p className="text-xs -mt-2" style={{ color: C.muted }}>
+                {assignmentType === 'standard' ? 'Optional. Shown above the scenarios.' : `Shown to learners as a briefing before they use the ${LEGACY_TYPE_LABELS[assignmentType] ?? assignmentType} tool.`}
+              </p>
               {assignmentType === 'standard' ? (
-                <div>
-                  <label style={labelStyle(C)}>Overview <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional intro shown above the scenarios)</span></label>
-                  <LessonEditor
-                    doc={introDoc}
-                    bodyFallback={introBody}
-                    onChange={({ doc, body }) => { setIntroDoc(doc); setIntroBody(body); }}
-                    placeholder="Set the overall context. Add images, steps, callouts, tables..."
-                    isDark={isDark}
-                    accentColor={C.cta}
-                  />
-                </div>
+                <LessonEditor doc={introDoc} bodyFallback={introBody} onChange={({ doc, body }) => { setIntroDoc(doc); setIntroBody(body); }}
+                  placeholder="Set the overall context. Add images, steps, callouts, tables." isDark={isDark} accentColor={C.cta}/>
               ) : (
                 [
-                  { label: 'Scenario', value: scenario, setter: setScenario, placeholder: 'Describe the background context...' },
-                  { label: 'Brief', value: brief, setter: setBrief, placeholder: 'Summarise the assignment...' },
-                  { label: 'Tasks', value: tasks, setter: setTasks, placeholder: 'List the tasks students must complete...' },
-                  { label: 'Requirements', value: requirements, setter: setRequirements, placeholder: 'List any requirements or constraints...' },
+                  { label: 'Scenario', value: scenario, setter: setScenario, placeholder: 'Describe the background context.' },
+                  { label: 'Brief', value: brief, setter: setBrief, placeholder: 'Summarise the assignment.' },
+                  { label: 'Tasks', value: tasks, setter: setTasks, placeholder: 'List the tasks learners must complete.' },
+                  { label: 'Requirements', value: requirements, setter: setRequirements, placeholder: 'List any requirements or constraints.' },
                 ].map(({ label, value, setter, placeholder }) => (
-                  <div key={label} style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-                    <label style={labelStyle(C)}>{label}</label>
-                    <RichTextEditor value={value} onChange={setter} placeholder={placeholder} enableAiAssist />
+                  <div key={label}>
+                    <span className={labelCls} style={{ color: C.muted }}>{label}</span>
+                    <RichTextEditor value={value} onChange={setter} placeholder={placeholder} enableAiAssist/>
                   </div>
                 ))
               )}
-            </section>
+            </Sect>
           )}
 
-          {/* -- Section: Scenarios & Tasks (standard only) --- */}
-          {assignmentType === 'standard' && (
-            <div style={{ display: activeStudioTab === 'content' ? 'block' : 'none' }}>
-              <ScenariosEditor scenarios={scenarios} onChange={setScenarios} C={C} embedded />
+          {/* -- Content: scenarios and tasks (standard only) --- */}
+          {activeStudioTab === 'content' && assignmentType === 'standard' && (
+            <div className="p-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+              <ScenariosEditor scenarios={scenarios} onChange={setScenarios} C={C} embedded/>
             </div>
           )}
 
-          {/* -- Section: Resources --- */}
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'resources' ? 'block' : 'none', marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.divider}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div>
-                <p style={sectionEyebrowStyle}>Learner resources</p>
-                <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Reference material</h3>
-                <p style={{ ...hintStyle(C), marginTop: 6 }}>Attach links or files learners can use while completing the work.</p>
-              </div>
-              <button type="button" onClick={addResource}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 11, border: 'none', background: C.cta, color: C.ctaText, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                <Plus style={{ width: 14, height: 14 }}/> Add Resource
-              </button>
-            </div>
-
-            {resources.length === 0 && (
-              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12, padding: '30px 18px', borderRadius: 15, background: C.page }}>
-                <LinkIcon style={{ width: 20, height: 20, margin: '0 auto 8px', color: C.cta }}/>
-                No resources yet. Add a link or file when learners need supporting material.
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {resources.map(resource => (
-                <div key={resource.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, alignItems: 'center', padding: 16, borderRadius: 15, background: C.page }}>
-                  <input type="text" placeholder="Resource name" value={resource.name}
-                    onChange={e => updateResource(resource.id, 'name', sanitizePlainText(e.target.value))}
-                    style={{ ...inputStyle(C), width: '100%' }} maxLength={200}/>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input type="url" placeholder={resource.resource_type === 'file' ? 'Upload a file or paste URL...' : 'https://...'} value={resource.url}
-                      onChange={e => updateResource(resource.id, 'url', e.target.value)}
-                      style={{ ...inputStyle(C), width: '100%', flex: 1 }}/>
-                    {resource.resource_type === 'file' && (
-                      <>
-                        <input type="file" style={{ display: 'none' }} ref={el => { resourceFileRefs.current[resource.id] = el; }}
-                          onChange={e => handleResourceFileUpload(resource.id, e)}/>
-                        <button type="button" onClick={() => resourceFileRefs.current[resource.id]?.click()} disabled={resourceUploading[resource.id]}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 44, padding: '9px 12px', borderRadius: 11, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: resourceUploading[resource.id] ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {resourceUploading[resource.id] ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin"/> : <Upload style={{ width: 12, height: 12 }}/>}
-                          {resourceUploading[resource.id] ? 'Uploading...' : 'Upload'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {(['link', 'file'] as const).map(t => (
-                      <button key={t} type="button" onClick={() => updateResource(resource.id, 'resource_type', t)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 11px', borderRadius: 9, border: 'none', background: resource.resource_type === t ? `${C.cta}14` : C.card, color: resource.resource_type === t ? C.cta : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
-                        <LinkIcon style={{ width: 11, height: 11 }}/> {t}
-                      </button>
+          {/* -- Resources --- */}
+          {activeStudioTab === 'resources' && (
+            <>
+              <Sect title="Resources" first C={C} action={
+                <button type="button" onClick={addResource} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5"/>Add resource</button>
+              }>
+                <p className="text-xs -mt-2" style={{ color: C.muted }}>Links or files learners use while they work.</p>
+                {resources.length === 0 ? (
+                  <p className="text-sm py-2" style={{ color: C.muted }}>No resources yet.</p>
+                ) : (
+                  <div>
+                    {resources.map((resource, idx) => (
+                      <div key={resource.id} className="flex flex-wrap items-center gap-2.5 py-2.5" style={idx ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                        <input type="text" placeholder="Resource name" value={resource.name} aria-label="Resource name"
+                          onChange={e => updateResource(resource.id, 'name', sanitizePlainText(e.target.value))}
+                          className={`${FIELD} flex-1 basis-[160px] min-w-0`} style={field} maxLength={200}/>
+                        <input type="url" placeholder={resource.resource_type === 'file' ? 'Upload a file or paste a link' : 'https://'} value={resource.url} aria-label="Resource link"
+                          onChange={e => updateResource(resource.id, 'url', e.target.value)}
+                          className={`${FIELD} flex-[1.3] basis-[180px] min-w-0`} style={field}/>
+                        <div className="inline-flex gap-0.5 p-0.5 rounded-full flex-shrink-0" style={{ boxShadow: `inset 0 0 0 1px ${C.divider}` }} role="group" aria-label="Resource type">
+                          {(['link', 'file'] as const).map(t => (
+                            <button key={t} type="button" aria-pressed={resource.resource_type === t} onClick={() => updateResource(resource.id, 'resource_type', t)}
+                              className="h-6 px-2.5 rounded-full text-[11px] font-semibold" style={chip(resource.resource_type === t)}>
+                              {t === 'link' ? 'Link' : 'File'}
+                            </button>
+                          ))}
+                        </div>
+                        {resource.resource_type === 'file' && (
+                          <>
+                            <input type="file" className="hidden" ref={el => { resourceFileRefs.current[resource.id] = el; }} onChange={e => handleResourceFileUpload(resource.id, e)}/>
+                            <button type="button" onClick={() => resourceFileRefs.current[resource.id]?.click()} disabled={resourceUploading[resource.id]} className={btnSmClass} style={btnStyle('sec', C)}>
+                              {resourceUploading[resource.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+                              {resourceUploading[resource.id] ? 'Uploading...' : 'Upload'}
+                            </button>
+                          </>
+                        )}
+                        {removeBtn(() => removeResource(resource.id), 'Remove resource')}
+                      </div>
                     ))}
                   </div>
-                  <button type="button" onClick={() => removeResource(resource.id)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: 'none', background: C.deleteBg, color: C.deleteText, cursor: 'pointer', flexShrink: 0 }}>
-                    <Trash2 style={{ width: 14, height: 14 }}/>
+                )}
+              </Sect>
+
+              <Sect title="Solution files" C={C} action={
+                <div className="flex flex-wrap gap-2">
+                  <input type="file" multiple className="hidden" ref={solutionFileRef} accept={[...ALLOWED_SOLUTION_EXTENSIONS].join(',')} onChange={handleSolutionFileUpload}/>
+                  <button type="button" onClick={addSolutionLink} className={btnSmClass} style={btnStyle('sec', C)}><LinkIcon className="w-3.5 h-3.5"/>Add link</button>
+                  <button type="button" onClick={() => solutionFileRef.current?.click()} disabled={solutionUploading} className={btnSmClass} style={btnStyle('sec', C)}>
+                    {solutionUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+                    {solutionUploading ? 'Uploading...' : 'Upload files'}
                   </button>
                 </div>
-              ))}
-            </div>
-          </section>
-
-          {/* -- Section: Solution files (released after grading) --- */}
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'resources' ? 'block' : 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-              <div>
-                <p style={sectionEyebrowStyle}>Post-grade release</p>
-                <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Solution files</h3>
-                <p style={{ ...hintStyle(C), marginTop: 4 }}>
-                  The model answer. A student can only see and download these once their own submission has been graded.
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <input type="file" multiple style={{ display: 'none' }} ref={solutionFileRef}
-                  accept={[...ALLOWED_SOLUTION_EXTENSIONS].join(',')}
-                  onChange={handleSolutionFileUpload}/>
-                <button type="button" onClick={() => solutionFileRef.current?.click()} disabled={solutionUploading}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 11, border: 'none', background: C.cta, color: C.ctaText, fontSize: 12, fontWeight: 700, cursor: solutionUploading ? 'not-allowed' : 'pointer', opacity: solutionUploading ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                  {solutionUploading ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin"/> : <Upload style={{ width: 14, height: 14 }}/>}
-                  {solutionUploading ? 'Uploading...' : 'Upload files'}
-                </button>
-                <button type="button" onClick={addSolutionLink}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 11, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <LinkIcon style={{ width: 14, height: 14 }}/> Add link
-                </button>
-              </div>
-            </div>
-
-            {solutions.length === 0 ? (
-              <div style={{ textAlign: 'center', color: C.faint, fontSize: 12, padding: '30px 18px', borderRadius: 15, background: C.page }}>
-                <FileText style={{ width: 20, height: 20, margin: '0 auto 8px', color: C.cta }}/>
-                No solutions yet. Upload a worked answer or link a walkthrough for release after grading.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {solutions.map(s => (
-                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, alignItems: 'center', padding: 16, borderRadius: 15, background: C.page }}>
-                    <input type="text" placeholder="Solution name" value={s.name}
-                      onChange={e => updateSolution(s.id, 'name', sanitizePlainText(e.target.value))}
-                      style={{ ...inputStyle(C), width: '100%' }} maxLength={200}/>
-                    {s.kind === 'link' && (
-                      <input type="url" placeholder="https://" value={s.url ?? ''}
-                        onChange={e => updateSolution(s.id, 'url', e.target.value)}
-                        style={{ ...inputStyle(C), width: '100%' }}/>
-                    )}
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 10px', borderRadius: 9, background: C.card, color: C.muted, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {s.kind === 'file'
-                        ? <><FileText style={{ width: 11, height: 11 }}/> Private file</>
-                        : <><LinkIcon style={{ width: 11, height: 11 }}/> Link</>}
-                    </span>
-                    <button type="button" onClick={() => removeSolution(s.id)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: 'none', background: C.deleteBg, color: C.deleteText, cursor: 'pointer', flexShrink: 0 }}>
-                      <Trash2 style={{ width: 14, height: 14 }}/>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* -- Section: Settings --- */}
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'settings' ? 'block' : 'none', marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.divider}` }}>
-            <p style={sectionEyebrowStyle}>Rules and timing</p>
-            <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Assignment settings</h3>
-            <p style={{ ...hintStyle(C), margin: '7px 0 18px' }}>Connect the course, set expectations, and define how success is measured.</p>
-
-            <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-              <label style={labelStyle(C)}>Related Course</label>
-              <select value={relatedCourse} onChange={e => setRelatedCourse(e.target.value)}
-                style={{ ...inputStyle(C), appearance: 'auto' }}>
-                <option value="">None</option>
-                {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-              </select>
-            </div>
-
-            <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-              <label style={labelStyle(C)}>Deadline <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
-              <DateField className="max-w-[260px]" label="Deadline" placeholder="No deadline" value={deadlineDate} onChange={setDeadlineDate} C={C}/>
-              <p style={hintStyle(C)}>Students will see a countdown on their assignment card until this date.</p>
-            </div>
-
-            <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
-              <label style={labelStyle(C)}>Passing score</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="number" min={1} max={100}
-                  value={passingScore}
-                  onChange={e => setPassingScore(Math.min(100, Math.max(1, Math.round(Number(e.target.value) || DEFAULT_PASS_MARK))))}
-                  style={{ ...inputStyle(C), width: 'auto' }}
-                />
-                <span style={{ fontSize: 14, color: C.faint }}>/ 100</span>
-              </div>
-              <p style={hintStyle(C)}>The grade a submission needs to pass. Below it the student can resubmit; at or above it the work is passed{assignmentType === 'standard' ? ' and the solution files are released' : ''}. Defaults to {DEFAULT_PASS_MARK}.</p>
-            </div>
-
-            {/* Submission Instructions is retired from the Standard flow (task instructions +
-                Overview cover it). Shown only when a legacy assignment already has content, so
-                editing does not silently drop it. */}
-            {submissionInstructions.trim() !== '' && (
-              <div>
-                <label style={labelStyle(C)}>Submission Instructions <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(legacy - not shown to students)</span></label>
-                <RichTextEditor value={submissionInstructions} onChange={setSubmissionInstructions} placeholder="How should students submit their work?" enableAiAssist />
-              </div>
-            )}
-          </section>
-
-          {/* -- Target Audience --- */}
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'settings' ? 'block' : 'none' }}>
-            <p style={sectionEyebrowStyle}>Assignment access</p>
-            <h3 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: 0 }}>Target audience</h3>
-            <p style={{ ...hintStyle(C), margin: '7px 0 16px' }}>Choose whether this assignment is delivered to complete cohorts or selected groups.</p>
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', gap: 4, padding: 5, marginBottom: 16, borderRadius: 12, background: C.page, width: 'fit-content' }}>
-              {(['cohorts', 'groups'] as const).map(mode => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setAudienceMode(mode)}
-                  style={{
-                    padding: '8px 18px', borderRadius: 9, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
-                    background: audienceMode === mode ? C.card : 'transparent',
-                    color: audienceMode === mode ? C.cta : C.muted,
-                    transition: 'background 0.15s',
-                    textTransform: 'capitalize',
-                  }}>
-                  {mode}
-                </button>
-              ))}
-            </div>
-
-            {audienceMode === 'cohorts' && (
-              cohorts.length === 0
-                ? <p style={{ fontSize: 14, color: C.faint }}>No cohorts available.</p>
-                : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8 }}>
-                    {cohorts.map(c => (
-                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '11px 13px', borderRadius: 12, background: selectedCohortIds.includes(c.id) ? `${C.cta}0e` : C.page, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={selectedCohortIds.includes(c.id)} onChange={() => toggleCohort(c.id)}
-                          style={{ width: 16, height: 16, accentColor: C.cta, cursor: 'pointer' }}/>
-                        <span style={{ fontSize: 14, color: C.text }}>{c.name}</span>
-                      </label>
+              }>
+                <p className="text-xs -mt-2" style={{ color: C.muted }}>The model answer. A learner sees it only after their own work is graded.</p>
+                {solutions.length === 0 ? (
+                  <p className="text-sm py-2" style={{ color: C.muted }}>No solution files yet.</p>
+                ) : (
+                  <div>
+                    {solutions.map((s, idx) => (
+                      <div key={s.id} className="flex flex-wrap items-center gap-2.5 py-2.5" style={idx ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                        <input type="text" placeholder="Solution name" value={s.name} aria-label="Solution name"
+                          onChange={e => updateSolution(s.id, 'name', sanitizePlainText(e.target.value))}
+                          className={`${FIELD} flex-1 basis-[160px] min-w-0`} style={field} maxLength={200}/>
+                        {s.kind === 'link' && (
+                          <input type="url" placeholder="https://" value={s.url ?? ''} aria-label="Solution link" onChange={e => updateSolution(s.id, 'url', e.target.value)}
+                            className={`${FIELD} flex-[1.3] basis-[180px] min-w-0`} style={field}/>
+                        )}
+                        <Pill tone="mute" C={C}>{s.kind === 'file' ? 'Private file' : 'Link'}</Pill>
+                        {removeBtn(() => removeSolution(s.id), 'Remove solution')}
+                      </div>
                     ))}
                   </div>
-            )}
+                )}
+              </Sect>
+            </>
+          )}
 
-            {audienceMode === 'groups' && (
-              groups.length === 0
-                ? <p style={{ fontSize: 14, color: C.faint }}>No groups yet. Create groups from the <Link href="/admin/groups" style={{ color: C.cta }}>Groups admin page</Link>.</p>
-                : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 8 }}>
-                    {groups.map(g => {
-                      const cohortName = cohorts.find(c => c.id === g.cohort_id)?.name;
-                      return (
-                        <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '11px 13px', borderRadius: 12, background: selectedGroupIds.includes(g.id) ? `${C.cta}0e` : C.page, cursor: 'pointer' }}>
-                          <input type="checkbox" checked={selectedGroupIds.includes(g.id)} onChange={() => toggleGroup(g.id)}
-                            style={{ width: 16, height: 16, accentColor: C.cta, cursor: 'pointer' }}/>
-                          <span style={{ fontSize: 14, color: C.text }}>{g.name}</span>
-                          {cohortName && <span style={{ fontSize: 12, color: C.faint }}>{cohortName}</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-            )}
-          </section>
-
-          <section style={{ ...tabPanelSectionStyle, display: activeStudioTab === 'publish' ? 'block' : 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-              <div>
-                <p style={{ color: C.cta, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', margin: 0 }}>Publish readiness</p>
-                <h2 style={{ fontSize: 16, fontWeight: 750, color: C.text, margin: '5px 0 0' }}>{readinessComplete === readinessChecks.length ? 'Ready to assign' : `${readinessChecks.length - readinessComplete} items need attention`}</h2>
-              </div>
-              <span style={{ padding: '7px 11px', borderRadius: 10, background: readinessComplete === readinessChecks.length ? '#22c55e18' : `${C.cta}12`, color: readinessComplete === readinessChecks.length ? '#22c55e' : C.cta, fontSize: 12, fontWeight: 800 }}>{readinessComplete}/{readinessChecks.length}</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8, marginBottom: 20 }}>
-              {readinessChecks.map(item => (
-                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 42, borderRadius: 12, padding: '9px 11px', background: C.page }}>
-                  {item.complete
-                    ? <CheckCircle2 style={{ width: 15, height: 15, color: '#22c55e', flexShrink: 0 }}/>
-                    : <Circle style={{ width: 15, height: 15, color: C.faint, flexShrink: 0 }}/>
-                  }
-                  <span style={{ color: item.complete ? C.text : C.faint, fontSize: 12, fontWeight: 600 }}>{item.label}</span>
+          {/* -- Settings --- */}
+          {activeStudioTab === 'settings' && (
+            <>
+              <Sect title="Course and timing" first C={C}>
+                <div>
+                  <span className={labelCls} style={{ color: C.muted }}>Related course</span>
+                  <MenuSelect label="Related course" field searchable value={relatedCourse} onChange={setRelatedCourse} C={C}
+                    options={[{ value: '', label: 'None' }, ...courses.map(c => ({ value: c.id, label: c.title }))]}/>
                 </div>
-              ))}
-            </div>
-            <label style={labelStyle(C)}>Publishing status</label>
-            <div style={{ display: 'flex', gap: 6, padding: 5, borderRadius: 12, background: C.page, width: 'fit-content' }}>
-              {(['draft', 'published'] as const).map(s => (
-                <button key={s} type="button" onClick={() => setStatus(s)} style={{ minHeight: 38, padding: '8px 16px', borderRadius: 9, border: 'none', background: status === s ? C.cta : 'transparent', color: status === s ? C.ctaText : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', transition: 'all .15s ease' }}>{s}</button>
-              ))}
-            </div>
-          </section>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <span className={labelCls} style={{ color: C.muted }}>Deadline</span>
+                    <DateField label="Deadline" placeholder="No deadline" value={deadlineDate} onChange={setDeadlineDate} C={C}/>
+                    <p className="text-xs mt-2" style={{ color: C.muted }}>Learners see a countdown until this date.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="asg-pass" className={labelCls} style={{ color: C.muted }}>Pass mark</label>
+                    <div className="flex items-center gap-2">
+                      <input id="asg-pass" type="number" min={1} max={100} value={passingScore}
+                        onChange={e => setPassingScore(Math.min(100, Math.max(1, Math.round(Number(e.target.value) || DEFAULT_PASS_MARK))))}
+                        className={FIELD} style={{ ...field, width: 110 }}/>
+                      <span className="text-sm" style={{ color: C.muted }}>/ 100</span>
+                    </div>
+                    <p className="text-xs mt-2" style={{ color: C.muted }}>
+                      Below it the learner can resubmit; at or above it the work passes{assignmentType === 'standard' ? ' and solution files are released' : ''}. Defaults to {DEFAULT_PASS_MARK}.
+                    </p>
+                  </div>
+                </div>
+                {/* Submission instructions are retired from the Standard flow. Shown only when an older
+                    assignment already has some, so editing does not silently drop them. */}
+                {submissionInstructions.trim() !== '' && (
+                  <div>
+                    <span className={labelCls} style={{ color: C.muted }}>Submission instructions (older field, not shown to learners)</span>
+                    <RichTextEditor value={submissionInstructions} onChange={setSubmissionInstructions} placeholder="How should learners submit their work?" enableAiAssist/>
+                  </div>
+                )}
+              </Sect>
 
-          </section>
+              <Sect title="Who gets it" aside={audienceMode === 'cohorts' ? plural(selectedCohortIds.length, 'cohort') : plural(selectedGroupIds.length, 'group')} C={C}>
+                <div className="inline-flex gap-1 p-1 rounded-xl w-fit" style={{ background: C.page }} role="group" aria-label="Give it to">
+                  {(['cohorts', 'groups'] as const).map(mode => (
+                    <button key={mode} type="button" aria-pressed={audienceMode === mode} onClick={() => setAudienceMode(mode)}
+                      className="h-8 px-3.5 rounded-[9px] text-[13px] font-semibold" style={chip(audienceMode === mode)}>
+                      {mode === 'cohorts' ? 'Cohorts' : 'Groups'}
+                    </button>
+                  ))}
+                </div>
+                {audienceMode === 'cohorts' && (
+                  cohorts.length === 0
+                    ? <p className="text-sm" style={{ color: C.muted }}>No cohorts yet.</p>
+                    : <div>
+                        {cohorts.map((c, idx) => (
+                          <button key={c.id} type="button" role="checkbox" aria-checked={selectedCohortIds.includes(c.id)} onClick={() => toggleCohort(c.id)}
+                            className="w-full flex items-center gap-3 px-1 py-3 text-left text-sm font-semibold" style={{ color: C.text, borderTop: idx ? `1px solid ${C.divider}` : undefined }}>
+                            <Tick on={selectedCohortIds.includes(c.id)} C={C}/>{c.name}
+                          </button>
+                        ))}
+                      </div>
+                )}
+                {audienceMode === 'groups' && (
+                  groups.length === 0
+                    ? <p className="text-sm" style={{ color: C.muted }}>No groups yet. Create groups on the <Link href="/admin/groups" className="font-semibold underline" style={{ color: C.text }}>Groups page</Link>.</p>
+                    : <div>
+                        {groups.map((g, idx) => {
+                          const cohortName = cohorts.find(c => c.id === g.cohort_id)?.name;
+                          return (
+                            <button key={g.id} type="button" role="checkbox" aria-checked={selectedGroupIds.includes(g.id)} onClick={() => toggleGroup(g.id)}
+                              className="w-full flex items-center gap-3 px-1 py-3 text-left" style={{ borderTop: idx ? `1px solid ${C.divider}` : undefined }}>
+                              <Tick on={selectedGroupIds.includes(g.id)} C={C}/>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold" style={{ color: C.text }}>{g.name}</span>
+                                {cohortName && <span className="block text-xs" style={{ color: C.muted }}>{cohortName}</span>}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                )}
+              </Sect>
 
+              <Sect title="Status" C={C}>
+                <div role="radiogroup" aria-label="Status" className="grid gap-3 sm:grid-cols-2">
+                  {choice(status === 'draft', () => setStatus('draft'), 'Draft', 'A private working version')}
+                  {choice(status === 'published', () => setStatus('published'), 'Published', 'Visible to the learners it is given to')}
+                </div>
+              </Sect>
+            </>
+          )}
+
+        </Card>
         </form>
       </main>
-
-      <div style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 55, display: 'flex', alignItems: 'center', gap: 8, padding: 8, maxWidth: 'calc(100vw - 32px)', borderRadius: 15, background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? '0 16px 42px rgba(0,0,0,.45)' : '0 16px 42px rgba(15,23,42,.16)' }}>
-        <motion.button type="submit" form="assignment-form" disabled={loading} whileTap={{ scale: 0.97 }} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 750, opacity: loading ? .65 : 1 }}>
-          {loading
-            ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin"/>
-            : <Save style={{ width: 15, height: 15 }}/>
-          }
-          {loading ? 'Saving...' : editId ? 'Update assignment' : status === 'draft' ? 'Save draft' : 'Publish'}
-        </motion.button>
-      </div>
 
       {/* Preview Modal */}
       <AnimatePresence>
@@ -1366,7 +1138,7 @@ export default function CreateAssignmentPage() {
 
                   {/* Submission area placeholder */}
                   <div style={{ borderRadius: 20, background: C.card, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, padding: 24 }}>
-                    <p style={{ ...sectionEyebrowStyle, marginBottom: 6 }}>Submission workspace</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: '0 0 6px' }}>Submission workspace</p>
                     <p style={{ fontSize: 16, fontWeight: 750, color: C.text, marginBottom: 14, marginTop: 0 }}>Your submission</p>
                     {assignmentType === 'standard' && (
                       <>

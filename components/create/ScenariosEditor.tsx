@@ -11,20 +11,22 @@ import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LIGHT_C } from '@/lib/theme';
 import { TaskFields } from '@/components/create/TaskFields';
 import {
-  Plus, Trash2, ChevronDown, ChevronUp, ArrowUp, ArrowDown,
+  Plus, Trash2, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown,
   PenLine, Upload, ListChecks, Code2, FileSpreadsheet, LayoutDashboard, FileText,
 } from 'lucide-react';
+import { FIELD, inputStyle } from '@/components/dashboard/subscriptions/Modal';
+import { btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 import type { AssignmentScenario, AssignmentTask, AssignmentTaskType } from '@/lib/assignment-scenarios';
 import { TASK_TYPE_LABEL } from '@/lib/assignment-scenarios';
 
 const TASK_PALETTE: { type: AssignmentTaskType; icon: React.ReactNode; description: string; group: 'Learner responses' | 'AI reviews' }[] = [
-  { type: 'text', icon: <PenLine style={{ width: 18, height: 18 }} />, description: 'Collect a structured written response.', group: 'Learner responses' },
-  { type: 'upload', icon: <Upload style={{ width: 18, height: 18 }} />, description: 'Let learners submit a file for review.', group: 'Learner responses' },
-  { type: 'mcq', icon: <ListChecks style={{ width: 18, height: 18 }} />, description: 'Create an automatically marked question.', group: 'Learner responses' },
-  { type: 'code_review', icon: <Code2 style={{ width: 18, height: 18 }} />, description: 'Review SQL or code against a rubric.', group: 'AI reviews' },
-  { type: 'excel_review', icon: <FileSpreadsheet style={{ width: 18, height: 18 }} />, description: 'Assess spreadsheet logic and quality.', group: 'AI reviews' },
-  { type: 'dashboard_critique', icon: <LayoutDashboard style={{ width: 18, height: 18 }} />, description: 'Critique a dashboard screenshot.', group: 'AI reviews' },
-  { type: 'document_review', icon: <FileText style={{ width: 18, height: 18 }} />, description: 'Evaluate a document or report.', group: 'AI reviews' },
+  { type: 'text', icon: <PenLine style={{ width: 16, height: 16 }} />, description: 'A structured written answer', group: 'Learner responses' },
+  { type: 'upload', icon: <Upload style={{ width: 16, height: 16 }} />, description: 'A file for you to review', group: 'Learner responses' },
+  { type: 'mcq', icon: <ListChecks style={{ width: 16, height: 16 }} />, description: 'Marked automatically', group: 'Learner responses' },
+  { type: 'code_review', icon: <Code2 style={{ width: 16, height: 16 }} />, description: 'SQL or code against a rubric', group: 'AI reviews' },
+  { type: 'excel_review', icon: <FileSpreadsheet style={{ width: 16, height: 16 }} />, description: 'Spreadsheet logic and quality', group: 'AI reviews' },
+  { type: 'dashboard_critique', icon: <LayoutDashboard style={{ width: 16, height: 16 }} />, description: 'A dashboard screenshot', group: 'AI reviews' },
+  { type: 'document_review', icon: <FileText style={{ width: 16, height: 16 }} />, description: 'A document or report', group: 'AI reviews' },
 ];
 
 const TASK_GROUPS = ['Learner responses', 'AI reviews'] as const;
@@ -96,141 +98,143 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
   const moveTask = (scenarioId: string, idx: number, dir: -1 | 1) =>
     onChange(scenarios.map(s => s.id === scenarioId ? { ...s, tasks: moveItem(s.tasks, idx, idx + dir) } : s));
 
-  const iconBtn = (onClick: () => void, disabled: boolean, children: React.ReactNode, title: string) => (
-    <button type="button" onClick={onClick} disabled={disabled} title={title}
-      style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, border: 'none', background: C.pill, color: C.faint, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  const P = palette(C);
+  const iconBtn = (onClick: () => void, disabled: boolean, children: React.ReactNode, title: string, danger = false) => (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} aria-label={title}
+      className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0 transition-opacity hover:opacity-80 disabled:opacity-30"
+      style={danger ? { background: P.badSoft, color: P.bad } : { color: C.muted }}>
       {children}
     </button>
   );
+  const iconChip = (icon: React.ReactNode) => (
+    <span className="w-[34px] h-[34px] rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{icon}</span>
+  );
 
   return (
-    <section style={embedded
-      ? { background: 'transparent', border: 'none', boxShadow: 'none', padding: 0, margin: 0 }
-      : { background: C.card, borderRadius: 20, border: `1px solid ${C.cardBorder}`, boxShadow: isDark ? 'none' : '0 14px 38px rgba(15,23,42,0.05)', padding: 24, marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Scenarios & Tasks</h2>
-        <button type="button" onClick={addScenario}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          <Plus style={{ width: 14, height: 14 }} /> Add scenario
+    <section className={embedded ? 'grid gap-3.5' : 'grid gap-3.5 p-5 rounded-2xl'} style={embedded ? undefined : { background: C.card }}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold" style={{ color: C.text }}>Scenarios and tasks</h3>
+        <button type="button" onClick={addScenario} className={btnSmClass} style={btnStyle('sec', C)}>
+          <Plus className="w-3.5 h-3.5" /> Add scenario
         </button>
       </div>
-      <p style={{ fontSize: 12, color: C.faint, marginTop: 0, marginBottom: 18 }}>
-        Add scenarios, and inside each one add tasks of any kind. Students can work through them in any order and submit everything for your review.
+      <p className="text-xs -mt-1.5" style={{ color: C.muted }}>
+        Learners can work through them in any order and submit everything for review.
       </p>
 
       {scenarios.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '34px 18px', borderRadius: 16, background: C.page, color: C.faint, fontSize: 14 }}>
-          <div style={{ width: 38, height: 38, margin: '0 auto 10px', borderRadius: 12, display: 'grid', placeItems: 'center', background: `${C.cta}12`, color: C.cta }}><Plus style={{ width: 18, height: 18 }}/></div>
-          <strong style={{ display: 'block', color: C.text, fontSize: 14, marginBottom: 4 }}>Build the first scenario</strong>
-          Add context, then combine written, upload, quiz, and AI review tasks.
+        <div className="px-4 py-8 rounded-xl text-center text-sm" style={{ border: `2px dashed ${C.divider}`, color: C.muted }}>
+          <strong className="block font-semibold mb-1" style={{ color: C.text }}>Build the first scenario</strong>
+          Add context, then combine written, upload, quiz and AI review tasks.
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {scenarios.map((scenario, sIdx) => {
-          const open = openScenarios.has(scenario.id);
-          return (
-            <div key={scenario.id} style={{ borderRadius: 16, border: `1px solid ${C.divider}`, background: C.page, overflow: 'hidden' }}>
-              {/* Scenario header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12 }}>
-                <span style={{ width: 30, height: 30, borderRadius: 10, flexShrink: 0, display: 'grid', placeItems: 'center', background: `${C.cta}14`, color: C.cta, fontSize: 12, fontWeight: 800 }}>{sIdx + 1}</span>
-                <input
-                  value={scenario.title}
-                  onChange={e => updateScenario(scenario.id, { title: e.target.value })}
-                  placeholder="Scenario title (e.g. Investigate the churn spike)"
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.text, fontSize: 14, fontWeight: 650, outline: 'none' }}
-                  maxLength={200}
-                />
-                {iconBtn(() => moveScenario(sIdx, -1), sIdx === 0, <ArrowUp style={{ width: 14, height: 14 }} />, 'Move up')}
-                {iconBtn(() => moveScenario(sIdx, 1), sIdx === scenarios.length - 1, <ArrowDown style={{ width: 14, height: 14 }} />, 'Move down')}
-                {iconBtn(() => removeScenario(scenario.id), false, <Trash2 style={{ width: 14, height: 14 }} />, 'Delete scenario')}
-                {iconBtn(() => toggle(openScenarios, setOpenScenarios, scenario.id), false, open ? <ChevronUp style={{ width: 15, height: 15 }} /> : <ChevronDown style={{ width: 15, height: 15 }} />, open ? 'Collapse' : 'Expand')}
-              </div>
+      {scenarios.map((scenario, sIdx) => {
+        const open = openScenarios.has(scenario.id);
+        return (
+          <div key={scenario.id} className="rounded-[14px]" style={{ background: C.page }}>
+            {/* Scenario header */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 px-3 py-2.5">
+              <span className="w-7 h-7 rounded-full grid place-items-center text-xs font-bold flex-shrink-0" style={{ background: P.sel, color: P.onSel }}>{sIdx + 1}</span>
+              <input
+                value={scenario.title}
+                onChange={e => updateScenario(scenario.id, { title: e.target.value })}
+                placeholder="Scenario title, for example Investigate the churn spike"
+                aria-label="Scenario title"
+                className={`${FIELD} min-w-0 flex-1 basis-[180px]`}
+                style={{ ...inputStyle(C), background: C.card }}
+                maxLength={200}
+              />
+              <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{scenario.tasks.length} {scenario.tasks.length === 1 ? 'task' : 'tasks'}</span>
+              {iconBtn(() => moveScenario(sIdx, -1), sIdx === 0, <ChevronUp className="w-4 h-4" />, 'Move up')}
+              {iconBtn(() => moveScenario(sIdx, 1), sIdx === scenarios.length - 1, <ChevronDown className="w-4 h-4" />, 'Move down')}
+              {iconBtn(() => removeScenario(scenario.id), false, <Trash2 className="w-4 h-4" />, 'Delete scenario', true)}
+              {iconBtn(() => toggle(openScenarios, setOpenScenarios, scenario.id), false, open ? <ChevronsDownUp className="w-4 h-4" /> : <ChevronsUpDown className="w-4 h-4" />, open ? 'Collapse' : 'Expand')}
+            </div>
 
-              {open && (
-                <div style={{ padding: '0 12px 14px' }}>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 5 }}>Scenario intro <span style={{ fontWeight: 400, color: C.faint }}>(optional)</span></label>
+            {open && (
+              <div className="px-3 pb-3 grid gap-2.5">
+                <div>
+                  <span className="text-xs font-semibold mb-2 block" style={{ color: C.muted }}>Scenario intro (optional)</span>
+                  {/* White behind the editor, so it does not sink into the grey block. */}
+                  <div className="rounded-xl" style={{ background: C.card }}>
                     <LessonEditor
                       doc={scenario.doc}
                       bodyFallback={scenario.description}
                       onChange={({ doc, body }) => updateScenario(scenario.id, { doc, description: body })}
-                      placeholder="Set the context for this scenario. Add images, steps, callouts, tables..."
+                      placeholder="Set the context for this scenario. Add images, steps, callouts, tables."
                       isDark={isDark}
                       accentColor={C.cta}
                     />
                   </div>
-
-                  {/* Tasks */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {scenario.tasks.map((task, tIdx) => {
-                      const tOpen = openTasks.has(task.id);
-                      const taskMeta = TASK_PALETTE.find(item => item.type === task.type);
-                      return (
-                        <div key={task.id} style={{ borderRadius: 13, border: `1px solid ${C.divider}`, background: C.card, overflow: 'hidden' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10 }}>
-                            <span style={{ width: 34, height: 34, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 10, background: `${C.cta}12`, color: C.cta }}>
-                              {taskMeta?.icon}
-                            </span>
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ display: 'block', fontSize: 11, fontWeight: 800, color: C.cta, letterSpacing: '.06em', textTransform: 'uppercase' }}>{TASK_TYPE_LABEL[task.type]}</span>
-                              <span style={{ display: 'block', marginTop: 2, fontSize: 14, fontWeight: 650, color: task.title ? C.text : C.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'Untitled task'}</span>
-                            </span>
-                            {iconBtn(() => moveTask(scenario.id, tIdx, -1), tIdx === 0, <ArrowUp style={{ width: 13, height: 13 }} />, 'Move up')}
-                            {iconBtn(() => moveTask(scenario.id, tIdx, 1), tIdx === scenario.tasks.length - 1, <ArrowDown style={{ width: 13, height: 13 }} />, 'Move down')}
-                            {iconBtn(() => removeTask(scenario.id, task.id), false, <Trash2 style={{ width: 13, height: 13 }} />, 'Delete task')}
-                            {iconBtn(() => toggle(openTasks, setOpenTasks, task.id), false, tOpen ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />, tOpen ? 'Collapse' : 'Expand')}
-                          </div>
-                          {tOpen && (
-                            <div style={{ padding: '4px 12px 14px', borderTop: `1px solid ${C.divider}` }}>
-                              <TaskFields task={task} onChange={u => updateTask(scenario.id, task.id, u)} C={C} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Add task */}
-                  {addingFor === scenario.id ? (
-                    <div style={{ marginTop: 10, padding: 16, borderRadius: 16, border: `1px solid ${C.cardBorder}`, background: C.card }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <div>
-                          <span style={{ display: 'block', fontSize: 14, fontWeight: 750, color: C.text }}>Choose a task type</span>
-                          <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: C.faint }}>Select how learners will respond or receive feedback.</span>
-                        </div>
-                        <button type="button" onClick={() => setAddingFor(null)} style={{ fontSize: 12, color: C.faint, background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
-                      </div>
-                      {TASK_GROUPS.map(group => (
-                        <div key={group} style={{ marginTop: 14 }}>
-                          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: C.faint }}>{group}</p>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
-                            {TASK_PALETTE.filter(item => item.group === group).map(({ type, icon, description }) => (
-                              <button key={type} type="button" onClick={() => addTask(scenario.id, type)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 11, minHeight: 72, padding: '11px 12px', textAlign: 'left', borderRadius: 12, border: `1px solid ${C.divider}`, background: C.page, color: C.text, cursor: 'pointer', transition: 'border-color .15s ease, background .15s ease, transform .15s ease' }}>
-                                <span style={{ width: 38, height: 38, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 11, background: `${C.cta}12`, color: C.cta }}>{icon}</span>
-                                <span style={{ minWidth: 0 }}>
-                                  <strong style={{ display: 'block', fontSize: 12, lineHeight: 1.25 }}>{TASK_TYPE_LABEL[type]}</strong>
-                                  <span style={{ display: 'block', marginTop: 3, fontSize: 11, lineHeight: 1.35, color: C.faint }}>{description}</span>
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => setAddingFor(scenario.id)}
-                      style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 11, border: `1px dashed ${C.cardBorder}`, background: C.card, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', width: '100%', justifyContent: 'center' }}>
-                      <Plus style={{ width: 14, height: 14 }} /> Add task
-                    </button>
-                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+                {/* Tasks */}
+                {scenario.tasks.map((task, tIdx) => {
+                  const tOpen = openTasks.has(task.id);
+                  const taskMeta = TASK_PALETTE.find(item => item.type === task.type);
+                  return (
+                    <div key={task.id} className="rounded-xl overflow-hidden" style={{ background: C.card }}>
+                      <div className="flex items-center gap-2.5 px-3 py-2.5">
+                        {iconChip(taskMeta?.icon)}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold truncate" style={{ color: task.title ? C.text : C.faint }}>{task.title || 'Untitled task'}</span>
+                          <span className="block text-xs" style={{ color: C.muted }}>{TASK_TYPE_LABEL[task.type]}</span>
+                        </span>
+                        {iconBtn(() => moveTask(scenario.id, tIdx, -1), tIdx === 0, <ChevronUp className="w-4 h-4" />, 'Move up')}
+                        {iconBtn(() => moveTask(scenario.id, tIdx, 1), tIdx === scenario.tasks.length - 1, <ChevronDown className="w-4 h-4" />, 'Move down')}
+                        {iconBtn(() => removeTask(scenario.id, task.id), false, <Trash2 className="w-4 h-4" />, 'Delete task', true)}
+                        {iconBtn(() => toggle(openTasks, setOpenTasks, task.id), false, tOpen ? <ChevronsDownUp className="w-4 h-4" /> : <ChevronsUpDown className="w-4 h-4" />, tOpen ? 'Collapse' : 'Expand')}
+                      </div>
+                      {tOpen && (
+                        <div className="px-3 pt-1 pb-3.5" style={{ borderTop: `1px solid ${C.divider}` }}>
+                          <TaskFields task={task} onChange={u => updateTask(scenario.id, task.id, u)} C={C} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Add task */}
+                {addingFor === scenario.id ? (
+                  <div className="rounded-[14px] p-3.5 grid gap-2.5" style={{ background: C.card }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <span className="block text-sm font-semibold" style={{ color: C.text }}>Choose a task type</span>
+                        <span className="block text-xs" style={{ color: C.muted }}>How learners respond or get feedback</span>
+                      </div>
+                      <button type="button" onClick={() => setAddingFor(null)} className={btnSmClass} style={btnStyle('ghost', C)}>Cancel</button>
+                    </div>
+                    {TASK_GROUPS.map(group => (
+                      <div key={group}>
+                        <p className="text-xs font-semibold mt-1 mb-2" style={{ color: C.muted }}>{group}</p>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+                          {TASK_PALETTE.filter(item => item.group === group).map(({ type, icon, description }) => (
+                            <button key={type} type="button" onClick={() => addTask(scenario.id, type)}
+                              className="flex items-center gap-2.5 p-2.5 rounded-xl text-left transition-opacity hover:opacity-80" style={{ background: C.page }}>
+                              {iconChip(icon)}
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold" style={{ color: C.text }}>{TASK_TYPE_LABEL[type]}</span>
+                                <span className="block text-xs" style={{ color: C.muted }}>{description}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setAddingFor(scenario.id)}
+                    className="flex items-center justify-center gap-1.5 h-10 w-full rounded-xl text-[13px] font-semibold"
+                    style={{ border: `2px dashed ${C.divider}`, color: C.muted }}>
+                    <Plus className="w-3.5 h-3.5" /> Add task
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 }
