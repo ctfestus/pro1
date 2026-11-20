@@ -589,7 +589,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                           </div>
                           {tracks.length > 0 && (
                             <div className="flex flex-wrap items-center gap-2 mt-2 pl-10">
-                              <Pill tone="mute" C={C}>{itemTracks.length === 0 ? 'Core, everyone' : 'Track only'}</Pill>
+                              <Pill tone="mute" C={C}>{itemTracks.length === 0 ? 'Core' : 'Track only'}</Pill>
                               {tracks.map(track => {
                                 const on = track.item_ids.includes(id);
                                 return (
@@ -612,7 +612,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                   <div className="px-4 py-3.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold" style={{ color: C.text }}>Tracks (optional)</p>
-                      <p className="text-xs" style={{ color: C.muted }}>A track per background, such as Finance or HR. Untagged items are core and everyone takes them. Learners pick their track when they open the path.</p>
+                      <p className="text-xs" style={{ color: C.muted }}>A track per background, such as Finance or HR. Untagged items are core.</p>
                     </div>
                     <button type="button" onClick={addTrack} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5"/>Add track</button>
                   </div>
@@ -625,10 +625,10 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                             aria-label="Track name" className={FIELD} style={inputStyle(C)}/>
                           <button type="button" onClick={() => setTrackToRemove(track)} aria-label="Remove track" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>
                         </div>
-                        <input value={track.description ?? ''} onChange={e => updateTrack(track.id, { description: e.target.value })} placeholder="Who it is for (shown to learners)"
+                        <input value={track.description ?? ''} onChange={e => updateTrack(track.id, { description: e.target.value })} placeholder="Who it is for"
                           aria-label="Track description" className={FIELD} style={inputStyle(C)}/>
                         <p className="text-xs" style={{ color: track.name.trim() ? C.muted : P.bad }}>
-                          {track.name.trim() ? plural(count, 'track item') : 'A track needs a name, or it is not saved.'}
+                          {track.name.trim() ? plural(count, 'track item') : 'Add a name to save it.'}
                         </p>
                       </div>
                     );
@@ -638,11 +638,10 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                       <div className="min-w-0">
                         <p className="text-sm font-semibold" style={{ color: C.text }}>Specializing is optional</p>
                         <p className="text-xs" style={{ color: C.muted }}>
-                          Learners can also choose no specialization and finish the path, and get its certificate, with the core items only.
-                          Turning this off later keeps the learners who already chose it.
+                          Learners can finish with the core items only.
                         </p>
                         {editing.tracks_optional === true && !selectedIds.some(id => !tracks.some(t => t.item_ids.includes(id))) && (
-                          <p className="text-xs font-semibold mt-1" style={{ color: P.bad }}>Every item is in a track, so there is no core to finish. Leave at least one item untagged.</p>
+                          <p className="text-xs font-semibold mt-1" style={{ color: P.bad }}>Leave at least one item untagged.</p>
                         )}
                       </div>
                       <Switch on={editing.tracks_optional === true} onChange={on => setEditing((prev: any) => ({ ...prev, tracks_optional: on }))} label="Specializing is optional" C={C}/>
