@@ -12,6 +12,7 @@ import { Sk, EmptyState } from '@/components/student/shared';
 import {
   CreditCard, CheckCircle, AlertCircle, Check, Copy, Wallet, TrendingDown, Send, ExternalLink, CalendarCheck,
 } from 'lucide-react';
+import { DateField } from '@/components/DatePicker';
 
 function Detail({ label, value, C, copyable }: { label: string; value: string; C: typeof LIGHT_C; copyable?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -412,7 +413,7 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Date Paid *</label>
-                    <input type="date" value={paidAt} onChange={e => setPaidAt(e.target.value)} style={inputStyle}/>
+                    <DateField label="Date paid" value={paidAt} onChange={setPaidAt} clearable={false} C={C}/>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Payment Method</label>

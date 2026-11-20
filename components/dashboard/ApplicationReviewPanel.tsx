@@ -27,6 +27,7 @@ import {
   type ApplicationFormRecord,
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
+import { DateField } from '@/components/DatePicker';
 
 const MESSAGE_PRESETS = {
   interview: { subject: 'Interview invitation', body: 'We would like to invite you to an interview. Please reply to this email to confirm your availability.' },
@@ -109,7 +110,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onPayment, onCancel, o
               <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Record money this applicant has already paid. Leave the amount empty if nothing has been paid yet; the deposit is then due today.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Amount paid ({plan.currency})<input type="number" inputMode="decimal" min="0" step="0.01" value={plan.payment.amount} disabled={busy} onChange={event => onPayment({ amount: event.target.value })} placeholder="0.00" className="mt-1" style={field} /></label>
-                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Date paid<input type="date" value={plan.payment.paidAt} max={new Date().toISOString().slice(0, 10)} disabled={busy} onChange={event => onPayment({ paidAt: event.target.value })} className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Date paid<DateField className="mt-1" compact label="Date paid" value={plan.payment.paidAt} max={new Date().toISOString().slice(0, 10)} disabled={busy} onChange={paidAt => onPayment({ paidAt })} C={C} /></label>
                 <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Method<input type="text" value={plan.payment.method} maxLength={60} disabled={busy} onChange={event => onPayment({ method: event.target.value })} placeholder="Cash, Mobile Money" className="mt-1" style={field} /></label>
                 <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Reference<input type="text" value={plan.payment.reference} maxLength={120} disabled={busy} onChange={event => onPayment({ reference: event.target.value })} placeholder="Receipt or transaction ID" className="mt-1" style={field} /></label>
               </div>

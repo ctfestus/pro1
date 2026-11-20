@@ -11,6 +11,7 @@ import { IsStaffContext } from '@/components/dashboard/context';
 import { LIGHT_C, cardStyle, modalStyle } from '@/lib/theme';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { classesEndDateError } from '@/lib/cohort-dates';
+import { DateField } from '@/components/DatePicker';
 
 function formatAdmissionDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '--';
@@ -1050,10 +1051,8 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                     {[{ label: 'Cohort Start Date*', key: 'start_date' }, { label: 'Cohort End Date', key: 'end_date' }].map(f => (
                       <div key={f.key}>
                         <label className="block text-xs font-semibold mb-1" style={{ color: C.faint }}>{f.label}</label>
-                        <input type="date" value={(paymentSettings as any)[f.key]}
-                          onChange={e => setPaymentSettings(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          className="w-full rounded-lg px-3 py-3 text-sm outline-none"
-                          style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
+                        <DateField label={f.label.replace('*', '')} value={(paymentSettings as any)[f.key]}
+                          onChange={d => setPaymentSettings(prev => ({ ...prev, [f.key]: d }))} C={C}/>
                       </div>
                     ))}
                   </div>
@@ -1243,16 +1242,14 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Start Date *</label>
-                  <input type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)}
-                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
+                  <DateField label="Start date" value={newStartDate} onChange={setNewStartDate} clearable={false} C={C}/>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>End Date</label>
-                  <input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)}
-                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
+                  <DateField label="End date" value={newEndDate} onChange={setNewEndDate} C={C}/>
                 </div>
               </div>
-              <ClassesEndField value={newClassesEndDate} onChange={setNewClassesEndDate} C={C} input={input}/>
+              <ClassesEndField value={newClassesEndDate} onChange={setNewClassesEndDate} C={C}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
@@ -1296,16 +1293,14 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Start Date</label>
-                  <input type="date" value={editForm.start_date} onChange={e => setEditForm(p => ({ ...p, start_date: e.target.value }))}
-                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
+                  <DateField label="Start date" value={editForm.start_date} onChange={d => setEditForm(p => ({ ...p, start_date: d }))} C={C}/>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>End Date</label>
-                  <input type="date" value={editForm.end_date} onChange={e => setEditForm(p => ({ ...p, end_date: e.target.value }))}
-                    className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
+                  <DateField label="End date" value={editForm.end_date} onChange={d => setEditForm(p => ({ ...p, end_date: d }))} C={C}/>
                 </div>
               </div>
-              <ClassesEndField value={editForm.classes_end_date} onChange={v => setEditForm(p => ({ ...p, classes_end_date: v }))} C={C} input={input}/>
+              <ClassesEndField value={editForm.classes_end_date} onChange={v => setEditForm(p => ({ ...p, classes_end_date: v }))} C={C}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
               <button onClick={() => setEditOpen(false)} className="flex-1 py-3 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
@@ -1454,8 +1449,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Date Paid</label>
-                    <input type="date" value={addAdmissionForm.paid_at} onChange={e => setAddAdmissionForm(p => ({ ...p, paid_at: e.target.value }))}
-                      className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}/>
+                    <DateField compact label="Date paid" value={addAdmissionForm.paid_at} onChange={d => setAddAdmissionForm(p => ({ ...p, paid_at: d }))} C={C}/>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1521,14 +1515,13 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
 
 // Optional last day of classes (migration 223). The cohort end date also covers the catch-up period
 // after classes; this tells the student My Program view where teaching stops.
-function ClassesEndField({ value, onChange, C, input }: {
-  value: string; onChange: (v: string) => void; C: typeof LIGHT_C; input: React.CSSProperties;
+function ClassesEndField({ value, onChange, C }: {
+  value: string; onChange: (v: string) => void; C: typeof LIGHT_C;
 }) {
   return (
     <div>
       <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Classes End Date</label>
-      <input type="date" value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-xl px-3 py-3 text-sm focus:outline-none" style={input}/>
+      <DateField label="Classes end date" value={value} onChange={onChange} C={C}/>
       <p className="text-[11px] mt-1 leading-relaxed" style={{ color: C.faint }}>
         Last day of teaching. The time from here to the end date is the catch-up period students get to finish their work. Leave blank if there is none.
       </p>

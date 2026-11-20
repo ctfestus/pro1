@@ -9,6 +9,7 @@ import { postPayments } from './api';
 import { DURATION_OPTIONS, earliestDeadline, freshPayment } from './drafts';
 import { BUTTON, FIELD, Modal, NUMBER_FIELD, inputStyle } from './Modal';
 import { OptionCard, plural } from './ui';
+import { DateField } from '@/components/DatePicker';
 
 function downloadTemplate() {
   const blob = new Blob([String.fromCharCode(0xfeff) + 'email,full_name\r\nlearner@example.com,Ama Mensah\r\n'], { type: 'text/csv;charset=utf-8' });
@@ -167,7 +168,7 @@ export function BulkImportModal({ initialPlan, activePlans, currency, onClose, o
             <label className={label} style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={terms.amount} onChange={(e) => set({ amount: e.target.value })} placeholder="0.00" className={`${NUMBER_FIELD} mt-2`} style={inputStyle(C)} /></label>
             <label className={label} style={{ color: C.muted }}>Currency<input value={terms.currency} onChange={(e) => set({ currency: e.target.value.toUpperCase() })} className={`${FIELD} mt-2`} style={inputStyle(C)} /></label>
             {mode === 'request' ? (
-              <label className={label} style={{ color: C.muted }}>Payment deadline<input type="date" min={earliestDeadline()} value={terms.dueDate} onChange={(e) => set({ dueDate: e.target.value })} className={`${FIELD} mt-2`} style={inputStyle(C)} /></label>
+              <label className={label} style={{ color: C.muted }}>Payment deadline<DateField className="mt-2" label="Payment deadline" value={terms.dueDate} onChange={(dueDate) => set({ dueDate })} min={earliestDeadline()} clearable={false} utc C={C} /></label>
             ) : (
               <label className={label} style={{ color: C.muted }}>Payment method<input value={terms.paymentMethod} onChange={(e) => set({ paymentMethod: e.target.value })} placeholder="Bank transfer" className={`${FIELD} mt-2`} style={inputStyle(C)} /></label>
             )}

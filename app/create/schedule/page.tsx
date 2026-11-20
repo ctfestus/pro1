@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeRichText, sanitizePlainText } from '@/lib/sanitize';
+import { DateField } from '@/components/DatePicker';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
@@ -374,17 +375,11 @@ export default function CreateSchedulePage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={labelStyle(C)}>Start Date</label>
-                  <input
-                    type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                    style={inputStyle(C)}
-                  />
+                  <DateField label="Start date" value={startDate} onChange={setStartDate} C={C}/>
                 </div>
                 <div>
                   <label style={labelStyle(C)}>End Date</label>
-                  <input
-                    type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                    style={inputStyle(C)}
-                  />
+                  <DateField label="End date" value={endDate} onChange={setEndDate} C={C}/>
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { MenuSelect } from '@/components/MenuSelect';
 import type { ThemeColors } from '@/lib/theme';
 import { DURATION_OPTIONS, earliestDeadline, type PaymentDraft } from './drafts';
 import { FIELD, NUMBER_FIELD, inputStyle } from './Modal';
+import { DateField } from '@/components/DatePicker';
 
 type Update = (change: Partial<PaymentDraft>) => void;
 
@@ -39,7 +40,7 @@ export function TermsFields({ payment, update, showDeadline, C }: { payment: Pay
       {showDeadline && (
         <label className={label} style={{ color: C.muted }}>
           Payment deadline
-          <input type="date" min={earliestDeadline()} value={payment.dueDate} onChange={(e) => update({ dueDate: e.target.value })} className={`${FIELD} mt-2`} style={inputStyle(C)} />
+          <DateField className="mt-2" label="Payment deadline" value={payment.dueDate} onChange={(dueDate) => update({ dueDate })} min={earliestDeadline()} clearable={false} utc C={C} />
         </label>
       )}
     </div>

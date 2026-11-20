@@ -19,6 +19,7 @@ import { MenuSelect } from '@/components/MenuSelect';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { supabase } from '@/lib/supabase';
 import type { ThemeColors } from '@/lib/theme';
+import { DateField } from '@/components/DatePicker';
 
 export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false, startAt = 2, focused = false, autoFocus = false }: {
   questions: ApplicationQuestion[];
@@ -152,7 +153,13 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
               <textarea autoFocus={autoFocus} disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} aria-describedby={validationHint ? `application-validation-${question.id}` : undefined} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
             )}
 
-            {['short_text', 'email', 'phone', 'number', 'date'].includes(question.type) && (
+            {question.type === 'date' && (
+              <DateField label={question.label || 'Date'} placeholder={question.placeholder || 'Choose a date'} value={String(value ?? '')}
+                min={question.validation?.minDate} max={question.validation?.maxDate} disabled={disabled}
+                onChange={next => set(question.id, next)} C={C} />
+            )}
+
+            {['short_text', 'email', 'phone', 'number'].includes(question.type) && (
               <input
                 disabled={disabled}
                 autoFocus={autoFocus}

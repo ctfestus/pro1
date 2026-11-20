@@ -13,6 +13,7 @@ import {
   MoreVertical, Trash2, ChevronLeft, ChevronRight, Image as ImageIcon,
   Calendar, Bold, Italic, List, ListOrdered,
 } from 'lucide-react';
+import { DateField } from '@/components/DatePicker';
 
 function useIsMobile() {
   const [m, setM] = useState(false);
@@ -505,9 +506,7 @@ function IssuePanel({ programs, initialProgram, onDone, onCancel, C }: {
                     <input placeholder="Email (optional)" value={row.email}
                       onChange={e => setManualRows(p => p.map((r, j) => j === i ? { ...r, email: e.target.value } : r))}
                       style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 8, padding: '9px 10px', fontSize: 13, color: C.text }} />
-                    <input type="date" value={row.date}
-                      onChange={e => setManualRows(p => p.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
-                      style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 8, padding: '9px 10px', fontSize: 13, color: C.text }} />
+                    <DateField compact label={`Row ${i + 1} date`} value={row.date} onChange={date => setManualRows(p => p.map((r, j) => j === i ? { ...r, date } : r))} C={C} />
                   </div>
                 </div>
               ))}
@@ -529,9 +528,7 @@ function IssuePanel({ programs, initialProgram, onDone, onCancel, C }: {
                     <input placeholder="Email (optional)" value={row.email}
                       onChange={e => setManualRows(p => p.map((r, j) => j === i ? { ...r, email: e.target.value } : r))}
                       style={{ background: C.input, border: `1px solid ${C.cardBorder}`, borderRadius: 6, padding: '7px 8px', fontSize: 13, color: C.text }} />
-                    <input type="date" value={row.date}
-                      onChange={e => setManualRows(p => p.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
-                      style={{ background: C.input, border: `1px solid ${C.cardBorder}`, borderRadius: 6, padding: '7px 8px', fontSize: 13, color: C.text }} />
+                    <DateField compact label={`Row ${i + 1} date`} value={row.date} onChange={date => setManualRows(p => p.map((r, j) => j === i ? { ...r, date } : r))} C={C} />
                     <button onClick={() => setManualRows(p => p.length > 1 ? p.filter((_, j) => j !== i) : p)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <X style={{ width: 14, height: 14 }} />
@@ -1310,8 +1307,7 @@ function EditCertForm({ cert, C, hdrs, onCancel, onSave }: {
       </div>
       <div>
         <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Issue Date</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          style={{ width: '100%', background: C.input, border: `1px solid ${C.cardBorder}`, borderRadius: 8, padding: '9px 12px', fontSize: 14, color: C.text, boxSizing: 'border-box' }} />
+        <DateField label="Issue date" value={date} onChange={setDate} C={C} />
       </div>
       {error && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.deleteBg, border: `1px solid ${C.deleteBorder}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.deleteText }}>

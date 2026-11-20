@@ -15,6 +15,7 @@ import {
   type PromoPlacement, type PromoKind, type PromoEventItem,
 } from '@/lib/promotions';
 import { PromoContent } from '@/components/PromoCard';
+import { DateField, DateTimeField } from '@/components/DatePicker';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
@@ -324,8 +325,7 @@ export default function CreatePromotionPage() {
                     {eventItems.map((item, i) => (
                       <div key={i} style={{ padding: 12, borderRadius: 12, background: C.input, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                          <input type="date" value={item.date} onChange={e => updateEventItem(i, { date: e.target.value })}
-                            aria-label={`Event ${i + 1} date`} style={{ ...inputStyle(C), flex: '1 1 160px', minWidth: 0 }}/>
+                          <DateField className="flex-[1_1_160px] min-w-0" label={`Event ${i + 1} date`} value={item.date} onChange={date => updateEventItem(i, { date })} C={C}/>
                           <select value={item.format} onChange={e => updateEventItem(i, { format: e.target.value as PromoEventItem['format'] })}
                             aria-label={`Event ${i + 1} format`} style={{ ...inputStyle(C), flex: '1 1 110px', minWidth: 0 }}>
                             {EVENT_FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
@@ -413,11 +413,11 @@ export default function CreatePromotionPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
                 <div>
                   <label style={labelStyle(C)}>Starts</label>
-                  <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} style={inputStyle(C)}/>
+                  <DateTimeField label="Starts" value={startsAt} onChange={setStartsAt} C={C}/>
                 </div>
                 <div>
                   <label style={labelStyle(C)}>Ends <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                  <input type="datetime-local" value={endsAt} onChange={e => setEndsAt(e.target.value)} style={inputStyle(C)}/>
+                  <DateTimeField label="Ends" placeholder="No end" value={endsAt} onChange={setEndsAt} defaultTime="23:59" C={C}/>
                 </div>
               </div>
             </div>

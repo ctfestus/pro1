@@ -90,6 +90,7 @@ import {
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { modalStyle, type ThemeColors } from '@/lib/theme';
+import { DateTimeField } from '@/components/DatePicker';
 
 const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   short_text: 'Short answer',
@@ -888,7 +889,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
               </div>}
             </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={FileText} title="Applicant guidance" description="Add eligibility details and the message shown after submission." C={C} /><div className="mt-5 space-y-4"><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Eligibility information</label><RichTextEditor value={config.eligibility} onChange={eligibility => setConfig({ eligibility })} placeholder="Who should apply and what should they prepare?" bgOverride={C.input} /></div><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Confirmation message *</label><textarea rows={4} value={config.confirmationMessage} onChange={event => setConfig({ confirmationMessage: event.target.value })} placeholder="Thank applicants and explain what happens next." style={{ ...inputStyle, resize: 'vertical' }} /></div></div></section>
-            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={CalendarClock} title="Application window" description="Leave either date empty if the form should remain open-ended." C={C} /><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Opening date</label><input type="datetime-local" value={config.opensAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ opensAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Closing date</label><input type="datetime-local" value={config.closesAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ closesAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div></div></section>
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={CalendarClock} title="Application window" description="Leave either date empty if the form should remain open-ended." C={C} /><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Opening date</label><DateTimeField label="Opening date" placeholder="Open now" value={config.opensAt?.slice(0, 16) ?? ''} onChange={v => setConfig({ opensAt: v ? new Date(v).toISOString() : '' })} defaultTime="00:00" C={C} /></div><div><label className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Closing date</label><DateTimeField label="Closing date" placeholder="No closing date" value={config.closesAt?.slice(0, 16) ?? ''} onChange={v => setConfig({ closesAt: v ? new Date(v).toISOString() : '' })} defaultTime="23:59" C={C} /></div></div></section>
           </div>
         )}
 
