@@ -79,7 +79,7 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
           {status}
           {audience(course, reach)
             ? <span className="text-xs" style={{ color: C.muted }}>{audience(course, reach)}</span>
-            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not given</span>}
+            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not assigned</span>}
         </span>
       </button>
       {menu && <FloatingMenu position={menu.position} label="course actions" items={items} onClose={() => setMenu(null)} C={C} />}
@@ -131,7 +131,7 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
   const kpis = [
     { label: 'Courses', n: courses.length, sub: tools.length ? toolList(tools) : 'None yet', color: C.text },
     { label: 'Published', n: published, sub: drafts ? `${drafts} still in draft` : 'No drafts', color: published ? P.good : C.text },
-    { label: 'Not given to anyone', n: notReachable ?? '--', sub: notReachable ? 'No cohort, plan, path or open access' : notReachable === 0 ? 'Every course reaches learners' : 'Checking plans and paths', color: notReachable ? P.warn : C.text },
+    { label: 'Not assigned', n: notReachable ?? '--', sub: notReachable ? 'No cohort, plan, path or open access' : notReachable === 0 ? 'Every course reaches learners' : 'Checking plans and paths', color: notReachable ? P.warn : C.text },
   ];
 
   return (
