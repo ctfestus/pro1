@@ -321,12 +321,16 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
       item_ids: t.item_ids.includes(itemId) ? t.item_ids.filter(i => i !== itemId) : [...t.item_ids, itemId],
     }));
 
-  const moveItem = (idx: number, dir: -1 | 1) => {
-    const ids: string[] = [...(editing?.item_ids ?? [])];
-    const swap = idx + dir;
-    if (swap < 0 || swap >= ids.length) return;
-    [ids[idx], ids[swap]] = [ids[swap], ids[idx]];
-    setEditing((prev: any) => ({ ...prev, item_ids: ids }));
+  /** Swaps an item with its neighbour in `ids` (the whole path, or one group of it) in the saved order. */
+  const moveWithin = (ids: string[], pos: number, dir: -1 | 1) => {
+    const a = ids[pos], b = ids[pos + dir];
+    if (!b) return;
+    setEditing((prev: any) => {
+      const all: string[] = [...(prev.item_ids ?? [])];
+      const ia = all.indexOf(a), ib = all.indexOf(b);
+      [all[ia], all[ib]] = [all[ib], all[ia]];
+      return { ...prev, item_ids: all };
+    });
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
@@ -573,35 +577,36 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
             </Card>
 
             <Card C={C} className="overflow-hidden">
-              <SectionHead C={C} title="Path order" aside={plural(selectedIds.length, 'item')}/>
-              <div className="px-5 py-4 grid grid-cols-[minmax(0,1fr)] gap-3">
-                {selectedIds.length === 0 ? (
-                  <p className="text-sm py-6 text-center" style={{ color: C.muted }}>Tick content on the left to add it here.</p>
-                ) : (
-                  <ol aria-label="Path order">
-                    {selectedIds.map((id, idx) => {
-                      const f = allOptions.find((x: any) => x.id === id);
-                      const itemTracks = tracks.filter(t => t.item_ids.includes(id));
-                      return (
-                        // A timeline: a numbered node per step, joined to the next by a dashed line.
-                        <li key={id} className={`relative pl-12 ${idx < selectedIds.length - 1 ? 'pb-3' : ''}`}>
-                          {idx < selectedIds.length - 1 && (
-                            <span aria-hidden className="absolute left-[15px] top-[46px] -bottom-1.5" style={{ borderLeft: `2px dashed ${C.faint}`, opacity: 0.5 }}/>
-                          )}
-                          <span className="absolute left-0 top-2.5 w-8 h-8 rounded-full grid place-items-center text-xs font-bold" style={{ background: P.sel, color: P.onSel }}>{idx + 1}</span>
-                          <div className="rounded-xl px-3 py-2.5" style={{ background: C.page }}>
+              <div className="px-5 py-4 flex items-center justify-between gap-3" style={{ borderBottom: `1px solid ${C.divider}` }}>
+                <h3 className="text-base font-semibold" style={{ color: C.text }}>Path order</h3>
+                <button type="button" onClick={addTrack} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5"/>Add track</button>
+              </div>
+              <div className="px-5 py-4 grid grid-cols-[minmax(0,1fr)] gap-4">
+                {(() => {
+                  // One timeline step: a numbered node joined to the next by a dashed line. `ids` is the group
+                  // it sits in, so moving swaps it with its neighbour in that group.
+                  const step = (id: string, n: number, pos: number, ids: string[], grouped: boolean, also?: string) => {
+                    const f = allOptions.find((x: any) => x.id === id);
+                    const inTracks = tracks.filter(t => t.item_ids.includes(id));
+                    const last = pos === ids.length - 1;
+                    return (
+                      <li key={id} className={`relative pl-12 ${last ? '' : 'pb-3'}`}>
+                        {!last && <span aria-hidden className="absolute left-[15px] top-[46px] -bottom-1.5" style={{ borderLeft: `2px dashed ${C.faint}`, opacity: 0.5 }}/>}
+                        <span className="absolute left-0 top-2.5 w-8 h-8 rounded-full grid place-items-center text-xs font-bold" style={{ background: P.sel, color: P.onSel }}>{n}</span>
+                        <div className="rounded-xl px-3 py-2.5" style={{ background: grouped ? C.card : C.page }}>
                           <div className="flex items-center gap-3">
                             <span className="min-w-0 flex-1">
                               <span className="block text-sm font-semibold break-words" style={{ color: C.text }}>{f?.title ?? 'Unpublished or removed item'}</span>
                               {f && <span className="block text-xs" style={{ color: C.muted }}>{KIND_NAME[kindOf(f)]}</span>}
+                              {also && <span className="block text-xs" style={{ color: C.muted }}>Also in {also}</span>}
                             </span>
-                            <button type="button" onClick={() => moveItem(idx, -1)} disabled={idx === 0} aria-label="Move up" className={iconBtn} style={{ color: C.muted }}><ChevronUp className="w-4 h-4"/></button>
-                            <button type="button" onClick={() => moveItem(idx, 1)} disabled={idx === selectedIds.length - 1} aria-label="Move down" className={iconBtn} style={{ color: C.muted }}><ChevronDown className="w-4 h-4"/></button>
+                            <button type="button" onClick={() => moveWithin(ids, pos, -1)} disabled={pos === 0} aria-label="Move up" className={iconBtn} style={{ color: C.muted }}><ChevronUp className="w-4 h-4"/></button>
+                            <button type="button" onClick={() => moveWithin(ids, pos, 1)} disabled={last} aria-label="Move down" className={iconBtn} style={{ color: C.muted }}><ChevronDown className="w-4 h-4"/></button>
                             <button type="button" onClick={() => toggleItem(id)} aria-label="Remove from path" className={iconBtn} style={{ color: C.muted }}><X className="w-4 h-4"/></button>
                           </div>
-                          {tracks.length > 0 && (
+                          {grouped && (
                             <div className="flex flex-wrap items-center gap-2 mt-2">
-                              <Pill tone="mute" C={C}>{itemTracks.length === 0 ? 'Core' : 'Track only'}</Pill>
+                              <Pill tone="mute" C={C}>{inTracks.length === 0 ? 'Core' : 'Track only'}</Pill>
                               {tracks.map(track => {
                                 const on = track.item_ids.includes(id);
                                 return (
@@ -613,68 +618,84 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                               })}
                             </div>
                           )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-
-                {/* Tracks: one path personalised by background instead of a path per specialisation. */}
-                <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
-                  <div className="px-4 py-3.5 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: C.text }}>Tracks (optional)</p>
-                      <p className="text-xs" style={{ color: C.muted }}>A track per background, such as Finance or HR. Untagged items are core.</p>
-                    </div>
-                    <button type="button" onClick={addTrack} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5"/>Add track</button>
-                  </div>
-                  {tracks.map(track => {
-                    const count = track.item_ids.filter(i => selectedIds.includes(i)).length;
-                    const named = !!track.name.trim();
-                    // White fields, so they stand out on the grey panel.
-                    const field = { ...inputStyle(C), background: C.card };
-                    const remove = <button type="button" onClick={() => setTrackToRemove(track)} aria-label="Remove track" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>;
-                    return openTrackId === track.id ? (
-                      <div key={track.id} className="px-4 py-3.5 grid grid-cols-[minmax(0,1fr)] gap-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-                        <div className="flex items-center gap-2">
-                          <input value={track.name} onChange={e => updateTrack(track.id, { name: e.target.value })} placeholder="Track name, for example Finance"
-                            aria-label="Track name" autoFocus className={FIELD} style={field}/>
-                          {remove}
                         </div>
-                        <input value={track.description ?? ''} onChange={e => updateTrack(track.id, { description: e.target.value })} placeholder="Who it is for"
-                          aria-label="Track description" className={FIELD} style={field}/>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs" style={{ color: named ? C.muted : P.bad }}>{named ? plural(count, 'track item') : 'Add a name to save it.'}</p>
-                          <button type="button" onClick={() => setOpenTrackId(null)} className={btnSmClass} style={btnStyle('sec', C)}>Done</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={track.id} className="px-4 py-2.5 flex items-center gap-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-                        <button type="button" onClick={() => setOpenTrackId(track.id)} aria-label={`Edit ${named ? track.name : 'unnamed track'}`} className="min-w-0 flex-1 flex items-center gap-3 text-left">
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: named ? C.text : P.bad }}>{named ? track.name : 'Unnamed track, add a name'}</span>
-                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{plural(count, 'item')}</span>
-                          <Pencil className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }}/>
-                        </button>
-                        {remove}
-                      </div>
+                      </li>
                     );
-                  })}
-                  {tracks.length > 0 && (
-                    <div className="px-4 py-3.5 flex items-start justify-between gap-4" style={{ borderTop: `1px solid ${C.divider}` }}>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: C.text }}>Specializing is optional</p>
-                        <p className="text-xs" style={{ color: C.muted }}>
-                          Learners can finish with the core items only.
-                        </p>
-                        {editing.tracks_optional === true && !selectedIds.some(id => !tracks.some(t => t.item_ids.includes(id))) && (
-                          <p className="text-xs font-semibold mt-1" style={{ color: P.bad }}>Leave at least one item untagged.</p>
-                        )}
+                  };
+                  if (selectedIds.length === 0 && tracks.length === 0) {
+                    return <p className="text-sm py-6 text-center" style={{ color: C.muted }}>Tick content above to add it here.</p>;
+                  }
+                  if (tracks.length === 0) {
+                    return <ol aria-label="Path order">{selectedIds.map((id, i) => step(id, i + 1, i, selectedIds, false))}</ol>;
+                  }
+
+                  // With tracks: Core first, then one group per track. Learners take the core, then their
+                  // track, so every track's numbers carry on from the core.
+                  const core = selectedIds.filter(id => !tracks.some(t => t.item_ids.includes(id)));
+                  const field = { ...inputStyle(C), background: C.card };
+                  const group = (key: string, head: ReactNode, ids: string[], empty: string, trackId?: string) => (
+                    <section key={key} aria-label={key} className="rounded-[14px] px-3.5 pt-1 pb-3.5" style={{ background: C.page }}>
+                      {head}
+                      {ids.length === 0
+                        ? <p className="px-3 py-3.5 rounded-xl text-[13px] text-center" style={{ border: `2px dashed ${C.divider}`, color: C.muted }}>{empty}</p>
+                        : <ol>{ids.map((id, i) => step(id, (trackId ? core.length : 0) + i + 1, i, ids, true,
+                            trackId ? tracks.filter(t => t.id !== trackId && t.item_ids.includes(id)).map(t => t.name.trim() || 'an unnamed track').join(', ') || undefined : undefined))}</ol>}
+                    </section>
+                  );
+                  return (
+                    <>
+                      {group('Core', (
+                        <div className="py-3">
+                          <p className="text-[15px] font-bold" style={{ color: C.text }}>Core <span className="text-xs font-medium ml-1.5" style={{ color: C.muted }}>{plural(core.length, 'item')}</span></p>
+                          <p className="text-xs" style={{ color: C.muted }}>Everyone takes these first</p>
+                        </div>
+                      ), core, selectedIds.length ? 'Every item is in a track.' : 'Tick content above to add it here.')}
+                      {tracks.map(track => {
+                        const ids = selectedIds.filter(id => track.item_ids.includes(id));
+                        const named = !!track.name.trim();
+                        const remove = <button type="button" onClick={() => setTrackToRemove(track)} aria-label="Remove track" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>;
+                        const head = openTrackId === track.id ? (
+                          <div className="py-3 grid grid-cols-[minmax(0,1fr)] gap-2">
+                            <div className="flex items-center gap-2">
+                              <input value={track.name} onChange={e => updateTrack(track.id, { name: e.target.value })} placeholder="Track name, for example Finance"
+                                aria-label="Track name" autoFocus className={FIELD} style={field}/>
+                              {remove}
+                            </div>
+                            <input value={track.description ?? ''} onChange={e => updateTrack(track.id, { description: e.target.value })} placeholder="Who it is for"
+                              aria-label="Track description" className={FIELD} style={field}/>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs" style={{ color: named ? C.muted : P.bad }}>{named ? plural(ids.length, 'item') : 'Add a name to save it.'}</p>
+                              <button type="button" onClick={() => setOpenTrackId(null)} className={btnSmClass} style={btnStyle('sec', C)}>Done</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="py-3 flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[15px] font-bold break-words" style={{ color: named ? C.text : P.bad }}>
+                                {named ? `${track.name.trim()} track` : 'Unnamed track, add a name'}
+                                <span className="text-xs font-medium ml-1.5" style={{ color: C.muted }}>{plural(ids.length, 'item')}</span>
+                              </p>
+                              <p className="text-xs" style={{ color: C.muted }}>{track.description?.trim() || 'No description yet'}</p>
+                            </div>
+                            <button type="button" onClick={() => setOpenTrackId(track.id)} aria-label={`Edit ${named ? track.name : 'unnamed track'}`} className={iconBtn} style={{ color: C.muted }}><Pencil className="w-4 h-4"/></button>
+                            {remove}
+                          </div>
+                        );
+                        return group(track.id, head, ids, `No items yet. Tag an item with ${named ? track.name.trim() : 'this track'} to add it here.`, track.id);
+                      })}
+                      <div className="flex items-center justify-between gap-4 px-0.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold" style={{ color: C.text }}>Specializing is optional</p>
+                          <p className="text-xs" style={{ color: C.muted }}>Learners can finish with the core items only.</p>
+                          {editing.tracks_optional === true && core.length === 0 && (
+                            <p className="text-xs font-semibold mt-1" style={{ color: P.bad }}>Leave at least one item untagged.</p>
+                          )}
+                        </div>
+                        <Switch on={editing.tracks_optional === true} onChange={on => setEditing((prev: any) => ({ ...prev, tracks_optional: on }))} label="Specializing is optional" C={C}/>
                       </div>
-                      <Switch on={editing.tracks_optional === true} onChange={on => setEditing((prev: any) => ({ ...prev, tracks_optional: on }))} label="Specializing is optional" C={C}/>
-                    </div>
-                  )}
-                </div>
+                    </>
+                  );
+                })()}
               </div>
             </Card>
           </div>
