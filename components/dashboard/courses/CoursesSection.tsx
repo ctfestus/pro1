@@ -167,7 +167,7 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
                 <h2 className="text-lg font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{name}</h2>
                 <span className="text-xs" style={{ color: C.muted }}>{plural(list.length, 'course')}</span>
               </div>
-              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {list.map((c) => <CourseCard key={c.id} course={c} onDelete={setFormToDelete} C={C} />)}
               </div>
             </section>
