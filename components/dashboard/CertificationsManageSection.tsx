@@ -150,9 +150,8 @@ export function CertificationsManageSection({ C: theme }: { C: typeof LIGHT_C })
 
 function CertCard({ item, reach, onAnalytics, onDelete, C }: { item: any; reach: Reach | null; onAnalytics: () => void; onDelete: () => void; C: typeof LIGHT_C }) {
   const router = useRouter();
-  const detail = item.max_attempts ? `${item.max_attempts} attempt${item.max_attempts === 1 ? '' : 's'}` : 'Unlimited attempts';
   return (
-    <ContentCard item={item} cover={item.cover_image} Icon={ShieldCheck} detail={detail} reach={reach} onOpen={onAnalytics} C={C}
+    <ContentCard item={item} cover={item.cover_image} Icon={ShieldCheck} reach={reach} onOpen={onAnalytics} C={C}
       menu={(close) => [
         { label: 'Analytics', sub: 'Attempts, pass rate, item analysis', icon: BarChart3, onClick: () => { close(); onAnalytics(); } },
         { label: 'Preview', sub: 'As a learner sees it', icon: ExternalLink, onClick: () => { close(); window.open(`/${item.slug || item.id}`, '_blank', 'noopener'); } },
