@@ -45,11 +45,9 @@ function VECard({ form, reach, handleDuplicate, setFormToDelete, C }: {
   const router = useRouter();
   const { state: pushState, msg: pushMsg, push } = usePushStatus('virtual_experience', form.id);
   const cfg = form.config || {};
-  const totalLessons = (cfg.modules || []).reduce((a: number, m: any) => a + (m.lessons?.length || 0), 0);
-  const detail = [cfg.company, plural(totalLessons, 'lesson'), cfg.difficulty ? String(cfg.difficulty).toLowerCase() : ''].filter(Boolean).join(', ');
   const open = () => router.push(`/dashboard/${form.id}`);
   return (
-    <ContentCard item={form} cover={cfg.coverImage} Icon={Briefcase} detail={detail} reach={reach} onOpen={open} C={C}
+    <ContentCard item={form} cover={cfg.coverImage} Icon={Briefcase} detail={cfg.company} reach={reach} onOpen={open} C={C}
       overlay={<PushStatusPill state={pushState} msg={pushMsg} className="top-3 left-3" />}
       menu={(close) => [
         { label: 'Report', sub: 'Learners, progress and reviews', icon: BarChart3, onClick: () => { close(); open(); } },
