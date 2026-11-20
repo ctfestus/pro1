@@ -2688,14 +2688,15 @@ export default function FormDetailPage() {
                 <ArrowLeft className="w-4 h-4" />
                 {type === 'course' ? 'All courses' : type === 'event' ? 'All events' : type === 'virtual_experience' ? 'All virtual experiences' : 'Dashboard'}
               </Link>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div className="min-w-0">
+              {/* Buttons stay at the top right; a long name wraps instead of pushing them down. Phones stack. */}
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 md:flex-1">
                   <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: hdrTextPrim, fontFamily: DISPLAY_FONT }}>{form.title}</h1>
                   <div className="mt-2">
                     {form.status === 'published' ? <Pill tone="good" dot C={pageC}>Published</Pill> : <Pill tone="warn" C={pageC}>Draft</Pill>}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:flex-shrink-0">
                   {shownTab === 'settings' && (type === 'course' || type === 'event') && <span id="editor-save-status" className="contents" />}
                   {type === 'virtual_experience' ? (
                     <Link href={`/create/guided-project?id=${form.id}`} className={`${btnClass} no-underline`} style={btnStyle('sec', pageC)}>
