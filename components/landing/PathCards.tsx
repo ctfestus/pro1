@@ -2,7 +2,7 @@
 
 /**
  * The landing page's learning paths: one card per path. A cover on top, a coloured body with the
- * title and how many items the path holds, and a View path button tucked into a notch at the
+ * title and how many learning items the path holds, and a View path button tucked into a notch at the
  * bottom right. Hovering or focusing the card slides the body up over the cover to show the
  * description; on a touch screen, which has no hover, the description shows from the start.
  *
@@ -75,7 +75,7 @@ export function PathCards({ paths, color, user, hFont, bFont }: {
                   <p className="line-clamp-3" style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont }}>{path.title}</p>
                   {count > 0 && (
                     <p className="mt-2" style={{ ...M3.bodyMedium, color: '#4b5160', fontFamily: bFont }}>
-                      {count} item{count === 1 ? '' : 's'}
+                      {count} learning item{count === 1 ? '' : 's'}
                     </p>
                   )}
                   {desc && <p className="pc-desc" style={{ ...M3.bodyLarge, color: '#4b5160', fontFamily: bFont }}>{desc}</p>}
