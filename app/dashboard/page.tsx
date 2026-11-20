@@ -9,16 +9,12 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { useC } from '@/lib/theme';
-import { exportAllInSection } from '@/lib/dashboard-export';
-import { PushAllButton } from '@/components/dashboard/primitives';
-import { ImportButton } from '@/components/dashboard/ImportButton';
-import { SYNC_ENABLED } from '@/lib/sync';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { NAV_ITEMS, STAFF_SECTION_IDS, type SectionId } from '@/components/dashboard/nav';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SectionContent } from '@/components/dashboard/SectionContent';
-import { CreateCourseMenu, getFormType } from '@/components/dashboard/content-cards';
+import { getFormType } from '@/components/dashboard/content-cards';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 
 // --- Cache ---
@@ -259,7 +255,6 @@ export default function DashboardPage() {
 
   // -- Main render ---
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)!;
-  const courseCount = forms.filter(f => getFormType(f) === 'course').length;
   const eventCount  = forms.filter(f => getFormType(f) === 'event').length;
 
   return (
@@ -300,50 +295,21 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
           >
             {/* Section header */}
-            <div className={`flex flex-wrap items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8 ${activeSection === 'learning_paths' || activeSection === 'subscriptions' || activeSection === 'payments' || activeSection === 'students' || activeSection === 'cohorts' ? 'hidden' : ''}`}>
+            <div className={`flex flex-wrap items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8 ${activeSection === 'learning_paths' || activeSection === 'subscriptions' || activeSection === 'payments' || activeSection === 'students' || activeSection === 'cohorts' || activeSection === 'courses' ? 'hidden' : ''}`}>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.text }}>{activeItem.label}</h1>
-                {(activeSection === 'courses' || activeSection === 'events') && (
-                  <p className="text-sm mt-1" style={{ color: C.faint }}>
-                    {activeSection === 'courses' ? `${courseCount} course${courseCount !== 1 ? 's' : ''}` : `${eventCount} event${eventCount !== 1 ? 's' : ''}`}
-                  </p>
+                {activeSection === 'events' && (
+                  <p className="text-sm mt-1" style={{ color: C.faint }}>{`${eventCount} event${eventCount !== 1 ? 's' : ''}`}</p>
                 )}
               </div>
-              {((!isStaff && activeSection === 'courses') || activeSection === 'events') && (
+              {activeSection === 'events' && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {!isStaff && activeSection === 'courses' && forms.filter(f => f.content_type === 'course').length > 0 && (
-                    <button
-                      onClick={() => exportAllInSection(forms, 'course', 'courses_bulk')}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
-                      style={{ background: C.card, color: C.muted }}>
-                      <Download className="w-3.5 h-3.5" /> Export All
-                    </button>
-                  )}
-                  {!isStaff && activeSection === 'courses' && SYNC_ENABLED && forms.filter(f => f.content_type === 'course').length > 0 && (
-                    <PushAllButton
-                      items={forms.filter(f => f.content_type === 'course').map(f => ({ type: 'course', id: f.id }))}
-                      C={C}
-                    />
-                  )}
-                  {!isStaff && activeSection === 'courses' && (
-                    <ImportButton
-                      types={['course']}
-                      C={C}
-                      onImported={r => router.push(`/dashboard/${r.id}`)}
-                      onBulkDone={() => window.location.reload()}
-                    />
-                  )}
-                  {!isStaff && activeSection === 'courses' && (
-                    <CreateCourseMenu C={C} />
-                  )}
-                  {activeSection === 'events' && (
-                    <Link
-                      href="/create?type=event"
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
-                      style={{ background: C.cta, color: C.ctaText }}>
-                      <Plus className="w-4 h-4"/> New Event
-                    </Link>
-                  )}
+                  <Link
+                    href="/create?type=event"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
+                    style={{ background: C.cta, color: C.ctaText }}>
+                    <Plus className="w-4 h-4"/> New Event
+                  </Link>
                 </div>
               )}
             </div>

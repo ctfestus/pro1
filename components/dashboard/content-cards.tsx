@@ -5,28 +5,23 @@ import { useState, useEffect, useLayoutEffect, useRef, useContext, type CSSPrope
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import {
-  Plus, FileText, BarChart3, ExternalLink, Trash2, Edit2, Share2, Check, Copy, X,
-  CalendarDays, AlignLeft, ChevronDown, ChevronRight, ChevronLeft, BookOpen, MapPin,
-  Download, Briefcase, Video, Database, MoreVertical, Send, Code2, ShieldCheck, Lock,
+  Plus, FileText, BarChart3, ExternalLink, Trash2, Edit2, Share2, Check, Copy, X, CalendarDays, ChevronDown, MapPin, Download, Video, Database, MoreVertical, Code2, ShieldCheck, Lock,
 } from 'lucide-react';
 import { LIGHT_C, useC, cardStyle } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { contentPath } from '@/lib/content-link';
 import { exportContent } from '@/lib/dashboard-export';
-import { SYNC_ENABLED } from '@/lib/sync';
 import { getLastScheduledSessionDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
-import { usePushStatus, PushStatusPill } from '@/components/dashboard/primitives';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { SHARE_PLATFORMS } from '@/components/share-platforms';
 
 // --- Social share targets: components/share-platforms.tsx ---
 
 // --- ShareMenu (portal) ---
-function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOMRect; onClose: () => void }) {
+export function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOMRect; onClose: () => void }) {
   const C = useC();
   const menuRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -115,19 +110,19 @@ function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOM
 export function CreateCourseMenu({ C }: { C: any }) {
   const [open, setOpen] = useState(false);
   const options = [
-    { href: '/create?type=course',          label: 'Blank Course',        desc: 'Build from scratch',                        Icon: Plus,     color: C.cta },
-    { href: '/create?type=sql-course',      label: 'SQL Course AI',       desc: 'Generate a full SQL course with exercises', Icon: Database, color: '#3b82f6' },
-    { href: '/create?type=python-course',   label: 'Python Course AI',    desc: 'Generate a data analysis course with Python exercises', Icon: Code2, color: '#f59e0b' },
-    { href: '/create?type=doc-course',      label: 'Document to Course',  desc: 'Turn a PDF, deck, or guide into a course',  Icon: FileText, color: C.green },
-    { href: '/create/certification',        label: 'Certification Exam',  desc: 'Timed, protected exam that issues a certificate', Icon: ShieldCheck, color: '#10b981' },
+    { href: '/create?type=course',          label: 'Blank course',        desc: 'Build from scratch',                        Icon: Plus },
+    { href: '/create?type=sql-course',      label: 'SQL course with AI',  desc: 'Generate a full SQL course with exercises', Icon: Database },
+    { href: '/create?type=python-course',   label: 'Python course with AI', desc: 'Generate a data analysis course with Python exercises', Icon: Code2 },
+    { href: '/create?type=doc-course',      label: 'Document to course',  desc: 'Turn a PDF, deck, or guide into a course',  Icon: FileText },
+    { href: '/create/certification',        label: 'Certification exam',  desc: 'Timed, protected exam that issues a certificate', Icon: ShieldCheck },
   ];
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+        className="inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
         style={{ background: C.cta, color: C.ctaText }}>
-        <Plus className="w-4 h-4"/> Create Course
+        <Plus className="w-4 h-4"/> Create course
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} style={{ opacity: 0.85 }}/>
       </button>
       <AnimatePresence>
@@ -144,8 +139,8 @@ export function CreateCourseMenu({ C }: { C: any }) {
               {options.map(opt => (
                 <Link key={opt.href} href={opt.href} onClick={() => setOpen(false)}
                   className="flex items-start gap-3 px-4 py-3 transition-colors ff-hover">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${opt.color}18` }}>
-                    <opt.Icon className="w-4 h-4" style={{ color: opt.color }}/>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: C.pill }}>
+                    <opt.Icon className="w-4 h-4" style={{ color: C.muted }}/>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold leading-tight" style={{ color: C.text }}>{opt.label}</p>
@@ -277,15 +272,6 @@ export function getFormType(form: any): 'course' | 'event' | 'form' | 'virtual_e
   if (form.content_type === 'course' || form.config?.isCourse) return 'course';
   if (form.content_type === 'event'  || form.config?.eventDetails?.isEvent) return 'event';
   return 'form';
-}
-
-function getTypeMeta(C: typeof LIGHT_C) {
-  return {
-    course:         { label: 'Course',         Icon: BookOpen,     badgeBg: '#0e09dd',    badgeText: '#ffffff'       },
-    event:          { label: 'Event',          Icon: CalendarDays, badgeBg: '#00a4ef',    badgeText: '#ffffff'       },
-    form:           { label: 'Form',           Icon: AlignLeft,    badgeBg: C.formBadgeBg, badgeText: C.formBadgeText },
-    virtual_experience: { label: 'Virtual Experience', Icon: Briefcase,    badgeBg: '#ff9933',    badgeText: '#111111'       },
-  };
 }
 
 // --- Card illustrations ---
@@ -600,83 +586,6 @@ function CreateSection({ C }: { C: typeof LIGHT_C }) {
   );
 }
 
-// --- FormCard ---
-function FormCard({ form, index, shareMenuOpen, setShareMenuOpen, setFormToDelete }: {
-  form: any; index: number; shareMenuOpen: string | null; setShareMenuOpen: (id: string | null) => void; setFormToDelete: (id: string) => void;
-}) {
-  const C = useC();
-  const router = useRouter();
-  const type = getFormType(form);
-  const meta = getTypeMeta(C)[type];
-  const [coverError, setCoverError] = useState(false);
-  const { state: pushState, msg: pushMsg, push } = usePushStatus('course', form.id);
-  const canPush = SYNC_ENABLED && form.content_type === 'course';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 24, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.06, duration: 0.4, ease: [0.22,1,0.36,1] }}
-      className="group flex flex-col rounded-3xl p-3 gap-3"
-      style={{ background: C.card, transition: 'transform 0.25s' }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
-    >
-      {/* Thumbnail */}
-      <div role="button" tabIndex={0}
-        onClick={() => router.push(`/dashboard/${form.id}`)}
-        onKeyDown={e => e.key === 'Enter' && router.push(`/dashboard/${form.id}`)}
-        className="relative h-44 w-full overflow-hidden cursor-pointer rounded-2xl flex-shrink-0"
-        style={{ background: C.thumbBg }}>
-        {(form.config?.coverImage && !coverError)
-          ? <img src={resolveCoverUrl(form.config.coverImage)} alt={form.title} loading="lazy" onError={() => setCoverError(true)} className="block w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"/>
-          : <div className="w-full h-full flex items-center justify-center group-hover:scale-105 transition-transform duration-700 ease-out">
-              <meta.Icon className="w-10 h-10 opacity-20" style={{ color: C.green }}/>
-            </div>
-        }
-        {/* Actions menu */}
-        <div className="absolute top-3 right-3" onClick={e => e.stopPropagation()}>
-          <CardActionsMenu form={form} shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen}
-            actions={[
-              { key: 'edit', label: 'Edit', Icon: Edit2, href: `/dashboard/${form.id}?tab=settings` },
-              { key: 'preview', label: 'Preview', Icon: ExternalLink, href: `/${form.slug || form.id}`, external: true },
-              { key: 'share', label: 'Share', Icon: Share2, share: true },
-              { key: 'export', label: 'Export', Icon: Download, onClick: () => exportContent(form) },
-              ...(canPush ? [{ key: 'push', label: 'Push to platform', Icon: Send, onClick: push } as CardAction] : []),
-              { key: 'delete', label: 'Delete', Icon: Trash2, danger: true, onClick: () => setFormToDelete(form.id) },
-            ]}/>
-        </div>
-        <PushStatusPill state={pushState} msg={pushMsg} className="top-3 left-3"/>
-      </div>
-
-      {/* Content */}
-      <div className="px-3 pb-3 flex-1 flex flex-col">
-        <Link href={`/dashboard/${form.id}`} className="block">
-          <h3 className="text-sm font-semibold truncate mb-1 hover:opacity-70 transition-opacity" style={{ color: C.text }}>{form.title}</h3>
-        </Link>
-        {form.status === 'draft' && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold mb-1" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>
-        )}
-        {type === 'event' && form.config?.eventDetails?.date && (
-          <p className="text-xs mb-1 flex items-center gap-1" style={{ color: C.green }}>
-            <CalendarDays className="w-3 h-3"/>
-            {new Date(form.config.eventDetails.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-          </p>
-        )}
-
-
-        {/* Footer: informational only (actions live in the card's top-right menu). */}
-        {type !== 'course' && (
-          <div className="flex items-center gap-2 text-xs font-medium pt-3 border-t mt-auto" style={{ borderColor: C.divider, color: C.faint }}>
-            <BarChart3 className="w-3.5 h-3.5"/>
-            {form._response_count ?? 0} responses
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
 // Group courses by their category/tool; named tools alphabetical, "Other" last
 export function groupFormsByCategory(forms: any[]): [string, any[]][] {
   const groups = new Map<string, any[]>();
@@ -690,41 +599,6 @@ export function groupFormsByCategory(forms: any[]): [string, any[]][] {
     if (b[0] === 'Other') return -1;
     return a[0].localeCompare(b[0]);
   });
-}
-
-// One tool group rendered as a titled, horizontally-scrolling carousel of course cards
-export function CourseToolRow({ tool, forms, shareMenuOpen, setShareMenuOpen, setFormToDelete }: {
-  tool: string; forms: any[]; shareMenuOpen: string | null; setShareMenuOpen: (id: string | null) => void; setFormToDelete: (id: string) => void;
-}) {
-  const C = useC();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 340, behavior: 'smooth' });
-  return (
-    <section className="rounded-2xl p-5 sm:p-6 mb-6" style={{ ...cardStyle(C) }}>
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="text-base sm:text-[22px] font-bold truncate leading-6" style={{ color: C.text }}>{tool}</h2>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronLeft className="w-4 h-4"/>
-          </button>
-          <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronRight className="w-4 h-4"/>
-          </button>
-        </div>
-      </div>
-      <div ref={scrollRef} className="flex gap-6 overflow-x-auto pb-2 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {forms.map((form, idx) => (
-          <div key={form.id} className="flex-shrink-0 w-[300px] snap-start">
-            <FormCard form={form} index={idx} shareMenuOpen={shareMenuOpen} setShareMenuOpen={setShareMenuOpen} setFormToDelete={setFormToDelete}/>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 // --- EventCard (timeline) ---
