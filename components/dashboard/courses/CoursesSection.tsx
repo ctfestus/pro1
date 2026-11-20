@@ -2,12 +2,13 @@
 
 // The admin Courses page: every course, grouped by tool, with search and filters.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Download, ExternalLink, Eye, MoreHorizontal, Pencil, Send, Share2, Trash2 } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { exportAllInSection, exportContent } from '@/lib/dashboard-export';
+import { supabase } from '@/lib/supabase';
 import { SYNC_ENABLED } from '@/lib/sync';
 import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { ImportButton } from '@/components/dashboard/ImportButton';
@@ -20,15 +21,21 @@ import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 type Status = 'all' | 'published' | 'draft';
 const CHIPS: [Status, string][] = [['all', 'All'], ['published', 'Published'], ['draft', 'Draft']];
 
-/** Where learners can reach the course from. */
-function audience(course: any) {
-  if (course.available_to_everyone) return 'Everyone';
-  const n = course.cohort_ids?.length ?? 0;
-  return n ? `In ${plural(n, 'cohort')}` : 'Not in any cohort';
-}
-const unreachable = (course: any) => !course.available_to_everyone && !(course.cohort_ids?.length);
+/** How many subscription plans and learning paths include each course, by course id. */
+type Reach = { plans: Record<string, number>; paths: Record<string, number> };
 
-function CourseCard({ course, onDelete, C }: { course: any; onDelete: (id: string) => void; C: ThemeColors }) {
+/** Every way learners can reach the course: open to everyone, cohorts, plans and paths. */
+function audience(course: any, reach: Reach | null) {
+  if (course.available_to_everyone) return 'Open to everyone, free';
+  const parts = [
+    course.cohort_ids?.length ? plural(course.cohort_ids.length, 'cohort') : '',
+    reach?.plans[course.id] ? plural(reach.plans[course.id], 'plan') : '',
+    reach?.paths[course.id] ? plural(reach.paths[course.id], 'learning path') : '',
+  ].filter(Boolean);
+  return parts.length ? `In ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')}` : null;
+}
+
+function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach | null; onDelete: (id: string) => void; C: ThemeColors }) {
   const router = useRouter();
   const [coverError, setCoverError] = useState(false);
   // The menu's position, and its button's box so Share can open by the same button.
@@ -70,7 +77,9 @@ function CourseCard({ course, onDelete, C }: { course: any; onDelete: (id: strin
         <span className="text-sm font-semibold line-clamp-2" style={{ color: C.text }}>{course.title || 'Untitled'}</span>
         <span className="flex flex-wrap items-center gap-2">
           {status}
-          <span className="text-xs" style={{ color: C.muted }}>{audience(course)}</span>
+          {audience(course, reach)
+            ? <span className="text-xs" style={{ color: C.muted }}>{audience(course, reach)}</span>
+            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not given to anyone yet</span>}
         </span>
       </button>
       {menu && <FloatingMenu position={menu.position} label="course actions" items={items} onClose={() => setMenu(null)} C={C} />}
@@ -87,12 +96,31 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
   const [search, setSearch] = useState('');
   const [tool, setTool] = useState('all');
   const [status, setStatus] = useState<Status>('all');
+  const [reach, setReach] = useState<Reach | null>(null);
+
+  // Plans and paths also give learners a course. Until they are read (or if reading fails) a
+  // course is only judged on cohorts and open access, so nothing is flagged that may be reachable.
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      supabase.from('subscription_plan_content').select('content_id').eq('content_table', 'courses'),
+      supabase.from('learning_paths').select('item_ids'),
+    ]).then(([plans, paths]) => {
+      if (!live || plans.error || paths.error) return;
+      const count = (ids: string[]) => ids.reduce<Record<string, number>>((acc, id) => { acc[id] = (acc[id] ?? 0) + 1; return acc; }, {});
+      setReach({
+        plans: count((plans.data ?? []).map((r: any) => r.content_id)),
+        paths: count((paths.data ?? []).flatMap((r: any) => [...new Set<string>(r.item_ids ?? [])])),
+      });
+    });
+    return () => { live = false; };
+  }, []);
 
   const groups = groupFormsByCategory(courses);
   const tools = groups.map(([name]) => name);
   const published = courses.filter((c) => c.status === 'published').length;
   const drafts = courses.filter((c) => c.status === 'draft').length;
-  const notReachable = courses.filter(unreachable).length;
+  const notReachable = reach ? courses.filter((c) => !audience(c, reach)).length : null;
   const term = search.trim().toLowerCase();
   const shown = groups
     .filter(([name]) => tool === 'all' || name === tool)
@@ -103,7 +131,7 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
   const kpis = [
     { label: 'Courses', n: courses.length, sub: tools.length ? toolList(tools) : 'None yet', color: C.text },
     { label: 'Published', n: published, sub: drafts ? `${drafts} still in draft` : 'No drafts', color: published ? P.good : C.text },
-    { label: 'Not in any cohort', n: notReachable, sub: notReachable ? 'Learners cannot reach these yet' : 'Every course is assigned', color: notReachable ? P.warn : C.text },
+    { label: 'Not given to anyone', n: notReachable ?? '--', sub: notReachable ? 'No cohort, plan, path or open access' : notReachable === 0 ? 'Every course reaches learners' : 'Checking plans and paths', color: notReachable ? P.warn : C.text },
   ];
 
   return (
@@ -168,7 +196,7 @@ export function CoursesSection({ courses, setFormToDelete, C: theme }: { courses
                 <span className="text-xs" style={{ color: C.muted }}>{plural(list.length, 'course')}</span>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {list.map((c) => <CourseCard key={c.id} course={c} onDelete={setFormToDelete} C={C} />)}
+                {list.map((c) => <CourseCard key={c.id} course={c} reach={reach} onDelete={setFormToDelete} C={C} />)}
               </div>
             </section>
           ))}
