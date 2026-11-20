@@ -173,9 +173,10 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
   const isMobile = containerW > 0 && containerW < 640;
-  // Two whole cards side by side on a wide screen, one on a phone or in full-width mode. Sizing
-  // the cards to the track means the last one is never cut off at the edge.
-  const perView = fullWidth || isMobile ? 1 : 2;
+  // Two whole cards side by side only when each still gets close to 500px; below that (tablets) the
+  // text wrapped line by line and pushed the button out of the card, so it is one card at a time.
+  // Sizing the cards to the track means the last one is never cut off at the edge.
+  const perView = fullWidth || containerW < 1000 ? 1 : 2;
   const max = Math.max(0, cards.length - perView);
   // Clamped on read: switching off the card on screen shortens the list under a stored index,
   // which would otherwise point past the end and leave the track scrolled onto nothing.
@@ -274,27 +275,27 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       initial={active && !reduced ? 'hide' : false} animate="show"
                       style={{ maxWidth: isMobile ? (isSide ? '52%' : '92%') : 620 }}>
                       {ad.label && (
-                        <motion.span variants={bannerItem} className="inline-flex items-center gap-2 mb-4"
-                          style={{ ...M3.labelLarge, fontWeight: 800, color: 'rgba(255,255,255,0.85)' }}>
+                        <motion.span variants={bannerItem} className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase mb-4"
+                          style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: '0.14em' }}>
                           <span aria-hidden="true" className="inline-block w-4 h-[2px] rounded-full" style={{ background: 'rgba(255,255,255,0.85)' }} />
                           {ad.label}
                         </motion.span>
                       )}
-                      <motion.h3 variants={bannerItem} className="text-balance"
-                        style={{ ...(isMobile ? M3.headlineMedium : { fontSize: 45, lineHeight: '52px' }), fontWeight: 500, color: 'white', fontFamily: hFont }}>
+                      <motion.h3 variants={bannerItem} className="text-balance leading-[1.12]"
+                        style={{ color: 'white', fontFamily: hFont, fontWeight: 500, letterSpacing: '-0.02em', fontSize: isMobile ? 'clamp(26px,8vw,34px)' : 'clamp(34px,4.4vw,56px)' }}>
                         {ad.title}
                       </motion.h3>
                       {ad.description && (
-                        <motion.p variants={bannerItem} className="mt-4"
-                          style={{ ...M3.bodyLarge, color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, maxWidth: 560 }}>
+                        <motion.p variants={bannerItem} className="leading-relaxed mt-4"
+                          style={{ color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, fontSize: isMobile ? 15 : 17, maxWidth: 560 }}>
                           {ad.description}
                         </motion.p>
                       )}
                       {ad.ctaText && (
-                        <motion.div variants={bannerItem} className="mt-8">
+                        <motion.div variants={bannerItem} className="mt-7">
                           <Link href={ad.ctaUrl || '/auth'}
-                            className="group inline-flex items-center gap-2 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                            style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
+                            className="group inline-flex items-center gap-2 font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+                            style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 14 : 15, padding: isMobile ? '11px 20px' : '13px 26px' }}>
                             {ad.ctaText}
                             <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                           </Link>
@@ -307,23 +308,23 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
             }
             const isSide = ad.imageLayout === 'side' && !!ad.bgImage;
             const baseColor = ad.bgColor || '#0056D2';
-            const padding = isMobile ? '24px' : '32px';
+            const padding = isMobile ? '28px 24px' : '36px';
             const body = (
               <>
                 <div>
                   {ad.label && (
-                    <motion.span variants={bannerItem} className="inline-block px-2 py-1 rounded-md mb-4"
-                      style={{ ...M3.labelMedium, fontWeight: 700, background: 'rgba(255,255,255,0.22)', color: 'white', backdropFilter: 'blur(4px)' }}>
+                    <motion.span variants={bannerItem} className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-md mb-3"
+                      style={{ background: 'rgba(255,255,255,0.22)', color: 'white', letterSpacing: '0.1em', backdropFilter: 'blur(4px)' }}>
                       {ad.label}
                     </motion.span>
                   )}
-                  <motion.h3 variants={bannerItem} className="mb-2"
-                    style={{ ...(isMobile ? M3.headlineSmall : M3.headlineMedium), fontWeight: 900, color: 'white', fontFamily: hFont, maxWidth: isSide ? 'none' : 380 }}>
+                  <motion.h3 variants={bannerItem} className="font-black leading-tight mb-2"
+                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(18px,5vw,24px)' : 'clamp(22px,2.2vw,34px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
-                    <motion.p variants={bannerItem}
-                      style={{ ...M3.bodyLarge, color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, maxWidth: isSide ? 'none' : 380 }}>
+                    <motion.p variants={bannerItem} className="leading-relaxed"
+                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 15, maxWidth: isSide ? 'none' : 380 }}>
                       {ad.description}
                     </motion.p>
                   )}
@@ -331,8 +332,8 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                 {ad.ctaText && (
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
-                      className="group inline-flex items-center gap-2 self-start rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
+                      className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 24px' }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
