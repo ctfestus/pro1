@@ -4,7 +4,7 @@
 // lives in components/dashboard/subscriptions/.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, LayoutDashboard, Layers3, Plus, UserPlus, Users, WalletCards, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Plus, UserPlus, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { durationLabel } from "@/lib/pricing-offer";
 import { describePlanContentResult, type PlanContentChange } from "@/lib/plan-content-request";
@@ -27,7 +27,7 @@ import { ReviewModal, type ReviewTarget } from "@/components/dashboard/subscript
 import { SubscribersTab } from "@/components/dashboard/subscriptions/SubscribersTab";
 import type { PlanSummary, SubsTab } from "@/components/dashboard/subscriptions/types";
 import {
-  Count, DISPLAY_FONT, btnClass, btnStyle, daysRemaining, isLive, money, palette, pastDeadline, shortDate, subscriberBucket,
+  DISPLAY_FONT, btnClass, btnStyle, daysRemaining, isLive, money, palette, pastDeadline, shortDate, subscriberBucket,
 } from "@/components/dashboard/subscriptions/ui";
 import { runPlanContentChanges, useClosePublicAsk } from "@/components/dashboard/subscriptions/planContent";
 
@@ -418,28 +418,30 @@ export function SubscriptionsSection({ C: theme }: { C: ThemeColors }) {
         </div>
       </div>
 
-      <nav role="tablist" aria-label="Subscriptions sections" className="flex gap-1 overflow-x-auto" style={{ borderBottom: `1px solid ${C.divider}` }}>
+      {/* The same section switch as Payments: white, the open section in the selection blue. */}
+      <div role="tablist" aria-label="Subscriptions sections" className="inline-flex max-w-full overflow-x-auto gap-1 p-1 rounded-2xl" style={{ background: C.card }}>
         {([
-          ["overview", "Overview", LayoutDashboard, null, false],
-          ["subscribers", "Subscribers", Users, subscriptions.length, false],
-          ["payments", "Payments", WalletCards, actionCount, true],
-          ["plans", "Plans", Layers3, plans.filter((plan) => !plan.archived_at).length, false],
-        ] as const).map(([id, label, Icon, count, alert]) => (
+          ["overview", "Overview"],
+          ["subscribers", "Subscribers"],
+          ["payments", "Payments"],
+          ["plans", "Plans"],
+        ] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className="inline-flex items-center gap-2 px-4 py-3 -mb-px text-sm font-semibold whitespace-nowrap"
-            style={{ color: tab === id ? C.text : C.muted, borderBottom: `2px solid ${tab === id ? palette(C).sel : "transparent"}` }}
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-[10px] text-sm font-semibold whitespace-nowrap"
+            style={tab === id ? { background: palette(C).sel, color: palette(C).onSel } : { color: C.muted }}
           >
-            <Icon className="w-4 h-4 flex-shrink-0" />
             {label}
-            {count !== null && (!alert || count > 0) && <Count n={count} alert={alert} C={C} />}
+            {id === "payments" && actionCount > 0 && (
+              <span className="w-2 h-2 rounded-full" style={{ background: tab === id ? "#FFFFFF" : palette(C).bad }} aria-label={`${actionCount} need your action`} />
+            )}
           </button>
         ))}
-      </nav>
+      </div>
 
       {error && (
         <div className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
