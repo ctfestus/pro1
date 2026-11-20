@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, ArrowLeft, BarChart3, Check, CheckCircle2, ChevronDown, ChevronUp, Layers3, Loader2, Plus, Settings2, Sparkles, Trash2, Upload, X, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, BarChart3, Check, CheckCircle2, ChevronDown, ChevronUp, Layers3, Loader2, Pencil, Plus, Settings2, Sparkles, Trash2, Upload, X, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToolIcons, useToolIconMap } from '@/lib/use-tool-icons';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -70,6 +70,8 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
   const [lpSection, setLpSection] = useState<Section>('overview');
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [trackToRemove, setTrackToRemove] = useState<PathTrack | null>(null);
+  // One track is open for editing at a time; the rest show as a single line.
+  const [openTrackId, setOpenTrackId] = useState<string | null>(null);
   const [contentSearch, setContentSearch] = useState('');
   const [contentFilter, setContentFilter] = useState<'all' | 'course' | 'virtual_experience' | 'certification'>('all');
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -263,6 +265,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
 
   const openEditor = (path: any, section: Section = 'overview') => {
     setLpSection(section);
+    setOpenTrackId(null);
     setContentSearch('');
     setContentFilter('all');
     setSaveMsg(null);
@@ -303,7 +306,11 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
   const setTracks = (fn: (tracks: PathTrack[]) => PathTrack[]) =>
     setEditing((prev: any) => ({ ...prev, tracks: fn(Array.isArray(prev?.tracks) ? prev.tracks : []) }));
 
-  const addTrack = () => setTracks(tracks => [...tracks, { id: crypto.randomUUID(), name: '', description: '', item_ids: [] }]);
+  const addTrack = () => {
+    const id = crypto.randomUUID();
+    setTracks(tracks => [...tracks, { id, name: '', description: '', item_ids: [] }]);
+    setOpenTrackId(id);
+  };
 
   const updateTrack = (trackId: string, patch: Partial<PathTrack>) =>
     setTracks(tracks => tracks.map(t => (t.id === trackId ? { ...t, ...patch } : t)));
@@ -618,18 +625,32 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                   </div>
                   {tracks.map(track => {
                     const count = track.item_ids.filter(i => selectedIds.includes(i)).length;
-                    return (
+                    const named = !!track.name.trim();
+                    // White fields, so they stand out on the grey panel.
+                    const field = { ...inputStyle(C), background: C.card };
+                    const remove = <button type="button" onClick={() => setTrackToRemove(track)} aria-label="Remove track" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>;
+                    return openTrackId === track.id ? (
                       <div key={track.id} className="px-4 py-3.5 grid grid-cols-[minmax(0,1fr)] gap-2" style={{ borderTop: `1px solid ${C.divider}` }}>
                         <div className="flex items-center gap-2">
                           <input value={track.name} onChange={e => updateTrack(track.id, { name: e.target.value })} placeholder="Track name, for example Finance"
-                            aria-label="Track name" className={FIELD} style={inputStyle(C)}/>
-                          <button type="button" onClick={() => setTrackToRemove(track)} aria-label="Remove track" className={iconBtn} style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4"/></button>
+                            aria-label="Track name" autoFocus className={FIELD} style={field}/>
+                          {remove}
                         </div>
                         <input value={track.description ?? ''} onChange={e => updateTrack(track.id, { description: e.target.value })} placeholder="Who it is for"
-                          aria-label="Track description" className={FIELD} style={inputStyle(C)}/>
-                        <p className="text-xs" style={{ color: track.name.trim() ? C.muted : P.bad }}>
-                          {track.name.trim() ? plural(count, 'track item') : 'Add a name to save it.'}
-                        </p>
+                          aria-label="Track description" className={FIELD} style={field}/>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs" style={{ color: named ? C.muted : P.bad }}>{named ? plural(count, 'track item') : 'Add a name to save it.'}</p>
+                          <button type="button" onClick={() => setOpenTrackId(null)} className={btnSmClass} style={btnStyle('sec', C)}>Done</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={track.id} className="px-4 py-2.5 flex items-center gap-2" style={{ borderTop: `1px solid ${C.divider}` }}>
+                        <button type="button" onClick={() => setOpenTrackId(track.id)} aria-label={`Edit ${named ? track.name : 'unnamed track'}`} className="min-w-0 flex-1 flex items-center gap-3 text-left">
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: named ? C.text : P.bad }}>{named ? track.name : 'Unnamed track, add a name'}</span>
+                          <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>{plural(count, 'item')}</span>
+                          <Pencil className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }}/>
+                        </button>
+                        {remove}
                       </div>
                     );
                   })}
