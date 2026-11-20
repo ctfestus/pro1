@@ -17,6 +17,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
 import type { NavSubGroup } from '@/lib/landing-nav';
+import { M3, GUTTER } from '@/components/landing/type';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -599,7 +600,7 @@ export function LandingNav({
           boxShadow: scrolled ? `0 2px 20px rgba(0,0,0,${isPageDark ? '0.4' : '0.09'})` : 'none',
           fontFamily,
         }}>
-        <div className="max-w-[1240px] mx-auto px-6 md:px-10 h-16 flex items-center">
+        <div className={`max-w-[1240px] mx-auto ${GUTTER} h-16 flex items-center`}>
           <div className="flex items-center gap-2.5 mr-8 flex-shrink-0">
             {logoUrl || logoDarkUrl
               ? <img src={(isPageDark ? (logoDarkUrl || logoUrl) : (logoUrl || logoDarkUrl)) ?? undefined} alt={appName} className="h-8 w-auto" />
@@ -688,8 +689,8 @@ export function LandingFooter({
   // Section links work from any page that wears this footer: they go home and scroll.
   const learnLinks = [
     [footerLink1Label || 'Courses',             footerLink1Url || '/#section-courses'],
-    [footerLink2Label || 'Learning Paths',      footerLink2Url || '/#section-paths'],
-    [footerLink3Label || 'Virtual Experiences', footerLink3Url || '/#section-ves'],
+    [footerLink2Label || 'Learning paths',      footerLink2Url || '/#section-paths'],
+    [footerLink3Label || 'Virtual experiences', footerLink3Url || '/#section-ves'],
     [footerLink4Label || 'Certifications',      footerLink4Url || '/#section-certifications'],
   ];
   // Sign up only while signups are open, as in the nav; Dashboard only for someone signed in.
@@ -710,23 +711,23 @@ export function LandingFooter({
   );
   return (
       <footer style={{ background: isPageDark ? '#0D1117' : (primaryColor || '#0056D2'), fontFamily }}>
-        <div className="max-w-[1240px] mx-auto px-6 md:px-10 pt-12 pb-9">
+        <div className={`max-w-[1240px] mx-auto ${GUTTER} pt-12 pb-8`}>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-10">
             <div className="col-span-2 md:col-span-1">
-              <div className="text-sm font-extrabold mb-2.5" style={{ color: 'white', letterSpacing: '-0.02em' }}>{appName}</div>
-              <p className="text-sm leading-relaxed max-w-[240px]" style={{ color: 'rgba(255,255,255,0.78)' }}>{footerTagline}</p>
+              <div className="mb-2" style={{ ...M3.titleMedium, color: 'white' }}>{appName}</div>
+              <p className="max-w-[240px]" style={{ ...M3.bodyMedium, color: 'rgba(255,255,255,0.78)' }}>{footerTagline}</p>
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.78)' }}>
+              <div className="mb-4" style={{ ...M3.titleSmall, color: 'white' }}>
                 {footerLinksHeading || 'Learn'}
               </div>
-              <div className="flex flex-col gap-2.5 items-start">
+              <div className="flex flex-col gap-2 items-start">
                 {learnLinks.filter(([label]) => label).map(link)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.78)' }}>Account</div>
-              <div className="flex flex-col gap-2.5 items-start">
+              <div className="mb-4" style={{ ...M3.titleSmall, color: 'white' }}>Account</div>
+              <div className="flex flex-col gap-2 items-start">
                 {accountLinks.map(link)}
               </div>
             </div>
@@ -737,8 +738,8 @@ export function LandingFooter({
             </p>
             <div className="flex items-center gap-5 flex-wrap">
               {([
-                ['Privacy Policy', '/privacy'],
-                ['Terms of Use',   '/terms'],
+                ['Privacy policy', '/privacy'],
+                ['Terms of use',   '/terms'],
               ] as const).map(([label, href]) => (
                 <Link key={label} href={href} className="text-xs transition-colors"
                   style={{ color: linkColor }}

@@ -20,6 +20,7 @@ import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
 import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
+import { M3, DISPLAY_CLASS, GUTTER, SECTION_Y, BUTTON_PAD } from '@/components/landing/type';
 import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
 
@@ -116,12 +117,12 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
   title: string; sub: string; color: string; subColor: string; accent: string; hFont?: string; bFont?: string;
 }) {
   return (
-    <div className="mb-7">
-      <h2 style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(21px,2.2vw,30px)', color, letterSpacing: '-0.03em', lineHeight: 1.08 }}>{title}</h2>
-      <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-1.5 mb-1.5" style={{ background: accent }}
+    <div className="mb-6">
+      <h2 style={{ ...M3.headlineMedium, fontFamily: hFont, color }}>{title}</h2>
+      <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
-      {sub && <p style={{ color: subColor, fontSize: 15, lineHeight: 1.65, fontFamily: bFont ?? hFont, maxWidth: 640 }}>{sub}</p>}
+      {sub && <p style={{ ...M3.bodyLarge, color: subColor, fontFamily: bFont ?? hFont, maxWidth: 640 }}>{sub}</p>}
     </div>
   );
 }
@@ -280,27 +281,27 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       initial={active && !reduced ? 'hide' : false} animate="show"
                       style={{ maxWidth: isMobile ? (isSide ? '52%' : '92%') : 620 }}>
                       {ad.label && (
-                        <motion.span variants={bannerItem} className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase mb-4"
-                          style={{ color: 'rgba(255,255,255,0.85)', letterSpacing: '0.14em' }}>
+                        <motion.span variants={bannerItem} className="inline-flex items-center gap-2 mb-4"
+                          style={{ ...M3.labelLarge, color: 'rgba(255,255,255,0.85)' }}>
                           <span aria-hidden="true" className="inline-block w-4 h-[2px] rounded-full" style={{ background: 'rgba(255,255,255,0.85)' }} />
                           {ad.label}
                         </motion.span>
                       )}
-                      <motion.h3 variants={bannerItem} className="text-balance leading-[1.12]"
-                        style={{ color: 'white', fontFamily: hFont, fontWeight: 500, letterSpacing: '-0.02em', fontSize: isMobile ? 'clamp(26px,8vw,34px)' : 'clamp(34px,4.4vw,56px)' }}>
+                      <motion.h3 variants={bannerItem} className="text-balance"
+                        style={{ ...(isMobile ? M3.headlineMedium : { fontSize: 45, lineHeight: '52px', fontWeight: 400 }), color: 'white', fontFamily: hFont }}>
                         {ad.title}
                       </motion.h3>
                       {ad.description && (
-                        <motion.p variants={bannerItem} className="leading-relaxed mt-4"
-                          style={{ color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, fontSize: isMobile ? 15 : 17, maxWidth: 560 }}>
+                        <motion.p variants={bannerItem} className="mt-4"
+                          style={{ ...M3.bodyLarge, color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, maxWidth: 560 }}>
                           {ad.description}
                         </motion.p>
                       )}
                       {ad.ctaText && (
-                        <motion.div variants={bannerItem} className="mt-7">
+                        <motion.div variants={bannerItem} className="mt-8">
                           <Link href={ad.ctaUrl || '/auth'}
-                            className="group inline-flex items-center gap-2 font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                            style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 14 : 15, padding: isMobile ? '11px 20px' : '13px 26px' }}>
+                            className="group inline-flex items-center gap-2 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+                            style={{ ...M3.labelLarge, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
                             {ad.ctaText}
                             <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                           </Link>
@@ -313,23 +314,23 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
             }
             const isSide = ad.imageLayout === 'side' && !!ad.bgImage;
             const baseColor = ad.bgColor || '#0056D2';
-            const padding = isMobile ? '28px 24px' : '36px';
+            const padding = isMobile ? '24px' : '32px';
             const body = (
               <>
                 <div>
                   {ad.label && (
-                    <motion.span variants={bannerItem} className="inline-block text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-md mb-3"
-                      style={{ background: 'rgba(255,255,255,0.22)', color: 'white', letterSpacing: '0.1em', backdropFilter: 'blur(4px)' }}>
+                    <motion.span variants={bannerItem} className="inline-block px-2 py-1 rounded-md mb-4"
+                      style={{ ...M3.labelMedium, background: 'rgba(255,255,255,0.22)', color: 'white', backdropFilter: 'blur(4px)' }}>
                       {ad.label}
                     </motion.span>
                   )}
-                  <motion.h3 variants={bannerItem} className="font-black leading-tight mb-2"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(18px,5vw,24px)' : 'clamp(22px,2.2vw,34px)', maxWidth: isSide ? 'none' : 380 }}>
+                  <motion.h3 variants={bannerItem} className="mb-2"
+                    style={{ ...(isMobile ? M3.headlineSmall : M3.headlineMedium), color: 'white', fontFamily: hFont, maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
-                    <motion.p variants={bannerItem} className="leading-relaxed"
-                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 15, maxWidth: isSide ? 'none' : 380 }}>
+                    <motion.p variants={bannerItem}
+                      style={{ ...M3.bodyLarge, color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, maxWidth: isSide ? 'none' : 380 }}>
                       {ad.description}
                     </motion.p>
                   )}
@@ -337,8 +338,8 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                 {ad.ctaText && (
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
-                      className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 24px' }}>
+                      className="group inline-flex items-center gap-2 self-start rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
+                      style={{ ...M3.labelLarge, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
@@ -514,7 +515,7 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
   const rowBorder = isDark ? 'rgba(255,255,255,0.25)' : LAND_C.cardBorder;
 
   return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: rowBg }}>
+    <section className="rounded-2xl p-4 sm:p-6" style={{ background: rowBg }}>
       {(() => {
         const arrowBtn = (dir: number, label: string) => {
           const spent = paged && (dir < 0 ? atStart : atEnd);
@@ -529,19 +530,19 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
           );
         };
         const pageCount = paged && pages > 1 && (
-          <span className="text-[13px] font-semibold tabular-nums" style={{ color: rowMuted, fontFamily: bFont ?? hFont }}>
+          <span className="tabular-nums" style={{ ...M3.labelLarge, color: rowMuted, fontFamily: bFont ?? hFont }}>
             {page + 1} / {pages}
           </span>
         );
         return !hideTitle ? (
           <div className="flex items-center justify-between gap-4 mb-0">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               {(() => { const icon = toolIcon(title);
                 if (icon) return <img src={icon} alt="" className="w-6 h-6 object-contain flex-shrink-0" />;
                 const Fallback = getCategoryIcon(title, type);
                 return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;
               })()}
-              <h3 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: rowText, fontFamily: hFont }}>{title}</h3>
+              <h3 className="truncate" style={{ ...M3.titleLarge, color: rowText, fontFamily: hFont }}>{title}</h3>
             </div>
             {showControls && (
               <div className="flex items-center gap-3 flex-shrink-0">
@@ -570,8 +571,8 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
           at the right edge that tells you there is more. */}
       <div ref={scrollRef}
         className={paged
-          ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4 pb-2'
-          : 'flex flex-nowrap gap-4 overflow-x-auto pt-4 pb-2 snap-x'}
+          ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 pt-4 pb-2'
+          : 'flex flex-nowrap gap-4 md:gap-6 overflow-x-auto pt-4 pb-2 snap-x'}
         style={paged ? undefined : { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
         {visible.map((item, i) => (
           <div key={item.id}
@@ -590,14 +591,14 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                     style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
                 </div>
-                <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: rowText, fontFamily: hFont }}>{item.title}</p>
+                <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, color: rowText, fontFamily: hFont }}>{item.title}</p>
                 {item.partnerName && (
-                  <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: rowMuted }}>
+                  <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: rowMuted }}>
                     {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
                     <span>Offered by {item.partnerName}</span>
                   </div>
                 )}
-                {item.difficulty && <p className="text-[11px] mt-1" style={{ color: rowMuted }}>{item.difficulty}</p>}
+                {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: rowMuted }}>{item.difficulty}</p>}
               </Link>
           </div>
         ))}
@@ -749,7 +750,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <LandingAdBanner ads={adCards} hFont={hFont} bFont={bFont} fullWidth isDark={isPageDark} />
           </div>
         ) : (
-          <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pb-2 pt-20 md:pt-24">
+          <div className={`max-w-[1240px] mx-auto ${GUTTER} pb-2 pt-20 md:pt-24`}>
             <LandingAdBanner ads={adCards} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         )
@@ -759,8 +760,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* COURSES */}
       {courses.length > 0 && (
-        <section id="section-courses" className="py-10 md:py-14">
-          <div className="max-w-[1240px] mx-auto px-6 md:px-10">
+        <section id="section-courses" className={SECTION_Y}>
+          <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
             <MSectionHeading title="Courses" sub="Level up your skills with interactive and project-based courses."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
@@ -775,7 +776,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* LEARNING PATHS */}
       {paths.length > 0 && (
-        <section id="section-paths" ref={pathsRef} className="relative py-10 md:py-14 overflow-hidden"
+        <section id="section-paths" ref={pathsRef} className={`relative ${SECTION_Y} overflow-hidden`}
           style={{ background: isPageDark
             ? `linear-gradient(140deg, #0d1117 0%, ${shade(BLUE, -0.72)} 100%)`
             : `linear-gradient(140deg, ${shade(BLUE, -0.4)} 0%, ${BLUE} 62%, ${shade(BLUE, -0.12)} 100%)` }}>
@@ -783,8 +784,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="78%" y="-40%" size={360} color={shade(BLUE, 0.55)} delay={1} active={pathsInView} />
             <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
           </>}
-          <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
-            <MSectionHeading title="Learning Paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
+          <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
+            <MSectionHeading title="Learning paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
               color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
             <LandingCarouselRow buttonColor={BLUE} title="Learning Paths" items={paths} type="path" typeColor={AMBER} user={user} hFont={hFont} bFont={bFont} isDark transparentBg={!isPageDark} popupDark={isPageDark} hideTitle
               bg={isPageDark ? `linear-gradient(140deg, rgba(13,17,23,0.55) 0%, ${hexRgba(shade(BLUE, -0.72), 0.55)} 100%)` : undefined} />
@@ -799,9 +800,9 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* VIRTUAL EXPERIENCES */}
       {ves.length > 0 && (
-        <section id="section-ves" className="py-10 md:py-14">
-          <div className="max-w-[1240px] mx-auto px-6 md:px-10">
-            <MSectionHeading title="Virtual Experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
+        <section id="section-ves" className={SECTION_Y}>
+          <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
+            <MSectionHeading title="Virtual experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
             {/* One row, not one per category. Grouping split a handful of experiences across
@@ -815,8 +816,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* CERTIFICATIONS */}
       {certs.length > 0 && (
-        <section id="section-certifications" className="py-10 md:py-14">
-          <div className="max-w-[1240px] mx-auto px-6 md:px-10">
+        <section id="section-certifications" className={SECTION_Y}>
+          <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
@@ -827,7 +828,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       )}
 
       {/* DIGITAL PRODUCTS */}
-      <ProductsShowcase products={storeProducts} dark={isPageDark} accent={BLUE} hFont={hFont} bFont={bFont} />
+      <ProductsShowcase products={storeProducts} dark={isPageDark} hFont={hFont} bFont={bFont} />
 
       {programmesError && <ProgrammeLoadError dark={isPageDark} />}
 
@@ -839,19 +840,19 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* CTA SECTION */}
       {hideCta !== '1' && (
-        <section ref={ctaRef} className="relative py-20 md:py-28 text-center overflow-hidden"
+        <section ref={ctaRef} className="relative py-16 md:py-24 text-center overflow-hidden"
           style={{ background: `linear-gradient(140deg, ${shade(BLUE, -0.62)} 0%, ${BLUE} 72%, ${shade(BLUE, -0.1)} 100%)` }}>
           {!reduced && <>
             <Orb x="-8%" y="-30%" size={430} color={shade(BLUE, 0.4)} delay={0} active={ctaInView} />
             <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} active={ctaInView} />
           </>}
-          <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
-            <h2 className="mb-4" style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(30px,4.2vw,50px)', color: 'white', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+          <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
+            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontFamily: hFont, color: 'white' }}>
               {ctaHeading}
               {ctaHeadingAccent && <><br /><span style={{ color: AMBER }}>{ctaHeadingAccent}</span></>}
             </h2>
             {ctaSubtext && (
-              <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
+              <p className="mx-auto mb-8" style={{ ...M3.bodyLarge, color: 'rgba(255,255,255,0.72)', maxWidth: 500, fontFamily: bFont ?? hFont }}>
                   {ctaSubtext}
                 </p>
             )}
@@ -860,15 +861,15 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
                   {/* With signups closed the page has nothing to sign up for, so the button
                       offers Log in, as the nav does. */}
                   <Link href={user ? '/student' : publicSignupEnabled ? '/auth?mode=signup' : '/auth'}
-                    className="group inline-flex items-center gap-2 font-bold rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
-                    style={{ background: 'white', color: BLUE, padding: '14px 32px', fontSize: 15 }}>
+                    className="group inline-flex items-center gap-2 rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
+                    style={{ ...M3.labelLarge, background: 'white', color: BLUE, padding: BUTTON_PAD }}>
                     {user ? 'Go to my learning' : publicSignupEnabled ? (ctaButton || 'Create free account') : 'Log in'}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </Magnetic>
                 <a href="#browse"
-                  className="inline-flex items-center font-bold rounded-xl transition-all"
-                  style={{ padding: '13px 30px', fontSize: 15, color: 'white', border: '2px solid rgba(255,255,255,0.32)' }}
+                  className="inline-flex items-center rounded-xl transition-all"
+                  style={{ ...M3.labelLarge, padding: '8px 22px', color: 'white', border: '2px solid rgba(255,255,255,0.32)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'white'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.32)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                   Explore programmes

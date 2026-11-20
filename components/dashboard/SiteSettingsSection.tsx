@@ -479,9 +479,9 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             <div className="grid grid-cols-2 gap-2">
               {tf('footerLink1Label', 'Link 1 label', 'Courses')}
               {tf('footerLink1Url',   'Link 1 URL',   '/#section-courses')}
-              {tf('footerLink2Label', 'Link 2 label', 'Learning Paths')}
+              {tf('footerLink2Label', 'Link 2 label', 'Learning paths')}
               {tf('footerLink2Url',   'Link 2 URL',   '/#section-paths')}
-              {tf('footerLink3Label', 'Link 3 label', 'Virtual Experiences')}
+              {tf('footerLink3Label', 'Link 3 label', 'Virtual experiences')}
               {tf('footerLink3Url',   'Link 3 URL',   '/#section-ves')}
               {tf('footerLink4Label', 'Link 4 label', 'Certifications')}
               {tf('footerLink4Url',   'Link 4 URL',   '/#section-certifications')}

@@ -73,8 +73,8 @@ export const SITE_DEFAULTS: SiteConfig = {
   footerLinksHeading: 'Learn',
   // Section anchors on the home page, so they also work from the pricing, store and legal pages.
   footerLink1Label: 'Courses',             footerLink1Url: '/#section-courses',
-  footerLink2Label: 'Learning Paths',      footerLink2Url: '/#section-paths',
-  footerLink3Label: 'Virtual Experiences', footerLink3Url: '/#section-ves',
+  footerLink2Label: 'Learning paths',      footerLink2Url: '/#section-paths',
+  footerLink3Label: 'Virtual experiences', footerLink3Url: '/#section-ves',
   footerLink4Label: 'Certifications',      footerLink4Url: '/#section-certifications',
   ad1Label: 'New', ad1Title: 'Start your learning journey', ad1Description: 'Courses, learning paths and virtual experiences in one place.', ad1CtaText: 'Browse courses', ad1CtaUrl: '/#section-courses', ad1BgColor: '#0056D2', ad1BgImage: '',
   ad2Label: 'Featured', ad2Title: 'Build job-ready skills with virtual experiences', ad2Description: 'Work through real business scenarios and add the results to your portfolio.', ad2CtaText: 'Explore experiences', ad2CtaUrl: '/#section-ves', ad2BgColor: '#003262', ad2BgImage: '',

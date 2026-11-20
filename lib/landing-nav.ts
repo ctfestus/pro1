@@ -85,7 +85,7 @@ export type NavBook = { id: string; slug: string; title: string; coverImage: str
 function booksGroup(books: NavBook[]): NavGroup | null {
   if (!books.length) return null;
   return {
-    label: 'Digital Products',
+    label: 'Digital products',
     anchor: '/products',
     subGroups: [{
       label: '',
@@ -121,8 +121,8 @@ export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books
   const byType = (type: ProgrammeItem['type']) => programmes.filter(item => item.type === type);
   const groups: Array<NavGroup | null> = [
     { label: 'Courses',             anchor: 'section-courses',        items: byType('course') },
-    { label: 'Learning Paths',      anchor: 'section-paths',          items: byType('path') },
-    { label: 'Virtual Experiences', anchor: 'section-ves',            items: byType('ve') },
+    { label: 'Learning paths',      anchor: 'section-paths',          items: byType('path') },
+    { label: 'Virtual experiences', anchor: 'section-ves',            items: byType('ve') },
     { label: 'Certifications',      anchor: 'section-certifications', items: byType('certification') },
   ].map(({ label, anchor, items }) => (
     items.length ? { label, anchor, subGroups: subGroupsFor(items, user) } : null
