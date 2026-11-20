@@ -104,7 +104,7 @@ export function EnrollmentsView({
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[780px] text-sm table-fixed">
-                <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '15%' }} /><col style={{ width: '12%' }} /><col style={{ width: '15%' }} /><col style={{ width: '15%' }} /><col style={{ width: '5%' }} /></colgroup>
+                <colgroup><col style={{ width: '27%' }} /><col style={{ width: '11%' }} /><col style={{ width: '15%' }} /><col style={{ width: '12%' }} /><col style={{ width: '15%' }} /><col style={{ width: '15%' }} /><col style={{ width: 72 }} /></colgroup>
                 <thead>
                   <tr>{['Learner', 'Fee', 'Paid', 'Balance', 'Status', 'Next due', ''].map((h, i) => <th key={i} className={th} style={{ color: C.faint }}>{h}</th>)}</tr>
                 </thead>
@@ -140,7 +140,7 @@ export function EnrollmentsView({
                         </td>
                         <td className="px-4 py-3"><StatusPill status={r.access_status} C={C} /></td>
                         <td className="px-4 py-3 text-xs" style={{ color: late ? P.bad : due ? C.text : C.muted }}>{due ?? '--'}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="pl-2 pr-5 py-3 text-right">
                           {r.enrollment_id && (
                             <button
                               type="button"

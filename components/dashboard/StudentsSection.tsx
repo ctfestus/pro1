@@ -12,7 +12,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { getJson } from '@/components/dashboard/subscriptions/api';
 import { FloatingMenu, menuPosition, type MenuPosition } from '@/components/dashboard/subscriptions/Menus';
-import { Avatar, Bar, Card, DISPLAY_FONT, Pill, btnClass, btnStyle, learnerName, palette, shortDate } from '@/components/dashboard/subscriptions/ui';
+import { Bar, Card, DISPLAY_FONT, Pill, btnClass, btnStyle, learnerName, palette, shortDate } from '@/components/dashboard/subscriptions/ui';
 import { AddStudentModal } from '@/components/dashboard/students/AddStudentModal';
 import { StudentDrawer } from '@/components/dashboard/students/StudentDrawer';
 import { accountStatus, bootcampOf, dateTime, type SetupBucket } from '@/components/dashboard/students/shared';
@@ -229,7 +229,7 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm table-fixed">
-                    <colgroup><col style={{ width: '29%' }} /><col style={{ width: '22%' }} /><col style={{ width: '16%' }} /><col style={{ width: '15%' }} /><col style={{ width: '13%' }} /><col style={{ width: '5%' }} /></colgroup>
+                    <colgroup><col style={{ width: '31%' }} /><col style={{ width: '24%' }} /><col style={{ width: '17%' }} /><col style={{ width: '15%' }} /><col style={{ width: '13%' }} /><col style={{ width: 72 }} /></colgroup>
                     <thead>
                       <tr>{['Learner', 'Cohort', 'Account', 'Progress', 'Last sign-in', ''].map((h, i) => <th key={i} className="text-left px-4 py-3 text-xs font-semibold whitespace-nowrap" style={{ color: C.faint }}>{h}</th>)}</tr>
                     </thead>
@@ -239,19 +239,16 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
                         return (
                           <tr key={s.id} onClick={() => setSelected(s)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.divider}` }}>
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <Avatar name={learnerName(s)} color={C.text} background={C.pill} />
-                                <div className="min-w-0">
-                                  <p className="font-semibold truncate" style={{ color: C.text }}>{s.full_name || 'No name'}</p>
-                                  <p className="text-xs truncate" style={{ color: C.muted }}>{s.email}</p>
-                                </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold truncate" style={{ color: C.text }}>{s.full_name || 'No name'}</p>
+                                <p className="text-xs truncate" style={{ color: C.muted }}>{s.email}</p>
                               </div>
                             </td>
                             <td className="px-4 py-3">{cohortCell(s)}</td>
                             <td className="px-4 py-3"><Pill tone={status.tone} dot C={C}>{status.label}</Pill></td>
                             <td className="px-4 py-3">{progressCell(s)}</td>
                             <td className="px-4 py-3 text-xs" style={{ color: s.last_login_at ? C.text : C.muted }}>{s.last_login_at ? shortDate(s.last_login_at) : 'Never'}</td>
-                            <td className="px-4 py-3 text-right">{kebab(s)}</td>
+                            <td className="pl-2 pr-5 py-3 text-right">{kebab(s)}</td>
                           </tr>
                         );
                       })}
@@ -264,7 +261,6 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
                     return (
                       <div key={s.id} onClick={() => setSelected(s)} className="grid gap-3 px-4 py-4 cursor-pointer" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}>
                         <div className="flex items-center gap-3">
-                          <Avatar name={learnerName(s)} color={C.text} background={C.pill} />
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{s.full_name || 'No name'}</p>
                             <p className="text-xs truncate" style={{ color: C.muted }}>{bootcampName(s) ?? 'On their own'}</p>
