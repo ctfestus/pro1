@@ -10,7 +10,6 @@ import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
-import { normalizePathItemType } from '@/lib/catalogue-path-items';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
@@ -21,6 +20,7 @@ import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
 import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
 import { M3, DISPLAY_CLASS, GUTTER, SECTION_Y, BUTTON_PAD } from '@/components/landing/type';
+import { PathCards } from '@/components/landing/PathCards';
 import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
 
@@ -71,13 +71,6 @@ function shade(hex: string, amt: number): string {
     return Math.round(v + (t - v) * Math.abs(amt)).toString(16).padStart(2, '0');
   };
   return `#${ch(0)}${ch(2)}${ch(4)}`;
-}
-
-// #rrggbb -> rgba() string with the given alpha
-function hexRgba(hex: string, alpha: number): string {
-  const h = (hex || '').replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return hex;
-  return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${alpha})`;
 }
 
 // Magnetic hover wrapper for primary CTAs
@@ -455,18 +448,14 @@ function toPreviewItem(item: ProgrammeItem): CatalogueItem {
     examMinutes: item.examMinutes,
     passmark: item.passmark,
     locked: false,
-    pathItems: item.pathCourses?.map(c => ({
-      id: c.id, type: normalizePathItemType(c.type), title: c.title, slug: c.slug || null,
-      coverImage: c.imageUrl || null, description: null, category: null,
-    })),
   };
 }
 
 /** Four across, two down. */
 const GRID_PAGE_SIZE = 8;
 
-function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg, paged }: {
-  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
+function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, hFont, bFont, isDark, hideTitle, paged }: {
+  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean;
   /** Render as a paginated grid of eight rather than a row that scrolls sideways. */
   paged?: boolean;
 }) {
@@ -502,14 +491,11 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
   };
 
   const { hover, open: openPreview, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
-  // Path previews widen with the path's contents so their thumbnails lay out in rows.
-  const openHover = (item: ProgrammeItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 340,
-    height: 560,
-  });
+  // Paths have their own cards (PathCards), so every row here previews at Explore's size.
+  const openHover = (item: ProgrammeItem, el: HTMLElement) => openPreview(item, el, { width: 340, height: 560 });
 
   const toolIcon = useToolIcons();
-  const rowBg    = bg ?? (transparentBg ? 'transparent' : (isDark ? '#1E1F26' : 'white'));
+  const rowBg    = isDark ? '#1E1F26' : 'white';
   const rowText  = isDark ? 'white' : LAND_C.text;
   const rowMuted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
   const rowBorder = isDark ? 'rgba(255,255,255,0.25)' : LAND_C.cardBorder;
@@ -623,7 +609,7 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
                 href={landingHref(hover.item, user)}
                 onOpen={() => { window.location.href = landingHref(hover.item, user); }}
                 viewOnly={!user}
-                C={{ ...((popupDark ?? isDark) ? DARK_C : LIGHT_C), cta: buttonColor }}
+                C={{ ...(isDark ? DARK_C : LIGHT_C), cta: buttonColor }}
               />
             </HoverPreviewCard>
           )}
@@ -645,11 +631,9 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 }) {
   const reduced = useReducedMotion();
 
-  // Drives the decorative orbs in the two gradient sections. The margin starts them just before
+  // Drives the decorative orbs in the closing band. The margin starts them just before
   // the section arrives, so nothing visibly kicks into motion mid-view.
-  const pathsRef = useRef<HTMLElement>(null);
   const ctaRef   = useRef<HTMLElement>(null);
-  const pathsInView = useInView(pathsRef, { margin: '200px' });
   const ctaInView   = useInView(ctaRef,   { margin: '200px' });
 
   const {
@@ -776,19 +760,14 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
       {/* LEARNING PATHS */}
       {paths.length > 0 && (
-        <section id="section-paths" ref={pathsRef} className={`relative ${SECTION_Y} overflow-hidden`}
-          style={{ background: isPageDark
-            ? `linear-gradient(140deg, #0d1117 0%, ${shade(BLUE, -0.72)} 100%)`
-            : `linear-gradient(140deg, ${shade(BLUE, -0.4)} 0%, ${BLUE} 62%, ${shade(BLUE, -0.12)} 100%)` }}>
-          {!reduced && <>
-            <Orb x="78%" y="-40%" size={360} color={shade(BLUE, 0.55)} delay={1} active={pathsInView} />
-            <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
-          </>}
-          <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
+        // A white section on the grey page (its dark equivalent on a dark page), so the coloured
+        // cards and the notch around each button read cleanly.
+        <section id="section-paths" className={SECTION_Y} style={{ background: isPageDark ? '#161b22' : '#ffffff' }}>
+          <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
             <MSectionHeading title="Learning paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
-              color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow buttonColor={BLUE} title="Learning Paths" items={paths} type="path" typeColor={AMBER} user={user} hFont={hFont} bFont={bFont} isDark transparentBg={!isPageDark} popupDark={isPageDark} hideTitle
-              bg={isPageDark ? `linear-gradient(140deg, rgba(13,17,23,0.55) 0%, ${hexRgba(shade(BLUE, -0.72), 0.55)} 100%)` : undefined} />
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
+              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont} />
           </div>
         </section>
       )}

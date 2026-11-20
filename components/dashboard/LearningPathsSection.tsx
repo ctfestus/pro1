@@ -15,6 +15,7 @@ import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { DARK_C, LIGHT_C, cardStyle } from '@/lib/theme';
 import { LearningPathReport } from '@/components/dashboard/LearningPathReport';
 import type { PathTrack } from '@/lib/learning-path-tracks';
+import { PATH_CARD_COLORS, isPathCardColor, type PathCardColor } from '@/lib/path-card-colors';
 import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, contentKpis, matchesFilters, useReach, type Status } from '@/components/dashboard/content/kit';
@@ -517,6 +518,27 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 onClose={() => setShowCoverLibrary(false)}
               />
             )}
+          </div>
+
+          {/* Card colour on the landing page */}
+          <div className="rounded-2xl p-4 sm:p-5" style={{ background: C.pill }}>
+            <div className="mb-4"><label className="text-sm font-bold block" style={{ color: C.text }}>Card colour</label><p className="text-xs mt-1" style={{ color: C.faint }}>The colour of this path on the home page. Automatic picks one by its place in the row.</p></div>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Card colour">
+              {([['', 'Automatic'], ...Object.entries(PATH_CARD_COLORS).map(([key, c]) => [key, c.label])] as [PathCardColor | '', string][]).map(([key, label]) => {
+                const chosen = (isPathCardColor(editing.card_color) ? editing.card_color : '') === key;
+                const swatch = key ? PATH_CARD_COLORS[key] : null;
+                return (
+                  <button key={key || 'auto'} type="button" role="radio" aria-checked={chosen}
+                    onClick={() => setEditing((p: any) => ({ ...p, card_color: key || null }))}
+                    className="flex items-center gap-2 pl-2 pr-3 py-2 rounded-xl text-sm font-medium transition-shadow"
+                    style={{ background: C.card, color: C.text, boxShadow: chosen ? `inset 0 0 0 2px ${LC.cta}` : `inset 0 0 0 1px ${C.cardBorder}` }}>
+                    <span className="w-5 h-5 rounded-full flex-shrink-0 grid place-items-center"
+                      style={swatch ? { background: swatch.tint, boxShadow: `inset 0 0 0 5px ${swatch.tint}, inset 0 0 0 10px ${swatch.deep}` } : { background: C.pill, boxShadow: `inset 0 0 0 1px ${C.cardBorder}` }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Completion Badge */}

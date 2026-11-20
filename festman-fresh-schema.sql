@@ -802,7 +802,11 @@ CREATE TABLE public.learning_paths (
     status = 'draft'
     OR available_to_everyone
     OR (status = 'published' AND array_length(cohort_ids, 1) > 0)
-  )
+  ),
+  -- migration 246: the landing page card colour, from lib/path-card-colors.ts. NULL = by position.
+  card_color      text
+    CONSTRAINT learning_paths_card_color_check
+    CHECK (card_color IS NULL OR card_color IN ('green', 'yellow', 'red', 'blue', 'teal', 'orange'))
 );
 
 -- ── course_attempts ───────────────────────────────────────────
@@ -1591,7 +1595,8 @@ BEGIN
     cohort_ids            = v_new.cohort_ids,
     available_to_everyone = v_new.available_to_everyone,
     status                = v_new.status,
-    next_path_id          = v_new.next_path_id
+    next_path_id          = v_new.next_path_id,
+    card_color            = v_new.card_color
   WHERE id = p_path_id;
   RETURN 'ok';
 END $$;
