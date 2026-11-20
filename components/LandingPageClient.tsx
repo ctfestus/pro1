@@ -282,12 +282,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                         </motion.span>
                       )}
                       <motion.h3 variants={bannerItem} className="text-balance leading-[1.12]"
-                        style={{ color: 'white', fontFamily: hFont, fontWeight: 500, letterSpacing: '-0.02em', fontSize: isMobile ? 'clamp(26px,8vw,34px)' : 'clamp(34px,4.4vw,56px)' }}>
+                        style={{ color: 'white', fontFamily: hFont, fontWeight: 500, letterSpacing: '-0.02em', fontSize: isMobile ? 'clamp(24px,7vw,30px)' : 'clamp(30px,4vw,50px)' }}>
                         {ad.title}
                       </motion.h3>
                       {ad.description && (
                         <motion.p variants={bannerItem} className="leading-relaxed mt-4"
-                          style={{ color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, fontSize: isMobile ? 15 : 17, maxWidth: 560 }}>
+                          style={{ color: 'rgba(255,255,255,0.88)', fontFamily: bFont ?? hFont, fontSize: isMobile ? 14 : 16, maxWidth: 560 }}>
                           {ad.description}
                         </motion.p>
                       )}
@@ -295,7 +295,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                         <motion.div variants={bannerItem} className="mt-7">
                           <Link href={ad.ctaUrl || '/auth'}
                             className="group inline-flex items-center gap-2 font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                            style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 14 : 15, padding: isMobile ? '11px 20px' : '13px 26px' }}>
+                            style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 22px' }}>
                             {ad.ctaText}
                             <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                           </Link>
@@ -319,12 +319,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                     </motion.span>
                   )}
                   <motion.h3 variants={bannerItem} className="font-black leading-tight mb-2"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(18px,5vw,24px)' : 'clamp(22px,2.2vw,34px)', maxWidth: isSide ? 'none' : 380 }}>
+                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(17px,4.6vw,22px)' : 'clamp(20px,2vw,30px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
                     <motion.p variants={bannerItem} className="leading-relaxed"
-                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 15, maxWidth: isSide ? 'none' : 380 }}>
+                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 14, maxWidth: isSide ? 'none' : 380 }}>
                       {ad.description}
                     </motion.p>
                   )}
@@ -333,7 +333,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 24px' }}>
+                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: 13, padding: isMobile ? '9px 16px' : '10px 20px' }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
@@ -360,8 +360,11 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                     <div className="flex flex-col justify-between" style={{ flex: 1, minWidth: 0, padding }}>
                       {body}
                     </div>
-                    <div style={{ flex: isMobile ? '0 0 50%' : '0 0 44%', position: 'relative', overflow: 'hidden' }}>
-                      <img src={ad.bgImage} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: isMobile ? 'contain' : 'cover' }} />
+                    <div style={{ flex: isMobile ? '0 0 45%' : '0 0 44%', position: 'relative', overflow: 'hidden' }}>
+                      {/* A little shorter than the card and standing on its bottom edge, so the
+                          figure sits slightly smaller with room above it. */}
+                      <img src={ad.bgImage} alt="" className="absolute inset-x-0 bottom-0 w-full"
+                        style={{ height: isMobile ? '100%' : '92%', objectFit: isMobile ? 'contain' : 'cover', objectPosition: 'center bottom' }} />
                     </div>
                   </motion.div>
                 ) : (
