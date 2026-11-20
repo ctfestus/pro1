@@ -578,16 +578,21 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                 {selectedIds.length === 0 ? (
                   <p className="text-sm py-6 text-center" style={{ color: C.muted }}>Tick content on the left to add it here.</p>
                 ) : (
-                  <div>
+                  <ol aria-label="Path order">
                     {selectedIds.map((id, idx) => {
                       const f = allOptions.find((x: any) => x.id === id);
                       const itemTracks = tracks.filter(t => t.item_ids.includes(id));
                       return (
-                        <div key={id} className="py-3 px-1" style={idx ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                        // A timeline: a numbered node per step, joined to the next by a dashed line.
+                        <li key={id} className={`relative pl-12 ${idx < selectedIds.length - 1 ? 'pb-3' : ''}`}>
+                          {idx < selectedIds.length - 1 && (
+                            <span aria-hidden className="absolute left-[15px] top-[46px] -bottom-1.5" style={{ borderLeft: `2px dashed ${C.faint}`, opacity: 0.5 }}/>
+                          )}
+                          <span className="absolute left-0 top-2.5 w-8 h-8 rounded-full grid place-items-center text-xs font-bold" style={{ background: C.card, color: C.text, boxShadow: `inset 0 0 0 2px ${C.divider}` }}>{idx + 1}</span>
+                          <div className="rounded-xl px-3 py-2.5" style={{ background: C.page }}>
                           <div className="flex items-center gap-3">
-                            <span className="w-7 h-7 rounded-lg grid place-items-center text-xs font-bold flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{idx + 1}</span>
                             <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-semibold truncate" style={{ color: C.text }}>{f?.title ?? 'Unpublished or removed item'}</span>
+                              <span className="block text-sm font-semibold break-words" style={{ color: C.text }}>{f?.title ?? 'Unpublished or removed item'}</span>
                               {f && <span className="block text-xs" style={{ color: C.muted }}>{KIND_NAME[kindOf(f)]}</span>}
                             </span>
                             <button type="button" onClick={() => moveItem(idx, -1)} disabled={idx === 0} aria-label="Move up" className={iconBtn} style={{ color: C.muted }}><ChevronUp className="w-4 h-4"/></button>
@@ -595,7 +600,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                             <button type="button" onClick={() => toggleItem(id)} aria-label="Remove from path" className={iconBtn} style={{ color: C.muted }}><X className="w-4 h-4"/></button>
                           </div>
                           {tracks.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-2 mt-2 pl-10">
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
                               <Pill tone="mute" C={C}>{itemTracks.length === 0 ? 'Core' : 'Track only'}</Pill>
                               {tracks.map(track => {
                                 const on = track.item_ids.includes(id);
@@ -608,10 +613,11 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
                               })}
                             </div>
                           )}
-                        </div>
+                          </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ol>
                 )}
 
                 {/* Tracks: one path personalised by background instead of a path per specialisation. */}
