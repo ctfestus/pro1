@@ -73,7 +73,7 @@ export function PageHeader({ title, sub, actions, C }: { title: string; sub: str
 
 export function Kpis({ items, C }: { items: { label: string; n: ReactNode; sub: string; color: string }[]; C: ThemeColors }) {
   return (
-    <div className="grid sm:grid-cols-3 gap-3">
+    <div className={`grid gap-3 ${items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
       {items.map((k) => (
         <Card key={k.label} C={C} className="p-4 grid gap-2 content-start">
           <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
@@ -141,12 +141,14 @@ export const CARD_GRID = 'grid sm:grid-cols-2 lg:grid-cols-3 gap-4';
  * title, a detail line and where it is given. `menu` builds the menu items; it gets the menu
  * button's box, for anything that opens by the same button (Share).
  */
-export function ContentCard({ item, cover, Icon, detail, reach, onOpen, menu, overlay, children, C }: {
+export function ContentCard({ item, cover, Icon, detail, reach, audienceText, onOpen, menu, overlay, children, C }: {
   item: any;
   cover?: string | null;
   Icon: ElementType;
   detail?: string | null;
   reach: Reach | null;
+  /** Who gets it, for content that is not reached through cohorts, plans and paths. */
+  audienceText?: string;
   onOpen: () => void;
   menu: (close: () => void, from: DOMRect | null) => (MenuItem | null)[];
   /** Shown over the cover, top left (a push status). */
@@ -158,7 +160,7 @@ export function ContentCard({ item, cover, Icon, detail, reach, onOpen, menu, ov
   const P = palette(C);
   const [coverError, setCoverError] = useState(false);
   const [open, setOpen] = useState<{ position: MenuPosition; from: DOMRect } | null>(null);
-  const reachText = audience(item, reach);
+  const reachText = audienceText ?? audience(item, reach);
   // The status sits on the cover, so it has a solid background to stay readable over any image.
   const tag = (text: string, color: string, dot = false) => (
     <span className="inline-flex items-center gap-2 rounded-full px-2 text-xs font-semibold leading-6 whitespace-nowrap" style={{ background: C.card, color, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>

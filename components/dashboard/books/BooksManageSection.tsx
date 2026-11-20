@@ -6,18 +6,21 @@
 // that need a person (wrong amount, double payment, deleted account) are listed above the books, and
 // sales, free claims and downloads come from /api/books/stats (summary cards, and People per product).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Loader2, Megaphone, Package, Plus, Search, Trash2, Users } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, CheckCircle2, Eye, Megaphone, Package, Pencil, Plus, Trash2, Users, X, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
-import { SectionEmptyState } from '@/components/dashboard/primitives';
-import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { openBookPreview } from '@/lib/books/open-preview';
 import { formatMoney, opensInBrowser } from '@/lib/books/format';
 import type { BookFormat } from '@/lib/books/schema';
 import { ProductPeople } from '@/components/dashboard/books/ProductPeople';
 import { ProductAnnounce } from '@/components/dashboard/books/ProductAnnounce';
+import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { CARD_GRID, ContentCard, Kpis, PageHeader } from '@/components/dashboard/content/kit';
+import { Card, DISPLAY_FONT, btnClass, btnSmClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
 
 type BookListItem = {
   id: string;
@@ -64,26 +67,54 @@ async function authHeaders(): Promise<Record<string, string>> {
   return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
+/** Who can get it: everyone or cohorts, whether it is for sale, and how many sold. */
 function audienceLabel(b: BookListItem): string {
   const parts: string[] = [];
   if (b.available_to_everyone) parts.push('Everyone');
-  else if ((b.cohort_ids ?? []).length) parts.push(`${b.cohort_ids!.length} cohort${b.cohort_ids!.length === 1 ? '' : 's'}`);
-  if (b.purchasable) parts.push('For sale');
-  return parts.join(' / ') || 'Nobody yet';
+  else if ((b.cohort_ids ?? []).length) parts.push(plural(b.cohort_ids!.length, 'cohort'));
+  if (b.purchasable) parts.push(b.sold ? `${b.sold} sold` : 'For sale');
+  return parts.join(', ') || 'Nobody yet';
 }
 
-export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
+const STATUS_CHIPS: [StatusFilter, string][] = [['all', 'All'], ['published', 'Published'], ['draft', 'Draft'], ['archived', 'Archived']];
+
+/** A product's People or Announce, in a panel from the right. */
+function SidePanel({ title, sub, onClose, children, C }: { title: string; sub: string; onClose: () => void; children: ReactNode; C: typeof LIGHT_C }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end" style={{ background: 'rgba(4,8,20,0.45)' }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-xl h-full overflow-y-auto" style={{ background: C.card }}>
+        <div className="flex items-start gap-3 px-6 py-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[22px] leading-7 font-semibold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
+            <p className="text-sm" style={{ color: C.muted }}>{sub}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function BooksManageSection({ C: theme }: { C: typeof LIGHT_C }) {
+  // As on the other admin pages: the dark-mode blue for buttons and selection controls.
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
+  const router = useRouter();
   const [books, setBooks] = useState<BookListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<BookListItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [attention, setAttention] = useState<AttentionItem[]>([]);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
-  const [peopleFor, setPeopleFor] = useState<string | null>(null);
-  const [announceFor, setAnnounceFor] = useState<string | null>(null);
+  const [peopleFor, setPeopleFor] = useState<BookListItem | null>(null);
+  const [announceFor, setAnnounceFor] = useState<BookListItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,28 +159,27 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         || (b.category ?? '').toLowerCase().includes(term)));
   }, [books, query, statusFilter]);
 
-  async function remove(book: BookListItem) {
-    if (!window.confirm(`Delete "${book.title}"? This cannot be undone.`)) return;
-    setDeletingId(book.id);
+  async function remove() {
+    const book = deleting!;
+    setBusy(true);
     try {
       const res = await fetch(`/api/books?id=${encodeURIComponent(book.id)}`, { method: 'DELETE', headers: await authHeaders() });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { window.alert(d.error || 'Could not delete the product.'); return; }
+      if (!res.ok) { setNotice({ ok: false, text: d.error || 'Could not delete the product.' }); return; }
       setBooks(prev => prev.filter(b => b.id !== book.id));
+      setNotice({ ok: true, text: `${book.title} deleted` });
     } finally {
-      setDeletingId(null);
+      setBusy(false);
+      setDeleting(null);
     }
   }
 
   async function preview(book: BookListItem) {
     if (!book.format) return;
-    setOpeningId(book.id);
     try {
       await openBookPreview(book.id, book.format, 'full');
     } catch (e: any) {
-      window.alert(e?.message || 'Could not open the preview.');
-    } finally {
-      setOpeningId(null);
+      setNotice({ ok: false, text: e?.message || 'Could not open the preview.' });
     }
   }
 
@@ -162,170 +192,124 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         body: JSON.stringify({ id: item.id }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { window.alert(d.error || 'Could not update the payment.'); return; }
+      if (!res.ok) { setNotice({ ok: false, text: d.error || 'Could not update the payment.' }); return; }
       setAttention(prev => prev.filter(a => a.id !== item.id));
     } finally {
       setResolvingId(null);
     }
   }
 
-  if (loading) return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} /></div>;
-  if (error) return <div className="text-sm px-4 py-3 rounded-xl" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>{error}</div>;
-  if (!books.length) return <SectionEmptyState Icon={Package} label="product" createHref="/create/product" createLabel="New product" C={C} />;
+  const banner = (notice || error) && (
+    <div role={notice?.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+      style={notice?.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+      {notice?.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
+      <span className="flex-1">{notice?.text ?? error}</span>
+      {notice && <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="w-6 h-6 grid place-items-center rounded-full flex-shrink-0"><X className="w-4 h-4" /></button>}
+    </div>
+  );
+  const revenue = Object.keys(totals.revenue).length ? Object.entries(totals.revenue).map(([cur, amt]) => formatMoney(amt, cur)).join(', ') : '0';
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <p className="text-sm" style={{ color: C.faint }}>Publish digital products for your cohorts, open them to everyone, or sell them.</p>
-          <p className="text-xs mt-1" style={{ color: C.faint }}>{books.length} product{books.length === 1 ? '' : 's'}</p>
-        </div>
-        <Link href="/create/product" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-          style={{ background: C.cta, color: C.ctaText }}>
-          <Plus className="w-4 h-4" /> New product
+    <div className="space-y-5 pb-12">
+      <PageHeader title="Digital products" sub="Books and files to sell, or give to cohorts and everyone." C={C} actions={
+        <Link href="/create/product" className={`${btnClass} no-underline`} style={btnStyle('pri', C)}>
+          <Plus className="w-4 h-4" />
+          New product
         </Link>
-      </div>
+      } />
+      {banner}
+      {loading ? (
+        <div className="h-64 rounded-2xl animate-pulse" style={{ background: C.card }} />
+      ) : error ? null : books.length === 0 ? (
+        <Card C={C} className="px-5 py-16 text-center">
+          <p className="text-sm font-semibold" style={{ color: C.text }}>No products yet</p>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>Create your first book or file.</p>
+        </Card>
+      ) : (
+        <>
+          {stats.size > 0 && (
+            <Kpis C={C} items={[
+              { label: 'Revenue', n: revenue, sub: 'From paid sales', color: C.text },
+              { label: 'Paid sales', n: totals.sold, sub: 'Refunds and review cases left out', color: C.text },
+              { label: 'Free downloads claimed', n: totals.freeClaims, sub: 'Without an account', color: C.text },
+              { label: 'Downloads', n: totals.downloads, sub: `${totals.downloads30d} in the last 30 days`, color: C.text },
+            ]} />
+          )}
 
-      {stats.size > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'Revenue', value: Object.keys(totals.revenue).length
-              ? Object.entries(totals.revenue).map(([cur, amt]) => formatMoney(amt, cur)).join(' / ') : '0', sub: 'From paid sales' },
-            { label: 'Paid sales', value: String(totals.sold), sub: 'Refunds and review cases excluded' },
-            { label: 'Free downloads claimed', value: String(totals.freeClaims), sub: 'Without an account' },
-            { label: 'Downloads', value: String(totals.downloads), sub: `${totals.downloads30d} in the last 30 days` },
-          ].map(card => (
-            <div key={card.label} className="p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
-              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>{card.label}</p>
-              <p className="text-base font-bold mt-1 truncate leading-6" style={{ color: C.text }}>{card.value}</p>
-              <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{card.sub}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {attention.length > 0 && (
-        <div className="p-4 rounded-2xl space-y-3" style={{ ...cardStyle(C) }}>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" style={{ color: '#d97706' }} />
-            <p className="text-sm font-semibold" style={{ color: C.text }}>
-              {attention.length} book payment{attention.length === 1 ? '' : 's'} need{attention.length === 1 ? 's' : ''} attention
-            </p>
-          </div>
-          {attention.map(a => (
-            <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl" style={{ background: C.pill }}>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: C.text }}>
-                  {a.bookTitle} / {a.currency} {a.amount.toFixed(2)}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: C.faint }}>
-                  {REASON_LABELS[a.reason] ?? a.reason}
-                </p>
-                <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>
-                  {[a.buyerName, a.buyerEmail].filter(Boolean).join(' / ') || 'Deleted account'} / Paystack ref {a.reference}
-                  {a.paidAt ? ` / ${new Date(a.paidAt).toLocaleDateString()}` : ''}
+          {attention.length > 0 && (
+            <Card C={C} className="overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
+                <AlertTriangle className="w-4 h-4" style={{ color: P.warn }} />
+                <p className="text-sm font-semibold" style={{ color: C.text }}>
+                  {plural(attention.length, 'book payment')} need{attention.length === 1 ? 's' : ''} attention
                 </p>
               </div>
-              <button onClick={() => resolve(a)} disabled={resolvingId === a.id}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 shrink-0"
-                style={{ background: C.card, color: C.text }}>
-                {resolvingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                Mark resolved
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-2xl" style={{ ...cardStyle(C) }}>
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.faint }} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or category"
-            className="w-full rounded-xl pl-10 pr-4 py-3 text-sm outline-none" style={{ background: C.input, color: C.text }} />
-        </div>
-        <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: C.pill }}>
-          {(['all', 'published', 'draft', 'archived'] as const).map(f => (
-            <button key={f} onClick={() => setStatusFilter(f)} className="px-3 py-2 rounded-lg text-xs font-semibold capitalize"
-              style={{ background: statusFilter === f ? C.card : 'transparent', color: statusFilter === f ? C.green : C.faint }}>{f}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {visible.map(b => {
-          const cover = b.cover_image ? resolveCoverUrl(b.cover_image) : '';
-          return (
-            <div key={b.id} className="p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-16 rounded-lg overflow-hidden shrink-0 flex items-center justify-center" style={{ background: C.pill }}>
-                {cover
-                  ? <img src={cover} alt="" className="w-full h-full object-cover" />
-                  : <Package className="w-5 h-5" style={{ color: C.faint }} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{b.title}</p>
-                  <span className="text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full"
-                    style={b.status === 'published'
-                      ? { background: '#ffffff', color: '#16a34a', boxShadow: 'inset 0 0 0 1px #bbf7d0' }
-                      : { background: C.pill, color: C.faint }}>{b.status}</span>
-                  {b.format && <span className="text-[11px] font-semibold uppercase" style={{ color: C.faint }}>{b.format}</span>}
+              {attention.map((a, i) => (
+                <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{a.bookTitle}, {formatMoney(a.amount, a.currency)}</p>
+                    <p className="text-xs mt-1" style={{ color: C.muted }}>{REASON_LABELS[a.reason] ?? a.reason}</p>
+                    <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>
+                      {[a.buyerName, a.buyerEmail].filter(Boolean).join(', ') || 'Deleted account'}, Paystack ref {a.reference}
+                      {a.paidAt ? `, ${new Date(a.paidAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => resolve(a)} disabled={resolvingId === a.id} className={btnSmClass} style={btnStyle('sec', C)}>
+                    {resolvingId === a.id ? 'Saving...' : 'Mark resolved'}
+                  </button>
                 </div>
-                <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>
-                  {[(b.authors ?? []).join(', '), b.category].filter(Boolean).join(' / ') || 'No author yet'}
-                </p>
-                {/* Who can get it. Sales and downloads are in the summary cards and behind People. */}
-                <p className="text-xs mt-1" style={{ color: C.faint }}>{audienceLabel(b)}</p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {b.status === 'published' && (
-                  <button onClick={() => { setAnnounceFor(prev => (prev === b.id ? null : b.id)); setPeopleFor(null); }} aria-expanded={announceFor === b.id}
-                    className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
-                    aria-label={`Announce ${b.title}`} title="Email all students about this product" style={{ color: C.muted }}>
-                    <Megaphone className="w-4 h-4" /><span className="hidden sm:inline">Announce</span>
-                  </button>
-                )}
-                <button onClick={() => { setPeopleFor(prev => (prev === b.id ? null : b.id)); setAnnounceFor(null); }} aria-expanded={peopleFor === b.id}
-                  className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
-                  aria-label={`People for ${b.title}`} title="Buyers and downloads" style={{ color: C.muted }}>
-                  <Users className="w-4 h-4" /><span className="hidden sm:inline">People</span>
-                  <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ transform: peopleFor === b.id ? 'rotate(180deg)' : 'none' }} />
+              ))}
+            </Card>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchBox value={query} onChange={setQuery} placeholder="Search by title, author or category" C={C} />
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+              {STATUS_CHIPS.map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={statusFilter === id} onClick={() => setStatusFilter(id)} className="h-8 px-3 rounded-full text-xs font-semibold"
+                  style={statusFilter === id ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                  {label}
                 </button>
-                {b.format && (
-                  <button onClick={() => preview(b)} disabled={openingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
-                    aria-label={`Preview ${b.title}`} title={b.format === 'link' ? 'Open link' : opensInBrowser(b.format) ? 'Preview' : 'Download to check'} style={{ color: C.muted }}>
-                    {openingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                )}
-                <Link href={`/create/product?id=${b.id}`} className="p-2 rounded-lg transition-opacity hover:opacity-70" aria-label={`Edit ${b.title}`}
-                  style={{ color: C.muted }}><Edit2 className="w-4 h-4" /></Link>
-                <button onClick={() => remove(b)} disabled={deletingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
-                  aria-label={`Delete ${b.title}`} style={{ color: '#dc2626' }}>
-                  {deletingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </button>
-              </div>
+              ))}
             </div>
-            {announceFor === b.id && (
-              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.pill}` }}>
-                <ProductAnnounce book={{ id: b.id, title: b.title, cover_image: b.cover_image }} C={C} />
-              </div>
-            )}
-            {peopleFor === b.id && (
-              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.pill}` }}>
-                <ProductPeople bookId={b.id} slug={b.slug} C={C} />
-              </div>
-            )}
-            </div>
-          );
-        })}
-        {visible.length === 0 && (
-          <div className="py-16 text-center rounded-2xl" style={{ ...cardStyle(C) }}>
-            <Search className="w-6 h-6 mx-auto mb-2" style={{ color: C.faint }} />
-            <p className="text-sm font-semibold" style={{ color: C.text }}>No matching products</p>
-            <p className="text-xs mt-1" style={{ color: C.faint }}>Try another search or status filter.</p>
           </div>
-        )}
-      </div>
+
+          {visible.length === 0 ? (
+            <Card C={C} className="px-5 py-12 text-center"><p className="text-sm" style={{ color: C.muted }}>No products match these filters.</p></Card>
+          ) : (
+            <div className={CARD_GRID}>
+              {visible.map(b => (
+                <ContentCard key={b.id} item={b} cover={b.cover_image} Icon={Package} reach={null} audienceText={audienceLabel(b)} C={C}
+                  detail={[(b.authors ?? []).join(', '), b.category, b.format ? b.format.toUpperCase() : ''].filter(Boolean).join(', ') || 'No author yet'}
+                  onOpen={() => router.push(`/create/product?id=${b.id}`)}
+                  menu={(close) => [
+                    ...(b.status === 'published' ? [{ label: 'Announce', sub: 'Email all students about it', icon: Megaphone, onClick: () => { close(); setAnnounceFor(b); } }] : []),
+                    { label: 'People', sub: 'Buyers and downloads', icon: Users, onClick: () => { close(); setPeopleFor(b); } },
+                    ...(b.format ? [{ label: b.format === 'link' ? 'Open link' : opensInBrowser(b.format) ? 'Preview' : 'Download to check', sub: 'The file learners get', icon: Eye, onClick: () => { close(); preview(b); } }] : []),
+                    { label: 'Edit', sub: 'File, price and audience', icon: Pencil, onClick: () => { close(); router.push(`/create/product?id=${b.id}`); } },
+                    null,
+                    { label: 'Delete', sub: 'Asks first', icon: Trash2, danger: true, onClick: () => { close(); setDeleting(b); } },
+                  ]} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {peopleFor && (
+        <SidePanel title={peopleFor.title} sub="Buyers and downloads" onClose={() => setPeopleFor(null)} C={C}>
+          <ProductPeople bookId={peopleFor.id} slug={peopleFor.slug} C={C} />
+        </SidePanel>
+      )}
+      {announceFor && (
+        <SidePanel title={announceFor.title} sub="Email all students about this product" onClose={() => setAnnounceFor(null)} C={C}>
+          <ProductAnnounce book={{ id: announceFor.id, title: announceFor.title, cover_image: announceFor.cover_image }} C={C} />
+        </SidePanel>
+      )}
+      {deleting && (
+        <ConfirmModal title="Delete product?" eyebrow={deleting.title} body="This cannot be undone." action="Delete product"
+          danger busy={busy} onClose={() => setDeleting(null)} onConfirm={remove} C={C} />
+      )}
     </div>
   );
 }
