@@ -13,6 +13,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { AdCard } from '@/lib/mid-ads';
+import { M3, GUTTER, BUTTON_PAD } from '@/components/landing/type';
 
 export function MidAdBanner({
   ads, hFont, bFont, isDark, background,
@@ -38,7 +39,7 @@ export function MidAdBanner({
         }
         @media (prefers-reduced-motion: reduce) { .mid-ad-shine { display: none; } }
       `}</style>
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 py-8 md:py-10">
+      <div className={`max-w-[1240px] mx-auto ${GUTTER} py-8 md:py-10`}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {cards.map((ad, i) => {
             const sideImage = ad.imageLayout === 'side' && !!ad.bgImage;
@@ -48,29 +49,29 @@ export function MidAdBanner({
                 ? `url(${ad.bgImage}) center/cover no-repeat`
                 : ad.bgColor || '#0056D2';
             const body = (
-              <div className="relative z-10 flex flex-col gap-3" style={{ padding: '28px 32px', minHeight: sideImage ? undefined : 164 }}>
+              <div className="relative z-10 flex flex-col gap-4" style={{ padding: 24, minHeight: sideImage ? undefined : 164 }}>
                 <div>
                   {ad.label && (
-                    <span className="inline-block text-[11px] font-bold uppercase tracking-widest px-3 py-0.5 rounded mb-3"
-                      style={{ background: 'rgba(255,255,255,0.22)', color: 'white', letterSpacing: '0.1em' }}>
+                    <span className="inline-block px-2 py-1 rounded-md mb-4"
+                      style={{ ...M3.labelMedium, fontWeight: 700, background: 'rgba(255,255,255,0.22)', color: 'white' }}>
                       {ad.label}
                     </span>
                   )}
-                  <h3 className="text-base leading-6 sm:text-[22px] sm:leading-7 font-extrabold mb-2"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.02em', maxWidth: sideImage ? 'none' : 240 }}>
+                  <h3 className="mb-2"
+                    style={{ ...M3.titleLarge, fontWeight: 800, color: 'white', fontFamily: hFont, maxWidth: sideImage ? 'none' : 240 }}>
                     {ad.title}
                   </h3>
                   {ad.description && (
-                    <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.82)', fontFamily: bFont, maxWidth: sideImage ? 'none' : 280 }}>
+                    <p style={{ ...M3.bodyMedium, color: 'rgba(255,255,255,0.82)', fontFamily: bFont, maxWidth: sideImage ? 'none' : 280 }}>
                       {ad.description}
                     </p>
                   )}
                 </div>
                 {ad.ctaText && (
-                  <div className="mt-1">
+                  <div>
                     <Link href={ad.ctaUrl || '/auth'}
-                      className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-                      style={{ background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, fontSize: 14, padding: '12px 20px' }}>
+                      className="group inline-flex items-center gap-2 self-start rounded-xl transition-all duration-200 hover:shadow-md active:scale-[0.98]"
+                      style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, padding: BUTTON_PAD }}>
                       {ad.ctaText}
                       <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>

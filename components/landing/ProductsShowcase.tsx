@@ -3,12 +3,13 @@
 /**
  * The home page's "Digital Products" section: up to four of the newest products in the store, with
  * cover, title and price, and a link to the full store. Shown only when the store has products.
- * Used by both landing templates, so colours come in as props.
+ * Colours come in as props because the page can be light or dark.
  */
 import Link from 'next/link';
 import { ArrowRight, Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { PriceTag } from '@/components/books/store/PriceTag';
+import { M3, GUTTER, SECTION_Y } from '@/components/landing/type';
 
 export type LandingProduct = {
   id: string;
@@ -19,11 +20,9 @@ export type LandingProduct = {
   prices: { currency: string; amount: number; original?: number }[];
 };
 
-export function ProductsShowcase({ products, dark, accent, background, hFont, bFont }: {
+export function ProductsShowcase({ products, dark, hFont, bFont }: {
   products: LandingProduct[];
   dark: boolean;
-  accent: string;
-  background?: string;
   hFont?: string;
   bFont?: string;
 }) {
@@ -34,16 +33,16 @@ export function ProductsShowcase({ products, dark, accent, background, hFont, bF
   const shadow = dark ? 'none' : '0 1px 2px rgba(15,23,42,0.05), 0 10px 30px -14px rgba(15,23,42,0.16)';
 
   return (
-    <section id="section-products" className="py-12 md:py-20" style={{ background }}>
-      <div className="max-w-[1240px] mx-auto px-6 md:px-10">
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-6 md:mb-8">
+    <section id="section-products" className={SECTION_Y}>
+      <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: title, fontFamily: hFont }}>Digital Products</h2>
-            <p className="mt-2 text-sm md:text-base max-w-xl" style={{ color: muted, fontFamily: bFont }}>
+            <h2 style={{ ...M3.headlineMedium, fontWeight: 700, color: title, fontFamily: hFont }}>Digital products</h2>
+            <p className="mt-2 max-w-xl" style={{ ...M3.bodyLarge, color: muted, fontFamily: bFont }}>
               Practical guides and resources you can download and keep. Read a free sample first.
             </p>
           </div>
-          <Link href="/products" className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: accent, fontFamily: bFont }}>
+          <Link href="/products" className="inline-flex items-center gap-2 hover:opacity-70 transition-opacity" style={{ ...M3.labelLarge, fontWeight: 600, color: title, fontFamily: bFont }}>
             See all products <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -56,7 +55,7 @@ export function ProductsShowcase({ products, dark, accent, background, hFont, bF
                   ? <img src={resolveCoverUrl(p.coverImage)} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                   : <Package className="w-10 h-10" style={{ color: muted }} />}
               </div>
-              <p className="mt-3 text-sm md:text-base font-semibold leading-snug line-clamp-2" style={{ color: title, fontFamily: hFont }}>{p.title}</p>
+              <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, fontWeight: 600, color: title, fontFamily: hFont }}>{p.title}</p>
               <div className="mt-auto pt-2 text-sm font-bold" style={{ fontFamily: bFont }}>
                 {p.free ? <span style={{ color: '#16a34a' }}>Free</span> : <PriceTag prices={p.prices} style={{ color: title }} />}
               </div>
