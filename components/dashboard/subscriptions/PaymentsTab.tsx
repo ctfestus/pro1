@@ -236,7 +236,7 @@ export function PaymentsTab({
           <div style={{ borderTop: `1px solid ${C.divider}` }}>
             <div className="px-5 py-3">
               <label
-                className="flex items-center gap-2 h-10 px-3 rounded-xl max-w-[360px]"
+                className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl max-w-[360px]"
                 style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}
               >
                 <Search className="w-4 h-4 flex-shrink-0" />

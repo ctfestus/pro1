@@ -32,7 +32,7 @@ export function planDiscountStatus(discount: PlanDiscountDraft) {
 }
 
 const fieldStyle = (C: ThemeColors) => ({ background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` });
-const field = 'w-full h-11 rounded-[10px] px-3 text-sm outline-none';
+const field = 'field-focus w-full h-11 rounded-[10px] px-3 text-sm outline-none';
 
 function Section({ title, sub, action, children, C }: { title: string; sub: string; action?: ReactNode; children: ReactNode; C: ThemeColors }) {
   return (
@@ -87,7 +87,7 @@ export function PlanPriceFields({ prices, setPrices, discount, C }: {
       sub="Switch on the lengths learners can buy. Typing an amount switches it on."
       C={C}
       action={
-        <label className="flex items-center gap-2 h-9 px-3 rounded-xl flex-shrink-0 text-xs" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.muted }}>
+        <label className="field-shell flex items-center gap-2 h-9 px-3 rounded-xl flex-shrink-0 text-xs" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.muted }}>
           Currency
           <input
             value={currency}
@@ -123,7 +123,7 @@ export function PlanPriceFields({ prices, setPrices, discount, C }: {
                 {durationLabel(months)}
               </span>
               <label
-                className="col-start-2 sm:col-start-auto flex items-center gap-2 h-10 px-3 rounded-[10px]"
+                className="field-shell col-start-2 sm:col-start-auto flex items-center gap-2 h-10 px-3 rounded-[10px]"
                 style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}
               >
                 <b className="text-xs font-semibold" style={{ color: C.muted }}>{price.currency}</b>

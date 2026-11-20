@@ -76,7 +76,7 @@ export function SubscribersTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <label
-          className="flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[240px] max-w-[360px]"
+          className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl flex-1 min-w-[240px] max-w-[360px]"
           style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}
         >
           <Search className="w-4 h-4 flex-shrink-0" />

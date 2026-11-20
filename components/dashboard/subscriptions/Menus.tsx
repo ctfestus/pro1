@@ -8,8 +8,9 @@ import { modalStyle, type ThemeColors } from '@/lib/theme';
 import type { SubscriberAction } from './ManageSubscriberModal';
 import { IconChip, palette } from './ui';
 
-type Position = { top: number; right: number };
-type Item = { label: string; sub: string; icon: ElementType; onClick: () => void; disabled?: boolean; danger?: boolean };
+export type MenuPosition = { top: number; right: number };
+type Position = MenuPosition;
+export type MenuItem = { label: string; sub: string; icon: ElementType; onClick: () => void; disabled?: boolean; danger?: boolean };
 
 /** Where a menu opens: under its button, or above it when there is no room below. */
 export function menuPosition(button: HTMLElement, height: number): Position {
@@ -20,7 +21,8 @@ export function menuPosition(button: HTMLElement, height: number): Position {
   };
 }
 
-function FloatingMenu({ position, label, items, onClose, C }: { position: Position; label: string; items: (Item | null)[]; onClose: () => void; C: ThemeColors }) {
+/** A menu of actions, each with a line of detail, floating by its button. null draws a divider. */
+export function FloatingMenu({ position, label, items, onClose, C }: { position: Position; label: string; items: (MenuItem | null)[]; onClose: () => void; C: ThemeColors }) {
   const P = palette(C);
   return (
     <>
@@ -76,7 +78,7 @@ export function SubscriberMenu({ sub, position, onClose, onAction, onHistory, on
   onDelete: () => void;
   C: ThemeColors;
 }) {
-  const items: (Item | null)[] = [
+  const items: (MenuItem | null)[] = [
     { label: 'Change plan', sub: 'Keeps the dates and price', icon: ArrowLeftRight, onClick: () => onAction('change-plan') },
     { label: 'Request payment', sub: 'Send a renewal request', icon: Send, onClick: () => onAction('request-payment') },
     { label: 'Extend access', sub: 'Add time, paid or free', icon: CalendarClock, onClick: () => onAction('extend-access') },
