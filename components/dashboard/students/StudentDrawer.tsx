@@ -26,9 +26,9 @@ function List({ items, empty, C }: { items: { key: string; title: string; sub?: 
   const P = palette(C);
   if (!items.length) return <p className="text-sm" style={{ color: C.muted }}>{empty}</p>;
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: C.page }}>
+    <div>
       {items.map((item, i) => (
-        <div key={item.key} className="flex items-center gap-3 px-4 py-3" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+        <div key={item.key} className="flex items-center gap-3 py-3" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.title}</p>
             {item.sub && <p className="text-xs" style={{ color: C.muted }}>{item.sub}</p>}
