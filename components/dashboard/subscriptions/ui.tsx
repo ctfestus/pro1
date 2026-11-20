@@ -101,7 +101,7 @@ export function Pill({ tone, dot, C, children }: { tone: Tone; dot?: boolean; C:
     : { color: C.muted, background: C.pill };
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-2 whitespace-nowrap leading-5 ${tone === 'gold' ? 'text-[11px] font-black uppercase tracking-[0.06em]' : 'text-xs font-semibold'}`}
+      className={`inline-flex items-center gap-2 rounded-full px-2 whitespace-nowrap leading-5 ${tone === 'gold' ? 'text-[11px] font-bold uppercase tracking-[0.06em]' : 'text-xs font-semibold'}`}
       style={style}
     >
       {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} />}
@@ -120,7 +120,7 @@ export function IconChip({ color, background, children }: { color: string; backg
 
 export function Avatar({ name, color, background }: { name: string; color: string; background: string }) {
   return (
-    <span className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0 text-xs font-bold" style={{ color, background }}>
+    <span className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0 text-xs font-semibold" style={{ color, background }}>
       {initials(name)}
     </span>
   );
@@ -139,7 +139,7 @@ export function Bar({ parts, C }: { parts: { pct: number; color: string }[]; C: 
 export function Count({ n, alert, C }: { n: number; alert?: boolean; C: ThemeColors }) {
   return (
     <span
-      className="rounded-full px-2 text-xs font-bold leading-5"
+      className="rounded-full px-2 text-xs font-semibold leading-5"
       style={alert ? { background: palette(C).bad, color: '#FFFFFF' } : { background: C.pill, color: C.muted }}
     >
       {n}
@@ -147,7 +147,7 @@ export function Count({ n, alert, C }: { n: number; alert?: boolean; C: ThemeCol
   );
 }
 
-export type BtnKind = 'pri' | 'sec' | 'ghost' | 'danger';
+type BtnKind = 'pri' | 'sec' | 'ghost' | 'danger';
 export function btnStyle(kind: BtnKind, C: ThemeColors) {
   const P = palette(C);
   return kind === 'pri' ? { background: C.cta, color: C.ctaText }
@@ -179,7 +179,7 @@ export function CardHead({ title, sub, action, C }: { title: string; sub: string
   return (
     <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
       <div className="min-w-0">
-        <h3 className="text-base font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
+        <h3 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
         <p className="text-xs mt-1" style={{ color: C.muted }}>{sub}</p>
       </div>
       {action}
@@ -219,7 +219,7 @@ export function Empty({ C, title, sub }: { C: ThemeColors; title: string; sub?: 
 
 export function Money({ children, C, className = '' }: { children: ReactNode; C: ThemeColors; className?: string }) {
   return (
-    <span className={`font-bold whitespace-nowrap tabular-nums ${className}`} style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+    <span className={`font-semibold whitespace-nowrap tabular-nums ${className}`} style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
       {children}
     </span>
   );

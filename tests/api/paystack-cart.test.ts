@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { subscriptionsPageSource } from '../helpers/subscriptionsPageSource';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
@@ -196,7 +197,7 @@ describe('abandoned checkout cart', () => {
     // Same authorisation as every other write on that screen, then the same guard.
     expect(route.indexOf('await assertPlanAccess(cart.plan_id);'))
       .toBeLessThan(route.indexOf("await assertNothingCollected(db, { reference }, 'Their');"));
-    const section = read('components/dashboard/SubscriptionsSection.tsx');
+    const section = subscriptionsPageSource();
     expect(section).toContain('setOpenCarts(requestsData.carts ?? []);');
     expect(section).toContain('Unfinished checkouts');
   });

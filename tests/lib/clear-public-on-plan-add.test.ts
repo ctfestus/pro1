@@ -5,6 +5,7 @@
 // included. And the editors must be told, or their next save writes the flag straight back on.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { subscriptionsPageSource } from '../helpers/subscriptionsPageSource';
 import { describe, expect, it } from 'vitest';
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
@@ -108,7 +109,7 @@ describe('closing open access when content joins a plan', () => {
     expect(read('lib/plan-content-request.ts')).toContain("body.code === 'needs_private'");
     expect(picker).toMatch(/outcome\.kind === 'needs_private'[\s\S]{0,200}setConfirming/);
     // And the same for the dashboard, which had neither the rule nor the recovery.
-    expect(read('components/dashboard/SubscriptionsSection.tsx'))
+    expect(subscriptionsPageSource())
       .toMatch(/needs_private[\s\S]{0,400}askToClosePublic/);
   });
 });

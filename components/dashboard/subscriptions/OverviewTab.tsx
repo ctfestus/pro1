@@ -160,7 +160,7 @@ export function OverviewTab({
               <button key={sub.id} type="button" onClick={() => onEnding(sub)} className="w-full text-left">
                 <Row C={C} first={index === 0}>
                   <span
-                    className="min-w-11 rounded-[10px] px-2 py-1 text-center font-bold tabular-nums"
+                    className="min-w-11 rounded-[10px] px-2 py-1 text-center font-semibold tabular-nums"
                     style={{ background: urgent ? P.badSoft : P.warnSoft, color: urgent ? P.bad : P.warn, fontFamily: DISPLAY_FONT }}
                   >
                     {days}

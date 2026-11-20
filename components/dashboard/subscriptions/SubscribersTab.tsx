@@ -54,7 +54,7 @@ export function SubscribersTab({
     if (!isLive(sub)) return <span className="text-xs" style={{ color: C.muted }}>--</span>;
     const days = daysRemaining(sub.current_period_end);
     return (
-      <b className="font-bold tabular-nums whitespace-nowrap" style={{ color: days <= 7 ? P.bad : days <= 30 ? P.warn : C.text }}>
+      <b className="font-semibold tabular-nums whitespace-nowrap" style={{ color: days <= 7 ? P.bad : days <= 30 ? P.warn : C.text }}>
         {days} {days === 1 ? 'day' : 'days'}
       </b>
     );

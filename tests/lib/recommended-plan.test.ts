@@ -5,6 +5,7 @@
 // their preferred one last on the page because of how it was spelt.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { subscriptionsPageSource } from '../helpers/subscriptionsPageSource';
 import { describe, expect, it } from 'vitest';
 import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPlan } from '@/lib/pricing-contract';
@@ -71,7 +72,7 @@ describe('ordering and marking', () => {
   const migration = read('migrations/202_recommended_subscription_plan.sql');
   const schema = read('festman-fresh-schema.sql');
   const route = read('app/api/payments/route.ts');
-  const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+  const dashboard = subscriptionsPageSource();
   // The plan controls live in the Plans tab.
   const plansTab = read('components/dashboard/subscriptions/PlansTab.tsx');
 

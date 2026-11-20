@@ -34,11 +34,10 @@ function serverOnlyModules(): Set<string> {
       const source = readFileSync(join(root, file), 'utf8');
       const alias = `@/${file.replace(/\.tsx?$/, '')}`;
       if (server.has(alias)) continue;
-      const imports = [...source.matchAll(/from '(@\/[^']+)'/g)].map(m => m[1]);
-      const importsServer = imports.some(name => server.has(name));
-      // A type-only import is erased at build, so it cannot drag anything into the browser.
-      const typeOnly = new RegExp(`import type [^;]*from '${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&')}'`);
-      if (importsServer && !typeOnly.test(source)) server.add(alias);
+      // A type-only import is erased at build, so it cannot drag anything into the browser. Only a
+      // value import of a server module makes this one server-only too.
+      const imports = [...source.matchAll(/^import (type )?[^;]*?from '(@\/[^']+)'/gm)];
+      if (imports.some(m => !m[1] && server.has(m[2]))) server.add(alias);
     }
   }
   return server;
@@ -52,7 +51,7 @@ describe('client and server boundary', () => {
     for (const file of [...sourceFiles('components'), ...sourceFiles('app')]) {
       const source = readFileSync(join(root, file), 'utf8');
       if (!/^['"]use client['"]/m.test(source)) continue;
-      for (const match of source.matchAll(/^import (?!type )[^;]*?from '(@\/[^']+)'/gm)) {
+      for (const match of source.matchAll(/^import (?!type )[^;]*?from ['"](@\/[^'"]+)['"]/gm)) {
         if (server.has(match[1])) offenders.push(`${relative('.', file)} imports ${match[1]}`);
       }
     }
