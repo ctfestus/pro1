@@ -28,7 +28,7 @@ export default async function GuestDownloadPage({ searchParams }: { searchParams
     listStoreBooksOrEmpty(),
     listNavEvents(),
   ]);
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
   const navBooks = books.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));
   return (

@@ -28,7 +28,7 @@ export default async function EventsPage() {
     getLandingProgrammesOrEmpty(),
     listNavBooks(),
   ]);
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
   const navEvents = toNavEvents(events.upcoming);
 

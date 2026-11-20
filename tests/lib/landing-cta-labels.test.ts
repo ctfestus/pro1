@@ -1,4 +1,4 @@
-// Every call-to-action button on the landing templates ends in an arrow icon that carries no
+// Every call-to-action button on the landing page ends in an arrow icon that carries no
 // accessible name. So the text beside it is the link's only label, and resolveConfig spreads the
 // saved config OVER the template defaults -- meaning a tenant who clears the field in Site
 // Settings gets '' rather than the default, and the link becomes an unlabelled arrow.
@@ -14,10 +14,8 @@ const page = readFileSync(join(process.cwd(), 'components/LandingPageClient.tsx'
 describe('landing CTA button labels', () => {
   it('never renders a config button label without a fallback', () => {
     // The bare form is the bug: `: ctaButton}` puts an empty string next to the arrow.
-    for (const field of ['ctaButton', 'newsletterButton', 'stickyCtaButton']) {
-      expect(page).toContain(`(${field} || '`);
-      expect(page).not.toContain(`: ${field}}`);
-    }
+    expect(page).toContain("(ctaButton || '");
+    expect(page).not.toContain(': ctaButton}');
   });
 
   it('skips the CTA subtext and accent line instead of rendering empty blocks', () => {

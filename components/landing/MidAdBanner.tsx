@@ -6,33 +6,13 @@
  * Pulled out of LandingPageClient so the pricing page can show the same banners rather than
  * carrying a second copy that drifts. The card shape and the helpers that read site settings
  * live in lib/mid-ads, because a server page cannot call a function exported from a client
- * module -- it receives a reference and throws. Self-contained on purpose: it brings its own reveal
- * animation and its own shine styles, because those lived in the landing page's inline style
- * block and would simply have gone missing anywhere else.
+ * module -- it receives a reference and throws. Self-contained on purpose: it brings its own shine
+ * styles, because those lived in the landing page's inline style block and would simply have gone
+ * missing anywhere else.
  */
-import { useRef } from 'react';
 import Link from 'next/link';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import type { AdCard } from '@/lib/mid-ads';
-
-const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
-
-function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-60px' });
-  const reduced = useReducedMotion();
-  return (
-    <motion.div
-      ref={ref}
-      initial={false}
-      animate={inView ? { opacity: 1, y: 0 } : undefined}
-      transition={reduced ? { duration: 0 } : { duration: 0.7, delay, ease: EASE_OUT }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 export function MidAdBanner({
   ads, hFont, bFont, isDark, background,
@@ -99,8 +79,7 @@ export function MidAdBanner({
               </div>
             );
             return (
-              <Reveal key={i} delay={i * 0.1}>
-                <div className="rounded-2xl overflow-hidden mid-ad-shine-host transition-shadow duration-300 hover:shadow-[0_20px_48px_-20px_rgba(2,32,71,0.4)]" style={{ minHeight: 220 }}>
+                <div key={i} className="rounded-2xl overflow-hidden mid-ad-shine-host transition-shadow duration-300 hover:shadow-[0_20px_48px_-20px_rgba(2,32,71,0.4)]" style={{ minHeight: 220 }}>
                   <div className="relative w-full h-full transition-transform duration-300 hover:scale-[1.02]"
                     style={{ background: bg, minHeight: 220 }}>
                     {!sideImage && ad.bgImage && <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.48)' }} />}
@@ -115,7 +94,6 @@ export function MidAdBanner({
                     ) : body}
                   </div>
                 </div>
-              </Reveal>
             );
           })}
         </div>

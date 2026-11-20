@@ -22,10 +22,9 @@ export async function generateMetadata(): Promise<Metadata> {
     getTenantSettings(),
     getLandingSiteSettingsOrDefault(),
   ]);
-  const config = resolveConfig(settings.template, settings.config);
+  const config = resolveConfig(settings.config);
   const appName = tenant.appName || tenant.orgName || 'Learning platform';
-  const offer = config.heroTitle || config.tracksHeading || config.offeringsHeading || '';
-  const title = cleanMetadataText(offer ? `${appName} | ${offer}` : appName, 65);
+  const title = cleanMetadataText(config.heroTitle ? `${appName} | ${config.heroTitle}` : appName, 65);
   const description = cleanMetadataText(
     tenant.appDescription || `Build job-ready skills with courses, guided projects and learning paths from ${appName}.`,
     160,
@@ -70,7 +69,6 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
 
   return (
     <LandingPageClient
-      initialTemplateId={data.template}
       initialSiteConfig={data.config}
       initialProgrammes={data.programmes}
       programmesError={data.programmesError}

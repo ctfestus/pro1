@@ -1,42 +1,24 @@
 'use client';
 
-
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
-import { useTheme } from '@/components/ThemeProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
-import { ArrowRight, Check, LayoutDashboard, Pause, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
+import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
-import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
-import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
 import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
-import { toPlainText } from '@/lib/plain-text';
-
-// --- FadeIn on scroll ---
-function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-60px' });
-  return (
-    <motion.div ref={ref} initial={false}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay, ease: [0.23, 1, 0.32, 1] }}
-      className={className}>
-      {children}
-    </motion.div>
-  );
-}
 
 // --- Floating orb ---
 function Orb({ x, y, size, color, delay, active = true }: { x: string; y: string; size: number; color: string; delay: number; active?: boolean }) {
@@ -52,12 +34,6 @@ function Orb({ x, y, size, color, delay, active = true }: { x: string; y: string
   );
 }
 
-
-
-// Icon map for offerings (fixed set, titles/descriptions come from config)
-const OFFERING_ICONS = [BookOpen, Calendar, Briefcase, Award];
-// Icon map for highlights (fixed set, text comes from config)
-const HIGHLIGHT_ICONS = [BookOpen, Award, Calendar, Briefcase, TrendingUp, User, Check, Zap];
 
 function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
   return (
@@ -75,737 +51,6 @@ function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
         Try again
       </button>
     </div>
-  );
-}
-
-// --- Elevate Template ---
-function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], navEvents = [], storeProducts = [] }: {
-  user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
-  publicSignupEnabled: boolean;
-  programmes: ProgrammeItem[]; programmesError: boolean;
-  navBooks?: NavBook[];
-  navEvents?: NavBook[];
-  storeProducts?: LandingProduct[];
-}) {
-  const [hoveredTrack, setHoveredTrack] = useState<number | null>(null);
-  const [hoveredSlide, setHoveredSlide] = useState<number | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'course' | 've' | 'path'>('all');
-  const [sliderIdx, setSliderIdx] = useState(0);
-  const PAGE = 3;
-
-  // Load the landing-page fonts: Google Sans (Text) as primary, Inter as the backup.
-  useEffect(() => {
-    loadGoogleFont(getFontById('google-sans-text'));
-    loadGoogleFont(getFontById('inter'));
-  }, []);
-
-  const filteredProgrammes = activeFilter === 'all' ? programmes : programmes.filter(p => p.type === activeFilter);
-
-  const {
-    primaryColor, accentColor, headingFont, bodyFont,
-    heroTitle, heroTitleAccent, heroSubheadline, heroPrimaryCta, heroImageUrl, heroFontSize, heroOverlayColor, heroOverlayOpacity,
-    tracksLabel, tracksHeading, tracksHeadingAccent,
-    track1Title, track1Description, track1ImageUrl, track1Badge,
-    track2Title, track2Description, track2ImageUrl, track2Badge,
-    track3Title, track3Description, track3ImageUrl, track3Badge,
-    impactLabel,
-    stat1Value, stat1Label, stat1ImageUrl,
-    stat2Value, stat2Label, stat2ImageUrl,
-    stat3Value, stat3Label, stat3ImageUrl,
-    stat4Value, stat4Label, stat4ImageUrl,
-    statImgOverlay,
-    partnersLabel,
-    partner1Name, partner1LogoUrl, partner2Name, partner2LogoUrl,
-    partner3Name, partner3LogoUrl, partner4Name, partner4LogoUrl,
-    partner5Name, partner5LogoUrl, partner6Name, partner6LogoUrl,
-    testimonialsLabel, testimonialsHeading, testimonialVideoUrl,
-    testimonial1Name, testimonial1Role, testimonial1Text,
-    newsletterHeading, newsletterSubtext, newsletterButton,
-    ctaHeadingAccent, footerTagline,
-    hidePartners, hideStats, hideTestimonials, hideCta,
-    floatingCtaHeading, floatingCtaSubtext, floatingCtaButton, floatingCtaImageUrl, floatingCtaBgColor, hideFloatingCta,
-    stickyCtaText, stickyCtaButton, hideStickyBar,
-    footerLinksHeading, footerLink1Label, footerLink1Url,
-    footerLink2Label, footerLink2Url, footerLink3Label, footerLink3Url,
-    footerLink4Label, footerLink4Url,
-    footerBgImageUrl, footerOverlayColor, footerOverlayOpacity,
-    navBgColor, navTextColor,
-    sectionDarkBg, sectionLightBg, sectionAltBg,
-    textHeadingColor, textBodyColor, textMutedColor,
-    textOnDarkColor, textOnAltColor,
-    cardBadgeBg, cardBadgeText,
-    cardOverlayColor, cardOverlayOpacity,
-  } = siteConfig;
-
-  const overlayRgb = (() => {
-    const c = cardOverlayColor || '#0a0a1a';
-    const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16);
-    return `${r},${g},${b}`;
-  })();
-  const overlayAlpha = parseFloat(cardOverlayOpacity || '55') / 100;
-
-  const footerOvRgb = (() => {
-    const c = footerOverlayColor || '#0a0a1a';
-    const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16);
-    return `${r},${g},${b}`;
-  })();
-  const footerOvAlpha = parseFloat(footerOverlayOpacity || '75') / 100;
-
-  const nav_bg   = navBgColor       || '#ffffff';
-  const nav_text = navTextColor      || '#111111';
-  const dark_bg  = sectionDarkBg    || '#0d0d0d';
-  const light_bg = sectionLightBg   || '#ffffff';
-  const alt_bg   = sectionAltBg     || '#f8f9fa';
-  const h_color  = textHeadingColor || '#111111';
-  const b_color  = textBodyColor    || '#6b7280';
-  const m_color  = textMutedColor   || '#9ca3af';
-  const on_dark  = textOnDarkColor  || '#ffffff';
-  const on_alt   = textOnAltColor   || '#111111';
-
-  // Landing page font: Google Sans (Text) with Inter as the backup. A site-configured font, if set,
-  // still takes precedence as the first choice; Inter then sans-serif are the fallbacks.
-  const hFont = `'${headingFont || 'Google Sans Text'}', 'Inter', sans-serif`;
-  const bFont = `'${bodyFont    || 'Google Sans Text'}', 'Inter', sans-serif`;
-
-  const tracks = [
-    { title: track1Title, desc: track1Description, img: track1ImageUrl, badge: track1Badge },
-    { title: track2Title, desc: track2Description, img: track2ImageUrl, badge: track2Badge },
-    { title: track3Title, desc: track3Description, img: track3ImageUrl, badge: track3Badge },
-  ];
-  const stats = [
-    { value: stat1Value, label: stat1Label, img: stat1ImageUrl },
-    { value: stat2Value, label: stat2Label, img: stat2ImageUrl },
-    { value: stat3Value, label: stat3Label, img: stat3ImageUrl },
-    { value: stat4Value, label: stat4Label, img: stat4ImageUrl },
-  ];
-  const partners = [
-    { name: partner1Name, logo: partner1LogoUrl },
-    { name: partner2Name, logo: partner2LogoUrl },
-    { name: partner3Name, logo: partner3LogoUrl },
-    { name: partner4Name, logo: partner4LogoUrl },
-    { name: partner5Name, logo: partner5LogoUrl },
-    { name: partner6Name, logo: partner6LogoUrl },
-  ].filter(p => p.name);
-
-  return (
-    <main className="landing-scope min-h-screen overflow-x-hidden font-sans antialiased" style={{ background: light_bg, fontFamily: bFont }}>
-
-      {/* NAV */}
-      <motion.nav
-        initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 py-4 transition-all duration-300"
-        style={{ background: nav_bg, boxShadow: scrolled ? '0 1px 24px rgba(0,0,0,0.10)' : `0 1px 0 rgba(0,0,0,0.06)` }}
-      >
-        <img src={logoDarkUrl || logoUrl || undefined} alt="" className="h-9 w-auto" />
-        <div className="flex items-center gap-3">
-          {navEvents.length > 0 && (
-            <Link
-              href="/events"
-              className="text-sm font-medium transition-opacity hover:opacity-60"
-              style={{ color: nav_text }}
-            >
-              Events
-            </Link>
-          )}
-          {/* The book store, once it has something in it (lib/books/store.ts). */}
-          {navBooks.length > 0 && (
-            <Link
-              href="/products"
-              className="text-sm font-medium transition-opacity hover:opacity-60"
-              style={{ color: nav_text }}
-            >
-              Digital Products
-            </Link>
-          )}
-          <Link
-            href="/pricing"
-            className="text-sm font-medium transition-opacity hover:opacity-60"
-            style={{ color: nav_text }}
-          >
-            Pricing
-          </Link>
-          {user ? <NavProfileMenu user={user} profile={profile} /> : (
-            <>
-              {/* Signups open: the pill becomes Sign up at every width, and Log in stops being
-                  desktop-only -- on a phone the pill was the ONLY control, so there was no way to
-                  reach the signup form at all. Signups closed: this is exactly the old markup,
-                  where "Get started" leads to the invite-only explanation. */}
-              <Link
-                href="/auth"
-                className={`text-sm font-medium transition-opacity hover:opacity-60 ${publicSignupEnabled ? 'block' : 'hidden sm:block'}`}
-                style={{ color: nav_text }}
-              >
-                Log in
-              </Link>
-              {publicSignupEnabled ? (
-                <Link href="/auth?mode=signup" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90" style={{ background: nav_text, color: nav_bg }}>
-                  Sign up
-                </Link>
-              ) : (
-                <>
-                  <Link href="/auth" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 sm:hidden" style={{ background: nav_text, color: nav_bg }}>
-                    Sign In
-                  </Link>
-                  <Link href="/auth?mode=signup" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 hidden sm:block" style={{ background: nav_text, color: nav_bg }}>
-                    Get started
-                  </Link>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </motion.nav>
-
-      {/* HERO */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 md:pt-28 pb-14 md:pb-20 overflow-hidden text-white"
-        style={{
-          background: `linear-gradient(145deg, #0f0c29 0%, ${primaryColor} 50%, #302b63 100%)`,
-        }}>
-        {heroImageUrl && (
-          <img
-            src={heroImageUrl}
-            alt=""
-            aria-hidden="true"
-            fetchPriority="high"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
-        <div className="absolute inset-0" style={{ background: (() => { const c = heroOverlayColor || '#000000'; const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16); return `rgba(${r},${g},${b},${parseFloat(heroOverlayOpacity||'58')/100})`; })() }} />
-        <div className="relative z-10 max-w-4xl mx-auto text-center space-y-6 md:space-y-8">
-          <motion.h1 initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.15 }}
-            className="leading-[1.2] md:leading-[1.05]"
-            style={{ fontFamily: hFont, fontWeight: 900, letterSpacing: '-0.02em', fontSize: `clamp(${Math.round(parseInt(heroFontSize||'62')*0.39)}px, ${(parseInt(heroFontSize||'62')/1200*100).toFixed(2)}vw, ${heroFontSize||'62'}px)` }}>
-            <span style={{ color: 'white' }}>{heroTitle}</span><br />
-            <span style={{ color: accentColor }}>{heroTitleAccent}</span>
-          </motion.h1>
-          <motion.p initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
-            className="text-base md:text-[18px] max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.75, fontFamily: bFont }}>
-            {heroSubheadline}
-          </motion.p>
-        </div>
-        <motion.div className="absolute bottom-10 left-1/2 -translate-x-1/2"
-          animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-          <ChevronDown className="w-5 h-5 text-white/30" />
-        </motion.div>
-      </section>
-
-      {/* PARTNERS STRIP */}
-      {hidePartners !== '1' && partners.length > 0 && (
-        <section className="py-12 px-6 border-b" style={{ background: alt_bg, borderColor: 'rgba(0,0,0,0.06)' }}>
-          <div className="max-w-5xl mx-auto">
-            <p className="text-center text-[11px] font-bold uppercase tracking-widest mb-8" style={{ color: on_alt, opacity: 0.5 }}>
-              {partnersLabel || 'Trusted by leading organisations'}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
-              {partners.map((p, i) => (
-                <div key={i} className="h-10 flex items-center justify-center">
-                  {p.logo
-                    ? <img src={p.logo} alt={p.name} className="h-8 w-auto object-contain grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all" />
-                    : <span className="text-[15px] font-bold tracking-tight" style={{ color: '#bbb' }}>{p.name}</span>
-                  }
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* PROGRAMMES / TRACKS */}
-      <section className="py-14 md:py-24 overflow-hidden" style={{ background: light_bg }}>
-        <div className="max-w-6xl mx-auto px-6">
-          <FadeIn className="flex flex-col md:flex-row md:items-end md:justify-between mb-8 md:mb-12 gap-6">
-            <div className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: accentColor }}>{tracksLabel || 'Our programmes'}</p>
-              <h2 className="text-[30px] md:text-[50px] font-black leading-[1.05]"
-                style={{ color: h_color, letterSpacing: '-0.025em', fontFamily: hFont }}>
-                {tracksHeading}<br /><span style={{ color: accentColor }}>{tracksHeadingAccent}</span>
-              </h2>
-            </div>
-            {filteredProgrammes.length > PAGE && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setSliderIdx(Math.max(0, sliderIdx - PAGE))}
-                  disabled={sliderIdx === 0}
-                  className="w-10 h-10 rounded-full border flex items-center justify-center transition-all hover:scale-105 disabled:opacity-30"
-                  style={{ borderColor: h_color + '33', color: h_color }}>
-                  <ArrowRight className="w-4 h-4 rotate-180" />
-                </button>
-                <button onClick={() => setSliderIdx(Math.min(filteredProgrammes.length - PAGE, sliderIdx + PAGE))}
-                  disabled={sliderIdx + PAGE >= filteredProgrammes.length}
-                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 disabled:opacity-30"
-                  style={{ background: primaryColor, color: '#fff' }}>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </FadeIn>
-        </div>
-
-        {programmesError && <ProgrammeLoadError />}
-
-        {filteredProgrammes.length > 0 ? (<>
-          {/* -- Mobile: horizontal snap scroll -- */}
-          <div className="md:hidden overflow-x-auto pb-4 -mx-6" style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
-            <div className="flex gap-3 px-6">
-              {filteredProgrammes.map((p, i) => {
-                const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : p.type === 'certification' ? 'Certification' : 'Course';
-                return (
-                  <Link key={p.id} href={landingHref(p, user)}
-                    className="relative flex-shrink-0 rounded-2xl overflow-hidden"
-                    style={{ width: '80vw', maxWidth: 320, height: 380, scrollSnapAlign: 'start' }}>
-                    <div className="absolute inset-0" style={{
-                      background: p.imageUrl ? `url(${p.imageUrl}) center/cover` : `linear-gradient(160deg, ${primaryColor}, #000)`,
-                    }} />
-                    <div className="absolute inset-0" style={{ background: `rgba(${overlayRgb},${overlayAlpha})` }} />
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 55%, rgba(0,0,0,0) 100%)' }} />
-                    <div className="absolute inset-0 p-5 flex flex-col justify-between">
-                      <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded-md"
-                        style={{ background: cardBadgeBg || 'rgba(255,255,255,0.15)', color: cardBadgeText || 'rgba(255,255,255,0.85)', backdropFilter: 'blur(6px)' }}>
-                        {typeLabel}
-                      </span>
-                      <div className="space-y-2">
-                        {toPlainText(p.description) && <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>{toPlainText(p.description)}</p>}
-                        <div className="flex items-end justify-between gap-3">
-                          <h3 className="text-lg font-black leading-tight" style={{ color: '#ffffff', fontFamily: hFont }}>{p.title}</h3>
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: accentColor }}>
-                            <ArrowRight className="w-4 h-4 text-white" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-              <div className="flex-shrink-0 w-2" /> {/* trailing space */}
-            </div>
-          </div>
-
-          {/* -- Desktop: 3-card flex expand -- */}
-          <div className="hidden md:block max-w-6xl mx-auto px-6">
-            <div className="flex gap-4 items-stretch" onMouseLeave={() => setHoveredSlide(null)}>
-            {filteredProgrammes.slice(sliderIdx, sliderIdx + PAGE).map((p, i) => {
-              const expanded = hoveredSlide === i || (hoveredSlide === null && i === 0);
-              const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : p.type === 'certification' ? 'Certification' : 'Course';
-              return (
-                <motion.div
-                  key={p.id}
-                  initial={false}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
-                  className="relative rounded-2xl overflow-hidden"
-                  style={{
-                    flex: expanded ? '2.2 0 0' : '1 0 0',
-                    minWidth: 0,
-                    height: 480,
-                    transition: 'flex 0.45s cubic-bezier(0.4,0,0.2,1)',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={() => setHoveredSlide(i)}
-                  onMouseLeave={() => setHoveredSlide(null)}
-                >
-                  {/* Background image */}
-                  <div className="absolute inset-0" style={{
-                    background: p.imageUrl
-                      ? `url(${p.imageUrl}) center/cover`
-                      : `linear-gradient(160deg, ${primaryColor}, #000)`,
-                    transform: expanded ? 'scale(1.04)' : 'scale(1)',
-                    transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)',
-                  }} />
-
-                  {/* Configurable colour overlay */}
-                  <div className="absolute inset-0" style={{
-                    background: `rgba(${overlayRgb},${overlayAlpha})`,
-                  }} />
-
-                  {/* Readability gradient -- always-on bottom fade */}
-                  <div className="absolute inset-0" style={{
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0) 100%)',
-                  }} />
-
-                  {/* Content */}
-                  <div className="absolute inset-0 p-6 flex flex-col justify-between">
-                    {/* Top -- type tag */}
-                    <div>
-                      <span className="inline-block text-[10px] font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded-md"
-                        style={{ background: cardBadgeBg || 'rgba(255,255,255,0.15)', color: cardBadgeText || 'rgba(255,255,255,0.85)', backdropFilter: 'blur(6px)' }}>
-                        {typeLabel}
-                      </span>
-                    </div>
-
-                    {/* Bottom -- title + description + cta */}
-                    <div className="space-y-3">
-                      {/* Description -- fades in when expanded */}
-                      <div style={{
-                        maxHeight: expanded ? 120 : 0,
-                        opacity: expanded ? 1 : 0,
-                        overflow: 'hidden',
-                        transition: 'max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease',
-                        transitionDelay: expanded ? '0.1s' : '0s',
-                      }}>
-                        {p.description && (
-                          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)', fontFamily: bFont }}>
-                            {p.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Title + arrow row */}
-                      <div className="flex items-end justify-between gap-4">
-                        <h3 className="font-black leading-tight" style={{
-                          color: '#ffffff',
-                          fontFamily: hFont,
-                          fontSize: expanded ? 24 : 18,
-                          transition: 'font-size 0.3s ease',
-                          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                        }}>
-                          {p.title}
-                        </h3>
-
-                        {/* CTA button */}
-                        <div style={{
-                          opacity: expanded ? 1 : 0,
-                          transform: expanded ? 'scale(1)' : 'scale(0.6)',
-                          transition: 'opacity 0.3s ease, transform 0.3s ease',
-                          transitionDelay: expanded ? '0.15s' : '0s',
-                          flexShrink: 0,
-                        }}>
-                          <span
-                            className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-                            style={{ background: accentColor }}
-                          >
-                            <ArrowRight className="w-5 h-5 text-white" />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {/* The whole card is the target. The arrow above is decoration: it only shows
-                      on hover, which a touch device never sends, leaving the card unreachable. */}
-                  <Link
-                    href={landingHref(p, user)}
-                    aria-label={p.title}
-                    className="absolute inset-0 z-20"
-                  />
-                </motion.div>
-              );
-            })}
-            </div>
-            {/* Prev / Next */}
-            {filteredProgrammes.length > PAGE && (
-              <div className="flex items-center justify-center gap-4 mt-8">
-                <button
-                  onClick={() => setSliderIdx(Math.max(0, sliderIdx - PAGE))}
-                  disabled={sliderIdx === 0}
-                  className="w-11 h-11 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30"
-                  style={{ borderColor: accentColor, color: accentColor, background: 'transparent' }}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <span className="text-sm font-mono" style={{ color: on_alt }}>
-                  {Math.floor(sliderIdx / PAGE) + 1} / {Math.ceil(filteredProgrammes.length / PAGE)}
-                </span>
-                <button
-                  onClick={() => setSliderIdx(Math.min(filteredProgrammes.length - PAGE, sliderIdx + PAGE))}
-                  disabled={sliderIdx + PAGE >= filteredProgrammes.length}
-                  className="w-11 h-11 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-30"
-                  style={{ borderColor: accentColor, color: accentColor, background: 'transparent' }}
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            )}
-          </div>
-        </>) : (<>
-          {/* Static fallback -- mobile snap scroll */}
-          <div className="md:hidden overflow-x-auto pb-4 -mx-6" style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
-            <div className="flex gap-3 px-6">
-              {tracks.filter(t => t.title).map((t, i) => (
-                <Link key={i} href={user ? '/student' : '/auth'}
-                  className="relative flex-shrink-0 rounded-2xl overflow-hidden"
-                  style={{ width: '80vw', maxWidth: 320, height: 380, scrollSnapAlign: 'start' }}>
-                  <div className="absolute inset-0" style={{ background: t.img ? `url(${t.img}) center/cover` : `linear-gradient(160deg, ${primaryColor}, #000)` }} />
-                  <div className="absolute inset-0" style={{ background: `rgba(${overlayRgb},${overlayAlpha})` }} />
-                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 55%, rgba(0,0,0,0) 100%)' }} />
-                  <div className="absolute inset-0 p-5 flex flex-col justify-between">
-                    {t.badge && <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded-md"
-                      style={{ background: cardBadgeBg || 'rgba(255,255,255,0.15)', color: cardBadgeText || 'rgba(255,255,255,0.85)', backdropFilter: 'blur(6px)' }}>{t.badge}</span>}
-                    <div className="space-y-2">
-                      {t.desc && <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>{t.desc}</p>}
-                      <div className="flex items-end justify-between gap-3">
-                        <h3 className="text-lg font-black leading-tight text-white" style={{ fontFamily: hFont }}>{t.title}</h3>
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: accentColor }}>
-                          <ArrowRight className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              <div className="flex-shrink-0 w-2" />
-            </div>
-          </div>
-
-          {/* Static fallback -- desktop flex expand */}
-          <div className="hidden md:block max-w-6xl mx-auto px-6">
-            <div className="flex gap-4 items-stretch" onMouseLeave={() => setHoveredTrack(null)}>
-              {tracks.filter(t => t.title).map((t, i) => {
-                const expanded = hoveredTrack === i || (hoveredTrack === null && i === 0);
-                return (
-                  <motion.div
-                    key={i}
-                    initial={false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
-                    className="relative rounded-2xl overflow-hidden"
-                    style={{
-                      flex: expanded ? '2.2 0 0' : '1 0 0',
-                      minWidth: 0,
-                      height: 480,
-                      transition: 'flex 0.45s cubic-bezier(0.4,0,0.2,1)',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={() => setHoveredTrack(i)}
-                    onMouseLeave={() => setHoveredTrack(null)}
-                  >
-                    {/* Background image */}
-                    <div className="absolute inset-0" style={{
-                      background: t.img
-                        ? `url(${t.img}) center/cover`
-                        : `linear-gradient(160deg, ${primaryColor}, #000)`,
-                      transform: expanded ? 'scale(1.04)' : 'scale(1)',
-                      transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)',
-                    }} />
-                    {/* Configurable overlay */}
-                    <div className="absolute inset-0" style={{ background: `rgba(${overlayRgb},${overlayAlpha})` }} />
-                    {/* Bottom fade */}
-                    <div className="absolute inset-0" style={{
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0) 100%)',
-                    }} />
-                    {/* Content */}
-                    <div className="absolute inset-0 p-6 flex flex-col justify-between">
-                      <div>
-                        {t.badge && (
-                          <span className="inline-block text-[10px] font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded-md"
-                            style={{ background: cardBadgeBg || 'rgba(255,255,255,0.15)', color: cardBadgeText || 'rgba(255,255,255,0.85)', backdropFilter: 'blur(6px)' }}>
-                            {t.badge}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-3">
-                        {/* Description fades in on expand */}
-                        <div style={{
-                          maxHeight: expanded ? 120 : 0,
-                          opacity: expanded ? 1 : 0,
-                          overflow: 'hidden',
-                          transition: 'max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease',
-                          transitionDelay: expanded ? '0.1s' : '0s',
-                        }}>
-                          {t.desc && (
-                            <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)', fontFamily: bFont }}>
-                              {t.desc}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-end justify-between gap-4">
-                          <h3 className="font-black leading-tight" style={{
-                            color: '#ffffff',
-                            fontFamily: hFont,
-                            fontSize: expanded ? 24 : 18,
-                            transition: 'font-size 0.3s ease',
-                            display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                          }}>
-                            {t.title}
-                          </h3>
-                          <div style={{
-                            opacity: expanded ? 1 : 0,
-                            transform: expanded ? 'scale(1)' : 'scale(0.6)',
-                            transition: 'opacity 0.3s ease, transform 0.3s ease',
-                            transitionDelay: expanded ? '0.15s' : '0s',
-                            flexShrink: 0,
-                          }}>
-                            <Link href={user ? '/student' : '/auth'}
-                              className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-                              style={{ background: accentColor }}>
-                              <ArrowRight className="w-5 h-5 text-white" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </>)}
-      </section>
-
-      {/* DIGITAL PRODUCTS */}
-      <ProductsShowcase products={storeProducts} dark={false} accent={primaryColor} background={alt_bg} hFont={hFont} bFont={bFont} />
-
-      {/* IMPACT STATS */}
-      {hideStats !== '1' && <section className="py-14 md:py-24 px-6" style={{ background: dark_bg }}>
-        <div className="max-w-6xl mx-auto">
-          <FadeIn className="text-center mb-14 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: accentColor }}>{impactLabel || 'Our impact'}</p>
-            <h2 className="text-[30px] md:text-[46px] font-black leading-[1.1]"
-              style={{ color: on_dark, fontFamily: hFont, letterSpacing: '-0.025em' }}>
-              Numbers that speak<br />
-              <span style={{ color: accentColor }}>for themselves.</span>
-            </h2>
-          </FadeIn>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {stats.map((s, i) => (
-              <FadeIn key={i} delay={i * 0.1}>
-                <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 200 }}>
-                  <div className="absolute inset-0"
-                    style={{
-                      background: s.img
-                        ? `url(${s.img}) center/cover`
-                        : `linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.08))`,
-                      border: s.img ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: 16,
-                    }} />
-                  {s.img && <div className="absolute inset-0 rounded-2xl" style={{ background: `rgba(0,0,0,${(parseFloat(statImgOverlay || '60') / 100).toFixed(2)})` }} />}
-                  <div className="relative z-10 p-6 flex flex-col justify-end" style={{ minHeight: 200 }}>
-                    <p className="text-[38px] md:text-[48px] font-black leading-none" style={{ color: on_dark, fontFamily: hFont }}>{s.value}</p>
-                    <p className="text-sm mt-2" style={{ color: on_dark, opacity: 0.6 }}>{s.label}</p>
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>}
-
-      {/* TESTIMONIAL + VIDEO */}
-      {hideTestimonials !== '1' && <section className="py-14 md:py-24 px-6" style={{ background: alt_bg }}>
-        <div className="max-w-5xl mx-auto">
-          <FadeIn className="text-center mb-10 md:mb-14 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: accentColor }}>{testimonialsLabel}</p>
-            <h2 className="text-[28px] md:text-[42px] font-black" style={{ color: on_alt, fontFamily: hFont, letterSpacing: '-0.02em' }}>
-              {testimonialsHeading}
-            </h2>
-          </FadeIn>
-          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-            <FadeIn>
-              <div className="relative rounded-3xl overflow-hidden group cursor-pointer"
-                style={{
-                  aspectRatio: '16/9',
-                  background: testimonialVideoUrl
-                    ? `url(${testimonialVideoUrl}) center/cover`
-                    : `linear-gradient(135deg, #1a1a2e, ${primaryColor})`,
-                }}>
-                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-white shadow-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <div style={{ width: 0, height: 0, marginLeft: 4, borderTop: '11px solid transparent', borderBottom: '11px solid transparent', borderLeft: `18px solid ${accentColor}` }} />
-                  </div>
-                </div>
-              </div>
-            </FadeIn>
-            <FadeIn delay={0.15} className="space-y-6">
-              <div className="text-4xl leading-none" style={{ color: accentColor, fontFamily: 'Georgia, serif' }}>&ldquo;</div>
-              <p className="text-[20px] leading-relaxed font-medium" style={{ color: on_alt, fontFamily: hFont }}>
-                {testimonial1Text}
-              </p>
-              <div className="flex items-center gap-3 pt-2">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0"
-                  style={{ background: primaryColor }}>
-                  {(testimonial1Name || '').slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-bold text-sm" style={{ color: on_alt }}>{testimonial1Name}</p>
-                  <p className="text-xs" style={{ color: on_alt, opacity: 0.6 }}>{testimonial1Role}</p>
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>}
-
-      {/* CTA / NEWSLETTER */}
-      {hideCta !== '1' && <section className="py-14 md:py-24 px-6" style={{ background: primaryColor }}>
-        <FadeIn>
-          <div className="max-w-2xl mx-auto text-center space-y-7">
-            <h2 className="text-[32px] md:text-[52px] font-black leading-[1.05]"
-              style={{ color: on_dark, fontFamily: hFont, letterSpacing: '-0.025em' }}>
-              {newsletterHeading}<br />
-              <span style={{ color: accentColor }}>{ctaHeadingAccent}</span>
-            </h2>
-            <p className="text-[17px]" style={{ color: on_dark, opacity: 0.68, lineHeight: 1.75, fontFamily: bFont }}>
-              {newsletterSubtext}
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href={user ? '/student' : '/auth'}
-                className="group flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold bg-white transition-all hover:scale-105 shadow-2xl"
-                style={{ color: primaryColor }}>
-                {user ? 'Go to dashboard' : (newsletterButton || 'Start your journey')}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <span className="text-sm" style={{ color: on_dark, opacity: 0.45 }}>No credit card required</span>
-            </div>
-          </div>
-        </FadeIn>
-      </section>}
-
-      {/* STICKY CTA BAR */}
-      {hideStickyBar !== '1' && (
-        <AnimatePresence>
-          {pastHero && (
-            <motion.div
-              initial={{ y: 80, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 80, opacity: 0 }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-4 px-6 py-4"
-              style={{ background: dark_bg, borderTop: `1px solid ${on_dark}1a`, backdropFilter: 'blur(12px)' }}
-            >
-              <p className="text-sm font-medium hidden sm:block" style={{ color: on_dark, opacity: 0.75 }}>
-                {stickyCtaText}
-              </p>
-              <Link href={user ? '/student' : '/auth'}
-                className="group flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all hover:scale-105 flex-shrink-0 ml-auto"
-                style={{ background: accentColor, color: '#fff' }}>
-                {user ? 'Go to dashboard' : (stickyCtaButton || 'Explore programmes')}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      )}
-
-      {/* FOOTER */}
-      <footer className="relative px-6"
-        style={{ paddingTop: '80px', paddingBottom: '56px', background: footerBgImageUrl ? 'transparent' : dark_bg }}>
-        {/* Optional background image + overlay */}
-        {footerBgImageUrl && <>
-          <div className="absolute inset-0 z-0" style={{ background: `url(${footerBgImageUrl}) center/cover no-repeat` }} />
-          <div className="absolute inset-0 z-0" style={{ background: `rgba(${footerOvRgb},${footerOvAlpha})` }} />
-        </>}
-        {!footerBgImageUrl && <div className="absolute inset-0 z-0" style={{ background: dark_bg }} />}
-        <div className="relative z-10 max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-            <div className="md:col-span-2 space-y-4">
-              <img src={logoDarkUrl || logoUrl || undefined} alt="" className="h-9 w-auto" />
-              <p className="text-sm leading-relaxed max-w-xs" style={{ color: on_dark, opacity: 0.45 }}>{footerTagline}</p>
-            </div>
-            <div className="space-y-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: on_dark, opacity: 0.3 }}>Account</p>
-              {[{ label: 'Log in', href: '/auth' }, { label: 'Sign up', href: '/auth?mode=signup' }, { label: 'Dashboard', href: user ? '/student' : '/auth' }].map(l => (
-                <Link key={l.label} href={l.href} className="block text-sm transition-colors" style={{ color: on_dark, opacity: 0.5 }}>{l.label}</Link>
-              ))}
-            </div>
-          </div>
-          <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-3" style={{ borderTop: `1px solid ${on_dark}1a` }}>
-            <p className="text-xs" style={{ color: on_dark, opacity: 0.28 }}>&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs" style={{ color: on_dark, opacity: 0.28 }}>Platform operational</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </main>
   );
 }
 
@@ -829,49 +74,6 @@ function hexRgba(hex: string, alpha: number): string {
   const h = (hex || '').replace('#', '');
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return hex;
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${alpha})`;
-}
-
-// Scroll-linked rise/blur reveal used across the Modern template
-function MReveal({ children, delay = 0, y = 26, blur = false, className = '' }: {
-  children: React.ReactNode; delay?: number; y?: number; blur?: boolean; className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-60px' });
-  const reduced = useReducedMotion();
-  return (
-    <motion.div ref={ref}
-      initial={false}
-      animate={inView ? { opacity: 1, y: 0, ...(blur ? { filter: 'blur(0px)' } : {}) } : undefined}
-      transition={{ duration: 0.7, delay, ease: EASE_OUT }}
-      className={className}>
-      {children}
-    </motion.div>
-  );
-}
-
-// Per-word masked rise for display headings
-function WordReveal({ text, delay = 0, className = '', style }: {
-  text: string; delay?: number; className?: string; style?: React.CSSProperties;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-50px' });
-  const reduced = useReducedMotion();
-  const words = (text || '').split(' ').filter(Boolean);
-  if (reduced) return <span className={className} style={style}>{text}</span>;
-  return (
-    <span ref={ref} className={className} style={style}>
-      {words.map((w, i) => (
-        <span key={i} className="inline-block overflow-hidden align-bottom">
-          <motion.span className="inline-block"
-            initial={false}
-            animate={inView ? { y: '0%' } : undefined}
-            transition={{ duration: 0.65, delay: delay + i * 0.055, ease: EASE_OUT }}>
-            {w + (i < words.length - 1 ? '\u00a0' : '')}
-          </motion.span>
-        </span>
-      ))}
-    </span>
-  );
 }
 
 // Magnetic hover wrapper for primary CTAs
@@ -911,13 +113,13 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
   title: string; sub: string; color: string; subColor: string; accent: string; hFont?: string; bFont?: string;
 }) {
   return (
-    <MReveal blur className="mb-7">
+    <div className="mb-7">
       <h2 style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(21px,2.2vw,30px)', color, letterSpacing: '-0.03em', lineHeight: 1.08 }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-1.5 mb-1.5" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
       {sub && <p style={{ color: subColor, fontSize: 15, lineHeight: 1.65, fontFamily: bFont ?? hFont, maxWidth: 640 }}>{sub}</p>}
-    </MReveal>
+    </div>
   );
 }
 
@@ -929,13 +131,8 @@ const bannerItem = {
 };
 
 const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience', certification: 'Certification' } as const;
-const LAND_TYPE_GRAD  = {
-  course: 'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
-  path:   'linear-gradient(135deg,#92400E 0%,#F59E0B 100%)',
-  ve:     'linear-gradient(135deg,#064E3B 0%,#10B981 100%)',
-  // Slate reads as a credential and stays clear of the other three type colours.
-  certification: 'linear-gradient(135deg,#0F172A 0%,#334155 100%)',
-} as const;
+// One neutral ground for an item without a cover, readable on the light and the dark page.
+const NO_COVER_BG = 'rgba(127,127,127,0.16)';
 const LAND_C = { card: 'white', text: '#1C1D1F', muted: '#6E7383', faint: '#9CA3AF', cardBorder: '#E8EBEF' };
 
 // Fallback icon for category rows without a tool icon: match by keyword, then by content type
@@ -979,7 +176,11 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const touchX   = useRef<number | null>(null);
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
-  const max = Math.max(0, cards.length - 1);
+  const isMobile = containerW > 0 && containerW < 640;
+  // Two whole cards side by side on a wide screen, one on a phone or in full-width mode. Sizing
+  // the cards to the track means the last one is never cut off at the edge.
+  const perView = fullWidth || isMobile ? 1 : 2;
+  const max = Math.max(0, cards.length - perView);
   // Clamped on read: switching off the card on screen shortens the list under a stored index,
   // which would otherwise point past the end and leave the track scrolled onto nothing.
   const idx = Math.min(storedIdx, max);
@@ -998,20 +199,18 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
     return () => clearInterval(t);
   }, [paused, userPaused, reduced, max, idx]);
 
-  const isMobile = containerW > 0 && containerW < 640;
   const hasSideImage = cards.some(c => c.imageLayout === 'side' && !!c.bgImage);
   const CARD_W = fullWidth
     ? (containerW > 0 ? containerW : 1280)
-    : (containerW > 0 ? Math.min(646, containerW - 40) : 646);
+    : (containerW > 0 ? (containerW - GAP * (perView - 1)) / perView : 646);
   const CARD_H = fullWidth
     ? (isMobile ? 380 : Math.max(340, Math.min(500, Math.round((containerW || 1280) * 0.34))))
-    : (isMobile && hasSideImage)
-      ? 430
-      : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646)));
+    : isMobile
+      ? (hasSideImage ? 430 : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646))))
+      // Two to a row makes each card narrower than before, so the height no longer scales with
+      // the width: it holds the badge, a two-line title, the description and the button.
+      : 300;
 
-  const totalW = cards.length * CARD_W + (cards.length - 1) * GAP;
-  const maxTranslate = containerW > 0 ? Math.max(0, totalW - containerW) : (max * (CARD_W + GAP));
-  const getTranslate = (i: number) => i === max ? maxTranslate : i * (CARD_W + GAP);
 
   const goTo = (next: number) => setIdx(Math.max(0, Math.min(next, max)));
 
@@ -1029,7 +228,6 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   if (!cards.length) return null;
 
   return (
-    <MReveal y={22} blur>
     <div>
       <div className="relative"
         onMouseEnter={() => setPaused(true)}
@@ -1044,7 +242,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
         )}
 
         <div ref={clipRef} style={{ overflow: 'hidden', touchAction: 'pan-y' }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${getTranslate(idx)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
+        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${idx * (CARD_W + GAP)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
           {cards.map((ad, i) => {
             const active = i === idx;
             const contentKey = active ? `on-${idx}` : `off-${i}`;
@@ -1229,13 +427,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
         </div>
       )}
     </div>
-    </MReveal>
   );
 }
 
 
 // Hover popup content for landing page items
-function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
+function LandingCoursePreview({ item, typeColor, buttonColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
   // Courses, virtual experiences and learning paths have public detail pages for signed-out
   // visitors. Learning paths are addressed by id because they do not have slugs.
   const hasPublicPage = ((item.type === 've' || item.type === 'course' || item.type === 'certification') && !!item.slug) || (item.type === 'path' && !!item.id);
@@ -1286,7 +483,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
           )}
           <Link href={href}
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
-            style={{ background: '#00bf63', color: 'white' }}>
+            style={{ background: buttonColor, color: 'white' }}>
             <Play className="w-3.5 h-3.5" />
             {user ? 'Start path' : hasPublicPage ? 'View details' : 'Log in to access'}
           </Link>
@@ -1301,8 +498,8 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
       <div className="relative w-full aspect-video" style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover"/>
-          : <div className="w-full h-full flex items-center justify-center" style={{ background: LAND_TYPE_GRAD[item.type] }}>
-              <BookOpen className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }}/>
+          : <div className="w-full h-full flex items-center justify-center" style={{ background: NO_COVER_BG }}>
+              <BookOpen className="w-10 h-10" style={{ color: LAND_C.faint }}/>
             </div>
         }
         {/* One tag, and it says the most specific thing available: the category if the item has
@@ -1325,7 +522,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
         {item.difficulty && <p className="text-xs mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>{item.difficulty}</p>}
         <Link href={href}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
-          style={{ background: '#00bf63', color: 'white' }}>
+          style={{ background: buttonColor, color: 'white' }}>
           <Play className="w-3.5 h-3.5"/>
           {user ? startLabel : hasPublicPage ? viewLabel : 'Log in to access'}
         </Link>
@@ -1337,9 +534,9 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
 /** Four across, two down. */
 const GRID_PAGE_SIZE = 8;
 
-function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg, paged }: {
-  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
-  /** Render as a paginated grid of twelve rather than a row that scrolls sideways. */
+function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg, paged }: {
+  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
+  /** Render as a paginated grid of eight rather than a row that scrolls sideways. */
   paged?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1352,7 +549,17 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
   const visible = paged ? items.slice(page * GRID_PAGE_SIZE, (page + 1) * GRID_PAGE_SIZE) : items;
   const atStart = page <= 0;
   const atEnd = page >= pages - 1;
-  const showControls = !paged || pages > 1;
+  // A sideways row only gets arrows when its cards actually run past the edge.
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (paged || !el) return;
+    // The observer reports once on observe, so this also covers the first layout.
+    const obs = new ResizeObserver(() => setOverflows(el.scrollWidth > el.clientWidth + 1));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [paged, items.length]);
+  const showControls = paged ? pages > 1 : overflows;
 
   // Only the peeking row scrolls; a grid page turns.
   const scrollByCards = (dir: number) => {
@@ -1398,14 +605,14 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
         );
         return !hideTitle ? (
           <div className="flex items-center justify-between gap-4 mb-0">
-            <MReveal y={14} className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               {(() => { const icon = toolIcon(title);
                 if (icon) return <img src={icon} alt="" className="w-6 h-6 object-contain flex-shrink-0" />;
                 const Fallback = getCategoryIcon(title, type);
                 return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;
               })()}
               <h3 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: rowText, fontFamily: hFont }}>{title}</h3>
-            </MReveal>
+            </div>
             {showControls && (
               <div className="flex items-center gap-3 flex-shrink-0">
                 {pageCount}
@@ -1441,14 +648,13 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
             className={paged ? 'min-w-0' : 'flex-shrink-0 snap-start w-[220px] sm:w-[260px]'}
             onMouseEnter={e => openHover(item, e.currentTarget)}
             onMouseLeave={scheduleClose}>
-            <MReveal delay={Math.min(i, 6) * 0.055} y={18}>
               <Link href={landingHref(item, user)} className="block group cursor-pointer transition-transform duration-300 hover:-translate-y-1">
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
                   style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
                   {item.imageUrl
                     ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
-                    : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: LAND_TYPE_GRAD[type] }}>
-                        <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }}/>
+                    : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: NO_COVER_BG }}>
+                        <BookOpen className="w-8 h-8" style={{ color: LAND_C.faint }}/>
                       </div>
                   }
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
@@ -1467,7 +673,6 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
                 )}
                 {item.difficulty && <p className="text-[11px] mt-1" style={{ color: rowMuted }}>{item.difficulty}</p>}
               </Link>
-            </MReveal>
           </div>
         ))}
       </div>
@@ -1485,7 +690,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
-              <LandingCoursePreview item={hover.item} typeColor={typeColor} user={user} hFont={hFont} bFont={bFont} isDark={popupDark !== undefined ? popupDark : isDark} />
+              <LandingCoursePreview item={hover.item} typeColor={typeColor} buttonColor={buttonColor} user={user} hFont={hFont} bFont={bFont} isDark={popupDark !== undefined ? popupDark : isDark} />
             </HoverPreviewCard>
           )}
         </AnimatePresence>,
@@ -1515,7 +720,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
   const {
     primaryColor, accentColor, headingFont, bodyFont,
-    heroTitle, heroTitleAccent, heroSubheadline, heroPrimaryCta,
+    heroTitle, heroTitleAccent,
     ctaHeading, ctaHeadingAccent, ctaSubtext, ctaButton,
     footerTagline, footerLinksHeading,
     footerLink1Label, footerLink1Url, footerLink2Label, footerLink2Url,
@@ -1541,7 +746,6 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
     ? `https://fonts.googleapis.com/css2?family=${bodyFont.replace(/\s+/g, '+')}:wght@400;500;600;700;800;900&display=swap`
     : null;
 
-  const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
   const AMBER = accentColor  || '#FF9933';
   const GREEN = '#00BF63';
@@ -1582,6 +786,10 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
         }
         @media (prefers-reduced-motion: reduce) { .land-card-shine { display: none; } }
       `}</style>
+
+      {/* The page opens on the ad banner, not a hero, so the page's one H1 is for screen readers
+          and search engines: the headline from Site settings, or the platform name. */}
+      <h1 className="sr-only">{[heroTitle, heroTitleAccent].filter(Boolean).join(' ') || appName}</h1>
 
       <LandingScrollProgress from={BLUE} to={AMBER} />
 
@@ -1625,7 +833,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
               accent={AMBER} hFont={hFont} bFont={bFont} />
             <div className="space-y-4">
               {courseGroups.map(([cat, items]) => (
-                <LandingCarouselRow key={cat} title={cat} items={items} type="course" typeColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={courseGroups.length === 1} />
+                <LandingCarouselRow buttonColor={BLUE} key={cat} title={cat} items={items} type="course" typeColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={courseGroups.length === 1} />
               ))}
             </div>
           </div>
@@ -1645,7 +853,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
           <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
             <MSectionHeading title="Learning Paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
               color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow title="Learning Paths" items={paths} type="path" typeColor={AMBER} user={user} hFont={hFont} bFont={bFont} isDark transparentBg={!isPageDark} popupDark={isPageDark} hideTitle
+            <LandingCarouselRow buttonColor={BLUE} title="Learning Paths" items={paths} type="path" typeColor={AMBER} user={user} hFont={hFont} bFont={bFont} isDark transparentBg={!isPageDark} popupDark={isPageDark} hideTitle
               bg={isPageDark ? `linear-gradient(140deg, rgba(13,17,23,0.55) 0%, ${hexRgba(shade(BLUE, -0.72), 0.55)} 100%)` : undefined} />
           </div>
         </section>
@@ -1666,7 +874,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             {/* One row, not one per category. Grouping split a handful of experiences across
                 several near-empty rows, each with its own heading, so the section read as
                 fragmented rather than as a catalogue. */}
-            <LandingCarouselRow title="Virtual Experiences" items={ves} type="ve" typeColor={GREEN}
+            <LandingCarouselRow buttonColor={BLUE} title="Virtual Experiences" items={ves} type="ve" typeColor={GREEN}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
           </div>
         </section>
@@ -1679,7 +887,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow title="Certifications" items={certs} type="certification" typeColor={SLATE}
+            <LandingCarouselRow buttonColor={BLUE} title="Certifications" items={certs} type="certification" typeColor={SLATE}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
           </div>
         </section>
@@ -1706,23 +914,22 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
           </>}
           <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
             <h2 className="mb-4" style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(30px,4.2vw,50px)', color: 'white', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              <WordReveal text={ctaHeading} />
-              {ctaHeadingAccent && <><br /><WordReveal text={ctaHeadingAccent} delay={0.25} style={{ color: AMBER }} /></>}
+              {ctaHeading}
+              {ctaHeadingAccent && <><br /><span style={{ color: AMBER }}>{ctaHeadingAccent}</span></>}
             </h2>
             {ctaSubtext && (
-              <MReveal delay={0.35} y={16}>
-                <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
+              <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
                   {ctaSubtext}
                 </p>
-              </MReveal>
             )}
-            <MReveal delay={0.45} y={14}>
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Magnetic>
-                  <Link href={user ? '/student' : '/auth?mode=signup'}
+                  {/* With signups closed the page has nothing to sign up for, so the button
+                      offers Log in, as the nav does. */}
+                  <Link href={user ? '/student' : publicSignupEnabled ? '/auth?mode=signup' : '/auth'}
                     className="group inline-flex items-center gap-2 font-bold rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
                     style={{ background: 'white', color: BLUE, padding: '14px 32px', fontSize: 15 }}>
-                    {user ? 'Go to my learning' : (ctaButton || 'Create free account')}
+                    {user ? 'Go to my learning' : publicSignupEnabled ? (ctaButton || 'Create free account') : 'Log in'}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </Magnetic>
@@ -1734,7 +941,6 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
                   Explore programmes
                 </a>
               </div>
-            </MReveal>
           </div>
         </section>
       )}
@@ -1759,38 +965,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   );
 }
 
-// --- Landing page skeleton ---
-function LandingPageSkeleton() {
-  return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0f0f0f' }}>
-      {/* Nav */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-white/5">
-        <div className="h-8 w-32 rounded-lg bg-white/10 animate-pulse" />
-        <div className="h-8 w-24 rounded-xl bg-white/10 animate-pulse" />
-      </div>
-      {/* Hero */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-16 gap-6">
-        <div className="h-3 w-28 rounded-full bg-white/10 animate-pulse" />
-        <div className="space-y-3 w-full max-w-2xl">
-          <div className="h-10 rounded-xl bg-white/10 animate-pulse" />
-          <div className="h-10 w-3/4 mx-auto rounded-xl bg-white/10 animate-pulse" />
-        </div>
-        <div className="space-y-2 w-full max-w-lg">
-          <div className="h-3 rounded-full bg-white/10 animate-pulse" />
-          <div className="h-3 w-5/6 mx-auto rounded-full bg-white/10 animate-pulse" />
-        </div>
-        <div className="flex items-center gap-3 pt-2">
-          <div className="h-12 w-40 rounded-2xl bg-white/10 animate-pulse" />
-          <div className="h-12 w-36 rounded-2xl bg-white/10 animate-pulse" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // --- Page ---
 type LandingPageClientProps = {
-  initialTemplateId: string;
   initialSiteConfig: Partial<SiteConfig>;
   initialProgrammes: ProgrammeItem[];
   programmesError: boolean;
@@ -1804,7 +980,6 @@ type LandingPageClientProps = {
 };
 
 export default function LandingPageClient({
-  initialTemplateId,
   initialSiteConfig,
   initialProgrammes,
   programmesError,
@@ -1818,10 +993,10 @@ export default function LandingPageClient({
   const [user, setUser]         = useState<any>(null);
   const [profile, setProfile]   = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [pastHero, setPastHero] = useState(false);
+  // The dashboard's preview reads its config from localStorage after mount, so it renders nothing
+  // until then rather than flashing the saved page.
   const [loading, setLoading]   = useState(isPreview);
-  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => resolveConfig(initialTemplateId, initialSiteConfig));
-  const [templateId, setTemplateId] = useState(initialTemplateId);
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => resolveConfig(initialSiteConfig));
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -1831,10 +1006,8 @@ export default function LandingPageClient({
     try {
       const raw = localStorage.getItem('_site_preview');
       if (raw) {
-        const { template, config } = JSON.parse(raw);
-        const nextTemplate = template ?? 'modern';
-        setTemplateId(nextTemplate);
-        setSiteConfig(resolveConfig(nextTemplate, config ?? {}));
+        const { config } = JSON.parse(raw);
+        setSiteConfig(resolveConfig(config ?? {}));
       }
     } catch {}
     setLoading(false);
@@ -1846,9 +1019,7 @@ export default function LandingPageClient({
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
       if (e.data?.type === 'preview-config') {
-        const t = e.data.template ?? 'modern';
-        setTemplateId(t);
-        setSiteConfig(resolveConfig(t, e.data.config ?? {}));
+        setSiteConfig(resolveConfig(e.data.config ?? {}));
       }
     };
     window.addEventListener('message', handler);
@@ -1880,73 +1051,18 @@ export default function LandingPageClient({
         setProfile(data);
       }
     });
-    const onScroll = () => {
-      setScrolled(window.scrollY > 40);
-      setPastHero(window.scrollY > window.innerHeight * 0.75);
-    };
+    const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const {
-    primaryColor, accentColor, headingFont, bodyFont,
-    heroTitle, heroTitleAccent, heroSubheadline, heroPrimaryCta, heroFontSize, heroOverlayColor, heroOverlayOpacity, statsEnrolled, statsRating,
-    offeringsLabel, offeringsHeading, offeringsHeadingAccent, offeringsSubtext,
-    offering1Title, offering1Description, offering1Badge,
-    offering2Title, offering2Description, offering2Badge,
-    offering3Title, offering3Description, offering3Badge,
-    offering4Title, offering4Description, offering4Badge,
-    stepsLabel, stepsHeading, stepsHeadingAccent,
-    step1Title, step1Body, step2Title, step2Body, step3Title, step3Body,
-    featuresLabel, featuresHeading, featuresHeadingAccent, featuresSubtext, featuresCta,
-    highlight1, highlight2, highlight3, highlight4, highlight5, highlight6, highlight7, highlight8,
-    testimonialsLabel, testimonialsHeading,
-    testimonial1Name, testimonial1Role, testimonial1Text,
-    testimonial2Name, testimonial2Role, testimonial2Text,
-    testimonial3Name, testimonial3Role, testimonial3Text,
-    ctaHeading, ctaHeadingAccent, ctaSubtext, ctaButton,
-    footerTagline,
-    hideOfferings, hideSteps, hideFeatures, hideTestimonials, hideCta,
-    stickyCtaText, stickyCtaButton, hideStickyBar,
-    footerLinksHeading, footerLink1Label, footerLink1Url,
-    footerLink2Label, footerLink2Url, footerLink3Label, footerLink3Url,
-    footerLink4Label, footerLink4Url,
-    footerBgImageUrl, footerOverlayColor, footerOverlayOpacity,
-    floatingCtaHeading, floatingCtaSubtext, floatingCtaButton, floatingCtaImageUrl, floatingCtaBgColor, hideFloatingCta,
-  } = siteConfig;
+  if (loading) return null;
 
-  const footerOvRgb = (() => {
-    const c = footerOverlayColor || '#000000';
-    const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16);
-    return `${r},${g},${b}`;
-  })();
-  const footerOvAlpha = parseFloat(footerOverlayOpacity || '70') / 100;
-
-  // Load Google Fonts for chosen typefaces
-  useEffect(() => {
-    [headingFont, bodyFont].forEach(f => {
-      if (!f || f === 'Inter') return;
-      const id = `gf-${f.replace(/\s+/g, '-').toLowerCase()}`;
-      if (document.getElementById(id)) return;
-      const link = document.createElement('link');
-      link.id = id; link.rel = 'stylesheet';
-      link.href = `https://fonts.googleapis.com/css2?family=${f.replace(/\s+/g, '+')}:wght@400;500;600;700;800;900&display=swap`;
-      document.head.appendChild(link);
-    });
-  }, [headingFont, bodyFont]);
-
-  const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
-  const bFont = bodyFont    ? `'${bodyFont}', sans-serif`    : undefined;
-
-  if (loading) return <LandingPageSkeleton />;
-
-  // Never inside the dashboard's site-editor preview. Raised above the landing sticky CTA bar.
-  const promo = isPreview ? null : <PromoCard placement="landing" bottomOffset={72} light />;
-
-  if (templateId === 'elevate') {
-    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} navEvents={navEvents} storeProducts={storeProducts} />{promo}</>;
-  }
-
-  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} navEvents={navEvents} storeProducts={storeProducts} />{promo}</>;
-
+  return (
+    <>
+      <ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} navEvents={navEvents} storeProducts={storeProducts} />
+      {/* Never inside the dashboard's site-editor preview. */}
+      {!isPreview && <PromoCard placement="landing" light />}
+    </>
+  );
 }

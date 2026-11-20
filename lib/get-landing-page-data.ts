@@ -30,23 +30,21 @@ export type ProgrammeItem = {
 };
 
 export type LandingPageData = {
-  template: string;
   config: Partial<SiteConfig>;
   programmes: ProgrammeItem[];
   programmesError: boolean;
 };
 
 export const getLandingSiteSettings = unstable_cache(
-  async (): Promise<{ template: string; config: Partial<SiteConfig> }> => {
+  async (): Promise<{ config: Partial<SiteConfig> }> => {
     const { data, error } = await adminClient()
       .from('site_settings')
-      .select('template, config')
+      .select('config')
       .eq('singleton', true)
       .maybeSingle();
 
     if (error) throw error;
     return {
-      template: data?.template ?? 'modern',
       config: (data?.config ?? {}) as Partial<SiteConfig>,
     };
   },
@@ -58,7 +56,7 @@ export async function getLandingSiteSettingsOrDefault() {
   try {
     return await getLandingSiteSettings();
   } catch {
-    return { template: 'modern', config: {} as Partial<SiteConfig> };
+    return { config: {} as Partial<SiteConfig> };
   }
 }
 
@@ -91,24 +89,25 @@ const getProgrammes = unstable_cache(
     const offeredPathIds = offeredIds('learning_paths');
     const certificationIds = offeredIds('certifications');
 
-    // The id filter has to go on the query, not on its results. Filtering afterwards lets private
+    // Ordered by title so that which rows fall past each limit is predictable; the views carry no
+    // date or position to sort by. The id filter has to go on the query, not on its results. Filtering afterwards lets private
     // rows occupy the row budget and pushes genuine public offerings off the page entirely.
     const empty = { data: [] as any[], error: null };
     const [coursesResult, experiencesResult, pathsResult, certificationsResult] = await Promise.all([
       courseIds.length
-        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).limit(20)
+        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).order('title').limit(20)
         : empty,
       experienceIds.length
-        ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').in('id', experienceIds).limit(12)
+        ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').in('id', experienceIds).order('title').limit(12)
         : empty,
       offeredPathIds.length
-        ? publicClient.from('published_learning_paths').select('id,title,description,cover_image').in('id', offeredPathIds).limit(8)
+        ? publicClient.from('published_learning_paths').select('id,title,description,cover_image').in('id', offeredPathIds).order('title').limit(8)
         : empty,
       // Certifications come from their own gated view rather than a published_* one: the base
       // table denies anon SELECT because it holds the exam bank, and publicly_offered_certifications
       // exposes the card columns only. See migration 208.
       certificationIds.length
-        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug,cert_type').in('id', certificationIds).limit(12)
+        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug,cert_type').in('id', certificationIds).order('title').limit(12)
         : empty,
     ]);
 
@@ -230,7 +229,7 @@ export async function getLandingPageData(): Promise<LandingPageData> {
 
   const settings = settingsResult.status === 'fulfilled'
     ? settingsResult.value
-    : { template: 'modern', config: {} };
+    : { config: {} };
   const programmes = programmesResult.status === 'fulfilled'
     ? { items: programmesResult.value, error: false }
     : { items: [], error: true };

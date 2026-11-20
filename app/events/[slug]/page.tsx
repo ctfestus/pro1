@@ -46,7 +46,7 @@ export default async function EventPage({ params }: Params) {
     listPublicEventsOrEmpty(),
   ]);
   if (!event) notFound();
-  const config = resolveConfig(site.template, site.config);
+  const config = resolveConfig(site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
   const baseUrl = normalizeAbsoluteBaseUrl(tenant.appUrl, process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL);
   const shareUrl = baseUrl ? `${baseUrl}/events/${encodeURIComponent(event.slug)}` : '';

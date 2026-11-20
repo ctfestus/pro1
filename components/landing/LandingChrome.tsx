@@ -10,30 +10,15 @@
  * become ordinary links home.
  */
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
+import { useTenant } from '@/components/TenantProvider';
 import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
 import type { NavSubGroup } from '@/lib/landing-nav';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
-
-function Reveal({ children, delay = 0, y = 26, className = '' }: {
-  children: React.ReactNode; delay?: number; y?: number; className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-60px' });
-  const reduced = useReducedMotion();
-  return (
-    <motion.div ref={ref} initial={false}
-      animate={inView ? { opacity: 1, y: 0 } : undefined}
-      transition={reduced ? { duration: 0 } : { duration: 0.7, delay, ease: EASE_OUT }}
-      className={className}>
-      {children}
-    </motion.div>
-  );
-}
 
 /** A section link: a scroll button on the landing page, a link home anywhere else. */
 function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabIndex, children }: {
@@ -126,7 +111,7 @@ export interface LandingFooterProps {
 }
 
 // --- Nav profile menu ---
-export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
+function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
   user: any;
   profile: any;
   pageDark?: boolean;
@@ -142,9 +127,6 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
   const text    = isDark ? '#f0f0f0' : '#111';
   const faint   = isDark ? '#6b7a89' : '#888';
   const pill    = isDark ? '#2a2b34' : '#F4F4F4';
-  const cta     = isDark ? '#3E93FF' : '#00bf63';
-  const lime    = isDark ? 'rgba(62,147,255,0.15)' : '#dcfce7';
-  const green   = isDark ? '#3E93FF' : '#00bf63';
 
   const signOutHover = isDark ? 'rgba(239,68,68,0.10)'   : 'rgba(239,68,68,0.08)';
 
@@ -158,7 +140,6 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
 
   const name     = profile?.name || profile?.full_name || user?.email?.split('@')[0] || 'User';
   const username = profile?.username;
-  const initials = name.slice(0, 2).toUpperCase();
   const avatar   = profile?.avatar_url && /^https?:\/\//.test(profile.avatar_url) ? profile.avatar_url : null;
 
   const handleSignOut = async () => {
@@ -188,9 +169,9 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
           borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)',
         }}
       >
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden flex-shrink-0"
-          style={{ background: lime, color: green }}>
-          {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <span>{initials}</span>}
+        <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+          style={{ background: pill, color: faint }}>
+          {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <User className="w-4 h-4" />}
         </div>
         <span className="text-sm font-medium hidden sm:block pr-1" style={{ color: isDark ? 'white' : '#1C1D1F' }}>
           {name}
@@ -217,9 +198,9 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
             {/* Header */}
             <div className="px-4 py-4" style={{ borderBottom: `1px solid ${divider}` }}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center text-sm font-bold flex-shrink-0"
-                  style={{ background: lime, color: green }}>
-                  {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <span>{initials}</span>}
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0"
+                  style={{ background: pill, color: faint }}>
+                  {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <User className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold truncate" style={{ color: text }}>{name}</p>
@@ -703,55 +684,55 @@ export function LandingFooter({
   footerLink1Label, footerLink1Url, footerLink2Label, footerLink2Url,
   footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url,
 }: LandingFooterProps) {
+  const { publicSignupEnabled } = useTenant();
+  // Section links work from any page that wears this footer: they go home and scroll.
+  const learnLinks = [
+    [footerLink1Label || 'Courses',             footerLink1Url || '/#section-courses'],
+    [footerLink2Label || 'Learning Paths',      footerLink2Url || '/#section-paths'],
+    [footerLink3Label || 'Virtual Experiences', footerLink3Url || '/#section-ves'],
+    [footerLink4Label || 'Certifications',      footerLink4Url || '/#section-certifications'],
+  ];
+  // Sign up only while signups are open, as in the nav; Dashboard only for someone signed in.
+  const accountLinks = [
+    ['Log in', '/auth'],
+    ...(publicSignupEnabled ? [['Sign up', '/auth?mode=signup']] : []),
+    ...(user ? [['Dashboard', '/student']] : []),
+  ];
+  // At least 4.5:1 against the primary colour, which is what the footer sits on.
+  const linkColor = 'rgba(255,255,255,0.82)';
+  const link = ([label, href]: string[]) => (
+    <Link key={label} href={href} className="text-sm inline-block transition-all duration-200 hover:translate-x-1"
+      style={{ color: linkColor }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'white'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = linkColor; }}>
+      {label}
+    </Link>
+  );
   return (
       <footer style={{ background: isPageDark ? '#0D1117' : (primaryColor || '#0056D2'), fontFamily }}>
         <div className="max-w-[1240px] mx-auto px-6 md:px-10 pt-12 pb-9">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-10">
-            <Reveal y={18} className="col-span-2 md:col-span-1">
+            <div className="col-span-2 md:col-span-1">
               <div className="text-sm font-extrabold mb-2.5" style={{ color: 'white', letterSpacing: '-0.02em' }}>{appName}</div>
-              <p className="text-sm leading-relaxed max-w-[240px]" style={{ color: 'rgba(255,255,255,0.38)' }}>{footerTagline}</p>
-            </Reveal>
-            <Reveal y={18} delay={0.1}>
-              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <p className="text-sm leading-relaxed max-w-[240px]" style={{ color: 'rgba(255,255,255,0.78)' }}>{footerTagline}</p>
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.78)' }}>
                 {footerLinksHeading || 'Learn'}
               </div>
               <div className="flex flex-col gap-2.5 items-start">
-                {[
-                  [footerLink1Label || 'Courses',               footerLink1Url || '/auth'],
-                  [footerLink2Label || 'Learning Paths',        footerLink2Url || '/auth'],
-                  [footerLink3Label || 'Virtual Experiences',   footerLink3Url || '/auth'],
-                  [footerLink4Label || 'Certificates',          footerLink4Url || '/auth'],
-                ].filter(([l]) => l).map(([label, href]) => (
-                  <Link key={label} href={href} className="text-sm inline-block transition-all duration-200 hover:translate-x-1"
-                    style={{ color: 'rgba(255,255,255,0.40)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'white'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)'; }}>
-                    {label}
-                  </Link>
-                ))}
+                {learnLinks.filter(([label]) => label).map(link)}
               </div>
-            </Reveal>
-            <Reveal y={18} delay={0.18}>
-              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Account</div>
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest mb-3.5" style={{ color: 'rgba(255,255,255,0.78)' }}>Account</div>
               <div className="flex flex-col gap-2.5 items-start">
-                {([
-                  ['Log in',      '/auth'],
-                  ['Sign up',     '/auth?mode=signup'],
-                  ['Dashboard',   user ? '/student' : '/auth'],
-                  ['Leaderboard', user ? '/student' : '/auth'],
-                ] as const).map(([label, href]) => (
-                  <Link key={label} href={href} className="text-sm inline-block transition-all duration-200 hover:translate-x-1"
-                    style={{ color: 'rgba(255,255,255,0.40)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'white'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)'; }}>
-                    {label}
-                  </Link>
-                ))}
+                {accountLinks.map(link)}
               </div>
-            </Reveal>
+            </div>
           </div>
-          <div className="flex items-center justify-between pt-6 flex-wrap gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.24)' }}>
+          <div className="flex items-center justify-between pt-6 flex-wrap gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.78)' }}>
               &copy; {new Date().getFullYear()} {appName}. All rights reserved.
             </p>
             <div className="flex items-center gap-5 flex-wrap">
@@ -760,9 +741,9 @@ export function LandingFooter({
                 ['Terms of Use',   '/terms'],
               ] as const).map(([label, href]) => (
                 <Link key={label} href={href} className="text-xs transition-colors"
-                  style={{ color: 'rgba(255,255,255,0.40)' }}
+                  style={{ color: linkColor }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'white'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)'; }}>
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = linkColor; }}>
                   {label}
                 </Link>
               ))}
