@@ -2,7 +2,7 @@
 
 // Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
 
-import { useState, useEffect, useRef, isValidElement, cloneElement } from 'react';
+import { useState, useEffect, useMemo, useRef, isValidElement, cloneElement } from 'react';
 import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Database, Download, Edit2, Eye, FileCode, FileText, GripVertical, Loader2, Plus, Save, Search, Sparkles, Trash2, Upload, Video, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToStorage } from '@/lib/uploadToStorage';
@@ -11,6 +11,11 @@ import { downloadJSON } from '@/lib/dashboard-export';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { LIGHT_C, DARK_C, cardStyle } from '@/lib/theme';
+import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, matchesFilters, type Status } from '@/components/dashboard/content/kit';
+import { BUTTON, FIELD, Modal, inputStyle as fieldStyle } from '@/components/dashboard/subscriptions/Modal';
+import { Card, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
 
 function WhatsAppIcon({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
@@ -71,6 +76,11 @@ export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
   const [waLoading, setWaLoading] = useState(false);
   const [waSaving, setWaSaving] = useState(false);
   const [waMsg, setWaMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  // The list: filters, the dataset asked to be deleted, and the list's own blue for selection controls.
+  const [search, setSearch]     = useState('');
+  const [status, setStatus]     = useState<Status>('all');
+  const [confirmDelete, setConfirmDelete] = useState<DatasetRow | null>(null);
+  const LC = useMemo(() => ({ ...C, cta: DARK_C.cta }), [C]);
 
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -357,7 +367,6 @@ export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
   }
 
   async function deleteDataset(id: string) {
-    if (!confirm('Delete this dataset?')) return;
     const token = await getToken();
     await fetch(`/api/data-center?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     await load();
@@ -1070,135 +1079,108 @@ export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
     );
   }
 
+  // -- List ---
+  const P = palette(LC);
+  // The list reads a dataset's status from is_published, as Published or Draft.
+  const rows = datasets.map(d => ({ ...d, status: d.is_published ? 'published' : 'draft' }));
+  const term = search.trim().toLowerCase();
+  const visible = rows.filter(d => matchesFilters(d, status, term, [d.title, d.category, ...(d.tags ?? [])]));
+  const published = rows.filter(d => d.status === 'published').length;
+  const sqlOn = rows.filter(d => d.sql_workbench_enabled).length;
+  const categories = [...new Set(rows.map(d => d.category).filter(Boolean))] as string[];
+
   return (
-    <div style={{ fontFamily: font }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontWeight: 700, fontSize: 18, color: C.text, margin: 0 }}>Data Playground</h2>
-          <p style={{ fontSize: 13, color: C.faint, margin: '4px 0 0' }}>Manage datasets for students to explore and practice with.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
-          {datasets.length > 0 && (
-            <button onClick={exportAllDatasets} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: cardBorder, background: C.card, color: C.muted, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-              <Download size={14} /> Export All
-            </button>
-          )}
-          <button onClick={() => { setImportMsg(null); importRef.current?.click(); }} disabled={importing}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: cardBorder, background: C.card, color: importMsg ? (importMsg.ok ? '#16a34a' : '#ef4444') : C.muted, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            <Upload size={14} /> {importing ? 'Importing...' : importMsg ? importMsg.text : 'Import'}
+    <div className="space-y-5 pb-12">
+      <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+      <PageHeader title="Data playground" sub="Datasets learners explore and practise SQL on." C={LC} actions={<>
+        <button type="button" onClick={() => { setImportMsg(null); importRef.current?.click(); }} disabled={importing} className={btnClass} style={btnStyle('sec', LC)}>
+          <Upload className="w-4 h-4" />
+          {importing ? 'Importing...' : 'Import'}
+        </button>
+        {datasets.length > 0 && (
+          <button type="button" onClick={exportAllDatasets} className={btnClass} style={btnStyle('sec', LC)}>
+            <Download className="w-4 h-4" />
+            Export all
           </button>
-          <button onClick={openWhatsApp} title="Set the WhatsApp community link shown on the Data Playground"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: cardBorder, background: C.card, color: '#25D366', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            <WhatsAppIcon size={15} /> WhatsApp Community
-          </button>
-          <button onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            <Plus size={15} /> New Dataset
-          </button>
-        </div>
-      </div>
-
-      {loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: C.faint }}>
-          <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 8px' }} />
-          <p style={{ fontSize: 13 }}>Loading datasets...</p>
+        )}
+        <button type="button" onClick={openWhatsApp} title="Set the WhatsApp community link shown on the Data Playground" className={btnClass} style={btnStyle('sec', LC)}>
+          <WhatsAppIcon size={16} />
+          WhatsApp community
+        </button>
+        <button type="button" onClick={openCreate} className={btnClass} style={btnStyle('pri', LC)}>
+          <Plus className="w-4 h-4" />
+          New dataset
+        </button>
+      </>} />
+      {importMsg && (
+        <div role={importMsg.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm"
+          style={importMsg.ok ? { background: LC.successBg, color: LC.successText, border: `1px solid ${LC.successBorder}` } : { background: LC.errorBg, color: LC.errorText, border: `1px solid ${LC.errorBorder}` }}>
+          {importMsg.text}
         </div>
       )}
 
-      {!loading && datasets.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 60, ...cardStyle(C), borderRadius: 16 }}>
-          <Database size={36} style={{ color: C.faint, margin: '0 auto 12px' }} />
-          <p style={{ fontWeight: 600, color: C.text, marginBottom: 4 }}>No datasets yet</p>
-          <p style={{ fontSize: 13, color: C.faint, marginBottom: 16 }}>Create your first dataset to share with students.</p>
-          <button onClick={openCreate} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            New Dataset
-          </button>
-        </div>
-      )}
-
-      {!loading && datasets.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {datasets.map(d => (
-            <div key={d.id} style={{ ...cardStyle(C), borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              {d.cover_image_url && (
-                <img src={d.cover_image_url} alt={d.cover_image_alt ?? ''} style={{ width: 72, height: 48, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
-              )}
-              {!d.cover_image_url && (
-                <div style={{ width: 72, height: 48, borderRadius: 8, background: C.lime, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Database size={22} style={{ color: C.green }} />
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 600, fontSize: 14, color: C.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</p>
-                <p style={{ fontSize: 12, color: C.faint, margin: 0 }}>
-                  {d.category && <>{d.category}</>}
-                  {d.row_count ? `${d.category ? ' · ' : ''}${d.row_count.toLocaleString()} rows` : ''}
-                </p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <button onClick={() => togglePublish(d)} style={{
-                  padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  background: d.is_published ? 'rgba(22,163,74,0.12)' : C.pill,
-                  color: d.is_published ? '#16a34a' : C.muted,
-                }}>
-                  {d.is_published ? 'Published' : 'Draft'}
-                </button>
-                <span title={d.sql_workbench_enabled ? 'SQL Workbench enabled' : 'SQL Workbench disabled'} style={{
-                  padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                  background: d.sql_workbench_enabled ? 'rgba(22,163,74,0.12)' : C.pill,
-                  color: d.sql_workbench_enabled ? '#16a34a' : C.faint,
-                }}>
-                  SQL {d.sql_workbench_enabled ? 'On' : 'Off'}
-                </span>
-                <button onClick={() => exportDataset(d)} title="Export" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: 4 }}>
-                  <Download size={15} />
-                </button>
-                <button onClick={() => openEdit(d)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: 4 }}>
-                  <Edit2 size={15} />
-                </button>
-                <button onClick={() => deleteDataset(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {waOpen && (
-        <div onClick={() => !waSaving && setWaOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ ...cardStyle(C), borderRadius: 16, padding: 24, width: '100%', maxWidth: 460 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <WhatsAppIcon size={20} color="#fff" />
-              </span>
-              <h3 style={{ fontWeight: 700, fontSize: 16, color: C.text, margin: 0, flex: 1 }}>WhatsApp community link</h3>
-              <button onClick={() => setWaOpen(false)} style={{ border: 'none', background: 'transparent', color: C.faint, cursor: 'pointer', padding: 4, display: 'flex' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 16px', lineHeight: 1.5 }}>
-              Paste your group invite link. It shows as a &quot;Join our community&quot; banner on the Data Playground. Leave blank to hide the banner.
-            </p>
-            <input type="url" value={waLink} onChange={e => setWaLink(e.target.value)}
-              placeholder={waLoading ? 'Loading...' : 'https://chat.whatsapp.com/...'} disabled={waLoading}
-              style={{ ...inputStyle }} />
-            {waMsg && (
-              <p style={{ fontSize: 12.5, fontWeight: 600, color: waMsg.ok ? '#16a34a' : '#ef4444', margin: '10px 0 0' }}>{waMsg.text}</p>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-              <button onClick={() => setWaOpen(false)} disabled={waSaving}
-                style={{ padding: '9px 16px', borderRadius: 10, border: cardBorder, background: C.card, color: C.muted, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={saveWhatsApp} disabled={waSaving || waLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 600, fontSize: 13, cursor: 'pointer', opacity: (waSaving || waLoading) ? 0.6 : 1 }}>
-                {waSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save link
-              </button>
-            </div>
+      {loading ? (
+        <div className="h-64 rounded-2xl animate-pulse" style={{ background: LC.card }} />
+      ) : datasets.length === 0 ? (
+        <Card C={LC} className="px-5 py-16 text-center">
+          <p className="text-sm font-semibold" style={{ color: LC.text }}>No datasets yet</p>
+          <p className="text-sm mt-1" style={{ color: LC.muted }}>Create your first dataset to share with learners.</p>
+        </Card>
+      ) : (
+        <>
+          <Kpis C={LC} items={[
+            { label: 'Datasets', n: rows.length, sub: categories.length ? categories.slice(0, 3).join(', ') + (categories.length > 3 ? ` and ${categories.length - 3} more` : '') : 'No categories yet', color: LC.text },
+            { label: 'Published', n: published, sub: rows.length - published ? `${rows.length - published} still in draft` : 'No drafts', color: published ? P.good : LC.text },
+            { label: 'SQL workbench on', n: sqlOn, sub: 'Learners can query these', color: LC.text },
+          ]} />
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search datasets" C={LC} />
+            <StatusChips value={status} onChange={setStatus} C={LC} />
           </div>
-        </div>
+          {visible.length === 0 ? (
+            <Card C={LC} className="px-5 py-12 text-center"><p className="text-sm" style={{ color: LC.muted }}>No datasets match these filters.</p></Card>
+          ) : (
+            <div className={CARD_GRID}>
+              {visible.map(d => {
+                const files = normalizeDatasetFiles(d).length;
+                const detail = [d.category, d.row_count ? `${d.row_count.toLocaleString()} rows` : '', files ? plural(files, 'file') : ''].filter(Boolean).join(', ');
+                return (
+                  <ContentCard key={d.id} item={d} cover={d.cover_image_url} Icon={Database} detail={detail || null} reach={null} C={LC}
+                    audienceText={d.sql_workbench_enabled ? 'SQL workbench on' : 'SQL workbench off'}
+                    onOpen={() => openEdit(d)}
+                    menu={(close) => [
+                      { label: 'Edit', sub: 'Overview, dataset, phases', icon: Edit2, onClick: () => { close(); openEdit(d); } },
+                      { label: d.is_published ? 'Move to draft' : 'Publish', sub: d.is_published ? 'Hide it from learners' : 'Show it to learners', icon: Eye, onClick: () => { close(); togglePublish(d); } },
+                      { label: 'Export', sub: 'Download as a file', icon: Download, onClick: () => { close(); exportDataset(d); } },
+                      null,
+                      { label: 'Delete', sub: 'Asks first', icon: Trash2, danger: true, onClick: () => { close(); setConfirmDelete(d); } },
+                    ]} />
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal title="Delete dataset?" eyebrow={confirmDelete.title} body="This cannot be undone." action="Delete dataset"
+          danger onClose={() => setConfirmDelete(null)} onConfirm={async () => { const d = confirmDelete; setConfirmDelete(null); await deleteDataset(d.id); }} C={LC} />
+      )}
+      {waOpen && (
+        <Modal title="WhatsApp community link" eyebrow="Shown as a Join our community banner on the Data Playground" onClose={() => { if (!waSaving) setWaOpen(false); }} C={LC}>
+          <div className="grid gap-3">
+            <p className="text-sm" style={{ color: LC.muted }}>Paste your group invite link. Leave it blank to hide the banner.</p>
+            <input type="url" value={waLink} onChange={e => setWaLink(e.target.value)} aria-label="WhatsApp community link"
+              placeholder={waLoading ? 'Loading...' : 'https://chat.whatsapp.com/...'} disabled={waLoading} className={FIELD} style={fieldStyle(LC)} />
+            {waMsg && <p className="text-sm" style={{ color: waMsg.ok ? P.good : P.bad }}>{waMsg.text}</p>}
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
+            <button type="button" onClick={() => setWaOpen(false)} disabled={waSaving} className={BUTTON} style={{ background: LC.pill, color: LC.text }}>Cancel</button>
+            <button type="button" onClick={saveWhatsApp} disabled={waSaving || waLoading} className={BUTTON} style={{ background: LC.cta, color: LC.ctaText }}>
+              {waSaving ? 'Saving...' : 'Save link'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
