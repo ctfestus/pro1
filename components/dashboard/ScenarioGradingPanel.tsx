@@ -12,6 +12,7 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { ReviewReportView } from '@/components/ReviewReportView';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DISPLAY_FONT, Pill, palette } from '@/components/dashboard/subscriptions/ui';
 import {
   TASK_TYPE_LABEL, isAiTaskType, aiTaskScoreSuggestion, clampTaskScore, hasRichText,
   type AssignmentSubmissionRecord, type TaskAnswer, type McqGrade, type TaskGradeMap,
@@ -52,7 +53,7 @@ const isValid = (n: number | null) => n == null || (n >= 0 && n <= 100);
 
 // The student's submitted work for one task, rendered read-only.
 function AnswerBody({ a, mcq, C, isDark }: { a: TaskAnswer; mcq: Record<string, McqGrade>; C: typeof LIGHT_C; isDark: boolean }) {
-  const empty = (text: string) => <p className="text-sm italic" style={{ color: C.faint }}>{text}</p>;
+  const empty = (text: string) => <p className="text-sm" style={{ color: C.muted }}>{text}</p>;
 
   if (a.type === 'text') {
     return a.text && hasRichContent(a.text)
@@ -61,8 +62,9 @@ function AnswerBody({ a, mcq, C, isDark }: { a: TaskAnswer; mcq: Record<string, 
   }
   if (a.type === 'upload') {
     return a.fileUrl
-      ? <a href={a.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold hover:opacity-70" style={{ color: C.green }}>
-          <Download className="w-3.5 h-3.5"/> {a.fileName || 'Download file'}
+      ? <a href={a.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-semibold hover:opacity-70" style={{ color: C.text }}>
+          <Download className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }}/>
+          <span className="truncate">{a.fileName || 'Download file'}</span>
         </a>
       : empty('No file uploaded.');
   }
@@ -70,24 +72,21 @@ function AnswerBody({ a, mcq, C, isDark }: { a: TaskAnswer; mcq: Record<string, 
     if (a.selectedOption == null || a.selectedOption === '') return empty('Not answered.');
     const g = mcq[a.taskId];
     return (
-      <div className="space-y-2">
-        <p className="text-sm" style={{ color: C.text }}>
-          <span style={{ color: C.faint }}>Selected: </span><span style={{ fontWeight: 600 }}>{a.selectedOption}</span>
-        </p>
-        {g && (
-          g.isCorrect
-            ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}><Check className="w-3 h-3"/> Correct</span>
-            : <span className="inline-flex items-center gap-2 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444' }}>
-                Incorrect{g.correctOption ? <span style={{ fontWeight: 600, opacity: 0.85 }}>correct answer: {g.correctOption}</span> : null}
-              </span>
-        )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm" style={{ color: C.text }}>
+        <span><span style={{ color: C.muted }}>Chose </span><span style={{ fontWeight: 600 }}>{a.selectedOption}</span></span>
+        {g && (g.isCorrect
+          ? <Pill tone="good" dot C={C}>Correct</Pill>
+          : <>
+              <Pill tone="bad" C={C}>Incorrect</Pill>
+              {g.correctOption && <span style={{ color: C.muted }}>Correct answer: <span style={{ color: C.text, fontWeight: 600 }}>{g.correctOption}</span></span>}
+            </>)}
       </div>
     );
   }
   if (isAiTaskType(a.type)) {
     return a.report
       ? <div className="space-y-2">
-          <p className="text-[11px]" style={{ color: C.faint }}>AI feedback the student generated. Not independently verified, so confirm it against the submitted work before scoring.</p>
+          <p className="text-xs" style={{ color: C.muted }}>AI feedback the student generated. Not independently verified, so confirm it against the submitted work before scoring.</p>
           <ReviewReportView rec={{ type: a.type, report: a.report, imageUrl: a.imageUrl }} isDark={isDark}/>
         </div>
       : empty('AI review not run.');
@@ -104,45 +103,44 @@ function TaskGradeFields({ a, draft, onChange, C }: { a: TaskAnswer; draft: Task
   const valid = isValid(value);
   const suggestion = aiTaskScoreSuggestion(a);
 
-  const chip = (label: string, onClick: () => void, accent?: boolean) => (
+  const P = palette(C);
+  const chip = (label: string, onClick: () => void) => (
     <button type="button" onClick={onClick}
-      className="text-[11px] font-semibold px-3 py-2 rounded-lg hover:opacity-75 transition-opacity"
-      style={{ background: accent ? 'rgba(16,185,129,0.10)' : C.pill, color: accent ? '#10b981' : C.muted, border: 'none', cursor: 'pointer' }}>
+      className="h-8 px-3 rounded-[10px] text-xs font-semibold hover:opacity-75 transition-opacity"
+      style={{ background: C.pill, color: C.muted, border: 'none', cursor: 'pointer' }}>
       {label}
     </button>
   );
 
   return (
-    <div className="mt-4 pt-4" style={{ borderTop: `1px dashed ${C.divider}` }}>
+    <div className="mt-3">
       <div className="flex items-center flex-wrap gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider mr-1" style={{ color: C.faint }}>Score</span>
         <div className="flex items-center gap-2">
           <input type="number" min={0} max={100} value={draft.score} onChange={e => onChange({ score: e.target.value })}
-            placeholder="--"
-            style={{ width: 78, padding: '8px 10px', borderRadius: 10, border: `1px solid ${valid ? C.cardBorder : '#ef4444'}`, background: C.input, color: C.text, fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}/>
-          <span className="text-xs font-semibold" style={{ color: C.faint }}>/ 100</span>
+            placeholder="--" aria-label={`Score for ${a.taskTitle || 'this task'}`}
+            className="field-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            style={{ width: 72, height: 40, borderRadius: 10, border: `1px solid ${valid ? C.inputBorder : P.bad}`, background: C.input, color: C.text, fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}/>
+          <span className="text-xs" style={{ color: C.muted }}>/ 100</span>
         </div>
-        {chip('Full marks', () => onChange({ score: '100' }))}
-        {chip('Zero', () => onChange({ score: '0' }))}
-        {suggestion != null && chip(`Use AI score (${suggestion})`, () => onChange({ score: String(suggestion) }), true)}
+        {suggestion != null && chip(`Use AI score (${suggestion})`, () => onChange({ score: String(suggestion) }))}
         {draft.score !== '' && chip('Clear', () => onChange({ score: '' }))}
         {!showComment && (
           <button type="button" onClick={() => setShowComment(true)}
-            className="inline-flex items-center gap-2 text-[11px] font-semibold px-3 py-2 rounded-lg ml-auto hover:opacity-75 transition-opacity"
-            style={{ background: 'none', color: C.green, border: 'none', cursor: 'pointer' }}>
-            <MessageSquare className="w-3 h-3"/> Add comment
+            className="inline-flex items-center gap-2 text-xs font-semibold ml-auto underline underline-offset-2 hover:opacity-75"
+            style={{ background: 'none', color: C.text, border: 'none', cursor: 'pointer' }}>
+            <MessageSquare className="w-3.5 h-3.5"/> Add comment
           </button>
         )}
       </div>
       {!valid && (
-        <p className="flex items-center gap-2 text-[11px] mt-2" style={{ color: '#ef4444' }}>
-          <AlertCircle className="w-3 h-3"/> Score must be between 0 and 100.
+        <p className="flex items-center gap-2 text-xs mt-2" style={{ color: P.bad }}>
+          <AlertCircle className="w-3.5 h-3.5"/> Score must be between 0 and 100.
         </p>
       )}
       {showComment && (
         <div className="mt-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: C.faint }}>Comment on this task</p>
-          <div style={{ borderRadius: 10, border: `1px solid ${C.cardBorder}`, overflow: 'hidden' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Comment on this task</p>
+          <div style={{ borderRadius: 10, border: `1px solid ${C.inputBorder}`, overflow: 'hidden' }}>
             <RichTextEditor value={draft.feedback} onChange={html => onChange({ feedback: html })}
               placeholder="What was strong, what to fix. The student sees this beside this task."
               bgOverride={C.input} enableAiAssist/>
@@ -154,6 +152,7 @@ function TaskGradeFields({ a, draft, onChange, C }: { a: TaskAnswer; draft: Task
 }
 
 export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark }: Props) {
+  const P = palette(C);
   const groups = groupByScenario(record);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setCollapsed(prev => {
@@ -175,19 +174,14 @@ export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark 
             <button type="button" onClick={() => toggle(group.id)}
               className="w-full flex items-center gap-3 px-5 py-4 text-left"
               style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform" style={{ color: C.faint, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}/>
+              <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform" style={{ color: C.muted, transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}/>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: C.faint }}>Scenario {gi + 1}</p>
-                <p className="text-sm font-bold truncate" style={{ color: C.text }}>{group.title || 'Scenario'}</p>
+                <p className="text-xs" style={{ color: C.muted }}>Scenario {gi + 1}</p>
+                <p className="text-base font-semibold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{group.title || 'Scenario'}</p>
               </div>
-              <span className="text-[11px] font-semibold px-3 py-1 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
-                {scores.length}/{group.answers.length} scored
+              <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>
+                {scores.length} of {group.answers.length} scored{avg != null ? `, average ${avg}%` : ''}
               </span>
-              {avg != null && (
-                <span className="text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>
-                  Avg {avg}%
-                </span>
-              )}
             </button>
 
             {!isCollapsed && (
@@ -196,25 +190,20 @@ export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark 
                   const draft = drafts[a.taskId] ?? { score: '', feedback: '' };
                   const value = scoreOf(draft.score);
                   return (
-                    <div key={a.taskId} className="px-5 py-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+                    <div key={a.taskId} className="px-5 py-4" style={{ borderTop: `1px solid ${C.divider}` }}>
                       {/* Task header */}
                       <div className="flex items-start gap-3 mb-3">
-                        <span className="flex items-center justify-center flex-shrink-0 text-[11px] font-bold rounded-lg" style={{ width: 26, height: 26, background: value != null ? 'rgba(22,163,74,0.12)' : C.pill, color: value != null ? '#16a34a' : C.faint }}>
-                          {value != null ? <Check className="w-3.5 h-3.5"/> : ti + 1}
+                        <span className="flex items-center justify-center flex-shrink-0 text-xs font-bold rounded-lg" style={{ width: 24, height: 24, background: value != null ? P.good : C.pill, color: value != null ? '#FFFFFF' : C.muted }}>
+                          {value != null ? <Check className="w-3 h-3" strokeWidth={3}/> : ti + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold" style={{ color: C.text }}>{a.taskTitle || `Task ${ti + 1}`}</p>
-                          <p className="text-[11px] font-bold uppercase tracking-wider mt-0.5" style={{ color: C.faint }}>{TASK_TYPE_LABEL[a.type]}</p>
+                          <p className="text-sm font-semibold" style={{ color: C.text }}>{a.taskTitle || `Task ${ti + 1}`}</p>
+                          <p className="text-xs" style={{ color: C.muted }}>{TASK_TYPE_LABEL[a.type]}</p>
                         </div>
-                        {value != null && (
-                          <span className="text-xs font-bold px-3 py-1 rounded-full flex-shrink-0" style={{ background: value >= 50 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.10)', color: value >= 50 ? '#16a34a' : '#ef4444' }}>
-                            {value}/100
-                          </span>
-                        )}
                       </div>
 
                       {/* Student answer */}
-                      <div className="rounded-xl p-4" style={{ background: C.input }}>
+                      <div className="rounded-xl px-4 py-3" style={{ background: C.page }}>
                         <AnswerBody a={a} mcq={mcq} C={C} isDark={isDark}/>
                       </div>
 
@@ -224,7 +213,7 @@ export function ScenarioGradingPanel({ record, mcq, drafts, onChange, C, isDark 
                   );
                 })}
                 {group.answers.length === 0 && (
-                  <p className="px-5 py-5 text-sm" style={{ color: C.faint, borderTop: `1px solid ${C.divider}` }}>No tasks in this scenario.</p>
+                  <p className="px-5 py-5 text-sm" style={{ color: C.muted, borderTop: `1px solid ${C.divider}` }}>No tasks in this scenario.</p>
                 )}
               </div>
             )}
