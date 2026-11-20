@@ -15,7 +15,7 @@ import { ImportButton } from '@/components/dashboard/ImportButton';
 import { PushAllButton, PushStatusPill, usePushStatus } from '@/components/dashboard/primitives';
 import { CreateCourseMenu, ShareMenu, groupFormsByCategory } from '@/components/dashboard/content-cards';
 import { FloatingMenu, menuPosition, type MenuItem, type MenuPosition } from '@/components/dashboard/subscriptions/Menus';
-import { Card, DISPLAY_FONT, Pill, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+import { Card, DISPLAY_FONT, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 
 type Status = 'all' | 'published' | 'draft';
@@ -44,9 +44,18 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
   const { state: pushState, msg: pushMsg, push } = usePushStatus('course', course.id);
   const cover = course.config?.coverImage;
   const open = () => router.push(`/dashboard/${course.id}`);
-  const status = course.status === 'draft' ? <Pill tone="warn" C={C}>Draft</Pill>
-    : course.status === 'archived' ? <Pill tone="mute" C={C}>Archived</Pill>
-    : <Pill tone="good" dot C={C}>Published</Pill>;
+  const P = palette(C);
+  const reachText = audience(course, reach);
+  // The status sits on the cover, so it has a solid background to stay readable over any image.
+  const tag = (text: string, color: string, dot = false) => (
+    <span className="inline-flex items-center gap-2 rounded-full px-2 text-xs font-semibold leading-6 whitespace-nowrap" style={{ background: C.card, color, boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
+      {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'currentColor' }} />}
+      {text}
+    </span>
+  );
+  const status = course.status === 'draft' ? tag('Draft', P.warn)
+    : course.status === 'archived' ? tag('Archived', C.muted)
+    : tag('Published', P.good, true);
 
   const items: (MenuItem | null)[] = [
     { label: 'Open', sub: 'Lessons, learners and results', icon: Eye, onClick: () => { setMenu(null); open(); } },
@@ -66,6 +75,7 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
           ? <img src={resolveCoverUrl(cover)} alt="" loading="lazy" onError={() => setCoverError(true)} className="absolute inset-0 w-full h-full object-cover" />
           : <BookOpen className="w-8 h-8" style={{ color: C.faint }} />}
         <PushStatusPill state={pushState} msg={pushMsg} className="top-3 left-3" />
+        <div className="absolute left-3 bottom-3">{status}</div>
         <button type="button" aria-label={`Actions for ${course.title}`}
           onClick={(e) => { e.stopPropagation(); setMenu(menu ? null : { position: menuPosition(e.currentTarget, 400), from: e.currentTarget.getBoundingClientRect() }); }}
           className="absolute top-3 right-3 w-8 h-8 rounded-[10px] grid place-items-center"
@@ -73,14 +83,11 @@ function CourseCard({ course, reach, onDelete, C }: { course: any; reach: Reach 
           <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>
-      <button type="button" onClick={open} className="text-left px-4 pt-3 pb-4 grid gap-2">
+      <button type="button" onClick={open} className="text-left px-4 pt-3 pb-4 grid gap-1">
         <span className="text-sm font-semibold line-clamp-2" style={{ color: C.text }}>{course.title || 'Untitled'}</span>
-        <span className="flex flex-wrap items-center gap-2">
-          {status}
-          {audience(course, reach)
-            ? <span className="text-xs" style={{ color: C.muted }}>{audience(course, reach)}</span>
-            : reach && <span className="text-xs font-semibold" style={{ color: palette(C).warn }}>Not assigned</span>}
-        </span>
+        {reachText
+          ? <span className="text-xs" style={{ color: C.muted }}>{reachText}</span>
+          : reach && <span className="text-xs font-semibold" style={{ color: P.warn }}>Not assigned</span>}
       </button>
       {menu && <FloatingMenu position={menu.position} label="course actions" items={items} onClose={() => setMenu(null)} C={C} />}
       {shareFrom && <ShareMenu form={course} triggerRect={shareFrom} onClose={() => setShareFrom(null)} />}
