@@ -15,7 +15,7 @@ const PICKED = '#3E93FF';
 
 export type MenuOption<V extends string> = { value: V; label: string; icon?: ElementType };
 
-export function MenuSelect<V extends string>({ label, value, options, onChange, C, field = false, placeholder, disabled = false, autoFocus = false, className = '', searchable = false }: {
+export function MenuSelect<V extends string>({ label, value, options, onChange, C, field = false, placeholder, disabled = false, autoFocus = false, className = '', searchable = false, fixed = false }: {
   /** What the control chooses, for screen readers ("Content type"). */
   label: string;
   value: V;
@@ -32,6 +32,9 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   className?: string;
   /** A search box at the top of the list, for lists too long to scroll through. */
   searchable?: boolean;
+  /** A filter with a set width (the full row on a phone): a long choice is cut short instead of the
+   *  button growing and shrinking with it, and the list is as wide as the button. */
+  fixed?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -78,7 +81,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   };
 
   return (
-    <div className="relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
+    <div className={`relative ${fixed ? 'w-full sm:w-72' : ''}`} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
       <button
         ref={buttonRef}
         type="button"
@@ -92,7 +95,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
         onKeyDown={onKeyDown}
         disabled={disabled || !options.length}
         autoFocus={autoFocus}
-        className={`flex items-center gap-2.5 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${field ? 'w-full rounded-[10px] px-3.5 py-3 text-left' : 'rounded-xl py-2 pl-3 pr-4 font-medium focus-visible:!outline-none'} ${className}`}
+        className={`flex items-center gap-2.5 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${field ? 'w-full rounded-[10px] px-3.5 py-3 text-left' : 'rounded-xl py-2 pl-3 pr-4 font-medium focus-visible:!outline-none'} ${fixed ? 'w-full text-left' : ''} ${className}`}
         style={{
           background: field ? C.input : C.card,
           color: current ? C.text : C.faint,
@@ -100,7 +103,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
         }}
       >
         {CurrentIcon && <CurrentIcon className="h-4 w-4 flex-shrink-0" style={{ color: C.muted }} />}
-        <span className={field ? 'min-w-0 flex-1 truncate' : 'whitespace-nowrap'}>{current?.label ?? placeholder}</span>
+        <span className={field || fixed ? 'min-w-0 flex-1 truncate' : 'whitespace-nowrap'} title={fixed ? current?.label : undefined}>{current?.label ?? placeholder}</span>
         <ChevronDown className={`${field ? '' : 'ml-3'} h-4 w-4 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} style={{ color: open && field ? C.cta : C.faint }} />
       </button>
 
@@ -114,7 +117,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute left-0 top-[calc(100%+8px)] z-40 max-h-72 origin-top-left overflow-y-auto rounded-2xl p-1.5 ${field ? 'right-0' : 'min-w-[230px]'}`}
+            className={`absolute left-0 top-[calc(100%+8px)] z-40 max-h-72 origin-top-left overflow-y-auto rounded-2xl p-1.5 ${field || fixed ? 'right-0' : 'min-w-[230px]'}`}
             style={{
               background: C.card,
               border: `1px solid ${C.cardBorder}`,
@@ -163,7 +166,7 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
                       <Icon className="h-4 w-4" />
                     </span>
                   )}
-                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  <span className={`min-w-0 flex-1 ${fixed ? 'break-words' : 'truncate'}`}>{o.label}</span>
                   {selected && <Check className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} style={{ color: PICKED }} />}
                 </button>
               );

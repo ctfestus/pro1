@@ -182,7 +182,7 @@ export default function AdminGroupsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <SearchBox value={search} onChange={setSearch} placeholder="Search groups or members" C={C} />
-              <MenuSelect searchable label="Filter by cohort" value={cohortFilter} onChange={(v) => { setCohortFilter(v); setOpenId(null); }}
+              <MenuSelect searchable fixed label="Filter by cohort" value={cohortFilter} onChange={(v) => { setCohortFilter(v); setOpenId(null); }}
                 options={[{ value: 'all', label: 'All cohorts' }, ...cohorts.map((c) => ({ value: c.id, label: c.name }))]} C={C} />
             </div>
             <Card C={C} className="overflow-hidden">
