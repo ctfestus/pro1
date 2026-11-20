@@ -714,11 +714,11 @@ export function LandingFooter({
         <div className={`max-w-[1240px] mx-auto ${GUTTER} pt-12 pb-8`}>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-10">
             <div className="col-span-2 md:col-span-1">
-              <div className="mb-2" style={{ ...M3.titleMedium, color: 'white' }}>{appName}</div>
+              <div className="mb-2" style={{ ...M3.titleMedium, fontWeight: 800, color: 'white' }}>{appName}</div>
               <p className="max-w-[240px]" style={{ ...M3.bodyMedium, color: 'rgba(255,255,255,0.78)' }}>{footerTagline}</p>
             </div>
             <div>
-              <div className="mb-4" style={{ ...M3.titleSmall, color: 'white' }}>
+              <div className="mb-4" style={{ ...M3.titleSmall, fontWeight: 700, color: 'white' }}>
                 {footerLinksHeading || 'Learn'}
               </div>
               <div className="flex flex-col gap-2 items-start">
@@ -726,7 +726,7 @@ export function LandingFooter({
               </div>
             </div>
             <div>
-              <div className="mb-4" style={{ ...M3.titleSmall, color: 'white' }}>Account</div>
+              <div className="mb-4" style={{ ...M3.titleSmall, fontWeight: 700, color: 'white' }}>Account</div>
               <div className="flex flex-col gap-2 items-start">
                 {accountLinks.map(link)}
               </div>

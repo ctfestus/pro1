@@ -118,7 +118,7 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
 }) {
   return (
     <div className="mb-6">
-      <h2 style={{ ...M3.headlineMedium, fontFamily: hFont, color }}>{title}</h2>
+      <h2 style={{ ...M3.headlineMedium, fontWeight: 900, fontFamily: hFont, color }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
@@ -282,13 +282,13 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       style={{ maxWidth: isMobile ? (isSide ? '52%' : '92%') : 620 }}>
                       {ad.label && (
                         <motion.span variants={bannerItem} className="inline-flex items-center gap-2 mb-4"
-                          style={{ ...M3.labelLarge, color: 'rgba(255,255,255,0.85)' }}>
+                          style={{ ...M3.labelLarge, fontWeight: 800, color: 'rgba(255,255,255,0.85)' }}>
                           <span aria-hidden="true" className="inline-block w-4 h-[2px] rounded-full" style={{ background: 'rgba(255,255,255,0.85)' }} />
                           {ad.label}
                         </motion.span>
                       )}
                       <motion.h3 variants={bannerItem} className="text-balance"
-                        style={{ ...(isMobile ? M3.headlineMedium : { fontSize: 45, lineHeight: '52px', fontWeight: 400 }), color: 'white', fontFamily: hFont }}>
+                        style={{ ...(isMobile ? M3.headlineMedium : { fontSize: 45, lineHeight: '52px' }), fontWeight: 500, color: 'white', fontFamily: hFont }}>
                         {ad.title}
                       </motion.h3>
                       {ad.description && (
@@ -301,7 +301,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                         <motion.div variants={bannerItem} className="mt-8">
                           <Link href={ad.ctaUrl || '/auth'}
                             className="group inline-flex items-center gap-2 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                            style={{ ...M3.labelLarge, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
+                            style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
                             {ad.ctaText}
                             <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                           </Link>
@@ -320,12 +320,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                 <div>
                   {ad.label && (
                     <motion.span variants={bannerItem} className="inline-block px-2 py-1 rounded-md mb-4"
-                      style={{ ...M3.labelMedium, background: 'rgba(255,255,255,0.22)', color: 'white', backdropFilter: 'blur(4px)' }}>
+                      style={{ ...M3.labelMedium, fontWeight: 700, background: 'rgba(255,255,255,0.22)', color: 'white', backdropFilter: 'blur(4px)' }}>
                       {ad.label}
                     </motion.span>
                   )}
                   <motion.h3 variants={bannerItem} className="mb-2"
-                    style={{ ...(isMobile ? M3.headlineSmall : M3.headlineMedium), color: 'white', fontFamily: hFont, maxWidth: isSide ? 'none' : 380 }}>
+                    style={{ ...(isMobile ? M3.headlineSmall : M3.headlineMedium), fontWeight: 900, color: 'white', fontFamily: hFont, maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
@@ -339,7 +339,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ ...M3.labelLarge, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
+                      style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: baseColor, fontFamily: hFont, padding: BUTTON_PAD }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
@@ -530,7 +530,7 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
           );
         };
         const pageCount = paged && pages > 1 && (
-          <span className="tabular-nums" style={{ ...M3.labelLarge, color: rowMuted, fontFamily: bFont ?? hFont }}>
+          <span className="tabular-nums" style={{ ...M3.labelLarge, fontWeight: 600, color: rowMuted, fontFamily: bFont ?? hFont }}>
             {page + 1} / {pages}
           </span>
         );
@@ -542,7 +542,7 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
                 const Fallback = getCategoryIcon(title, type);
                 return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;
               })()}
-              <h3 className="truncate" style={{ ...M3.titleLarge, color: rowText, fontFamily: hFont }}>{title}</h3>
+              <h3 className="truncate" style={{ ...M3.titleLarge, fontWeight: 700, color: rowText, fontFamily: hFont }}>{title}</h3>
             </div>
             {showControls && (
               <div className="flex items-center gap-3 flex-shrink-0">
@@ -591,7 +591,7 @@ function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, 
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                     style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
                 </div>
-                <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, color: rowText, fontFamily: hFont }}>{item.title}</p>
+                <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, fontWeight: 700, color: rowText, fontFamily: hFont }}>{item.title}</p>
                 {item.partnerName && (
                   <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: rowMuted }}>
                     {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
@@ -847,7 +847,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} active={ctaInView} />
           </>}
           <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
-            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontFamily: hFont, color: 'white' }}>
+            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontWeight: 900, fontFamily: hFont, color: 'white' }}>
               {ctaHeading}
               {ctaHeadingAccent && <><br /><span style={{ color: AMBER }}>{ctaHeadingAccent}</span></>}
             </h2>
@@ -862,14 +862,14 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
                       offers Log in, as the nav does. */}
                   <Link href={user ? '/student' : publicSignupEnabled ? '/auth?mode=signup' : '/auth'}
                     className="group inline-flex items-center gap-2 rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
-                    style={{ ...M3.labelLarge, background: 'white', color: BLUE, padding: BUTTON_PAD }}>
+                    style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: BLUE, padding: BUTTON_PAD }}>
                     {user ? 'Go to my learning' : publicSignupEnabled ? (ctaButton || 'Create free account') : 'Log in'}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </Magnetic>
                 <a href="#browse"
                   className="inline-flex items-center rounded-xl transition-all"
-                  style={{ ...M3.labelLarge, padding: '8px 22px', color: 'white', border: '2px solid rgba(255,255,255,0.32)' }}
+                  style={{ ...M3.labelLarge, fontWeight: 700, padding: '8px 22px', color: 'white', border: '2px solid rgba(255,255,255,0.32)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'white'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.32)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                   Explore programmes

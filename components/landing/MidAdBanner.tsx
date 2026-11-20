@@ -53,12 +53,12 @@ export function MidAdBanner({
                 <div>
                   {ad.label && (
                     <span className="inline-block px-2 py-1 rounded-md mb-4"
-                      style={{ ...M3.labelMedium, background: 'rgba(255,255,255,0.22)', color: 'white' }}>
+                      style={{ ...M3.labelMedium, fontWeight: 700, background: 'rgba(255,255,255,0.22)', color: 'white' }}>
                       {ad.label}
                     </span>
                   )}
                   <h3 className="mb-2"
-                    style={{ ...M3.titleLarge, color: 'white', fontFamily: hFont, maxWidth: sideImage ? 'none' : 240 }}>
+                    style={{ ...M3.titleLarge, fontWeight: 800, color: 'white', fontFamily: hFont, maxWidth: sideImage ? 'none' : 240 }}>
                     {ad.title}
                   </h3>
                   {ad.description && (
@@ -71,7 +71,7 @@ export function MidAdBanner({
                   <div>
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start rounded-xl transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-                      style={{ ...M3.labelLarge, background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, padding: BUTTON_PAD }}>
+                      style={{ ...M3.labelLarge, fontWeight: 700, background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, padding: BUTTON_PAD }}>
                       {ad.ctaText}
                       <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
