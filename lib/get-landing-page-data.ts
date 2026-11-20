@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { adminClient } from './admin-client';
 import { resolveCoverUrl } from './cloudinary-url';
 import type { SiteConfig } from './site-templates';
+import { previewFacts, type PreviewFacts } from './catalogue-preview-facts';
 
 export type PathCourse = {
   id: string;
@@ -26,8 +27,10 @@ export type ProgrammeItem = {
   category?: string;
   partnerName?: string;
   partnerLogoUrl?: string;
+  /** An experience's role and company, under the title in the hover preview. */
+  byline?: string;
   pathCourses?: PathCourse[];
-};
+} & PreviewFacts;
 
 export type LandingPageData = {
   config: Partial<SiteConfig>;
@@ -125,6 +128,22 @@ const getProgrammes = unstable_cache(
       console.warn('[landing] certification cards unavailable:', certificationsResult.error.message);
     }
 
+    // The hover preview's details (what you will learn, duration, tools, exam time, pass mark) are
+    // not in the public views. They are display text, read with the service role and only for the
+    // rows the gate above already offers to everyone. A failure costs the preview its details,
+    // never the catalogue.
+    const db = adminClient();
+    const extraResults = await Promise.all([
+      courseIds.length ? db.from('courses').select('id,learn_outcomes').in('id', courseIds) : empty,
+      experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools').in('id', experienceIds) : empty,
+      certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
+    ]);
+    const extras = new Map<string, any>();
+    for (const result of extraResults) {
+      if (result.error) console.warn('[landing] preview details unavailable:', result.error.message);
+      else for (const row of result.data ?? []) extras.set(row.id, row);
+    }
+
     const courses: ProgrammeItem[] = (coursesResult.data ?? []).map((row) => ({
       id: row.id,
       title: row.title,
@@ -136,6 +155,7 @@ const getProgrammes = unstable_cache(
       category: row.category ?? '',
       partnerName: row.partner_name ?? undefined,
       partnerLogoUrl: row.partner_logo_url ?? undefined,
+      ...previewFacts(extras.get(row.id) ?? {}),
     }));
 
     const experiences: ProgrammeItem[] = (experiencesResult.data ?? []).map((row) => ({
@@ -152,6 +172,8 @@ const getProgrammes = unstable_cache(
       category: row.industry
         ? row.industry.charAt(0).toUpperCase() + row.industry.slice(1)
         : '',
+      byline: [extras.get(row.id)?.role, extras.get(row.id)?.company].filter(Boolean).join(', ') || undefined,
+      ...previewFacts({ ...extras.get(row.id), difficulty: row.difficulty }),
     }));
 
     const certifications: ProgrammeItem[] = (certificationsResult.error ? [] : certificationsResult.data ?? []).map((row) => ({
@@ -165,6 +187,7 @@ const getProgrammes = unstable_cache(
       // Career or Technology, which is what the card tag shows. Not used for grouping: the
       // section stays one row.
       category: row.cert_type === 'career' ? 'Career' : 'Technology',
+      ...previewFacts(extras.get(row.id) ?? {}),
     }));
 
     const pathRows = pathsResult.data ?? [];
@@ -204,7 +227,7 @@ const getProgrammes = unstable_cache(
 
     return [...courses, ...experiences, ...certifications, ...paths];
   },
-  ['landing-programmes-v3'],
+  ['landing-programmes-v4'],
   { revalidate: 60, tags: ['landing-programmes'] },
 );
 
