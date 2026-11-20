@@ -2,9 +2,9 @@
 
 // Learning-path management workspace shared by the instructor dashboard.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BarChart3, Check, CheckCircle2, ChevronRight, Circle, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToolIcons, useToolIconMap } from '@/lib/use-tool-icons';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -15,6 +15,10 @@ import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { DARK_C, LIGHT_C, cardStyle } from '@/lib/theme';
 import { LearningPathReport } from '@/components/dashboard/LearningPathReport';
 import type { PathTrack } from '@/lib/learning-path-tracks';
+import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, contentKpis, matchesFilters, useReach, type Status } from '@/components/dashboard/content/kit';
+import { Card, btnClass, btnStyle, plural } from '@/components/dashboard/subscriptions/ui';
 
 // A request that never reached the server is worth distinguishing from one the server
 // refused: the first is usually the connection and retrying often works.
@@ -46,11 +50,13 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const coverInputRef = useRef<HTMLInputElement>(null);
   const badgeInputRef = useRef<HTMLInputElement>(null);
   const editingBaseline = useRef<string | null>(null);
-  const pathCarouselRef = useRef<HTMLDivElement>(null);
-
-  const scrollPathCarousel = (direction: -1 | 1) => {
-    pathCarouselRef.current?.scrollBy({ left: direction * 360, behavior: 'smooth' });
-  };
+  // The list: filters, the path asked to be deleted, and how each path reaches learners.
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Status>('all');
+  const [confirmDelete, setConfirmDelete] = useState<any>(null);
+  const reach = useReach('learning_paths');
+  // As on the other admin pages: the dark-mode blue for buttons and selection controls on the list.
+  const LC = useMemo(() => ({ ...C, cta: DARK_C.cta }), [C]);
 
   const publishedForms = forms.filter(f => f.status === 'published');
   const courseOptions  = publishedForms.filter(f => f.content_type === 'course' || f.config?.isCourse);
@@ -826,105 +832,59 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   }
 
   // -- List ---
+  const term = search.trim().toLowerCase();
+  const visible = paths.filter((p: any) => matchesFilters(p, statusFilter, term, [p.title, toPlainText(p.description)]));
+  const avgItems = paths.length ? Math.round(paths.reduce((n: number, p: any) => n + (p.item_ids ?? []).length, 0) / paths.length) : 0;
   return (
-    <div className="space-y-6">
-      {deleteError && (
-        <p role="status" className="px-4 py-3 rounded-xl text-sm" style={{ background: '#ef444412', color: '#ef4444' }}>{deleteError}</p>
-      )}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.text }}>Learning Paths</h1>
-          <p className="text-sm mt-0.5" style={{ color: C.faint }}>Build structured journeys across courses, experiences, and certifications.</p>
-        </div>
-        <button onClick={openNewEditor}
-          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold hover:opacity-80 transition-opacity"
-          style={{ background: C.cta, color: C.ctaText }}>
-          <Plus className="w-4 h-4"/> New Learning Path
+    <div className="space-y-5 pb-12">
+      <PageHeader title="Learning paths" sub="Journeys across courses, experiences and certifications." C={LC} actions={
+        <button type="button" onClick={openNewEditor} className={btnClass} style={btnStyle('pri', LC)}>
+          <Plus className="w-4 h-4"/>
+          New learning path
         </button>
-      </div>
+      } />
+      {deleteError && (
+        <p role="alert" className="px-4 py-3 rounded-2xl text-sm" style={{ background: LC.errorBg, color: LC.errorText, border: `1px solid ${LC.errorBorder}` }}>{deleteError}</p>
+      )}
 
       {paths.length === 0 ? (
-        <div className="text-center py-24 rounded-3xl" style={{ ...cardStyle(C) }}>
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: `${C.green}18` }}>
-            <BookOpen className="w-6 h-6" style={{ color: C.green }}/>
-          </div>
-          <p className="font-semibold text-base mb-1" style={{ color: C.text }}>No learning paths yet</p>
-          <p className="text-sm mb-6" style={{ color: C.faint }}>Create your first learning path to group courses into a structured journey.</p>
-          <button onClick={openNewEditor}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold"
-            style={{ background: C.cta, color: C.ctaText }}>
-            <Plus className="w-4 h-4"/> New Learning Path
-          </button>
-        </div>
+        <Card C={LC} className="px-5 py-16 text-center">
+          <p className="text-sm font-semibold" style={{ color: LC.text }}>No learning paths yet</p>
+          <p className="text-sm mt-1" style={{ color: LC.muted }}>Create your first path to group courses into a structured journey.</p>
+        </Card>
       ) : (
-        <section className="rounded-2xl p-4 sm:p-5" style={{ ...cardStyle(C) }}>
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div>
-              <h3 className="text-base font-bold" style={{ color: C.text }}>Your learning paths</h3>
-              <p className="text-xs mt-0.5" style={{ color: C.faint }}>Browse and manage each structured journey.</p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => scrollPathCarousel(-1)} aria-label="Previous learning paths"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronLeft className="w-4 h-4"/>
-              </button>
-              <button onClick={() => scrollPathCarousel(1)} aria-label="Next learning paths"
-                className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                <ChevronRight className="w-4 h-4"/>
-              </button>
-            </div>
+        <>
+          <Kpis items={contentKpis({ items: paths, reach, noun: ['path', 'learning paths'], totalSub: `${plural(avgItems, 'item')} on average`, C: LC })} C={LC} />
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search learning paths" C={LC} />
+            <StatusChips value={statusFilter} onChange={setStatusFilter} C={LC} />
           </div>
-          <div ref={pathCarouselRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {paths.map((path: any) => {
-            const assignedCohortNames = (path.cohort_ids ?? []).map((id: string) => cohorts.find((c: any) => c.id === id)?.name).filter(Boolean);
-            // Active learners in the cohorts this path is assigned to (counted by the API).
-            const learnerCount: number = path.learner_count ?? 0;
-            return (
-              <article key={path.id} className="group flex-none w-[280px] sm:w-[330px] snap-start rounded-2xl overflow-hidden transition-transform hover:-translate-y-0.5" style={{ ...cardStyle(C) }}>
-                {path.cover_image
-                  ? <img src={path.cover_image} alt="" loading="lazy" className="w-full aspect-[16/8] object-cover transition-transform duration-500 group-hover:scale-[1.02]"/>
-                  : <div className="w-full aspect-[16/8] flex items-center justify-center" style={{ background: `${C.green}0d` }}>
-                      <Layers3 className="w-8 h-8 opacity-40" style={{ color: C.green }}/>
-                    </div>}
-                <div className="p-5 space-y-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: path.status === 'published' ? `${C.green}18` : `${C.faint}18`, color: path.status === 'published' ? C.green : C.faint }}>
-                      {path.status}
-                    </span>
-                    <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><Layers3 className="w-3 h-3"/>{(path.item_ids ?? []).length} content{(path.item_ids ?? []).length === 1 ? '' : 's'}</span>
-                    <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><GraduationCap className="w-3 h-3"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}</span>
-                  </div>
-                  <p className="font-bold text-base" style={{ color: C.text }}>{path.title}</p>
-                  {toPlainText(path.description) && <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
-                  {assignedCohortNames.length > 0 && (
-                    <p className="text-[11px] flex items-center gap-2" style={{ color: C.faint }}><Users className="w-3 h-3"/>{assignedCohortNames.slice(0, 2).join(', ')}{assignedCohortNames.length > 2 ? ` +${assignedCohortNames.length - 2}` : ''}</p>
-                  )}
-                  <div className="flex gap-2 pt-3" style={{ borderTop: `1px solid ${C.divider}` }}>
-                    <button onClick={() => openEditor(path)}
-                      className="flex-1 text-center text-xs font-bold py-3 rounded-xl transition-all hover:opacity-80"
-                      style={{ background: `${C.green}18`, color: C.green }}>
-                      Edit
-                    </button>
-                    <button onClick={() => setReportPathId(path.id)}
-                      className="flex-1 flex items-center justify-center gap-2 text-xs font-bold py-3 rounded-xl transition-all hover:opacity-80"
-                      style={{ background: C.pill, color: C.text }}>
-                      <BarChart3 className="w-3.5 h-3.5"/> Report
-                    </button>
-                    <button onClick={() => { if (window.confirm(`Delete "${path.title}"? This cannot be undone.`)) deletePath(path.id); }} disabled={deleting === path.id}
-                      aria-label={`Delete ${path.title}`} title="Delete learning path" className="w-10 rounded-xl grid place-items-center transition-all hover:opacity-80 disabled:opacity-50"
-                      style={{ background: '#ef444418', color: '#ef4444' }}>
-                      {deleting === path.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-          </div>
-        </section>
+          {visible.length === 0 ? (
+            <Card C={LC} className="px-5 py-12 text-center"><p className="text-sm" style={{ color: LC.muted }}>No learning paths match these filters.</p></Card>
+          ) : (
+            <div className={CARD_GRID}>
+              {visible.map((path: any) => {
+                // Active learners in the cohorts this path is assigned to (counted by the API).
+                const learners: number = path.learner_count ?? 0;
+                const detail = `${plural((path.item_ids ?? []).length, 'item')}, ${plural(learners, 'learner')}`;
+                return (
+                  <ContentCard key={path.id} item={path} cover={path.cover_image} Icon={Layers3} detail={detail} reach={reach} onOpen={() => openEditor(path)} C={LC}
+                    menu={(close) => [
+                      { label: 'Report', sub: 'Who is on the path and how far', icon: BarChart3, onClick: () => { close(); setReportPathId(path.id); } },
+                      { label: 'Edit', sub: 'Overview, content, audience, publish', icon: Settings2, onClick: () => { close(); openEditor(path); } },
+                      null,
+                      { label: deleting === path.id ? 'Deleting...' : 'Delete', sub: 'Asks first', icon: Trash2, danger: true, disabled: deleting === path.id, onClick: () => { close(); setConfirmDelete(path); } },
+                    ]} />
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+      {confirmDelete && (
+        <ConfirmModal title="Delete learning path?" eyebrow={confirmDelete.title} body="This cannot be undone." action="Delete learning path"
+          danger busy={deleting === confirmDelete.id} onClose={() => setConfirmDelete(null)}
+          onConfirm={async () => { await deletePath(confirmDelete.id); setConfirmDelete(null); }} C={LC} />
       )}
     </div>
   );
