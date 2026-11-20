@@ -24,6 +24,7 @@ import type { LessonDoc } from '@/lib/lesson-doc';
 import { RubricFileImportActions } from '@/components/RubricFileImportActions';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 import { excelReviewSaveErrorMessage, normalizeReviewSheetNames } from '@/lib/excel-review-config';
+import { DateField } from '@/components/DatePicker';
 
 
 type AssignmentType = 'standard' | 'code_review' | 'excel_review' | 'dashboard_critique' | 'virtual_experience' | 'document_review';
@@ -1118,20 +1119,7 @@ export default function CreateAssignmentPage() {
 
             <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
               <label style={labelStyle(C)}>Deadline <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="date"
-                  value={deadlineDate}
-                  onChange={e => setDeadlineDate(e.target.value)}
-                  style={{ ...inputStyle(C), width: 'auto' }}
-                />
-                {deadlineDate && (
-                  <button type="button" onClick={() => setDeadlineDate('')}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: 'none', background: C.card, color: C.faint, cursor: 'pointer', flexShrink: 0 }}>
-                    <X style={{ width: 13, height: 13 }}/>
-                  </button>
-                )}
-              </div>
+              <DateField className="max-w-[260px]" label="Deadline" placeholder="No deadline" value={deadlineDate} onChange={setDeadlineDate} C={C}/>
               <p style={hintStyle(C)}>Students will see a countdown on their assignment card until this date.</p>
             </div>
 

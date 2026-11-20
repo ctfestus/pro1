@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeAnnouncementContent, sanitizePlainText } from '@/lib/sanitize';
+import { DateTimeField } from '@/components/DatePicker';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
@@ -349,19 +350,11 @@ export default function CreateAnnouncementPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={labelStyle(C)}>Published At</label>
-                  <input
-                    type="datetime-local" value={publishedAt}
-                    onChange={e => setPublishedAt(e.target.value)}
-                    style={inputStyle(C)}
-                  />
+                  <DateTimeField label="Published at" placeholder="Choose a date" value={publishedAt} onChange={setPublishedAt} C={C}/>
                 </div>
                 <div>
                   <label style={labelStyle(C)}>Expires At <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                  <input
-                    type="datetime-local" value={expiresAt}
-                    onChange={e => setExpiresAt(e.target.value)}
-                    style={inputStyle(C)}
-                  />
+                  <DateTimeField label="Expires at" placeholder="Never expires" value={expiresAt} onChange={setExpiresAt} defaultTime="23:59" C={C}/>
                 </div>
               </div>
             </div>

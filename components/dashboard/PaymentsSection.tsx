@@ -11,6 +11,7 @@ import { reportExportCSV } from '@/lib/dashboard-export';
 import { useTheme } from '@/components/ThemeProvider';
 import { LIGHT_C, DARK_C, cardStyle, modalStyle } from '@/lib/theme';
 import { isIndividualCohort } from '@/lib/cohort-kind';
+import { DateField } from '@/components/DatePicker';
 
 type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'waived' | string;
 
@@ -1356,9 +1357,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Date Paid</label>
-                  <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)}
-                    className="w-full text-sm px-3 py-3 rounded-xl outline-none"
-                    style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
+                  <DateField label="Date paid" value={payDate} onChange={setPayDate} C={C}/>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1571,11 +1570,9 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                         </span>
                       </div>
                       <div className="flex gap-2">
-                        <input type="date" value={instDates[inst.id] ?? inst.due_date}
-                          onChange={e => setInstDates(prev => ({ ...prev, [inst.id]: e.target.value }))}
-                          disabled={inst.status === 'paid'}
-                          className="flex-1 text-xs px-3 py-2 rounded-lg outline-none disabled:opacity-50"
-                          style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}/>
+                        <DateField className="flex-1 min-w-0" compact label={i === 0 ? 'Deposit due date' : `Installment ${i} due date`} value={instDates[inst.id] ?? inst.due_date}
+                          onChange={d => setInstDates(prev => ({ ...prev, [inst.id]: d }))}
+                          disabled={inst.status === 'paid'} clearable={false} C={C}/>
                         <button
                           onClick={() => handleSaveInstallmentDate(inst.id)}
                           disabled={inst.status === 'paid' || instSaving[inst.id] || instDates[inst.id] === inst.due_date}

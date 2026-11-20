@@ -3,8 +3,8 @@
 // The prices and promotion sections shared by the Create plan builder and the Plan details pop-up.
 // The primary colour is kept for buttons only: switches, choices and the calendar use the text colour.
 
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
+import { DateTimeField } from '@/components/DatePicker';
 import { durationLabel } from '@/lib/pricing-offer';
 import { effectiveSubscriptionPrice, promotionHeading, PROMOTION_NAME_MAX } from '@/lib/subscription-discount';
 import type { ThemeColors } from '@/lib/theme';
@@ -159,180 +159,6 @@ export function PlanPriceFields({ prices, setPrices, discount, C }: {
   );
 }
 
-const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`).concat('23:59');
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-function ymd(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-/** A date from a calendar and a time from a menu, held as "YYYY-MM-DDTHH:mm" in UTC. Empty is allowed. */
-function DateTimeField({ label, value, onChange, emptyText, defaultTime, C }: {
-  label: string; value: string; onChange: (value: string) => void; emptyText: string; defaultTime: string; C: ThemeColors;
-}) {
-  const date = value.slice(0, 10);
-  const time = value.slice(11, 16) || defaultTime;
-  const [open, setOpen] = useState(false);
-  // Opens upward when there is no room below, as near the foot of a pop-up.
-  const [up, setUp] = useState(false);
-  const [view, setView] = useState(() => {
-    const base = date ? new Date(`${date}T00:00:00Z`) : new Date();
-    return { year: base.getUTCFullYear(), month: base.getUTCMonth() };
-  });
-  const today = ymd(new Date());
-  const first = new Date(Date.UTC(view.year, view.month, 1));
-  const lead = (first.getUTCDay() + 6) % 7;
-  const days = new Date(Date.UTC(view.year, view.month + 1, 0)).getUTCDate();
-  const cells = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
-  const shown = date
-    ? new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-    : null;
-  const move = (step: number) => setView(({ year, month }) => {
-    const next = new Date(Date.UTC(year, month + step, 1));
-    return { year: next.getUTCFullYear(), month: next.getUTCMonth() };
-  });
-  const pick = (day: string) => { onChange(`${day}T${time}`); setOpen(false); };
-  const times = TIMES.includes(time) ? TIMES : [...TIMES, time].sort();
-
-  return (
-    <div>
-      <span className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>{label}</span>
-      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2">
-        <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
-          <div className="flex items-center h-11 rounded-[10px]" style={{ ...fieldStyle(C), borderColor: open ? C.faint : C.inputBorder }}>
-            <button
-              type="button"
-              onClick={(e) => {
-                setUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 360);
-                setOpen((o) => !o);
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={open}
-              aria-label={`${label}: ${shown ?? emptyText}`}
-              className="flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left text-sm"
-            >
-              <CalendarDays className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }} />
-              <span className="truncate" style={{ color: shown ? C.text : C.faint, fontWeight: shown ? 500 : 400 }}>{shown ?? emptyText}</span>
-            </button>
-            {date && (
-              <button type="button" onClick={() => onChange('')} aria-label={`Clear ${label.toLowerCase()}`} className="w-8 h-8 mr-1 grid place-items-center rounded-lg" style={{ color: C.faint }}>
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          {open && (
-            <div
-              role="dialog"
-              aria-label={`Choose ${label.toLowerCase()} date`}
-              className={`absolute left-0 z-40 w-72 rounded-2xl p-3 ${up ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]"}`}
-              style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 16px 40px rgba(15,23,42,0.18)' }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <button type="button" onClick={() => move(-1)} aria-label="Previous month" className="w-8 h-8 grid place-items-center rounded-lg" style={{ color: C.muted }}>
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <b className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{MONTHS[view.month]} {view.year}</b>
-                <button type="button" onClick={() => move(1)} aria-label="Next month" className="w-8 h-8 grid place-items-center rounded-lg" style={{ color: C.muted }}>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => (
-                  <span key={d} className="text-[11px] font-semibold py-1" style={{ color: C.faint }}>{d}</span>
-                ))}
-                {cells.map((day, i) => {
-                  if (!day) return <span key={`e${i}`} />;
-                  const key = ymd(new Date(Date.UTC(view.year, view.month, day)));
-                  const selected = key === date;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => pick(key)}
-                      aria-pressed={selected}
-                      className="h-8 rounded-lg text-xs tabular-nums transition-colors"
-                      style={{
-                        background: selected ? palette(C).sel : 'transparent',
-                        color: selected ? palette(C).onSel : C.text,
-                        fontWeight: selected ? 700 : 400,
-                        boxShadow: key === today && !selected ? `inset 0 0 0 1px ${C.faint}` : 'none',
-                      }}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-                <button type="button" onClick={() => { onChange(''); setOpen(false); }} className="text-xs font-semibold" style={{ color: C.text }}>{emptyText}</button>
-                <button type="button" onClick={() => pick(today)} className="text-xs font-semibold" style={{ color: C.text }}>Today</button>
-              </div>
-            </div>
-          )}
-        </div>
-        <TimeMenu label={`${label} time`} value={time} options={times} disabled={!date} onChange={(t) => onChange(`${date}T${t}`)} C={C} />
-      </div>
-    </div>
-  );
-}
-
-/** A short list of times that opens on the chosen one, upward when there is no room below. */
-function TimeMenu({ label, value, options, disabled, onChange, C }: {
-  label: string; value: string; options: string[]; disabled: boolean; onChange: (value: string) => void; C: ThemeColors;
-}) {
-  const [open, setOpen] = useState(false);
-  const [up, setUp] = useState(false);
-  return (
-    <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
-      <button
-        type="button"
-        disabled={disabled}
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={(e) => {
-          setUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 280);
-          setOpen((o) => !o);
-        }}
-        className="w-full h-11 flex items-center gap-2 px-3 rounded-[10px] text-sm disabled:opacity-50"
-        style={{ ...fieldStyle(C), borderColor: open ? C.faint : C.inputBorder }}
-      >
-        <Clock3 className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }} />
-        <span className="flex-1 text-left tabular-nums">{value}</span>
-        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
-      </button>
-      {open && (
-        <div
-          role="listbox"
-          aria-label={label}
-          className={`absolute right-0 z-40 w-32 max-h-60 overflow-y-auto rounded-2xl p-1 ${up ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'}`}
-          style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 16px 40px rgba(15,23,42,0.18)' }}
-        >
-          {options.map((t) => {
-            const selected = t === value;
-            return (
-              <button
-                key={t}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                ref={selected ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { onChange(t); setOpen(false); }}
-                className="w-full flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm tabular-nums"
-                style={{ background: selected ? C.pill : 'transparent', color: C.text, fontWeight: selected ? 600 : 400 }}
-              >
-                {t}
-                {selected && <Check className="w-4 h-4" style={{ color: palette(C).sel }} />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function PlanDiscountFields({ discount, setDiscount, prices, C }: {
   discount: PlanDiscountDraft;
   setDiscount: Dispatch<SetStateAction<PlanDiscountDraft>>;
@@ -417,8 +243,8 @@ export function PlanDiscountFields({ discount, setDiscount, prices, C }: {
             </label>
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
-            <DateTimeField label="Starts" value={discount.startsAt} onChange={(startsAt) => set({ startsAt })} emptyText="Starts now" defaultTime="00:00" C={C} />
-            <DateTimeField label="Ends" value={discount.endsAt} onChange={(endsAt) => set({ endsAt })} emptyText="No end date" defaultTime="23:59" C={C} />
+            <div><span className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Starts</span><DateTimeField label="Starts" value={discount.startsAt} onChange={(startsAt) => set({ startsAt })} placeholder="Starts now" defaultTime="00:00" utc C={C} /></div>
+            <div><span className="block text-xs font-semibold mb-2" style={{ color: C.muted }}>Ends</span><DateTimeField label="Ends" value={discount.endsAt} onChange={(endsAt) => set({ endsAt })} placeholder="No end date" defaultTime="23:59" utc C={C} /></div>
           </div>
           <p className="text-xs -mt-2" style={{ color: C.faint }}>Times are UTC.</p>
           {preview?.discountActive && example && (

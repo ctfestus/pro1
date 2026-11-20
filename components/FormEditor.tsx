@@ -55,6 +55,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DateField, TimeField } from '@/components/DatePicker';
 
 // --- Types: the content contract is canonical in lib/course-schema (imported above) ---
 
@@ -1852,11 +1853,11 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                   <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls} style={labelStyle}>Date</label>
-                    <input type="date" value={formConfig.eventDetails.date || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, date: e.target.value } })} className={`${inputCls}`} style={inputStyle} />
+                    <DateField label="Date" value={formConfig.eventDetails.date || ''} onChange={date => updateConfig({ eventDetails: { ...formConfig.eventDetails!, date } })} C={FE} />
                   </div>
                   <div>
                     <label className={labelCls} style={labelStyle}>Time</label>
-                    <input type="time" value={formConfig.eventDetails.time || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, time: e.target.value } })} className={`${inputCls}`} style={inputStyle} />
+                    <TimeField label="Time" value={formConfig.eventDetails.time || ''} onChange={time => updateConfig({ eventDetails: { ...formConfig.eventDetails!, time } })} C={FE} />
                   </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -1916,7 +1917,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                   {(formConfig.eventDetails!.recurrence ?? 'once') !== 'once' && (
                   <div>
                     <label className={labelCls} style={labelStyle}>End date</label>
-                    <input type="date" value={formConfig.eventDetails.recurrenceEndDate || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, recurrenceEndDate: e.target.value } })} className={`${inputCls}`} style={inputStyle} />
+                    <DateField label="End date" placeholder="No end date" value={formConfig.eventDetails.recurrenceEndDate || ''} onChange={recurrenceEndDate => updateConfig({ eventDetails: { ...formConfig.eventDetails!, recurrenceEndDate } })} C={FE} />
                   </div>
                   )}
                   </div>

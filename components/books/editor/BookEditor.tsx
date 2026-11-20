@@ -44,6 +44,7 @@ import {
 import { chaptersFromPicks, cutPdfSample, pdfChapters, pdfOutline } from '@/lib/books/pdf';
 import { cutEpubSample, cutHtmlSample, type SampleFinding } from '@/lib/books/sample';
 import { openBookPreview } from '@/lib/books/open-preview';
+import { DateField } from '@/components/DatePicker';
 
 const LICENSE_LABELS: Record<BookLicenseType, string> = {
   own: 'Our own work',
@@ -1224,7 +1225,7 @@ export function BookEditor() {
             ), 'Required to publish.')}
             {field('Rights holder', <input className={inputCls} style={inputStyle} value={state.rightsHolder} onChange={e => update({ rightsHolder: e.target.value })} />)}
             {field('Licence link', <input className={inputCls} style={inputStyle} value={state.licenseUrl} onChange={e => update({ licenseUrl: e.target.value })} placeholder="https://" />)}
-            {field('Licence ends', <input type="date" className={inputCls} style={inputStyle} value={state.licenseExpiresAt} onChange={e => update({ licenseExpiresAt: e.target.value })} />, 'Readers lose access on this date. Leave empty if it never ends.')}
+            {field('Licence ends', <DateField label="Licence ends" placeholder="No end date" value={state.licenseExpiresAt} onChange={licenseExpiresAt => update({ licenseExpiresAt })} C={C} />, 'Readers lose access on this date. Leave empty if it never ends.')}
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm" style={{ color: C.text }}>AI may read this product to explain it and write practice questions</span>
@@ -1328,8 +1329,7 @@ export function BookEditor() {
                         </label>
                         {p.saleAmount && (
                           <label className="flex items-center gap-2">until
-                            <input type="date" className="rounded-lg px-3 py-1.5 text-sm outline-none" style={inputStyle} value={p.saleEndsAt}
-                              onChange={e => set({ saleEndsAt: e.target.value })} />
+                            <DateField className="w-48" compact label="Sale ends" placeholder="No end date" value={p.saleEndsAt} onChange={saleEndsAt => set({ saleEndsAt })} C={C} />
                           </label>
                         )}
                         {p.saleAmount && !p.saleEndsAt && <span>No end date: the sale runs until you remove it.</span>}
