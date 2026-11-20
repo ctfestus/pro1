@@ -150,13 +150,7 @@ export function CertificationsManageSection({ C: theme }: { C: typeof LIGHT_C })
 
 function CertCard({ item, reach, onAnalytics, onDelete, C }: { item: any; reach: Reach | null; onAnalytics: () => void; onDelete: () => void; C: typeof LIGHT_C }) {
   const router = useRouter();
-  const questions = Array.isArray(item.questions) ? item.questions.length : 0;
-  const detail = [
-    `${questions} question${questions === 1 ? '' : 's'}`,
-    item.time_limit ? `${item.time_limit} min` : 'untimed',
-    `pass ${item.passmark ?? 70}%`,
-    item.max_attempts ? `${item.max_attempts} attempt${item.max_attempts === 1 ? '' : 's'}` : 'unlimited attempts',
-  ].join(', ');
+  const detail = item.max_attempts ? `${item.max_attempts} attempt${item.max_attempts === 1 ? '' : 's'}` : 'Unlimited attempts';
   return (
     <ContentCard item={item} cover={item.cover_image} Icon={ShieldCheck} detail={detail} reach={reach} onOpen={onAnalytics} C={C}
       menu={(close) => [
