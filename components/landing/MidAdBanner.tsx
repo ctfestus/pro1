@@ -58,7 +58,7 @@ export function MidAdBanner({
                     </span>
                   )}
                   <h3 className="mb-2"
-                    style={{ ...M3.titleLarge, fontWeight: 800, color: 'white', fontFamily: hFont, maxWidth: sideImage ? 'none' : 240 }}>
+                    style={{ ...M3.titleLarge, fontWeight: 700, color: 'white', fontFamily: hFont, maxWidth: sideImage ? 'none' : 240 }}>
                     {ad.title}
                   </h3>
                   {ad.description && (

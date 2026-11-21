@@ -98,7 +98,7 @@ const getProgrammes = unstable_cache(
     const empty = { data: [] as any[], error: null };
     const [coursesResult, experiencesResult, pathsResult, certificationsResult] = await Promise.all([
       courseIds.length
-        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).order('title').limit(20)
+        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).order('title').limit(100)
         : empty,
       experienceIds.length
         ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').in('id', experienceIds).order('title').limit(12)

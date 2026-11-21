@@ -7,12 +7,11 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templates';
-import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
+import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
-import { useToolIcons } from '@/lib/use-tool-icons';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -111,7 +110,7 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
 }) {
   return (
     <div className="mb-6">
-      <h2 style={{ ...M3.headlineMedium, fontWeight: 900, fontFamily: hFont, color }}>{title}</h2>
+      <h2 style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
@@ -130,30 +129,6 @@ const bannerItem = {
 // One neutral ground for an item without a cover, readable on the light and the dark page.
 const NO_COVER_BG = 'rgba(127,127,127,0.16)';
 const LAND_C = { card: 'white', text: '#1C1D1F', muted: '#6E7383', faint: '#9CA3AF', cardBorder: '#E8EBEF' };
-
-// Fallback icon for category rows without a tool icon: match by keyword, then by content type
-const CATEGORY_ICONS: Array<[RegExp, React.ElementType]> = [
-  [/data|analytic|statistic/i,                          BarChart3],
-  [/\bai\b|machine|intelligen/i,                        Brain],
-  [/market|sales|brand|growth/i,                        Megaphone],
-  [/financ|bank|account|invest/i,                       Banknote],
-  [/design|creativ|\bux\b|\bui\b/i,                     Palette],
-  [/cod|program|develop|software|engineer|web|cloud|tech/i, Code2],
-  [/health|medic/i,                                     HeartPulse],
-  [/\bhr\b|people|talent|leadership/i,                  Users],
-  [/language|communicat|global/i,                       Globe],
-  [/automat|productiv/i,                                Zap],
-  [/business|consult|strateg|manage/i,                  Briefcase],
-];
-
-function getCategoryIcon(title: string, type: ProgrammeItem['type']): React.ElementType {
-  const hit = CATEGORY_ICONS.find(([re]) => re.test(title));
-  if (hit) return hit[1];
-  if (type === 've') return Briefcase;
-  if (type === 'path') return TrendingUp;
-  if (type === 'certification') return Award;
-  return GraduationCap;
-}
 
 // --- Ad banner carousel ---
 
@@ -318,7 +293,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       {ad.label}
                     </motion.span>
                   )}
-                  <motion.h3 variants={bannerItem} className="font-black leading-tight mb-2"
+                  <motion.h3 variants={bannerItem} className="font-bold leading-tight mb-2"
                     style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(17px,4.6vw,22px)' : 'clamp(20px,2vw,30px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
@@ -458,168 +433,181 @@ function toPreviewItem(item: ProgrammeItem): CatalogueItem {
 /** Four across, two down. */
 const GRID_PAGE_SIZE = 8;
 
-function LandingCarouselRow({ title, items, type, typeColor, buttonColor, user, hFont, bFont, isDark, hideTitle, paged }: {
-  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean;
-  /** Render as a paginated grid of eight rather than a row that scrolls sideways. */
-  paged?: boolean;
+/** The hover preview (Explore's), shared by the courses grid and the paged rows. */
+function useLandingPreview({ typeColor, buttonColor, user, isDark }: {
+  typeColor: string; buttonColor: string; user: any; isDark?: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { hover, open, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
+  const openHover = (item: ProgrammeItem, el: HTMLElement) => open(item, el, { width: 340, height: 560 });
+  const portal = typeof document !== 'undefined' && createPortal(
+    <AnimatePresence>
+      {hover && (
+        <HoverPreviewCard
+          key={hover.item.id}
+          left={hover.left}
+          top={hover.top}
+          originX={hover.originX}
+          originY={hover.originY}
+          width={hover.width}
+          onEnter={cancelClose}
+          onLeave={scheduleClose}
+        >
+          <CataloguePreview
+            item={toPreviewItem(hover.item)}
+            accent={typeColor}
+            href={landingHref(hover.item, user)}
+            onOpen={() => { window.location.href = landingHref(hover.item, user); }}
+            viewOnly={!user}
+            C={{ ...(isDark ? DARK_C : LIGHT_C), cta: buttonColor }}
+          />
+        </HoverPreviewCard>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+  return { openHover, scheduleClose, portal };
+}
 
-  // A paged row is a GRID, not a carousel: eight cards a page, four across and two down on a
-  // large screen, with the next eight a click away. Slicing the list is the whole mechanism --
-  // there is no scroll position to measure and so nothing to drift out of step with the counter.
-  const [page, setPage] = useState(0);
-  const pages = paged ? Math.max(1, Math.ceil(items.length / GRID_PAGE_SIZE)) : 1;
-  const visible = paged ? items.slice(page * GRID_PAGE_SIZE, (page + 1) * GRID_PAGE_SIZE) : items;
-  const atStart = page <= 0;
-  const atEnd = page >= pages - 1;
-  // A sideways row only gets arrows when its cards actually run past the edge.
-  const [overflows, setOverflows] = useState(false);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (paged || !el) return;
-    // The observer reports once on observe, so this also covers the first layout.
-    const obs = new ResizeObserver(() => setOverflows(el.scrollWidth > el.clientWidth + 1));
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [paged, items.length]);
-  const showControls = paged ? pages > 1 : overflows;
+/**
+ * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
+ * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
+ * straight on the panel behind them (the experience and certification rows).
+ */
+function ProgrammeCard({ item, user, isDark, hFont, framed }: {
+  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string; framed?: boolean;
+}) {
+  const text  = isDark ? 'white' : LAND_C.text;
+  const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
+  return (
+    <Link href={landingHref(item, user)}
+      className={framed
+        ? 'flex flex-col h-full group cursor-pointer rounded-2xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
+        : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
+      style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
+      <div className={framed
+          ? 'relative overflow-hidden w-full aspect-video'
+          : 'relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]'}
+        style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
+        {item.imageUrl
+          ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
+          : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: NO_COVER_BG }}>
+              <BookOpen className="w-8 h-8" style={{ color: LAND_C.faint }}/>
+            </div>
+        }
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
+      </div>
+      <div className={framed ? 'px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
+        <p className="line-clamp-2 text-[13px] leading-[18px] sm:text-[15px] sm:leading-5" style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
+        {item.partnerName && (
+          <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
+            {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
+            <span>Offered by {item.partnerName}</span>
+          </div>
+        )}
+        {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
+      </div>
+    </Link>
+  );
+}
 
-  // Only the peeking row scrolls; a grid page turns.
-  const scrollByCards = (dir: number) => {
-    if (paged) {
-      setPage(current => Math.max(0, Math.min(pages - 1, current + dir)));
-      return;
-    }
-    scrollRef.current?.scrollBy({ left: dir * 380, behavior: 'smooth' });
-  };
+/**
+ * Courses: a chip per category, used as tabs, over a grid of cards on the page itself. The first
+ * category is chosen from the start and the grid shows all of the chosen category's courses, each
+ * its own white card, four across on a wide screen, three on a tablet and two on a phone.
+ */
+function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
+  courses: ProgrammeItem[]; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
+}) {
+  const groups = groupByField(courses, 'category');
+  const [chosen, setChosen] = useState<string | null>(null);
+  // Read through the list, so a category that disappears (a course unpublished) falls back to the first.
+  const current = groups.find(([name]) => name === chosen) ?? groups[0];
+  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark });
 
-  const { hover, open: openPreview, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
-  // Paths have their own cards (PathCards), so every row here previews at Explore's size.
-  const openHover = (item: ProgrammeItem, el: HTMLElement) => openPreview(item, el, { width: 340, height: 560 });
-
-  const toolIcon = useToolIcons();
-  const rowBg    = isDark ? '#1E1F26' : 'white';
-  const rowText  = isDark ? 'white' : LAND_C.text;
-  const rowMuted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
-  const rowBorder = isDark ? 'rgba(255,255,255,0.25)' : LAND_C.cardBorder;
+  const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
 
   return (
-    <section className="rounded-2xl p-4 sm:p-6" style={{ background: rowBg }}>
-      {(() => {
-        const arrowBtn = (dir: number, label: string) => {
-          const spent = paged && (dir < 0 ? atStart : atEnd);
-          return (
-            <button onClick={() => scrollByCards(dir)} aria-label={label} disabled={spent}
-              className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-35 disabled:hover:scale-100 disabled:cursor-default"
-              style={{ border: `1px solid ${rowBorder}`, color: rowMuted }}
-              onMouseEnter={e => { if (spent) return; e.currentTarget.style.background = rowText; e.currentTarget.style.borderColor = rowText; e.currentTarget.style.color = isDark ? '#111318' : '#ffffff'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = rowBorder; e.currentTarget.style.color = rowMuted; }}>
-              {dir < 0 ? <ChevronLeft className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
-            </button>
-          );
-        };
-        const pageCount = paged && pages > 1 && (
-          <span className="tabular-nums" style={{ ...M3.labelLarge, fontWeight: 600, color: rowMuted, fontFamily: bFont ?? hFont }}>
-            {page + 1} / {pages}
-          </span>
-        );
-        return !hideTitle ? (
-          <div className="flex items-center justify-between gap-4 mb-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {(() => { const icon = toolIcon(title);
-                if (icon) return <img src={icon} alt="" className="w-6 h-6 object-contain flex-shrink-0" />;
-                const Fallback = getCategoryIcon(title, type);
-                return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;
-              })()}
-              <h3 className="truncate" style={{ ...M3.titleLarge, fontWeight: 700, color: rowText, fontFamily: hFont }}>{title}</h3>
-            </div>
-            {showControls && (
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {pageCount}
-                <div className="flex items-center gap-2">
-                  {arrowBtn(-1, 'Previous')}
-                  {arrowBtn(1, 'Next')}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : !showControls ? null : (
-          <div className="flex justify-end mb-0">
-            <div className="flex items-center gap-3">
-              {pageCount}
-              {arrowBtn(-1, 'Previous')}
-              {arrowBtn(1, 'Next')}
-            </div>
-          </div>
-        );
-      })()}
+    <div>
+      {/* A single category needs no tabs, so the chips only appear with two or more. */}
+      {groups.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto mb-4 sm:mb-5" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
+          {groups.map(([name]) => {
+            const on = name === current?.[0];
+            return (
+              <button key={name} type="button" role="tab" aria-selected={on} onClick={() => setChosen(name)}
+                className="flex-shrink-0 inline-flex items-center h-9 px-3.5 rounded-full transition-colors"
+                style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, ...(on ? { background: '#3E93FF', color: '#ffffff' } : quiet) }}>
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* A paged row lays its page out as a grid and wraps -- four columns on a large screen, and
-          fewer as the screen narrows, so the cards stay a readable size rather than the count
-          staying fixed. A peeking row keeps fixed-width cards on one scrolling line, with the fade
-          at the right edge that tells you there is more. */}
-      <div ref={scrollRef}
-        className={paged
-          ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 pt-4 pb-2'
-          : 'flex flex-nowrap gap-4 md:gap-6 overflow-x-auto pt-4 pb-2 snap-x'}
-        style={paged ? undefined : { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
-        {visible.map((item, i) => (
-          <div key={item.id}
-            className={paged ? 'min-w-0' : 'flex-shrink-0 snap-start w-[220px] sm:w-[260px]'}
-            onMouseEnter={e => openHover(item, e.currentTarget)}
-            onMouseLeave={scheduleClose}>
-              <Link href={landingHref(item, user)} className="block group cursor-pointer transition-transform duration-300 hover:-translate-y-1">
-                <div className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                  style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
-                  {item.imageUrl
-                    ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
-                    : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: NO_COVER_BG }}>
-                        <BookOpen className="w-8 h-8" style={{ color: LAND_C.faint }}/>
-                      </div>
-                  }
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                    style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
-                </div>
-                <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, fontWeight: 700, color: rowText, fontFamily: hFont }}>{item.title}</p>
-                {item.partnerName && (
-                  <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: rowMuted }}>
-                    {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-                    <span>Offered by {item.partnerName}</span>
-                  </div>
-                )}
-                {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: rowMuted }}>{item.difficulty}</p>}
-              </Link>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
+        {(current?.[1] ?? []).map(item => (
+          <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
+            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} framed />
           </div>
         ))}
       </div>
+      {portal}
+    </div>
+  );
+}
 
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {hover && (
-            <HoverPreviewCard
-              key={hover.item.id}
-              left={hover.left}
-              top={hover.top}
-              originX={hover.originX}
-              originY={hover.originY}
-              width={hover.width}
-              onEnter={cancelClose}
-              onLeave={scheduleClose}
-            >
-              <CataloguePreview
-                item={toPreviewItem(hover.item)}
-                accent={typeColor}
-                href={landingHref(hover.item, user)}
-                onOpen={() => { window.location.href = landingHref(hover.item, user); }}
-                viewOnly={!user}
-                C={{ ...(isDark ? DARK_C : LIGHT_C), cta: buttonColor }}
-              />
-            </HoverPreviewCard>
-          )}
-        </AnimatePresence>,
-        document.body,
+/**
+ * Virtual experiences and certifications: a grid of eight a page, four across on a large screen,
+ * with previous and next once there is more than one page.
+ */
+function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont, isDark }: {
+  items: ProgrammeItem[]; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
+}) {
+  // Slicing the list is the whole mechanism: there is no scroll position to measure and so
+  // nothing to drift out of step with the counter.
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(items.length / GRID_PAGE_SIZE));
+  const visible = items.slice(page * GRID_PAGE_SIZE, (page + 1) * GRID_PAGE_SIZE);
+  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor, buttonColor, user, isDark });
+
+  const rowText  = isDark ? 'white' : LAND_C.text;
+  const rowMuted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
+  const rowBorder = isDark ? 'rgba(255,255,255,0.25)' : LAND_C.cardBorder;
+  const arrowBtn = (dir: number, label: string) => {
+    const spent = dir < 0 ? page <= 0 : page >= pages - 1;
+    return (
+      <button onClick={() => setPage(current => Math.max(0, Math.min(pages - 1, current + dir)))} aria-label={label} disabled={spent}
+        className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-35 disabled:hover:scale-100 disabled:cursor-default"
+        style={{ border: `1px solid ${rowBorder}`, color: rowMuted }}
+        onMouseEnter={e => { if (spent) return; e.currentTarget.style.background = rowText; e.currentTarget.style.borderColor = rowText; e.currentTarget.style.color = isDark ? '#111318' : '#ffffff'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = rowBorder; e.currentTarget.style.color = rowMuted; }}>
+        {dir < 0 ? <ChevronLeft className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
+      </button>
+    );
+  };
+
+  return (
+    <section className="rounded-2xl p-4 sm:p-6" style={{ background: isDark ? '#1E1F26' : 'white' }}>
+      {pages > 1 && (
+        <div className="flex justify-end">
+          <div className="flex items-center gap-3">
+            <span className="tabular-nums" style={{ ...M3.labelLarge, fontWeight: 600, color: rowMuted, fontFamily: bFont ?? hFont }}>
+              {page + 1} / {pages}
+            </span>
+            {arrowBtn(-1, 'Previous')}
+            {arrowBtn(1, 'Next')}
+          </div>
+        </div>
       )}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 pt-4 pb-2">
+        {visible.map(item => (
+          <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
+            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} />
+          </div>
+        ))}
+      </div>
+      {portal}
     </section>
   );
 }
@@ -680,7 +668,6 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   const ves       = programmes.filter(p => p.type === 've');
   const certs     = programmes.filter(p => p.type === 'certification');
 
-  const courseGroups = groupByField(courses, 'category');
   const adCards = ([
     hideAd1 === '1' ? null : { label: ad1Label, title: ad1Title, description: ad1Description, ctaText: ad1CtaText, ctaUrl: ad1CtaUrl, bgColor: ad1BgColor, bgImage: ad1BgImage, imageLayout: ad1ImageLayout },
     hideAd2 === '1' ? null : { label: ad2Label, title: ad2Title, description: ad2Description, ctaText: ad2CtaText, ctaUrl: ad2CtaUrl, bgColor: ad2BgColor, bgImage: ad2BgImage, imageLayout: ad2ImageLayout },
@@ -755,11 +742,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Courses" sub="Level up your skills with interactive and project-based courses."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <div className="space-y-4">
-              {courseGroups.map(([cat, items]) => (
-                <LandingCarouselRow buttonColor={BLUE} key={cat} title={cat} items={items} type="course" typeColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={courseGroups.length === 1} />
-              ))}
-            </div>
+            <CoursesGrid courses={courses} buttonColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
       )}
@@ -801,8 +784,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             {/* One row, not one per category. Grouping split a handful of experiences across
                 several near-empty rows, each with its own heading, so the section read as
                 fragmented rather than as a catalogue. */}
-            <LandingCarouselRow buttonColor={BLUE} title="Virtual Experiences" items={ves} type="ve" typeColor={GREEN}
-              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
+            <LandingCarouselRow buttonColor={BLUE} items={ves} typeColor={GREEN}
+              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
       )}
@@ -814,8 +797,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow buttonColor={BLUE} title="Certifications" items={certs} type="certification" typeColor={SLATE}
-              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
+            <LandingCarouselRow buttonColor={BLUE} items={certs} typeColor={SLATE}
+              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
       )}
@@ -840,7 +823,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} active={ctaInView} />
           </>}
           <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
-            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontWeight: 900, fontFamily: hFont, color: 'white' }}>
+            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontWeight: 700, fontFamily: hFont, color: 'white' }}>
               {ctaHeading}
               {ctaHeadingAccent && <><br /><span style={{ color: AMBER }}>{ctaHeadingAccent}</span></>}
             </h2>
