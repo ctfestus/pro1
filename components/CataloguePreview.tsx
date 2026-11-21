@@ -2,8 +2,8 @@
 
 /**
  * The hover preview for a catalogue item: an inset cover with its category, title and byline,
- * description, facts (topics, level, duration, exam time, pass mark, tools), what you will learn,
- * and one full-width action. A learning path shows its contents instead.
+ * description, facts (topics, level, duration, exam time, pass mark, tools), what a certification
+ * covers or a book gives, and one full-width action. A learning path shows its contents instead.
  *
  * Explore on the student dashboard and the public landing page both render this one component, so
  * a visitor and a signed-in learner see the same preview.
@@ -96,7 +96,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
   /**
    * The page's font for every line of the preview. The landing page passes its Site settings font:
    * the preview renders outside the page (a portal on body), so it would otherwise fall back to the
-   * app's own fonts. Without it, the app's fonts as Explore uses them.
+   * app's own fonts. Without it, the page's font as Explore uses it, description included.
    */
   font?: string;
   /**
@@ -106,7 +106,6 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
   compact?: boolean;
   C: typeof LIGHT_C;
 }) {
-  const bodyFont = font ?? 'var(--font-lato)';
   // The preview floats over cards of the same colour, so it needs its own edge and a deep shadow
   // to read as a layer above the page; in dark mode it also sits on a lighter surface.
   const isLight = C.page === LIGHT_C.page;
@@ -148,7 +147,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         </div>
         <div className="flex flex-col gap-3 p-5">
           <h3 className="text-[15px] leading-5 font-bold line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
-          {desc && <p className="text-[13px] leading-5 line-clamp-2" style={{ color: C.muted, fontFamily: bodyFont }}>{desc}</p>}
+          {desc && <p className="text-[13px] leading-5 line-clamp-2" style={{ color: C.muted }}>{desc}</p>}
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {skills.slice(0, 6).map(skill => chip(skill, skill))}
@@ -234,7 +233,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         <div>
           <h3 className={`${compact ? 'text-[15px] leading-5' : 'text-base leading-snug'} font-bold line-clamp-2`} style={{ color: C.text }}>{item.title}</h3>
           {item.byline && (
-            <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint, fontFamily: bodyFont }}>
+            <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint }}>
               {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
               {item.byline}
             </div>
@@ -242,7 +241,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         </div>
 
         {desc && (
-          <p className={`${compact ? 'text-[13px] leading-5' : 'text-[14px] leading-relaxed'} line-clamp-2`} style={{ color: C.muted, fontFamily: bodyFont }}>
+          <p className={`${compact ? 'text-[13px] leading-5' : 'text-[14px] leading-relaxed'} line-clamp-2`} style={{ color: C.muted }}>
             {desc}
           </p>
         )}
@@ -300,14 +299,15 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
           </div>
         )}
 
-        {item.outcomes?.length ? (
+        {/* Only a certification and a book list theirs; a course's or experience's outcomes are left out. */}
+        {item.outcomes?.length && (item.type === 'certification' || item.type === 'book') ? (
           <div>
             <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
-              {item.type === 'certification' ? 'What it covers' : item.type === 'book' ? 'What you will get' : 'What you will learn'}
+              {item.type === 'certification' ? 'What it covers' : 'What you will get'}
             </p>
             <ul className="flex flex-col gap-2">
               {item.outcomes.map(outcome => (
-                <li key={outcome} className="flex gap-2 text-sm leading-snug" style={{ color: C.muted, fontFamily: bodyFont }}>
+                <li key={outcome} className="flex gap-2 text-sm leading-snug" style={{ color: C.muted }}>
                   <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={3} style={{ color: C.successText }} />
                   <span className="line-clamp-2">{outcome}</span>
                 </li>
