@@ -136,7 +136,7 @@ const getProgrammes = unstable_cache(
     // never the catalogue.
     const db = adminClient();
     const extraResults = await Promise.all([
-      courseIds.length ? db.from('courses').select('id,difficulty,tags').in('id', courseIds) : empty,
+      courseIds.length ? db.from('courses').select('id,difficulty,tags,tools').in('id', courseIds) : empty,
       experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools').in('id', experienceIds) : empty,
       certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
     ]);
@@ -157,9 +157,9 @@ const getProgrammes = unstable_cache(
       category: row.category ?? '',
       partnerName: row.partner_name ?? undefined,
       partnerLogoUrl: row.partner_logo_url ?? undefined,
-      // The level for the card and pop-up. Learning outcomes stay off the course pop-up here; the
-      // course page lists them. Tags are read whole: previewFacts keeps only four topics.
-      ...previewFacts({ difficulty: extras.get(row.id)?.difficulty }),
+      // Level and tools for the card and pop-up. Learning outcomes stay off the course pop-up here;
+      // the course page lists them. Tags are read whole: previewFacts keeps only four topics.
+      ...previewFacts({ difficulty: extras.get(row.id)?.difficulty, tools: extras.get(row.id)?.tools }),
       tags: cleanList(extras.get(row.id)?.tags),
     }));
 

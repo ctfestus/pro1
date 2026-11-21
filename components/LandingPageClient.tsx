@@ -410,8 +410,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
 // The hover preview is Explore's, so a visitor sees what a signed-in learner sees there.
 const PREVIEW_TYPE = { course: 'course', path: 'learning_path', ve: 'virtual_experience', certification: 'certification' } as const;
 
-/** A course's tool is its category, listed when the tool icon list has a logo for it. */
-function toPreviewItem(item: ProgrammeItem, courseTool: string | null): CatalogueItem {
+function toPreviewItem(item: ProgrammeItem): CatalogueItem {
   return {
     id: item.id,
     type: PREVIEW_TYPE[item.type],
@@ -426,7 +425,7 @@ function toPreviewItem(item: ProgrammeItem, courseTool: string | null): Catalogu
     level: item.level,
     topics: item.tags,
     duration: item.duration,
-    tools: courseTool ? [courseTool] : item.tools,
+    tools: item.tools,
     examMinutes: item.examMinutes,
     passmark: item.passmark,
     locked: false,
@@ -443,7 +442,6 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   font?: string;
 }) {
   const { hover, open, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
-  const toolIcon = useToolIcons();
   const openHover = (item: ProgrammeItem, el: HTMLElement) => open(item, el, { width: 340, height: 560 });
   const portal = typeof document !== 'undefined' && createPortal(
     <AnimatePresence>
@@ -459,7 +457,7 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
           onLeave={scheduleClose}
         >
           <CataloguePreview
-            item={toPreviewItem(hover.item, hover.item.type === 'course' && hover.item.category && toolIcon(hover.item.category) ? hover.item.category : null)}
+            item={toPreviewItem(hover.item)}
             accent={typeColor}
             href={landingHref(hover.item, user)}
             onOpen={() => { window.location.href = landingHref(hover.item, user); }}
@@ -536,10 +534,10 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
   const toolIcon = useToolIcons();
-  // The framed course card's details: tags, then the level on the left and the tool's logo on the
-  // right. A course's tool is its category, shown when the tool icon list has a logo for it.
+  // The framed course card's details: tags, then the level on the left and the course's tools on the
+  // right (picked in the course editor; separate from the category, which sets the tab).
   const tags = framed ? item.tags ?? [] : [];
-  const toolLogo = framed && item.category ? toolIcon(item.category) : null;
+  const tools = framed ? item.tools ?? [] : [];
   const level = framed ? item.level : undefined;
   return (
     <Link href={landingHref(item, user)}
@@ -570,10 +568,10 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
           </div>
         )}
         {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
-        {(tags.length > 0 || level || toolLogo) && (
+        {(tags.length > 0 || level || tools.length > 0) && (
           <div className="mt-auto pt-2.5 flex flex-col gap-2">
             {tags.length > 0 && <FitTags tags={tags} isDark={isDark} />}
-            {(level || toolLogo) && (
+            {(level || tools.length > 0) && (
               <div className="flex items-center justify-between gap-2 min-h-[22px]">
                 {level ? (
                   <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: muted }}>
@@ -581,9 +579,14 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
                     {level}
                   </span>
                 ) : <span />}
-                {toolLogo && (
-                  <span title={item.category} className="grid flex-shrink-0 place-items-center w-[22px] h-[22px] rounded-md" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>
-                    <img src={toolLogo} alt={item.category} className="w-3.5 h-3.5 object-contain" />
+                {tools.length > 0 && (
+                  <span className="flex flex-shrink-0 items-center gap-1.5">
+                    {/* Each tool's logo; a tool the library has no logo for shows its name. */}
+                    {tools.map(tool => toolIcon(tool)
+                      ? <span key={tool} title={tool} className="grid place-items-center w-[22px] h-[22px] rounded-md" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>
+                          <img src={toolIcon(tool)!} alt={tool} className="w-3.5 h-3.5 object-contain" />
+                        </span>
+                      : <span key={tool} className="inline-flex items-center h-[22px] px-[7px] rounded-md text-[11px] font-semibold" style={{ color: muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>{tool}</span>)}
                   </span>
                 )}
               </div>

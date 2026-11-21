@@ -236,9 +236,12 @@ export interface FormConfig {
   category?: string | null;
   partnerId?: string | null;
   badgeImageUrl?: string | null;
-  // Migration 246. Tags are topics (AI, Automation). A course's tool is its category.
+  // Migration 246: level and tags (topics, e.g. AI, Automation). Migration 247: tools, the software
+  // the course uses (e.g. Claude, Excel), picked from the tool icon library. Category is separate:
+  // it groups courses into the landing page's tabs.
   difficulty?: CourseDifficulty | null;
   tags?: string[];
+  tools?: string[];
 }
 
 /** A course's level, the same three as virtual experiences and books. */
@@ -495,6 +498,7 @@ export function normalizeFormConfig(raw: any): FormConfig {
     ...(rest.isCourse ? {
       difficulty: COURSE_DIFFICULTIES.includes(rest.difficulty) ? rest.difficulty : null,
       tags: cleanLabels(rest.tags),
+      tools: cleanLabels(rest.tools),
     } : {}),
   } as FormConfig;
 }
