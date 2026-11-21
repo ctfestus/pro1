@@ -1,20 +1,24 @@
 'use client';
 
-// The book editor at /create/product (new) and /create/product?id= (edit). Uses the create editor's
-// local theme, as the other /create pages do. Every save goes through /api/books, which re-checks
+// The book editor at /create/product (new) and /create/product?id= (edit). Uses the dashboard theme
+// and kit, like the other editors. Every save goes through /api/books, which re-checks
 // ownership, uploaded files and publish readiness; this page only helps
 // the author get there.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Download, ExternalLink, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
+  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, Download, ExternalLink, Eye, FileText, ImagePlus, ListOrdered, Loader2, Plus, RefreshCw,
   Trash2, Upload, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useC } from '@/components/create/theme';
-import { useC as useLibC } from '@/lib/theme';
-import { Toggle, inputCls, labelCls } from '@/components/create/shared';
+import { DARK_C, useC, type ThemeColors } from '@/lib/theme';
+import { labelCls } from '@/components/create/shared';
+import { MenuSelect } from '@/components/MenuSelect';
+import { Tick } from '@/components/dashboard/cohorts/CohortModals';
+import { FIELD } from '@/components/dashboard/subscriptions/Modal';
+import { Switch } from '@/components/dashboard/subscriptions/PlanForm';
+import { Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { descriptionHtml } from '@/lib/books/description';
@@ -169,10 +173,44 @@ function chapterFromRow(row: any): ChapterDraft {
   };
 }
 
+type BookTab = 'details' | 'file' | 'rights' | 'access' | 'selling';
+const BOOK_TABS: { id: BookTab; label: string }[] = [
+  { id: 'details', label: 'Details' }, { id: 'file', label: 'File' }, { id: 'rights', label: 'Rights' },
+  { id: 'access', label: 'Access' }, { id: 'selling', label: 'Selling' },
+];
+
+// One flat section of the step card: a sentence-case heading, an optional count or action, then the fields.
+function Sect({ title, aside, action, first, children, C }: { title: string; aside?: string; action?: ReactNode; first?: boolean; children: ReactNode; C: ThemeColors }) {
+  return (
+    <div className="p-5 grid gap-4" style={first ? undefined : { borderTop: `1px solid ${C.divider}` }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold flex-1" style={{ color: C.text }}>{title}</h3>
+        {aside && <span className="text-xs" style={{ color: C.muted }}>{aside}</span>}
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SwitchRow({ C, title, sub, on, onChange }: { C: ThemeColors; title: string; sub?: string; on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold" style={{ color: C.text }}>{title}</p>
+        {sub && <p className="text-xs mt-0.5" style={{ color: C.muted }}>{sub}</p>}
+      </div>
+      <Switch on={on} onChange={onChange} label={title} C={C} />
+    </div>
+  );
+}
+
 export function BookEditor() {
-  const baseC = useC();
-  const libC = useLibC();
-  const C = useMemo(() => ({ ...baseC, cta: libC.cta, ctaText: '#ffffff', cardBorder: 'transparent' }), [baseC, libC]);
+  const theme = useC();
+  // The dashboard theme with the shared blue for buttons and selection controls, like the other editors.
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
+  const [tab, setTab] = useState<BookTab>('details');
   const router = useRouter();
   const editId = useSearchParams().get('id');
 
@@ -807,8 +845,6 @@ export function BookEditor() {
     }
   }
 
-  const card = { background: C.card } as const;
-  const sectionTitle = (t: string) => <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>{t}</p>;
   async function saveAddress() {
     if (!editId) return;
     const next = normalizeProductAddress(addressDraft);
@@ -839,61 +875,102 @@ export function BookEditor() {
 
   const field = (label: string, input: React.ReactNode, hint?: string) => (
     <div>
-      <label className={labelCls} style={{ color: C.faint }}>{label}</label>
+      <label className={labelCls} style={{ color: C.muted }}>{label}</label>
       {input}
-      {hint && <p className="text-xs mt-1.5" style={{ color: C.faint }}>{hint}</p>}
+      {hint && <p className="text-xs mt-1.5" style={{ color: C.muted }}>{hint}</p>}
     </div>
   );
   const inputStyle = { background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center" style={{ background: C.page }}><Loader2 className="w-7 h-7 animate-spin" style={{ color: C.cta }} /></div>;
+    return <div className="min-h-screen flex items-center justify-center" style={{ background: C.page }}><Loader2 className="w-7 h-7 animate-spin" style={{ color: C.muted }} /></div>;
   }
 
+  const saveKind: BookStatus = status === 'published' ? 'published' : 'draft';
   const header = (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
-      <div className="rounded-2xl px-5 sm:px-7 py-6 flex items-start justify-between gap-4" style={{ ...card, boxShadow: C.cardShadow }}>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.cta }}>
-            <Library className="w-4 h-4" /> Product Studio
-          </div>
-          <h1 className="mt-2 truncate text-xl sm:text-2xl font-bold" style={{ color: C.text }}>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+      <button type="button" onClick={() => router.push('/dashboard#products')} className="inline-flex items-center gap-2 text-[13px] font-semibold mb-3 hover:opacity-80" style={{ color: C.muted }}>
+        <ArrowLeft className="w-4 h-4" /> All products
+      </button>
+      {/* Buttons stay at the top right; a long name wraps instead of pushing them down. */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 md:flex-1">
+          <h1 className="text-[28px] leading-9 font-semibold break-words" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
             {editId ? (state.title.trim() || 'Edit product') : 'New product'}
           </h1>
-          {editId && <p className="text-xs mt-1 capitalize" style={{ color: C.faint }}>{status}{effectiveFormat ? ` / ${effectiveFormat.toUpperCase()}` : ''}</p>}
+          {editId && (
+            <div className="mt-2">
+              {status === 'published' ? <Pill tone="good" dot C={C}>Published</Pill> : status === 'archived' ? <Pill tone="mute" C={C}>Archived</Pill> : <Pill tone="warn" C={C}>Draft</Pill>}
+            </div>
+          )}
         </div>
-        <button onClick={() => router.push('/dashboard#products')} className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
-          style={{ background: C.pill, color: C.muted }}>
-          <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Digital Products</span>
-        </button>
+        {editId && (
+          <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:flex-shrink-0">
+            {/* The product's page as buyers see it, drafts included (app/products/preview/[id]). */}
+            <a href={`/products/preview/${encodeURIComponent(editId)}`} target="_blank" rel="noopener noreferrer"
+              title="Opens in a new tab and shows the last saved version" className={btnClass} style={btnStyle('sec', C)}>
+              <Eye className="w-4 h-4" /> Preview page
+            </a>
+            {status === 'published' && (
+              <button type="button" onClick={() => save('archived')} disabled={!!saving || blocked} className={btnClass} style={btnStyle('sec', C)}>
+                {saving === 'archived' && <Loader2 className="w-4 h-4 animate-spin" />} Archive
+              </button>
+            )}
+            <button type="button" onClick={() => save(saveKind)} disabled={!!saving || !!uploading || blocked} className={btnClass} style={btnStyle(status === 'published' ? 'pri' : 'sec', C)}>
+              {saving === saveKind ? <Loader2 className="w-4 h-4 animate-spin" /> : status !== 'published' && <Check className="w-4 h-4" />}
+              {status === 'published' ? 'Save changes' : 'Save draft'}
+            </button>
+            {status !== 'published' && (
+              <button type="button" onClick={() => save('published')} disabled={!!saving || !!uploading || blocked} className={btnClass} style={btnStyle('pri', C)}>
+                {saving === 'published' && <Loader2 className="w-4 h-4 animate-spin" />} Publish
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {editId && (
+        <div role="tablist" aria-label="Product steps" className="inline-flex max-w-full gap-1 p-1 mt-5 rounded-[14px] overflow-x-auto" style={{ background: C.card }}>
+          {BOOK_TABS.map(t => {
+            const active = tab === t.id;
+            return (
+              <button key={t.id} type="button" role="tab" aria-selected={active} onClick={() => setTab(t.id)}
+                className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+                style={active ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
   const banner = (error || notice) && (
-    <div className="text-sm px-4 py-3 rounded-xl" style={error
-      ? { background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }
-      : { background: '#ffffff', color: '#16a34a', boxShadow: 'inset 0 0 0 1px #bbf7d0' }}>
+    <div role={error ? 'alert' : 'status'} className="mt-4 text-sm px-4 py-3 rounded-xl" style={error
+      ? { background: P.badSoft, color: P.bad }
+      : { background: C.card, color: P.good, boxShadow: `inset 0 0 0 1px ${P.goodSoft}` }}>
       {error || notice}
     </div>
   );
 
   if (!editId) {
     return (
-      <div className="min-h-screen pb-28" style={{ background: C.page, color: C.text }}>
+      <div className="min-h-screen pb-12" style={{ background: C.page, color: C.text }}>
         {header}
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
           {banner}
-          <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
-            {sectionTitle('Start a product')}
-            {field('Title', <input className={inputCls} style={inputStyle} value={newTitle} onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') createDraft(); }} placeholder="SQL for Data Analysts" autoFocus />,
-              'The product is created as a draft. You can upload the file and fill in the rest next.')}
-            <button onClick={createDraft} disabled={creating} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
-              style={{ background: C.cta, color: C.ctaText }}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create draft
-            </button>
-          </div>
+          <Card C={C} className="mt-4">
+            <Sect C={C} title="Start a product" first>
+              {field('Title', <input className={FIELD} style={inputStyle} value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createDraft(); }} placeholder="SQL for Data Analysts" autoFocus />,
+                'The product is created as a draft. You can upload the file and fill in the rest next.')}
+              <div>
+                <button type="button" onClick={createDraft} disabled={creating} className={btnClass} style={btnStyle('pri', C)}>
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create draft
+                </button>
+              </div>
+            </Sect>
+          </Card>
         </div>
       </div>
     );
@@ -903,111 +980,111 @@ export function BookEditor() {
   const previewName = preview === 'remove' ? '' : preview?.name ?? (storedPreview ? 'Current sample' : '');
 
   return (
-    <div className="min-h-screen pb-32" style={{ background: C.page, color: C.text }}>
+    <div className="min-h-screen pb-12" style={{ background: C.page, color: C.text }}>
       {header}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         {banner}
+        <Card C={C} className="mt-4">
 
-        {/* Details */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-          {sectionTitle('Details')}
-          {field('Title', <input className={inputCls} style={inputStyle} value={state.title} onChange={e => update({ title: e.target.value })} />)}
-          {field('Subtitle', <input className={inputCls} style={inputStyle} value={state.subtitle} onChange={e => update({ subtitle: e.target.value })} />)}
+        {tab === 'details' && (<>
+        <Sect C={C} title="About the product" first>
+          {field('Title', <input className={FIELD} style={inputStyle} value={state.title} onChange={e => update({ title: e.target.value })} />)}
+          {field('Subtitle', <input className={FIELD} style={inputStyle} value={state.subtitle} onChange={e => update({ subtitle: e.target.value })} />)}
           {editId && slug && field('Web address', (
             <div className="space-y-2">
               <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex flex-1 items-center rounded-xl overflow-hidden" style={inputStyle}>
+                <div className="field-shell flex flex-1 items-center rounded-[10px] overflow-hidden" style={inputStyle}>
                   <span className="pl-3 text-sm shrink-0" style={{ color: C.faint }}>/products/</span>
-                  <input className="flex-1 min-w-0 bg-transparent px-1 py-2.5 text-sm outline-none" style={{ color: C.text }} value={addressDraft}
+                  <input className="flex-1 min-w-0 bg-transparent px-1 py-3 text-sm outline-none" style={{ color: C.text }} value={addressDraft}
                     onChange={e => { setAddressDraft(e.target.value.toLowerCase().replace(/\s+/g, '-')); setAddressNote(null); }} aria-label="Web address" />
                 </div>
                 <button type="button" onClick={saveAddress} disabled={addressBusy || normalizeProductAddress(addressDraft) === slug}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>
+                  className={`${btnClass} h-auto py-3`} style={btnStyle('sec', C)}>
                   {addressBusy ? 'Saving' : 'Save address'}
                 </button>
               </div>
-              {addressNote && <p className="text-xs" style={{ color: addressNote.ok ? C.green : '#dc2626' }}>{addressNote.text}</p>}
+              {addressNote && <p className="text-xs" style={{ color: addressNote.ok ? P.good : P.bad }}>{addressNote.text}</p>}
             </div>
           ), 'Lowercase letters, numbers and hyphens. Changing it breaks links already shared.')}
           {field('Description', <RichTextEditor value={state.description} onChange={html => update({ description: html })} placeholder="What the product is, who it is for and what they get" enableAiAssist />,
             'Use bold, italics, lists and headings. This shows on the product page.')}
-          <div className="grid sm:grid-cols-2 gap-5">
-            {field('Authors', <input className={inputCls} style={inputStyle} value={state.authors} onChange={e => update({ authors: e.target.value })} />, 'Separate names with commas.')}
+        </Sect>
+        <Sect C={C} title="Catalogue">
+          <div className="grid sm:grid-cols-2 gap-4">
+            {field('Authors', <input className={FIELD} style={inputStyle} value={state.authors} onChange={e => update({ authors: e.target.value })} />, 'Separate names with commas.')}
             {field('Type', (
               <div className="space-y-2">
-                <select className={inputCls} style={inputStyle} value={state.productType} onChange={e => update({ productType: e.target.value })} aria-label="Type">
-                  {PRODUCT_TYPES.map(t => <option key={t} value={t}>{PRODUCT_TYPE_NAMES[t]}</option>)}
-                </select>
+                <MenuSelect field label="Type" C={C} value={state.productType} onChange={v => update({ productType: v })}
+                  options={PRODUCT_TYPES.map(t => ({ value: t as string, label: PRODUCT_TYPE_NAMES[t] }))} />
                 {state.productType === 'other' && (
-                  <input className={inputCls} style={inputStyle} value={state.productTypeLabel} maxLength={40}
+                  <input className={FIELD} style={inputStyle} value={state.productTypeLabel} maxLength={40}
                     onChange={e => update({ productTypeLabel: e.target.value })} placeholder="For example Dataset, Course pack, Checklist" aria-label="Type name" />
                 )}
               </div>
             ), state.productType === 'other' && !state.productTypeLabel.trim() ? 'Name the type, or it is saved as Book.' : 'Shown on the product page and in the store.')}
-            {field('Category', <input className={inputCls} style={inputStyle} value={state.category} onChange={e => update({ category: e.target.value })} placeholder="Data Engineering" />)}
-            {field('Topics', <input className={inputCls} style={inputStyle} value={state.topics} onChange={e => update({ topics: e.target.value })} />, 'Separate with commas.')}
-            {field('Skills', <input className={inputCls} style={inputStyle} value={state.skills} onChange={e => update({ skills: e.target.value })} />, 'Separate with commas.')}
+            {field('Category', <input className={FIELD} style={inputStyle} value={state.category} onChange={e => update({ category: e.target.value })} placeholder="Data Engineering" />)}
+            {field('Topics', <input className={FIELD} style={inputStyle} value={state.topics} onChange={e => update({ topics: e.target.value })} />, 'Separate with commas.')}
+            {field('Skills', <input className={FIELD} style={inputStyle} value={state.skills} onChange={e => update({ skills: e.target.value })} />, 'Separate with commas.')}
             {field('Difficulty', (
-              <select className={inputCls} style={inputStyle} value={state.difficulty} onChange={e => update({ difficulty: e.target.value })}>
-                <option value="">Not set</option>
-                {BOOK_DIFFICULTIES.map(d => <option key={d} value={d} className="capitalize">{d[0].toUpperCase() + d.slice(1)}</option>)}
-              </select>
+              <MenuSelect field label="Difficulty" C={C} value={state.difficulty} onChange={v => update({ difficulty: v })}
+                options={[{ value: '', label: 'Not set' }, ...BOOK_DIFFICULTIES.map(d => ({ value: d as string, label: d[0].toUpperCase() + d.slice(1) }))]} />
             ))}
-            {field('Reading time (minutes)', <input className={inputCls} style={inputStyle} inputMode="numeric" value={state.estimatedMinutes} onChange={e => update({ estimatedMinutes: e.target.value.replace(/\D/g, '') })} />)}
+            {field('Reading time (minutes)', <input className={FIELD} style={inputStyle} inputMode="numeric" value={state.estimatedMinutes} onChange={e => update({ estimatedMinutes: e.target.value.replace(/\D/g, '') })} />)}
           </div>
-          {field('Cover', state.coverImage ? (
+        </Sect>
+        <Sect C={C} title="Cover">
+          {state.coverImage ? (
             <div className="flex items-center gap-3">
               <img src={resolveCoverUrl(state.coverImage)} alt="" className="w-16 rounded-lg object-cover" style={{ height: 88 }} />
-              <button onClick={() => setCoverOpen(true)} className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: C.pill, color: C.muted }}>Change</button>
-              <button onClick={() => update({ coverImage: '' })} className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: C.pill, color: '#dc2626' }}>Remove</button>
+              <button type="button" onClick={() => setCoverOpen(true)} className={btnSmClass} style={btnStyle('sec', C)}>Change</button>
+              <button type="button" onClick={() => update({ coverImage: '' })} className={btnSmClass} style={btnStyle('sec', C)}>Remove</button>
             </div>
           ) : (
-            <button onClick={() => setCoverOpen(true)} className="w-full rounded-xl px-3 py-6 flex flex-col items-center gap-2" style={{ background: C.input, border: `1.5px dashed ${C.inputBorder}` }}>
+            <button type="button" onClick={() => setCoverOpen(true)} className="w-full max-w-sm rounded-xl px-3 py-6 flex flex-col items-center gap-2" style={{ border: `2px dashed ${C.divider}` }}>
               <ImagePlus className="w-5 h-5" style={{ color: C.faint }} />
-              <span className="text-xs" style={{ color: C.faint }}>Select or upload a cover image</span>
+              <span className="text-xs" style={{ color: C.muted }}>Select or upload a cover image</span>
             </button>
-          ))}
-        </div>
+          )}
+        </Sect>
+        </>)}
 
         {/* Files, or a link (migration 243) */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-          {sectionTitle('Product file or link')}
-          <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="How buyers get the product">
+        {tab === 'file' && (<>
+        <Sect C={C} title="Product file or link" first>
+          <div className="inline-flex w-fit rounded-xl p-1 gap-1" style={{ background: C.page }} role="radiogroup" aria-label="How buyers get the product">
             {([['file', 'Upload a file'], ['link', 'Give a link']] as const).map(([value, label]) => (
               <button key={value} role="radio" aria-checked={delivery === value} onClick={() => setDelivery(value)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={delivery === value ? { background: C.cta, color: C.ctaText } : { color: C.muted }}>
+                className="h-8 px-3 rounded-[9px] text-[13px] font-semibold"
+                style={delivery === value ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
                 {label}
               </button>
             ))}
           </div>
           {delivery === 'link' ? (
             <div className="space-y-3">
-              <p className="text-sm" style={{ color: C.faint }}>For a Canva template, a Notion page, a shared folder or anything else online. Buyers only get the link after they buy or claim the product, through an Open button. It is never shown on the product page or in emails.</p>
-              <input className={inputCls} style={inputStyle} type="url" inputMode="url" value={linkDraft} placeholder="https://"
+              <p className="text-sm" style={{ color: C.muted }}>For a Canva template, a Notion page, a shared folder or anything else online. Buyers only get the link after they buy or claim the product, through an Open button. It is never shown on the product page or in emails.</p>
+              <input className={FIELD} style={inputStyle} type="url" inputMode="url" value={linkDraft} placeholder="https://"
                 aria-label="Product link" onChange={e => setLinkDraft(e.target.value)} />
-              <p className="text-xs" style={{ color: C.faint }}>Anyone who has the link can pass it on, so set it up in the tool itself to give a copy, for example a Canva template link or a Notion page people duplicate.</p>
+              <p className="text-xs" style={{ color: C.muted }}>Anyone who has the link can pass it on, so set it up in the tool itself to give a copy, for example a Canva template link or a Notion page people duplicate.</p>
               <div className="flex flex-wrap items-center gap-3">
                 {storedLink && format === 'link' && (
-                  <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                    style={{ background: C.pill, color: C.muted }}>
+                  <button onClick={() => previewSaved('full')} disabled={!!opening} className={btnSmClass} style={btnStyle('sec', C)}>
                     {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />} Open link
                   </button>
                 )}
-                {(storedFile.path || newFile) && <span className="text-xs" style={{ color: C.faint }}>Saving with a link removes the uploaded file and its free sample.</span>}
+                {(storedFile.path || newFile) && <span className="text-xs" style={{ color: C.muted }}>Saving with a link removes the uploaded file and its free sample.</span>}
               </div>
             </div>
           ) : (
           <>
-          <p className="text-sm" style={{ color: C.faint }}>PDF, EPUB or interactive HTML, which buyers can read, or a ZIP, Excel, Word, PowerPoint, CSV, text or Markdown file they download. Up to 100 MB, or 10 MB for HTML. Files are private: buyers only ever get a short-lived link.</p>
-          {format === 'link' && !newFile && <p className="text-xs" style={{ color: C.faint }}>Upload a file to use it instead of the link. Until then the product stays a link.</p>}
+          <p className="text-sm" style={{ color: C.muted }}>PDF, EPUB or interactive HTML, which buyers can read, or a ZIP, Excel, Word, PowerPoint, CSV, text or Markdown file they download. Up to 100 MB, or 10 MB for HTML. Files are private: buyers only ever get a short-lived link.</p>
+          {format === 'link' && !newFile && <p className="text-xs" style={{ color: C.muted }}>Upload a file to use it instead of the link. Until then the product stays a link.</p>}
           <input ref={fileInput} type="file" accept={FILE_ACCEPT} className="hidden"
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload('file', f); }} />
           <input ref={previewInput} type="file" accept={FILE_ACCEPT} className="hidden"
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload('preview', f); }} />
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={() => fileInput.current?.click()} disabled={!!uploading} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
-              style={{ background: C.cta, color: C.ctaText }}>
+            <button type="button" onClick={() => fileInput.current?.click()} disabled={!!uploading} className={btnClass} style={btnStyle('sec', C)}>
               {uploading === 'file' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {(storedFile.path && format !== 'link') || newFile ? 'Replace file' : 'Upload file'}
             </button>
@@ -1015,27 +1092,28 @@ export function BookEditor() {
               <FileText className="w-3.5 h-3.5" /> {fileName} {sizeLabel(newFile?.size ?? storedFile.size)}{newFile ? ' (not saved yet)' : ''}
             </span>}
             {storedFile.path && !newFile && format && format !== 'link' && (
-              <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                style={{ background: C.pill, color: C.muted }}>
+              <button onClick={() => previewSaved('full')} disabled={!!opening} className={btnSmClass} style={btnStyle('sec', C)}>
                 {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                 {opensInBrowser(format) ? 'Preview product' : 'Download to check'}
               </button>
             )}
           </div>
+          </>
+          )}
+        </Sect>
           {/* A product that is still a link (until a file is uploaded) has no sample. */}
-          {effectiveFormat !== 'link' && (
-          <div className="pt-4 space-y-3" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <p className="text-sm font-medium" style={{ color: C.text }}>Free sample</p>
-            <p className="text-xs" style={{ color: C.faint }}>People who have not bought the product get only this part, as a separate file, so the full product never reaches them.</p>
+          {delivery === 'file' && effectiveFormat !== 'link' && (
+          <Sect C={C} title="Free sample">
+            <p className="text-xs -mt-2" style={{ color: C.muted }}>People who have not bought the product get only this part, as a separate file, so the full product never reaches them.</p>
             {effectiveFormat && !isReadableFormat(effectiveFormat) ? (
-              <p className="text-xs" style={{ color: C.faint }}>Optional. Upload a smaller {formatLabel(effectiveFormat)} to give away, for example a sample workbook with one sheet.</p>
+              <p className="text-xs" style={{ color: C.muted }}>Optional. Upload a smaller {formatLabel(effectiveFormat)} to give away, for example a sample workbook with one sheet.</p>
             ) : (
-            <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="Sample source">
+            <div className="inline-flex w-fit rounded-xl p-1 gap-1" style={{ background: C.page }} role="radiogroup" aria-label="Sample source">
               {([['cut', 'Cut from the file'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
                 <button key={value} role="radio" aria-checked={sampleSource === value}
                   onClick={() => { if (sampleSource === value) return; setSampleSource(value); if (value === 'cut') sampleChanged(); else { setSampleDirty(false); setSampleReview(null); setReviewAck(false); } }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={sampleSource === value ? { background: C.cta, color: C.ctaText } : { color: C.muted }}>
+                  className="h-8 px-3 rounded-[9px] text-[13px] font-semibold"
+                  style={sampleSource === value ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
                   {label}
                 </button>
               ))}
@@ -1059,15 +1137,15 @@ export function BookEditor() {
                     chapters{chapters.length ? <span style={{ color: C.faint }}>of {chapters.length}</span> : null}
                   </label>
                 )}
-                <p className="text-xs" style={{ color: C.faint }}>
+                <p className="text-xs" style={{ color: C.muted }}>
                   {!effectiveFormat ? 'Upload the product file first.'
                     : sampleDirty ? 'The sample is made from the file when you save.'
                     : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the file when you save.'}
                 </p>
                 {sampleReview && (
-                  <div className="rounded-xl p-4 space-y-3" style={{ background: C.input }}>
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: C.page }}>
                     <p className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.text }}>
-                      <AlertTriangle className="w-4 h-4" style={{ color: '#d97706' }} /> Check this sample before it is used
+                      <AlertTriangle className="w-4 h-4" style={{ color: P.warn }} /> Check this sample before it is used
                     </p>
                     <p className="text-xs" style={{ color: C.muted }}>
                       We looked for text from the paid chapters in parts of the sample a reader does not normally see. What we found is listed below. It may be fine, for example text your book repeats on purpose, but please check it. This is a check for possible exposure of paid content; it cannot guarantee that a sample contains none.
@@ -1081,13 +1159,11 @@ export function BookEditor() {
                     </ul>
                     <div className="flex flex-wrap items-center gap-3">
                       {sampleReview.html ? (
-                        <button onClick={() => setReviewPreview(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
-                          style={{ background: C.pill, color: C.muted }}>
+                        <button onClick={() => setReviewPreview(true)} className={btnSmClass} style={btnStyle('sec', C)}>
                           <Eye className="w-3.5 h-3.5" /> Preview the sample
                         </button>
                       ) : (
-                        <button onClick={downloadReviewSample} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
-                          style={{ background: C.pill, color: C.muted }}>
+                        <button onClick={downloadReviewSample} className={btnSmClass} style={btnStyle('sec', C)}>
                           <Download className="w-3.5 h-3.5" /> Download the sample to check
                         </button>
                       )}
@@ -1097,8 +1173,7 @@ export function BookEditor() {
                       I have reviewed this sample, and it only contains what I want to give away for free.
                     </label>
                     <button onClick={createReviewedSample} disabled={!reviewAck || !!saving}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                      style={{ background: C.cta, color: C.ctaText }}>
+                      className={btnSmClass} style={btnStyle('pri', C)}>
                       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Create sample anyway
                     </button>
                   </div>
@@ -1120,12 +1195,12 @@ export function BookEditor() {
                     remade by a plain save, since nothing it depends on changed. This marks it. */}
                 {storedPreview && !sampleDirty && (newFile || storedFile.path) && (
                   <button onClick={() => { sampleChanged(); setNotice('The sample will be made again from the file when you save.'); }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
+                    className={`${btnSmClass} w-fit`} style={btnStyle('sec', C)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Remake sample
                   </button>
                 )}
                 {storedPreview && !sampleDirty && !preview && format && (
-                  <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
+                  <button onClick={() => previewSaved('sample')} disabled={!!opening} className={`${btnSmClass} w-fit`} style={btnStyle('sec', C)}>
                     {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                     {opensInBrowser(format) ? 'Preview sample' : 'Download sample'}
                   </button>
@@ -1133,198 +1208,173 @@ export function BookEditor() {
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
-                <button onClick={() => previewInput.current?.click()} disabled={!!uploading || !effectiveFormat} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                  style={{ background: C.pill, color: C.muted }}>
+                <button type="button" onClick={() => previewInput.current?.click()} disabled={!!uploading || !effectiveFormat} className={btnSmClass} style={btnStyle('sec', C)}>
                   {uploading === 'preview' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                   {previewName ? 'Replace sample' : 'Upload sample'}
                 </button>
                 {previewName && <>
                   <span className="text-xs" style={{ color: C.muted }}>{previewName}{preview && preview !== 'remove' ? ' (not saved yet)' : ''}</span>
                   {storedPreview && !preview && format && (
-                    <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
+                    <button onClick={() => previewSaved('sample')} disabled={!!opening} className={`${btnSmClass} w-fit`} style={btnStyle('sec', C)}>
                       {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                       {opensInBrowser(format) ? 'Preview sample' : 'Download sample'}
                     </button>
                   )}
-                  <button onClick={() => setPreview('remove')} className="text-xs" style={{ color: '#dc2626' }}>Remove</button>
+                  <button type="button" onClick={() => setPreview('remove')} className={btnSmClass} style={btnStyle('sec', C)}>Remove</button>
                 </>}
               </div>
             )}
-          </div>
+          </Sect>
           )}
-          </>
-          )}
-        </div>
 
         {/* Chapters: buyers never see them; they only tell a chapter-cut sample (EPUB, HTML) where to
-            stop. So the section appears only then, folded away by default. PDF samples are cut by
-            page range and uploaded samples are not cut, so neither needs chapters. */}
+            stop. So the section appears only then. PDF samples are cut by page range and uploaded
+            samples are not cut, so neither needs chapters. */}
         {delivery === 'file' && isReadableFormat(effectiveFormat) && effectiveFormat !== 'pdf' && sampleSource === 'cut' && (
-        <details className="group rounded-2xl p-5 sm:p-7" style={card}>
-          <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none flex items-center justify-between gap-3">
-            <span>
-              <span className="text-sm font-bold" style={{ color: C.text }}>Chapters</span>
-              <span className="text-xs ml-2" style={{ color: C.faint }}>used to cut the free sample{chapters.length ? `, ${chapters.length} found` : ''}</span>
-            </span>
-            <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" style={{ color: C.faint }} />
-          </summary>
-          <div className="mt-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="flex gap-2">
-              {effectiveFormat && (newFile || storedFile.path) && (
-                <button onClick={() => findChapters()} disabled={findingChapters || !!uploading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                  style={{ background: C.pill, color: C.muted }}>
-                  {findingChapters ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ListOrdered className="w-3.5 h-3.5" />} Find chapters
-                </button>
-              )}
-              <button onClick={() => setChapters(prev => [...prev, { key: newKey(), title: '', href: '', anchor: '', pageStart: '', pageEnd: '', estimatedMinutes: null, required: true, isPreview: false }])}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.pill, color: C.muted }}>
-                <Plus className="w-3.5 h-3.5" /> Add chapter
-              </button>
-            </div>
-          </div>
-          <p className="text-xs" style={{ color: C.faint }}>
+        <Sect C={C} title="Chapters" aside={chapters.length ? `${chapters.length} chapter${chapters.length === 1 ? '' : 's'}` : undefined}>
+          <p className="text-xs -mt-2" style={{ color: C.muted }}>
             {findingChapters ? 'Reading the chapters from the file...'
-              : 'Chapters are read from the file\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
+              : 'Used to cut the free sample. Chapters are read from the file\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
           </p>
-          {chapters.length === 0 && <p className="text-sm py-4 text-center" style={{ color: C.faint }}>No chapters yet.</p>}
+          {chapters.length === 0 && <p className="rounded-xl px-4 py-5 text-center text-[13px]" style={{ border: `2px dashed ${C.divider}`, color: C.muted }}>No chapters yet</p>}
+          {chapters.length > 0 && (
           <div className="space-y-2">
             {chapters.map((ch, i) => (
-              <div key={ch.key} className="rounded-xl p-3 space-y-2" style={{ background: C.input }}>
+              <div key={ch.key} className="rounded-xl px-3 py-2.5 space-y-2" style={{ background: C.page }}>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs w-6 text-right shrink-0" style={{ color: C.faint }}>{i + 1}</span>
-                  <input className={inputCls} style={inputStyle} value={ch.title} placeholder="Chapter title"
+                  <span className="w-7 h-7 rounded-full grid place-items-center text-xs font-bold flex-shrink-0" style={{ background: P.sel, color: P.onSel }}>{i + 1}</span>
+                  <input className={FIELD} style={{ ...inputStyle, background: C.card }} value={ch.title} placeholder="Chapter title" aria-label={`Chapter ${i + 1} title`}
                     onChange={e => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, title: e.target.value } : c))} />
-                  <button onClick={() => moveChapter(i, -1)} disabled={i === 0} aria-label="Move up" className="p-1.5 rounded-lg disabled:opacity-30" style={{ color: C.muted }}><ArrowUp className="w-4 h-4" /></button>
-                  <button onClick={() => moveChapter(i, 1)} disabled={i === chapters.length - 1} aria-label="Move down" className="p-1.5 rounded-lg disabled:opacity-30" style={{ color: C.muted }}><ArrowDown className="w-4 h-4" /></button>
-                  <button onClick={() => setChapters(prev => prev.filter(c => c.key !== ch.key))} aria-label="Remove chapter" className="p-1.5 rounded-lg" style={{ color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => moveChapter(i, -1)} disabled={i === 0} aria-label="Move up" className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0 disabled:opacity-30" style={{ background: C.card, color: C.muted }}><ArrowUp className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => moveChapter(i, 1)} disabled={i === chapters.length - 1} aria-label="Move down" className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0 disabled:opacity-30" style={{ background: C.card, color: C.muted }}><ArrowDown className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setChapters(prev => prev.filter(c => c.key !== ch.key))} aria-label="Remove chapter" className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 pl-8 text-xs" style={{ color: C.faint }}>
+                <div className="flex flex-wrap items-center gap-4 pl-9 text-xs" style={{ color: C.muted }}>
                   {effectiveFormat === 'epub' && ch.href && <span className="truncate max-w-[16rem]">{ch.href}</span>}
                   {effectiveFormat === 'html' && ch.anchor && <span>#{ch.anchor}</span>}
-                  <label className="flex items-center gap-2">Counts toward completion
-                    <Toggle checked={ch.required} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, required: !c.required } : c))} />
-                  </label>
+                  <span className="flex items-center gap-2">Counts toward completion
+                    <Switch on={ch.required} label="Counts toward completion" C={C} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, required: !c.required } : c))} />
+                  </span>
                 </div>
               </div>
             ))}
           </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {effectiveFormat && (newFile || storedFile.path) && (
+              <button type="button" onClick={() => findChapters()} disabled={findingChapters || !!uploading} className={btnSmClass} style={btnStyle('sec', C)}>
+                {findingChapters ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ListOrdered className="w-3.5 h-3.5" />} Find chapters
+              </button>
+            )}
+            <button type="button" onClick={() => setChapters(prev => [...prev, { key: newKey(), title: '', href: '', anchor: '', pageStart: '', pageEnd: '', estimatedMinutes: null, required: true, isPreview: false }])}
+              className={btnSmClass} style={btnStyle('sec', C)}>
+              <Plus className="w-3.5 h-3.5" /> Add chapter
+            </button>
           </div>
-        </details>
+        </Sect>
         )}
+        </>)}
 
-        {/* Rights */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-          {sectionTitle('Rights')}
-          <div className="grid sm:grid-cols-2 gap-5">
+        {tab === 'rights' && (<>
+        <Sect C={C} title="Licence" first>
+          <div className="grid sm:grid-cols-2 gap-4">
             {field('Licence', (
-              <select className={inputCls} style={inputStyle} value={state.licenseType} onChange={e => update({ licenseType: e.target.value })}>
-                <option value="">Choose a licence</option>
-                {BOOK_LICENSE_TYPES.map(l => <option key={l} value={l}>{LICENSE_LABELS[l]}</option>)}
-              </select>
+              <MenuSelect field label="Licence" C={C} value={state.licenseType} onChange={v => update({ licenseType: v })} placeholder="Choose a licence"
+                options={BOOK_LICENSE_TYPES.map(l => ({ value: l as string, label: LICENSE_LABELS[l] }))} />
             ), 'Required to publish.')}
-            {field('Rights holder', <input className={inputCls} style={inputStyle} value={state.rightsHolder} onChange={e => update({ rightsHolder: e.target.value })} />)}
-            {field('Licence link', <input className={inputCls} style={inputStyle} value={state.licenseUrl} onChange={e => update({ licenseUrl: e.target.value })} placeholder="https://" />)}
+            {field('Rights holder', <input className={FIELD} style={inputStyle} value={state.rightsHolder} onChange={e => update({ rightsHolder: e.target.value })} />)}
+            {field('Licence link', <input className={FIELD} style={inputStyle} value={state.licenseUrl} onChange={e => update({ licenseUrl: e.target.value })} placeholder="https://" />)}
             {field('Licence ends', <DateField label="Licence ends" placeholder="No end date" value={state.licenseExpiresAt} onChange={licenseExpiresAt => update({ licenseExpiresAt })} C={C} />, 'Readers lose access on this date. Leave empty if it never ends.')}
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm" style={{ color: C.text }}>AI may read this product to explain it and write practice questions</span>
-            <Toggle checked={state.aiAllowed} accentColor={C.cta} onChange={() => update({ aiAllowed: !state.aiAllowed })} />
+        </Sect>
+        <Sect C={C} title="Permissions">
+          <SwitchRow C={C} title="AI may read this product" sub="To explain it and write practice questions." on={state.aiAllowed} onChange={v => update({ aiAllowed: v })} />
+          <div className="pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
+            <SwitchRow C={C} title="Named on certificates" sub="The author or publisher has agreed to be named on certificates." on={state.endorsementPermitted} onChange={v => update({ endorsementPermitted: v })} />
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm" style={{ color: C.text }}>The author or publisher has agreed to be named on certificates</span>
-            <Toggle checked={state.endorsementPermitted} accentColor={C.cta} onChange={() => update({ endorsementPermitted: !state.endorsementPermitted })} />
-          </div>
-        </div>
+        </Sect>
+        </>)}
 
-        {/* Access */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
-          {sectionTitle('Who can read it')}
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => update({ cohortIds: [], availableToEveryone: !state.availableToEveryone })}
-              className="px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{ background: state.availableToEveryone ? C.cta : C.pill, color: state.availableToEveryone ? C.ctaText : C.muted }}>
-              Free for everyone
-            </button>
-            {cohorts.map(c => {
-              const on = state.cohortIds.includes(c.id);
-              return (
-                <button key={c.id} onClick={() => update({ availableToEveryone: false, cohortIds: on ? state.cohortIds.filter(x => x !== c.id) : [...state.cohortIds, c.id] })}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium" style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs" style={{ color: C.faint }}>
-            {state.availableToEveryone
-              ? 'Free for anyone. Signed-in learners download it straight away; visitors without an account enter their name and email and get the link by email.'
-              : state.cohortIds.length
-                ? 'Free for the selected cohorts.'
-                : state.purchasable ? 'Only people who buy it.' : 'Nobody can read it yet. Choose a cohort, everyone, or sell it.'}
-          </p>
-        </div>
+        {tab === 'access' && (<>
+        <Sect C={C} title="Who can read it" first aside={state.availableToEveryone ? 'Everyone' : `${state.cohortIds.length} cohort${state.cohortIds.length === 1 ? '' : 's'}`}>
+          <SwitchRow C={C} title="Free for everyone" sub="Signed-in learners download it straight away; visitors without an account enter their name and email and get the link by email."
+            on={state.availableToEveryone} onChange={v => update({ cohortIds: [], availableToEveryone: v })} />
+          {cohorts.length > 0 && (
+            <div style={state.availableToEveryone ? { opacity: 0.45 } : undefined}>
+              {cohorts.map((c, i) => {
+                const on = state.cohortIds.includes(c.id);
+                return (
+                  <button key={c.id} type="button" role="checkbox" aria-checked={on}
+                    onClick={() => update({ availableToEveryone: false, cohortIds: on ? state.cohortIds.filter(x => x !== c.id) : [...state.cohortIds, c.id] })}
+                    className="w-full flex items-center gap-3 px-1 py-3 text-left text-sm font-semibold" style={{ color: C.text, borderTop: i ? `1px solid ${C.divider}` : undefined }}>
+                    <Tick on={on} C={C} />{c.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {!state.availableToEveryone && (
+            <p className="text-xs" style={{ color: C.muted }}>
+              {state.cohortIds.length ? 'Free for the selected cohorts.' : state.purchasable ? 'Only people who buy it.' : 'Nobody can read it yet. Choose a cohort, everyone, or sell it.'}
+            </p>
+          )}
+        </Sect>
 
-        {/* Recommend with courses */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
-          {sectionTitle('Recommend with courses')}
-          <p className="text-xs" style={{ color: C.faint }}>
+        <Sect C={C} title="Recommend with courses" aside={`${state.recommendedCourseIds.length} course${state.recommendedCourseIds.length === 1 ? '' : 's'}`}>
+          <p className="text-xs -mt-2" style={{ color: C.muted }}>
             This product shows on these course pages, and in What to take next when a learner passes them.
           </p>
           {courses.length === 0 ? (
-            <p className="text-xs" style={{ color: C.faint }}>You have no courses to pick yet.</p>
+            <p className="text-xs" style={{ color: C.muted }}>You have no courses to pick yet.</p>
           ) : (
             <>
               {courses.length > 8 && (
-                <input className={inputCls} style={inputStyle} value={courseQuery} onChange={e => setCourseQuery(e.target.value)}
+                <input className={FIELD} style={inputStyle} value={courseQuery} onChange={e => setCourseQuery(e.target.value)}
                   placeholder="Search your courses" aria-label="Search courses" />
               )}
-              <div className="flex flex-wrap gap-2">
+              <div>
                 {courses
                   .filter(c => state.recommendedCourseIds.includes(c.id) || !courseQuery.trim() || c.title.toLowerCase().includes(courseQuery.trim().toLowerCase()))
                   .slice(0, 60)
-                  .map(c => {
+                  .map((c, i) => {
                     const on = state.recommendedCourseIds.includes(c.id);
                     return (
-                      <button key={c.id} type="button" aria-pressed={on}
+                      <button key={c.id} type="button" role="checkbox" aria-checked={on}
                         onClick={() => update({ recommendedCourseIds: on ? state.recommendedCourseIds.filter(x => x !== c.id) : [...state.recommendedCourseIds, c.id].slice(0, 20) })}
-                        className="px-3 py-1.5 rounded-full text-xs font-medium"
-                        style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
-                        {c.title}{c.status === 'draft' ? ' (draft)' : ''}
+                        className="w-full flex items-center gap-3 px-1 py-3 text-left text-sm font-semibold" style={{ color: C.text, borderTop: i ? `1px solid ${C.divider}` : undefined }}>
+                        <Tick on={on} C={C} />{c.title}{c.status === 'draft' ? ' (draft)' : ''}
                       </button>
                     );
                   })}
               </div>
-              {state.recommendedCourseIds.length >= 20 && <p className="text-xs" style={{ color: C.faint }}>Up to 20 courses.</p>}
+              {state.recommendedCourseIds.length >= 20 && <p className="text-xs" style={{ color: C.muted }}>Up to 20 courses.</p>}
             </>
           )}
-        </div>
+        </Sect>
+        </>)}
 
-        {/* Selling */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-            {sectionTitle('Selling')}
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm" style={{ color: C.text }}>Sell this product on its own</span>
-              <Toggle checked={state.purchasable} accentColor={C.cta} onChange={() => update({ purchasable: !state.purchasable })} />
-            </div>
+        {tab === 'selling' && (
+        <Sect C={C} title="Selling" first>
+            <SwitchRow C={C} title="Sell this product on its own" on={state.purchasable} onChange={v => update({ purchasable: v })} />
             {state.purchasable && <>
               <div className="space-y-2">
-                <label className={labelCls} style={{ color: C.faint }}>Prices</label>
+                <label className={labelCls} style={{ color: C.muted }}>Prices</label>
                 {state.prices.map((p, i) => {
                   const set = (patch: Partial<EditorState['prices'][number]>) => updatePrices(state.prices.map((q, j) => j === i ? { ...q, ...patch } : q));
                   const saleTooHigh = !!p.saleAmount && !!p.amount && !(Number(p.saleAmount) < Number(p.amount));
+                  const onSoft = { ...inputStyle, background: C.card };
                   return (
-                    <div key={i} className="rounded-xl p-3 space-y-2" style={{ background: C.input }}>
+                    <div key={i} className="rounded-xl p-3 space-y-2" style={{ background: C.page }}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <input className="w-24 rounded-lg px-3 py-2 text-sm outline-none uppercase" style={inputStyle} maxLength={3} placeholder="GHS" aria-label="Currency" value={p.currency}
+                        <input className="field-focus w-24 rounded-[10px] px-3 py-2.5 text-sm outline-none uppercase" style={onSoft} maxLength={3} placeholder="GHS" aria-label="Currency" value={p.currency}
                           onChange={e => set({ currency: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
-                        <input className="w-32 rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} inputMode="decimal" placeholder="0.00" aria-label="Price" value={p.amount}
+                        <input className="field-focus w-32 rounded-[10px] px-3 py-2.5 text-sm outline-none" style={onSoft} inputMode="decimal" placeholder="0.00" aria-label="Price" value={p.amount}
                           onChange={e => set({ amount: e.target.value.replace(/[^0-9.]/g, '') })} />
-                        <button onClick={() => updatePrices(state.prices.filter((_, j) => j !== i))} aria-label="Remove price" className="p-1.5 ml-auto" style={{ color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => updatePrices(state.prices.filter((_, j) => j !== i))} aria-label="Remove price" className="ml-auto w-8 h-8 rounded-[10px] grid place-items-center" style={{ background: P.badSoft, color: P.bad }}><Trash2 className="w-4 h-4" /></button>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.faint }}>
+                      <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
                         <label className="flex items-center gap-2">Sale price
-                          <input className="w-28 rounded-lg px-3 py-1.5 text-sm outline-none" style={inputStyle} inputMode="decimal" placeholder="Optional" value={p.saleAmount}
+                          <input className="field-focus w-28 rounded-[10px] px-3 py-2 text-sm outline-none" style={onSoft} inputMode="decimal" placeholder="Optional" value={p.saleAmount}
                             onChange={e => set({ saleAmount: e.target.value.replace(/[^0-9.]/g, '') })} />
                         </label>
                         {p.saleAmount && (
@@ -1334,45 +1384,22 @@ export function BookEditor() {
                         )}
                         {p.saleAmount && !p.saleEndsAt && <span>No end date: the sale runs until you remove it.</span>}
                       </div>
-                      {saleTooHigh && <p className="text-xs" style={{ color: '#dc2626' }}>The sale price must be lower than the regular price, or it is ignored.</p>}
+                      {saleTooHigh && <p className="text-xs" style={{ color: P.bad }}>The sale price must be lower than the regular price, or it is ignored.</p>}
                     </div>
                   );
                 })}
-                <button onClick={() => updatePrices([...state.prices, { currency: '', amount: '', saleAmount: '', saleEndsAt: '' }])} className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.cta }}>
-                  <Plus className="w-3.5 h-3.5" /> Add a price
-                </button>
+                <div>
+                  <button type="button" onClick={() => updatePrices([...state.prices, { currency: '', amount: '', saleAmount: '', saleEndsAt: '' }])} className={btnSmClass} style={btnStyle('sec', C)}>
+                    <Plus className="w-3.5 h-3.5" /> Add a price
+                  </button>
+                </div>
               </div>
-              {field('Author royalty (%)', <input className={`${inputCls} max-w-[8rem]`} style={inputStyle} inputMode="decimal" value={state.royaltyPct}
+              {field('Author royalty (%)', <input className={`${FIELD} max-w-[8rem]`} style={inputStyle} inputMode="decimal" value={state.royaltyPct}
                 onChange={e => update({ royaltyPct: e.target.value.replace(/[^0-9.]/g, '') })} />, 'Recorded on each sale, so changing it later never rewrites past sales.')}
             </>}
-          </div>
-      </div>
-
-      {/* Actions */}
-      <div className="fixed bottom-0 inset-x-0 z-20" style={{ background: C.card, boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-end gap-2">
-          {/* The product's page as buyers see it, drafts included (app/products/preview/[id]). */}
-          <a href={`/products/preview/${encodeURIComponent(editId)}`} target="_blank" rel="noopener noreferrer"
-            title="Opens in a new tab and shows the last saved version"
-            className="mr-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.text }}>
-            <Eye className="w-4 h-4" /> Preview page
-          </a>
-          {status === 'published' && (
-            <button onClick={() => save('archived')} disabled={!!saving || blocked} className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: C.pill, color: C.muted }}>
-              {saving === 'archived' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Archive'}
-            </button>
-          )}
-          <button onClick={() => save(status === 'published' ? 'published' : 'draft')} disabled={!!saving || !!uploading || blocked}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: C.pill, color: C.text }}>
-            {saving && saving !== 'archived' && saving === (status === 'published' ? 'published' : 'draft') ? <Loader2 className="w-4 h-4 animate-spin" /> : status === 'published' ? 'Save changes' : 'Save draft'}
-          </button>
-          {status !== 'published' && (
-            <button onClick={() => save('published')} disabled={!!saving || !!uploading || blocked} className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
-              style={{ background: C.cta, color: C.ctaText }}>
-              {saving === 'published' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish'}
-            </button>
-          )}
-        </div>
+        </Sect>
+        )}
+        </Card>
       </div>
 
       {coverOpen && (

@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useTheme } from '@/components/ThemeProvider';
 import { motion } from 'motion/react';
 import {
   Loader2, Check, Plus, Trash2, X, ChevronDown, ChevronUp,
-  Upload, Link2, FileText, Database, Code2,
+  Upload, Link2, FileText,
 } from 'lucide-react';
 import type { FormConfig } from '@/lib/course-schema';
-import { useC } from '@/components/create/theme';
-import { BriefPanel, Chips, Field, GenerateButton, OutlineHeader, OutlineModules, SidePanel, newLessonId, useBrand } from '@/components/create/generator-ui';
+import { BriefPanel, Chips, Field, OutlineHeader, OutlineModules, Sect, SidePanel, newLessonId, useStarterC } from '@/components/create/generator-ui';
+import { MenuSelect } from '@/components/MenuSelect';
+import { FIELD } from '@/components/dashboard/subscriptions/Modal';
+import { btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 import { TEMPLATES } from '@/components/create/shared';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -58,13 +59,11 @@ const DOC_VIDEOS = [{ key: true, label: 'Include YouTube videos' }, { key: false
 
 // --- Main Page ---
 export default function Page() {
-  const C = useC();
-  const { theme } = useTheme();
-  const { brand } = useBrand();
-  const red = theme === 'dark' ? '#F28B82' : '#D93025';
+  const C = useStarterC();
+  const P = palette(C);
   const router = useRouter();
   const inputStyle = { background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text };
-  const fieldCls = 'w-full rounded-[10px] px-3 py-2 text-sm';
+  const fieldCls = FIELD;
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [isLoadingEdit, setIsLoadingEdit] = useState(true); // stays true until useEffect resolves
   const [user, setUser] = useState<any>(null);
@@ -597,7 +596,7 @@ export default function Page() {
   if (isLoadingEdit) {
     return (
       <main className="min-h-screen flex items-center justify-center" style={{ background: C.page }}>
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: C.muted }} />
       </main>
     );
   }
@@ -607,34 +606,32 @@ export default function Page() {
     return (
       <main className="min-h-screen flex flex-col" style={{ background: C.page, color: C.text }}>
         {toastView}
-        <div className={`relative z-10 flex-1 flex flex-col items-center ${(sqlWizardStep || docWizardStep || pyWizardStep) ? 'justify-start pt-8 sm:pt-12 pb-24' : 'justify-center py-16 sm:py-20'} px-4 sm:px-6 ${(sqlWizardStep === 'outline' || docWizardStep === 'outline' || pyWizardStep === 'outline') ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
+        <div className={`relative z-10 flex-1 flex flex-col items-center ${(sqlWizardStep || docWizardStep || pyWizardStep) ? 'justify-start pt-6 sm:pt-8 pb-24' : 'justify-center py-16 sm:py-20'} px-4 sm:px-6 ${(sqlWizardStep === 'outline' || docWizardStep === 'outline' || pyWizardStep === 'outline') ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
 
           {/* SQL course: brief */}
           {sqlWizardStep === 'brief' && (
             <motion.div key="sql-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
-              <BriefPanel icon={<Database className="w-5 h-5" />} title="Create a SQL course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}>
+              <BriefPanel title="Create a SQL course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}
+                onGenerate={handleGenerateSqlOutline} disabled={!!aiLoadingLabel || !sqlBrief.title.trim()}>
+                <Sect title="Course brief" first>
                 <Field label="Course title">
-                  <input type="text" value={sqlBrief.title} onChange={e => setSqlBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. SQL for Financial Analysts" className={fieldCls} style={inputStyle} />
+                  <input type="text" value={sqlBrief.title} onChange={e => setSqlBrief(p => ({ ...p, title: e.target.value }))} placeholder="For example SQL for Financial Analysts" className={fieldCls} style={inputStyle} />
                 </Field>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Industry">
-                    <select value={sqlBrief.industry} onChange={e => setSqlBrief(p => ({ ...p, industry: e.target.value }))} className={fieldCls} style={inputStyle}>
-                      {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-                    </select>
+                    <MenuSelect field label="Industry" C={C} value={sqlBrief.industry} onChange={v => setSqlBrief(p => ({ ...p, industry: v }))} options={INDUSTRIES.map(v => ({ value: v, label: v }))} />
                   </Field>
                   <Field label="Skill level">
-                    <select value={sqlBrief.level} onChange={e => setSqlBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
-                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
-                    </select>
+                    <MenuSelect field label="Skill level" C={C} value={sqlBrief.level} onChange={v => setSqlBrief(p => ({ ...p, level: v }))} options={LEVELS.map(v => ({ value: v, label: v }))} />
                   </Field>
                 </div>
                 <Field label="Target role">
-                  <input type="text" value={sqlBrief.role} onChange={e => setSqlBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Intelligence Developer" className={fieldCls} style={inputStyle} />
+                  <input type="text" value={sqlBrief.role} onChange={e => setSqlBrief(p => ({ ...p, role: e.target.value }))} placeholder="For example Data Analyst, Business Intelligence Developer" className={fieldCls} style={inputStyle} />
                 </Field>
                 <Field label="Specific focus" optional>
                   <AiTextarea value={sqlBrief.promptText} onValueChange={value => setSqlBrief(p => ({ ...p, promptText: value }))} placeholder="Any topics, datasets or skills to focus on" rows={3} className={`${fieldCls} resize-none`} style={inputStyle} />
                 </Field>
-                <GenerateButton full label="Generate outline" onClick={handleGenerateSqlOutline} disabled={!!aiLoadingLabel || !sqlBrief.title.trim()} />
+                </Sect>
               </BriefPanel>
             </motion.div>
           )}
@@ -644,42 +641,42 @@ export default function Page() {
             <motion.div key="sql-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full pb-12">
               <OutlineHeader title="Review your SQL course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
                 onBack={() => setSqlWizardStep('brief')} onGenerate={handleGenerateSqlFullCourse} disabled={!!aiLoadingLabel} />
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-                <div className="lg:col-span-2">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+                <div className="min-w-0">
                   <OutlineModules modules={sqlOutline.modules ?? []} onChange={modules => setSqlOutline((prev: any) => ({ ...prev, modules }))} typeOptions={SQL_TYPES}
                     newLesson={() => ({ id: newLessonId(), title: 'New lesson', skillFocus: '', questionType: 'sql', questionSummary: '' })}
                     onRegenerate={handleRegenerateSqlModule} regenerating={sqlModuleLoading} />
                 </div>
                 <SidePanel title="Shared dataset" description={sqlOutline.sharedDataset?.description}>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col">
                     {(sqlOutline.sharedDataset?.tables ?? []).map((table: any, tableIdx: number) => {
                       const setTable = (patch: any) => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.map((t: any, i: number) => i === tableIdx ? { ...t, ...patch } : t) } }));
                       const open = sqlExpandedTables.has(tableIdx);
                       return (
-                        <div key={tableIdx} className="rounded-[10px] overflow-hidden" style={{ border: `1px solid ${C.inputBorder}` }}>
-                          <div className="flex items-center gap-2 px-3 py-2">
+                        <div key={tableIdx} className="py-2.5" style={tableIdx ? { borderTop: `1px solid ${C.divider}` } : undefined}>
+                          <div className="flex items-center gap-2">
                             <div className="flex-1 min-w-0">
-                              <input value={table.tableName} onChange={e => setTable({ tableName: e.target.value })} aria-label="Table name" className="text-xs font-mono font-semibold bg-transparent border-none outline-none w-full" style={{ color: C.text }} />
-                              <input value={table.description} onChange={e => setTable({ description: e.target.value })} aria-label="Table description" className="text-[11px] bg-transparent border-none outline-none w-full mt-0.5" style={{ color: C.faint }} />
+                              <input value={table.tableName} onChange={e => setTable({ tableName: e.target.value })} aria-label="Table name" className="text-[13px] font-mono font-semibold bg-transparent border-none outline-none w-full" style={{ color: C.text }} />
+                              <input value={table.description} onChange={e => setTable({ description: e.target.value })} aria-label="Table description" className="text-xs bg-transparent border-none outline-none w-full mt-0.5" style={{ color: C.muted }} />
                             </div>
                             <button type="button" onClick={() => setSqlExpandedTables(prev => { const next = new Set(prev); if (next.has(tableIdx)) next.delete(tableIdx); else next.add(tableIdx); return next; })}
-                              title={open ? 'Hide setup SQL' : 'Edit setup SQL'} aria-label={open ? 'Hide setup SQL' : 'Edit setup SQL'} className="shrink-0 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
-                              {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              title={open ? 'Hide setup SQL' : 'Edit setup SQL'} aria-label={open ? 'Hide setup SQL' : 'Edit setup SQL'} className="w-8 h-8 rounded-[10px] grid place-items-center shrink-0" style={{ color: C.muted }}>
+                              {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
                             <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.filter((_: any, i: number) => i !== tableIdx) } }))}
-                              title="Remove table" aria-label="Remove table" className="shrink-0 transition-opacity hover:opacity-60" style={{ color: red }}>
-                              <Trash2 className="w-3.5 h-3.5" />
+                              title="Remove table" aria-label="Remove table" className="w-8 h-8 rounded-[10px] grid place-items-center shrink-0" style={{ background: P.badSoft, color: P.bad }}>
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                           {open && (
-                            <AiTextarea value={table.seedSql} onValueChange={value => setTable({ seedSql: value })} rows={8} className="w-full text-[11px] font-mono px-3 py-2 resize-none border-t outline-none" style={{ background: C.input, borderColor: C.inputBorder, color: C.text }} />
+                            <AiTextarea value={table.seedSql} onValueChange={value => setTable({ seedSql: value })} rows={8} className="w-full mt-2 rounded-[10px] text-xs font-mono px-3 py-2 resize-none outline-none" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text }} />
                           )}
                         </div>
                       );
                     })}
                     <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: [...(prev.sharedDataset?.tables ?? []), { tableName: 'new_table', description: '', seedSql: 'CREATE TABLE new_table (\n  id INTEGER\n);\n' }] } }))}
-                      className="flex items-center gap-1 text-xs font-semibold mt-1 px-1 py-1 self-start transition-opacity hover:opacity-80" style={{ color: brand }}>
-                      <Plus className="w-3 h-3" /> Add table
+                      className={`${btnSmClass} mt-2 self-start`} style={btnStyle('sec', C)}>
+                      <Plus className="w-3.5 h-3.5" /> Add table
                     </button>
                   </div>
                 </SidePanel>
@@ -690,8 +687,10 @@ export default function Page() {
           {/* Document course: source and brief */}
           {docWizardStep === 'input' && (
             <motion.div key="doc-input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
-              <BriefPanel icon={<FileText className="w-5 h-5" />} title="Create from a document" description="Turn a file, page or pasted text into a course with lessons and practice." onBack={() => router.push('/dashboard')}>
-                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl" style={{ background: C.pill }}>
+              <BriefPanel title="Create from a document" description="Turn a file, page or pasted text into a course with lessons and practice." onBack={() => router.push('/dashboard')}
+                onGenerate={handleGenerateDocOutline} disabled={!!aiLoadingLabel}>
+                <Sect title="Source" first>
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl" style={{ background: C.page }}>
                   {([
                     { key: 'file', label: 'Upload', icon: Upload },
                     { key: 'text', label: 'Paste text', icon: FileText },
@@ -700,7 +699,7 @@ export default function Page() {
                     const Icon = opt.icon;
                     const active = docSourceMethod === opt.key;
                     return (
-                      <button key={opt.key} type="button" onClick={() => setDocSourceMethod(opt.key)} aria-pressed={active} className="flex items-center justify-center gap-2 py-2 rounded-[9px] text-xs font-semibold transition-colors" style={active ? { background: C.card, color: C.text } : { background: 'transparent', color: C.muted }}>
+                      <button key={opt.key} type="button" onClick={() => setDocSourceMethod(opt.key)} aria-pressed={active} className="flex items-center justify-center gap-2 h-9 rounded-[9px] text-[13px] font-semibold transition-colors" style={active ? { background: P.sel, color: P.onSel } : { background: 'transparent', color: C.muted }}>
                         <Icon className="w-3.5 h-3.5" /> {opt.label}
                       </button>
                     );
@@ -708,8 +707,8 @@ export default function Page() {
                 </div>
 
                 {docSourceMethod === 'file' && (
-                  <label className="flex flex-col items-center justify-center gap-1 py-8 rounded-2xl cursor-pointer text-center" style={{ border: `1.5px dashed ${docFile ? brand : C.inputBorder}` }}>
-                    <Upload className="w-5 h-5 mb-2" style={{ color: docFile ? brand : C.faint }} />
+                  <label className="flex flex-col items-center justify-center gap-1 py-8 rounded-2xl cursor-pointer text-center" style={{ border: `2px dashed ${docFile ? P.sel : C.divider}` }}>
+                    <Upload className="w-5 h-5 mb-2" style={{ color: docFile ? P.sel : C.faint }} />
                     <span className="text-sm font-semibold" style={{ color: C.text }}>{docFile ? docFile.name : 'Choose a file'}</span>
                     <span className="text-xs" style={{ color: C.faint }}>PDF, DOCX, DOC, TXT, PPTX, PPT (max 20 MB)</span>
                     <input type="file" accept=".pdf,.docx,.doc,.txt,.pptx,.ppt" className="hidden" onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
@@ -722,30 +721,33 @@ export default function Page() {
                   <input type="url" value={docUrl} onChange={e => setDocUrl(e.target.value)} placeholder="https://docs.example.com/guide" className={fieldCls} style={inputStyle} />
                 )}
 
+                </Sect>
+                <Sect title="About the course">
                 <Field label="Course title" optional>
                   <input type="text" value={docBrief.title} onChange={e => setDocBrief(p => ({ ...p, title: e.target.value }))} placeholder="Leave blank and AI proposes one" className={fieldCls} style={inputStyle} />
                 </Field>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Audience" optional>
-                    <input type="text" value={docBrief.audience} onChange={e => setDocBrief(p => ({ ...p, audience: e.target.value }))} placeholder="e.g. New customers, sales team" className={fieldCls} style={inputStyle} />
+                    <input type="text" value={docBrief.audience} onChange={e => setDocBrief(p => ({ ...p, audience: e.target.value }))} placeholder="For example new customers, sales team" className={fieldCls} style={inputStyle} />
                   </Field>
                   <Field label="Level">
-                    <select value={docBrief.level} onChange={e => setDocBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
-                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
-                    </select>
+                    <MenuSelect field label="Level" C={C} value={docBrief.level} onChange={v => setDocBrief(p => ({ ...p, level: v }))} options={LEVELS.map(v => ({ value: v, label: v }))} />
                   </Field>
                 </div>
                 <Field label="What should learners be able to do?">
-                  <AiTextarea value={docBrief.goal} onValueChange={value => setDocBrief(p => ({ ...p, goal: value }))} placeholder="e.g. Confidently write SQL queries to answer real business questions" rows={2} className={`${fieldCls} resize-none`} style={inputStyle} />
+                  <AiTextarea value={docBrief.goal} onValueChange={value => setDocBrief(p => ({ ...p, goal: value }))} placeholder="For example confidently write SQL queries to answer real business questions" rows={2} className={`${fieldCls} resize-none`} style={inputStyle} />
                 </Field>
 
-                <div className="pt-3" style={{ borderTop: `1px solid ${C.divider}` }}>
+                </Sect>
+                <div className="p-5" style={{ borderTop: `1px solid ${C.divider}` }}>
                   <button type="button" onClick={() => setDocMoreOpen(o => !o)} aria-expanded={docMoreOpen} className="w-full flex items-center gap-3 text-left">
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold" style={{ color: C.text }}>More options</span>
-                      {!docMoreOpen && <span className="block text-xs mt-0.5" style={{ color: C.faint }}>{docOptionsSummary}</span>}
+                      <span className="block text-base font-semibold" style={{ color: C.text }}>More options</span>
+                      {!docMoreOpen && <span className="block text-xs mt-1" style={{ color: C.muted }}>{docOptionsSummary}</span>}
                     </span>
-                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${docMoreOpen ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
+                    <span className="w-8 h-8 rounded-[10px] grid place-items-center shrink-0" style={{ color: C.muted }}>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${docMoreOpen ? 'rotate-180' : ''}`} />
+                    </span>
                   </button>
                   {docMoreOpen && (
                     <div className="flex flex-col gap-4 mt-4">
@@ -769,7 +771,7 @@ export default function Page() {
                         {docBrief.includeVideos && (
                           <div className="mt-3">
                             <input type="text" value={docBrief.preferredChannels} onChange={e => setDocBrief(p => ({ ...p, preferredChannels: e.target.value }))} placeholder="Channel name, @handle or link, comma separated (optional)" aria-label="Preferred YouTube channels" className={fieldCls} style={inputStyle} />
-                            <p className="text-[11px] mt-2" style={{ color: C.faint }}>e.g. freeCodeCamp, @AlexTheAnalyst or a channel URL. Videos come from these channels when they have a relevant match.</p>
+                            <p className="text-[11px] mt-2" style={{ color: C.faint }}>For example freeCodeCamp, @AlexTheAnalyst or a channel URL. Videos come from these channels when they have a relevant match.</p>
                           </div>
                         )}
                       </Field>
@@ -777,14 +779,13 @@ export default function Page() {
                   )}
                 </div>
 
-                <GenerateButton full label="Generate outline" onClick={handleGenerateDocOutline} disabled={!!aiLoadingLabel} />
               </BriefPanel>
             </motion.div>
           )}
 
           {/* Document course: outline review */}
           {docWizardStep === 'outline' && docOutline && (
-            <motion.div key="doc-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl mx-auto pb-12">
+            <motion.div key="doc-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full pb-12">
               <OutlineHeader title="Review your document course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
                 onBack={() => setDocWizardStep('input')} onGenerate={handleGenerateDocFullCourse} disabled={!!aiLoadingLabel} />
               <OutlineModules modules={docOutline.modules ?? []} onChange={modules => setDocOutline((prev: any) => ({ ...prev, modules }))} typeOptions={DOC_TYPES}
@@ -796,34 +797,30 @@ export default function Page() {
           {/* Python course: brief */}
           {pyWizardStep === 'brief' && (
             <motion.div key="py-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
-              <BriefPanel icon={<Code2 className="w-5 h-5" />} title="Create a Python course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}>
+              <BriefPanel title="Create a Python course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}
+                onGenerate={handleGeneratePythonOutline} disabled={!!aiLoadingLabel || !pyBrief.title.trim()}>
+                <Sect title="Course brief" first>
                 <Field label="Course title">
-                  <input type="text" value={pyBrief.title} onChange={e => setPyBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Python for Financial Analysts" className={fieldCls} style={inputStyle} />
+                  <input type="text" value={pyBrief.title} onChange={e => setPyBrief(p => ({ ...p, title: e.target.value }))} placeholder="For example Python for Financial Analysts" className={fieldCls} style={inputStyle} />
                 </Field>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Industry">
-                    <select value={pyBrief.industry} onChange={e => setPyBrief(p => ({ ...p, industry: e.target.value }))} className={fieldCls} style={inputStyle}>
-                      {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-                    </select>
+                    <MenuSelect field label="Industry" C={C} value={pyBrief.industry} onChange={v => setPyBrief(p => ({ ...p, industry: v }))} options={INDUSTRIES.map(v => ({ value: v, label: v }))} />
                   </Field>
                   <Field label="Skill level">
-                    <select value={pyBrief.level} onChange={e => setPyBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
-                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
-                    </select>
+                    <MenuSelect field label="Skill level" C={C} value={pyBrief.level} onChange={v => setPyBrief(p => ({ ...p, level: v }))} options={LEVELS.map(v => ({ value: v, label: v }))} />
                   </Field>
                 </div>
                 <Field label="Focus area">
-                  <select value={pyBrief.focus} onChange={e => setPyBrief(p => ({ ...p, focus: e.target.value }))} className={fieldCls} style={inputStyle}>
-                    {PY_FOCUS_AREAS.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
+                  <MenuSelect field label="Focus area" C={C} value={pyBrief.focus} onChange={v => setPyBrief(p => ({ ...p, focus: v }))} options={PY_FOCUS_AREAS.map(v => ({ value: v, label: v }))} />
                 </Field>
                 <Field label="Target role">
-                  <input type="text" value={pyBrief.role} onChange={e => setPyBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Analyst" className={fieldCls} style={inputStyle} />
+                  <input type="text" value={pyBrief.role} onChange={e => setPyBrief(p => ({ ...p, role: e.target.value }))} placeholder="For example Data Analyst, Business Analyst" className={fieldCls} style={inputStyle} />
                 </Field>
                 <Field label="Specific focus" optional>
                   <AiTextarea value={pyBrief.promptText} onValueChange={value => setPyBrief(p => ({ ...p, promptText: value }))} placeholder="Any libraries, datasets or skills to focus on" rows={3} className={`${fieldCls} resize-none`} style={inputStyle} />
                 </Field>
-                <GenerateButton full label="Generate outline" onClick={handleGeneratePythonOutline} disabled={!!aiLoadingLabel || !pyBrief.title.trim()} />
+                </Sect>
               </BriefPanel>
             </motion.div>
           )}
@@ -833,8 +830,8 @@ export default function Page() {
             <motion.div key="py-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full pb-12">
               <OutlineHeader title="Review your Python course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
                 onBack={() => setPyWizardStep('brief')} onGenerate={handleGeneratePythonFullCourse} disabled={!!aiLoadingLabel} />
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-                <div className="lg:col-span-2">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+                <div className="min-w-0">
                   <OutlineModules modules={pyOutline.modules ?? []} onChange={modules => setPyOutline((prev: any) => ({ ...prev, modules }))} typeOptions={PY_TYPES}
                     newLesson={() => ({ id: newLessonId(), title: 'New lesson', skillFocus: '', questionType: 'python_exercise', questionSummary: '' })}
                     onRegenerate={handleRegeneratePyModule} regenerating={pyModuleLoading} />
@@ -843,17 +840,17 @@ export default function Page() {
                   <SidePanel title="Dataset plan" description={pyOutline.datasetPlan?.description}>
                     <div className="flex flex-col gap-2">
                       {(pyOutline.datasetPlan?.datasets ?? []).map((ds: any, i: number) => (
-                        <div key={i} className="rounded-[10px] p-3" style={{ background: C.input }}>
+                        <div key={i} className="rounded-xl p-3" style={{ background: C.page }}>
                           <p className="text-xs font-mono font-semibold" style={{ color: C.text }}>{ds.variableName}</p>
                           <p className="text-xs mt-0.5 mb-2" style={{ color: C.muted }}>{ds.description}</p>
                           <div className="flex flex-wrap gap-1">
                             {(ds.columns ?? []).map((col: string) => (
-                              <span key={col} className="text-[11px] px-2 py-0.5 rounded font-mono" style={{ background: C.card, color: C.muted }}>{col}</span>
+                              <span key={col} className="text-[11px] px-2 py-0.5 rounded-md font-mono" style={{ background: C.card, color: C.muted }}>{col}</span>
                             ))}
                           </div>
                         </div>
                       ))}
-                      <p className="text-[11px] rounded-[10px] p-3" style={{ background: C.pill, color: C.muted }}>
+                      <p className="text-xs" style={{ color: C.muted }}>
                         <span className="font-semibold" style={{ color: C.text }}>After generating: </span>prepare CSV files matching these schemas and upload them to each exercise in the course editor.
                       </p>
                     </div>
@@ -862,7 +859,7 @@ export default function Page() {
                     <SidePanel title="Outcomes">
                       <ul className="text-xs space-y-2" style={{ color: C.text }}>
                         {(pyOutline.learningOutcomes ?? []).map((o: string, i: number) => (
-                          <li key={i} className="flex items-start gap-2"><Check className="w-3 h-3 mt-0.5 shrink-0" style={{ color: brand }} />{o}</li>
+                          <li key={i} className="flex items-start gap-2"><Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: P.good }} />{o}</li>
                         ))}
                       </ul>
                     </SidePanel>
@@ -881,7 +878,7 @@ export default function Page() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ background: C.page, color: C.text }}>
       {toastView}
-      <Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} />
+      <Loader2 className="w-6 h-6 animate-spin" style={{ color: C.muted }} />
       <p className="text-sm" style={{ color: C.muted }}>Creating your draft</p>
     </main>
   );
