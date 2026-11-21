@@ -9,7 +9,7 @@ import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { CarouselSkeleton, EmptyState, stripSqlSolutions } from '@/components/student/shared';
+import { EmptyState, stripSqlSolutions } from '@/components/student/shared';
 import { deadlineTag } from '@/components/student/learning-card';
 import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 import { cleanList } from '@/lib/catalogue-preview-facts';
@@ -37,6 +37,46 @@ function inProgressProgress(form: any, attempt: any, isProject: boolean) {
   const answers = attempt?.answers ?? {};
   const counts = courseProgressCounts(questions, answers);
   return { done: counts.done, total: counts.total, pct: courseProgressPct(questions, answers) };
+}
+
+// The page's own shape while it loads: greeting, four tiles, slim In progress cards beside the
+// Upcoming timeline, then a row of recommended cards.
+function OverviewSkeleton({ C }: { C: typeof LIGHT_C }) {
+  const bar = (className: string) => <div className={`animate-pulse rounded-md ${className}`} style={{ background: C.skeleton }} />;
+  return (
+    <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading your dashboard">
+      <div>{bar('h-8 w-64')}<div className="mt-2">{bar('h-4 w-56')}</div></div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="rounded-2xl p-5" style={{ background: C.card }}>{bar('h-8 w-20')}<div className="mt-2">{bar('h-4 w-28')}</div></div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div>
+          {bar('h-7 w-36')}
+          <div className="mt-4 flex flex-col gap-4">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex items-stretch gap-4 rounded-2xl p-4 sm:gap-5" style={{ background: C.card }}>
+                <div className="h-[90px] w-24 flex-shrink-0 animate-pulse rounded-lg sm:w-[160px] sm:rounded-xl" style={{ background: C.skeleton }} />
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-2.5">
+                  {bar('h-3 w-24')}{bar('h-5 w-3/5')}
+                  <div className="flex items-center gap-3">{bar('h-2 flex-1 max-w-[280px]')}<div className="ml-auto h-9 w-24 animate-pulse rounded-full" style={{ background: C.skeleton }} /></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
+          {bar('h-7 w-32')}<div className="mt-2">{bar('h-4 w-24')}</div>
+          <div className="mt-5 flex flex-col gap-5">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex gap-3">{bar('h-9 w-11')}<div className="h-4 w-4 flex-shrink-0 animate-pulse rounded-full" style={{ background: C.skeleton }} /><div className="flex flex-1 flex-col gap-2">{bar('h-4 w-4/5')}{bar('h-3 w-1/2')}</div></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function OverviewSection({ user, name, C, onNavigate }: {
@@ -317,7 +357,7 @@ export function OverviewSection({ user, name, C, onNavigate }: {
       .filter(Boolean) as any[],
   ].sort((a: any, b: any) => a.daysLeft - b.daysLeft);
 
-  if (loading) return <CarouselSkeleton C={C} rows={3}/>;
+  if (loading) return <OverviewSkeleton C={C} />;
 
   if (loadError) return (
     <EmptyState
