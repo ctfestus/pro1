@@ -1,20 +1,48 @@
 'use client';
 
-// Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
+// The admin Certificates page: the certificate design for courses and paths, and a separate one
+// for certifications, with a preview where each text element can be placed by clicking.
 
-import { useState, useEffect, useRef } from 'react';
-import { Check, CheckCircle2, Loader2, Trash2, Upload, XCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { CheckCircle2, Loader2, Trash2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import CertificateTemplate, { CertificateSettings, DEFAULT_CERT_SETTINGS, TextPositions, defaultTextPositions, type PartnerAttributionLayout } from '@/components/CertificateTemplate';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { Tick } from '@/components/dashboard/cohorts/CohortModals';
+import { FIELD, NUMBER_FIELD, inputStyle } from '@/components/dashboard/subscriptions/Modal';
+import { Card, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { Hint, Label, Sect } from '@/components/create/EditorKit';
 
 const CERT_W = 1860;
 const CERT_H = 1200;
 const SAMPLE_PARTNER_LOGO = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230ea5e9%22/%3E%3Ctext x=%2250%22 y=%2264%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2252%22 font-weight=%22700%22 fill=%22white%22%3EP%3C/text%3E%3C/svg%3E';
 
+// Each text element's marker colour, in the layout list and on the preview.
+const ELEMENT_COLORS: Record<keyof TextPositions, string> = {
+  institutionName: '#f59e0b', partnerAttribution: '#0ea5e9', header: '#10b981', certifyText: '#64748b',
+  studentName: '#ef4444', completionText: '#ec4899', courseName: '#3b82f6',
+  issueDate: '#14b8a6', certificateId: '#78716c', signatory: '#f97316',
+};
+const ELEMENT_LABELS: Record<keyof TextPositions, string> = {
+  institutionName: 'Institution name', partnerAttribution: 'Partner attribution', header: 'Header text', certifyText: 'Certify text',
+  studentName: 'Student name', completionText: 'Completion text', courseName: 'Course title',
+  issueDate: 'Issue date', certificateId: 'Certificate ID', signatory: 'Signatory',
+};
+const FONTS: { value: CertificateSettings['fontFamily']; label: string }[] = [
+  { value: 'serif', label: 'Serif (Georgia)' },
+  { value: 'sans-serif', label: 'Sans-serif (Inter)' },
+  { value: 'lato', label: 'Lato' },
+  { value: 'source-sans-pro', label: 'Source Sans Pro' },
+  { value: 'google-sans-text', label: 'Google Sans Text' },
+  { value: 'script', label: 'Script' },
+];
 
-export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
+export function CertificatesSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const [user, setUser]           = useState<any>(null);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -166,362 +194,281 @@ export function CertificatesSection({ C }: { C: typeof LIGHT_C }) {
     setSaving(false);
   };
 
-  const inputCls = `w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors`;
-  const inputStyle = { background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text };
-  const labelCls  = `text-xs font-medium mb-2 block`;
-
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
 
+  const resolved = {
+    ...defaultTextPositions(settings.paddingTop, settings.paddingLeft, settings.headingSize),
+    ...(settings.textPositions ?? {}),
+  } as Required<TextPositions>;
+  // Partner attribution only appears on course and path certificates.
+  const elements = (Object.keys(ELEMENT_LABELS) as (keyof TextPositions)[])
+    .filter(key => key !== 'partnerAttribution' || contentType === 'default');
+
+  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectedElement || !previewWrapRef.current) return;
+    const rect = previewWrapRef.current.getBoundingClientRect();
+    const certX = Math.round((e.clientX - rect.left) / previewScale);
+    const certY = Math.round((e.clientY - rect.top)  / previewScale);
+    setSettings(prev => {
+      const base = {
+        ...defaultTextPositions(prev.paddingTop, prev.paddingLeft, prev.headingSize),
+        ...(prev.textPositions ?? {}),
+      };
+      const current = base[selectedElement] ?? { x: 0, y: 0 };
+      return {
+        ...prev,
+        textPositions: {
+          ...prev.textPositions,
+          [selectedElement]: { ...current, x: certX, y: certY },
+        },
+      };
+    });
+  };
+
+  const textField = (label: string, key: 'institutionName' | 'headerText' | 'certifyText' | 'completionText' | 'signatoryName' | 'signatoryTitle', placeholder?: string) => (
+    <div>
+      <Label C={C}>{label}</Label>
+      <input value={settings[key] ?? ''} onChange={e => set(key, e.target.value)} placeholder={placeholder} className={FIELD} style={inputStyle(C)}/>
+    </div>
+  );
+  const colourField = (label: string, key: 'primaryColor' | 'accentColor') => (
+    <div>
+      <Label C={C}>{label}</Label>
+      <div className="flex gap-2">
+        <div className="relative w-11 rounded-[10px] overflow-hidden flex-shrink-0" style={{ border: `1px solid ${C.inputBorder}` }}>
+          <input type="color" value={settings[key]} onChange={e => set(key, e.target.value)} aria-label={`${label} picker`}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}/>
+          <div className="w-full h-full" style={{ background: settings[key] }}/>
+        </div>
+        <input value={settings[key]} onChange={e => set(key, e.target.value)} maxLength={7} aria-label={label} className={`${FIELD} font-mono`} style={inputStyle(C)}/>
+      </div>
+    </div>
+  );
+  // Small fields inside the layout rows; on the card colour so they never sit grey on grey.
+  const smallField = 'field-focus w-full rounded-lg px-2 py-1.5 text-xs font-mono outline-none';
+  const smallStyle = { background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` };
+
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
-        <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>Certificate Design</h2>
-        {/* Design a separate certificate for certifications, distinct from courses/VEs/paths. */}
-        <div className="flex gap-2">
-          {([['default', 'Courses & paths'], ['certification', 'Certifications']] as const).map(([ct, label]) => (
-            <button key={ct} onClick={() => switchType(ct)} disabled={saving}
-              className="px-4 py-2 rounded-full text-xs font-medium transition-colors"
-              style={contentType === ct
-                ? { background: C.cta, color: C.ctaText ?? '#ffffff' }
-                : { background: C.input, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs" style={{ color: C.muted }}>
-          {contentType === 'certification'
-            ? 'Design the certificate awarded for certifications. It starts from your default design; customize it to make certification certificates distinct.'
-            : 'Set once. All your courses, virtual experiences and learning paths inherit this design automatically.'}
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium" style={{ color: C.muted }}>Alignment</span>
-          {([['left', 'Left'], ['center', 'Centered']] as const).map(([al, label]) => (
-            <button key={al} onClick={() => set('alignment', al)}
-              className="px-3 py-2 rounded-full text-xs font-medium transition-colors"
-              style={(settings.alignment ?? 'left') === al
-                ? { background: C.cta, color: C.ctaText ?? '#ffffff' }
-                : { background: C.input, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <div>
-          <label className={labelCls} style={{ color: C.muted }}>Institution Name</label>
-          <input value={settings.institutionName} onChange={e => set('institutionName', e.target.value)} placeholder="Your institution name" className={inputCls} style={inputStyle}/>
-        </div>
-        <div>
-          <label className={labelCls} style={{ color: C.muted }}>Header text</label>
-          <input value={settings.headerText ?? ''} onChange={e => set('headerText', e.target.value)} placeholder="Certificate of Completion" className={inputCls} style={inputStyle}/>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Primary Color</label>
-            <div className="flex gap-2">
-              <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ border: `1px solid ${C.cardBorder}` }}>
-                <input type="color" value={settings.primaryColor} onChange={e => set('primaryColor', e.target.value)}
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}/>
-                <div className="w-full h-full" style={{ background: settings.primaryColor }}/>
-              </div>
-              <input value={settings.primaryColor} onChange={e => set('primaryColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-3 text-sm font-mono focus:outline-none`} style={inputStyle}/>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Accent Color</label>
-            <div className="flex gap-2">
-              <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ border: `1px solid ${C.cardBorder}` }}>
-                <input type="color" value={settings.accentColor} onChange={e => set('accentColor', e.target.value)}
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}/>
-                <div className="w-full h-full" style={{ background: settings.accentColor }}/>
-              </div>
-              <input value={settings.accentColor} onChange={e => set('accentColor', e.target.value)} maxLength={7} className={`flex-1 rounded-xl px-3 py-3 text-sm font-mono focus:outline-none`} style={inputStyle}/>
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Certify Text</label>
-            <input value={settings.certifyText} onChange={e => set('certifyText', e.target.value)} className={inputCls} style={inputStyle}/>
-          </div>
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Completion Text</label>
-            <input value={settings.completionText} onChange={e => set('completionText', e.target.value)} className={inputCls} style={inputStyle}/>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Signatory Name</label>
-            <input value={settings.signatoryName} onChange={e => set('signatoryName', e.target.value)} placeholder="Dr. Jane Smith" className={inputCls} style={inputStyle}/>
-          </div>
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Signatory Title</label>
-            <input value={settings.signatoryTitle} onChange={e => set('signatoryTitle', e.target.value)} placeholder="Program Director" className={inputCls} style={inputStyle}/>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Font Family</label>
-            <select value={settings.fontFamily} onChange={e => set('fontFamily', e.target.value as CertificateSettings['fontFamily'])} className={inputCls} style={{ ...inputStyle, appearance: 'auto' }}>
-              <option value="serif">Serif (Georgia)</option>
-              <option value="sans-serif">Sans-serif (Inter)</option>
-              <option value="lato">Lato</option>
-              <option value="source-sans-pro">Source Sans Pro</option>
-              <option value="google-sans-text">Google Sans Text</option>
-              <option value="script">Script</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelCls} style={{ color: C.muted }}>Name Size</label>
-            <select value={settings.headingSize} onChange={e => set('headingSize', e.target.value as CertificateSettings['headingSize'])} className={inputCls} style={{ ...inputStyle, appearance: 'auto' }}>
-              <option value="sm">Small</option>
-              <option value="md">Medium</option>
-              <option value="lg">Large</option>
-            </select>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <label className={labelCls} style={{ color: C.muted }}>Images</label>
-          {(['background', 'logo', 'signature'] as const).map(slot => {
-            const labels = { background: 'Background', logo: 'Logo / Seal', signature: 'Signature' };
-            const urlKey = slot === 'background' ? 'backgroundImageUrl' : slot === 'logo' ? 'logoUrl' : 'signatureUrl';
-            const ref    = slot === 'background' ? bgRef : slot === 'logo' ? logoRef : sigRef;
-            const url    = settings[urlKey] as string | null | undefined;
-            return (
-              <div key={slot} className="flex items-center gap-3">
-                <input ref={ref} type="file" accept="image/*" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(slot, f); e.target.value = ''; }}/>
-                <button onClick={() => ref.current?.click()} disabled={!!uploading}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
-                  style={{ border: 'none', color: C.muted, background: C.pill }}>
-                  {uploading === slot ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-                  {url ? `Replace ${labels[slot]}` : `Upload ${labels[slot]}`}
-                </button>
-                {url && (
-                  <button onClick={() => set(urlKey as any, null)} className="p-2 rounded-lg" style={{ color: C.faint }}>
-                    <Trash2 className="w-3.5 h-3.5"/>
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {/* Text Layout */}
-        {(() => {
-          const resolved = {
-            ...defaultTextPositions(settings.paddingTop, settings.paddingLeft, settings.headingSize),
-            ...(settings.textPositions ?? {}),
-          } as Required<TextPositions>;
+    <div className="space-y-5 pb-12">
+      <PageHeader C={C} title="Certificates"
+        sub={contentType === 'certification'
+          ? 'The certificate awarded for certifications. It starts from your default design; change it to make certification certificates distinct.'
+          : 'One design for every certificate. Courses, experiences and learning paths use it automatically.'}
+        actions={
+          <button type="button" onClick={save} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+            {saving && <Loader2 className="w-4 h-4 animate-spin"/>}
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+        } />
 
-          const ELEMENTS: { key: keyof TextPositions; label: string; color: string }[] = [
-            { key: 'institutionName', label: 'Institution Name',            color: '#f59e0b' },
-            ...(contentType === 'default' ? [{ key: 'partnerAttribution' as const, label: 'Partner Attribution', color: '#0ea5e9' }] : []),
-            { key: 'header',         label: 'Certificate of Completion',    color: '#10b981' },
-            { key: 'certifyText',    label: 'Certify Text',                 color: '#6366f1' },
-            { key: 'studentName',    label: 'Student Name',                 color: '#ef4444' },
-            { key: 'completionText', label: 'Completion Text',              color: '#ec4899' },
-            { key: 'courseName',     label: 'Course Title',                 color: '#3b82f6' },
-            { key: 'issueDate',      label: 'Issue Date',                   color: '#14b8a6' },
-            { key: 'certificateId',  label: 'Certificate ID',               color: '#a855f7' },
-            { key: 'signatory',      label: 'Signatory',                    color: '#f97316' },
-          ];
-
-          return (
-            <div className="border-t pt-4 space-y-3" style={{ borderColor: C.divider }}>
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>Text Layout</h3>
-                <p className="text-xs mt-1" style={{ color: C.muted }}>Select an element, then click on the preview to place it. Or type exact pixel values.</p>
-              </div>
-              <div className="space-y-2">
-                {ELEMENTS.map(({ key, label, color }) => (
-                  <div key={key}
-                    onClick={() => setSelectedElement(selectedElement === key ? null : key)}
-                    className="grid grid-cols-[12px_1fr_88px_88px] items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors"
-                    style={{ background: selectedElement === key ? `${color}18` : 'transparent', border: `1px solid ${selectedElement === key ? color : 'transparent'}` }}>
-                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }}/>
-                    <span className="text-xs font-medium truncate" style={{ color: selectedElement === key ? color : C.muted }}>{label}</span>
-                    <input
-                      type="number" min={0} max={1860}
-                      value={resolved[key].x}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => setPos(key, 'x', Number(e.target.value))}
-                      className="w-full rounded-lg px-2 py-1 text-xs font-mono focus:outline-none"
-                      style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}
-                    />
-                    <input
-                      type="number" min={0} max={1200}
-                      value={resolved[key].y}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => setPos(key, 'y', Number(e.target.value))}
-                      className="w-full rounded-lg px-2 py-1 text-xs font-mono focus:outline-none"
-                      style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text }}
-                    />
-                  </div>
-                ))}
-              </div>
-              {contentType === 'default' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl p-3" style={{ background: C.input }}>
-                  <div>
-                    <label className={labelCls} style={{ color: C.muted }}>Partner layout</label>
-                    <select
-                      value={resolved.partnerAttribution.direction ?? 'horizontal'}
-                      onChange={e => setPartnerLayout('direction', e.target.value as PartnerAttributionLayout['direction'])}
-                      className="w-full rounded-lg px-2 py-2 text-xs"
-                      style={{ background: C.card, border: `1px solid ${C.cardBorder}`, color: C.text }}
-                    >
-                      <option value="horizontal">Horizontal</option>
-                      <option value="vertical">Vertical</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls} style={{ color: C.muted }}>Partner logo height</label>
-                    <input
-                      type="number" min={24} max={240}
-                      value={resolved.partnerAttribution.logoHeight ?? 90}
-                      onChange={e => setPartnerLayout('logoHeight', Math.max(24, Math.min(240, Number(e.target.value))))}
-                      className="w-full rounded-lg px-2 py-2 text-xs font-mono"
-                      style={{ background: C.card, border: `1px solid ${C.cardBorder}`, color: C.text }}
-                    />
-                  </div>
-                  <label className="flex items-center gap-2 self-end min-h-8 text-xs" style={{ color: C.muted }}>
-                    <input
-                      type="checkbox"
-                      checked={resolved.partnerAttribution.showLabel !== false}
-                      onChange={e => setPartnerLayout('showLabel', e.target.checked)}
-                    />
-                    Show &quot;Offered by&quot;
-                  </label>
-                  <p className="sm:col-span-3 text-[11px]" style={{ color: C.faint }}>
-                    The sample partner in the preview is replaced automatically by each course&apos;s selected partner.
-                  </p>
-                </div>
-              )}
-              <div className="flex items-center gap-2 pt-1">
-                <div className="flex gap-2 text-[11px]" style={{ color: C.faint }}>
-                  <span className="font-mono px-2 py-0.5 rounded" style={{ background: C.pill }}>X</span> left 
-                  <span className="font-mono px-2 py-0.5 rounded ml-2" style={{ background: C.pill }}>Y</span> top 
-                </div>
-                <button
-                  onClick={() => { setSettings(prev => ({ ...prev, textPositions: undefined })); setSelectedElement(null); }}
-                  className="ml-auto text-xs px-3 py-2 rounded-lg transition-opacity hover:opacity-70"
-                  style={{ color: C.faint, border: `1px solid ${C.cardBorder}` }}>
-                  Reset to defaults
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-
-        {saveMsg && (
-          <div className={`flex items-center gap-2 text-sm ${saveMsg.ok ? 'text-emerald-500' : 'text-red-500'}`}>
-            {saveMsg.ok ? <CheckCircle2 className="w-4 h-4"/> : <XCircle className="w-4 h-4"/>} {saveMsg.msg}
-          </div>
-        )}
-        <button onClick={save} disabled={saving}
-          className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
-          style={{ background: C.cta, color: C.ctaText }}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
-          {saving ? 'Saving…' : 'Save as default'}
-        </button>
+      {/* Design a separate certificate for certifications, distinct from courses/VEs/paths. */}
+      <div role="tablist" aria-label="Certificate design" className="inline-flex max-w-full gap-1 p-1 rounded-[14px] overflow-x-auto" style={{ background: C.card }}>
+        {([['default', 'Courses and paths'], ['certification', 'Certifications']] as const).map(([ct, label]) => (
+          <button key={ct} type="button" role="tab" aria-selected={contentType === ct} onClick={() => switchType(ct)} disabled={saving}
+            className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+            style={contentType === ct ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Interactive Preview */}
-      {(() => {
-        const resolved = {
-          ...defaultTextPositions(settings.paddingTop, settings.paddingLeft, settings.headingSize),
-          ...(settings.textPositions ?? {}),
-        } as Required<TextPositions>;
+      {saveMsg && (
+        <div role={saveMsg.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={saveMsg.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+          {saveMsg.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0"/> : <XCircle className="w-4 h-4 flex-shrink-0"/>}
+          {saveMsg.msg}
+        </div>
+      )}
 
-        const ELEMENT_COLORS: Partial<Record<keyof TextPositions, string>> = {
-          institutionName: '#f59e0b', header: '#10b981', certifyText: '#6366f1',
-          studentName: '#ef4444', completionText: '#ec4899', courseName: '#3b82f6',
-          issueDate: '#14b8a6', certificateId: '#a855f7', signatory: '#f97316',
-          ...(contentType === 'default' ? { partnerAttribution: '#0ea5e9' } : {}),
-        };
-
-        const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
-          if (!selectedElement || !previewWrapRef.current) return;
-          const rect = previewWrapRef.current.getBoundingClientRect();
-          const certX = Math.round((e.clientX - rect.left) / previewScale);
-          const certY = Math.round((e.clientY - rect.top)  / previewScale);
-          setSettings(prev => {
-            const base = {
-              ...defaultTextPositions(prev.paddingTop, prev.paddingLeft, prev.headingSize),
-              ...(prev.textPositions ?? {}),
-            };
-            const current = base[selectedElement] ?? { x: 0, y: 0 };
-            return {
-              ...prev,
-              textPositions: {
-                ...prev.textPositions,
-                [selectedElement]: { ...current, x: certX, y: certY },
-              },
-            };
-          });
-        };
-
-        return (
-          <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-            <div className="px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: C.divider }}>
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>Preview</p>
-              {selectedElement && (
-                <p className="text-xs font-medium" style={{ color: ELEMENT_COLORS[selectedElement] }}>
-                  Click to place <span className="font-semibold">{selectedElement}</span>
-                </p>
-              )}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
+        <Card C={C} className="min-w-0">
+          <Sect C={C} first title="Text">
+            <div className="grid sm:grid-cols-2 gap-3">
+              {textField('Institution name', 'institutionName', 'Your institution name')}
+              {textField('Header text', 'headerText', 'Certificate of Completion')}
+              {textField('Certify text', 'certifyText')}
+              {textField('Completion text', 'completionText')}
             </div>
-            {/* Same presentation as student certificate page */}
-            <div style={{ background: '#F9FAFB', padding: '32px', display: 'flex', justifyContent: 'center' }}>
-              <div
-                ref={previewWrapRef}
-                onClick={handlePreviewClick}
-                style={{
-                  width: '100%',
-                  height: previewScale > 0 ? Math.round(CERT_H * previewScale) : 'auto',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  borderRadius: '10px',
-                  boxShadow: '0 8px 40px rgba(0,0,0,0.16)',
-                  cursor: selectedElement ? 'crosshair' : 'default',
-                  flexShrink: 0,
-                }}>
-                {/* Certificate scaled to fit */}
-                <div style={{ width: CERT_W, height: CERT_H, transform: `scale(${previewScale})`, transformOrigin: 'top left', pointerEvents: 'none' }}>
-                  <CertificateTemplate
-                    settings={settings}
-                    studentName="Sample Student"
-                    courseName="Sample Course"
-                    issueDate={new Date().toLocaleDateString()}
-                    partnerName={contentType === 'default' ? 'Sample Partner' : null}
-                    partnerLogoUrl={contentType === 'default' ? SAMPLE_PARTNER_LOGO : null}
-                  />
-                </div>
-                {/* Dots overlaid at scaled coordinates */}
-                {Object.entries(ELEMENT_COLORS).map(([key, color]) => {
-                  const p = resolved[key as keyof TextPositions];
-                  if (!p) return null;
-                  const isSelected = selectedElement === key;
+          </Sect>
+
+          <Sect C={C} title="Signatory">
+            <div className="grid sm:grid-cols-2 gap-3">
+              {textField('Name', 'signatoryName', 'Dr. Jane Smith')}
+              {textField('Title', 'signatoryTitle', 'Program Director')}
+            </div>
+          </Sect>
+
+          <Sect C={C} title="Look">
+            <div className="grid sm:grid-cols-2 gap-3">
+              {colourField('Primary colour', 'primaryColor')}
+              {colourField('Accent colour', 'accentColor')}
+              <div>
+                <Label C={C}>Font</Label>
+                <MenuSelect field label="Font" value={settings.fontFamily} options={FONTS} onChange={v => set('fontFamily', v)} C={C}/>
+              </div>
+              <div>
+                <Label C={C}>Name size</Label>
+                <MenuSelect field label="Name size" value={settings.headingSize} onChange={v => set('headingSize', v)} C={C}
+                  options={[{ value: 'sm', label: 'Small' }, { value: 'md', label: 'Medium' }, { value: 'lg', label: 'Large' }]}/>
+              </div>
+            </div>
+            <div>
+              <Label C={C}>Alignment</Label>
+              <div role="group" aria-label="Alignment" className="inline-flex gap-1 p-1 rounded-[14px]" style={{ background: C.pill }}>
+                {([['left', 'Left'], ['center', 'Centred']] as const).map(([al, label]) => {
+                  const on = (settings.alignment ?? 'left') === al;
                   return (
-                    <div key={key} style={{
-                      position: 'absolute',
-                      left: p.x * previewScale,
-                      top:  p.y * previewScale,
-                      width: isSelected ? 14 : 10,
-                      height: isSelected ? 14 : 10,
-                      borderRadius: '50%',
-                      background: color,
-                      border: '2px solid white',
-                      transform: 'translate(-50%, -50%)',
-                      boxShadow: isSelected ? `0 0 0 3px ${color}55` : '0 1px 4px rgba(0,0,0,0.5)',
-                      zIndex: 50,
-                      pointerEvents: 'none',
-                      transition: 'all 0.15s',
-                    }}/>
+                    <button key={al} type="button" aria-pressed={on} onClick={() => set('alignment', al)}
+                      className="h-8 px-4 rounded-[10px] text-[13px] font-semibold"
+                      style={on ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+                      {label}
+                    </button>
                   );
                 })}
               </div>
             </div>
-          </div>
-        );
-      })()}
+          </Sect>
+
+          <Sect C={C} title="Images">
+            <div className="flex flex-wrap gap-2">
+              {(['background', 'logo', 'signature'] as const).map(slot => {
+                const labels = { background: 'background', logo: 'logo or seal', signature: 'signature' };
+                const urlKey = slot === 'background' ? 'backgroundImageUrl' : slot === 'logo' ? 'logoUrl' : 'signatureUrl';
+                const ref    = slot === 'background' ? bgRef : slot === 'logo' ? logoRef : sigRef;
+                const url    = settings[urlKey] as string | null | undefined;
+                return (
+                  <div key={slot} className="inline-flex items-center gap-1">
+                    <input ref={ref} type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(slot, f); e.target.value = ''; }}/>
+                    <button type="button" onClick={() => ref.current?.click()} disabled={!!uploading} className={btnSmClass} style={btnStyle('sec', C)}>
+                      {uploading === slot ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+                      {url ? `Replace ${labels[slot]}` : `Upload ${labels[slot]}`}
+                    </button>
+                    {url && (
+                      <button type="button" onClick={() => set(urlKey, null)} aria-label={`Remove ${labels[slot]}`} className="w-8 h-8 rounded-[10px] grid place-items-center" style={{ color: C.muted }}>
+                        <Trash2 className="w-3.5 h-3.5"/>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Sect>
+
+          <Sect C={C} title="Text layout"
+            action={
+              <button type="button" onClick={() => { setSettings(prev => ({ ...prev, textPositions: undefined })); setSelectedElement(null); }} className={btnSmClass} style={btnStyle('sec', C)}>
+                Reset to defaults
+              </button>
+            }>
+            <p className="text-xs -mt-2" style={{ color: C.muted }}>Select an element, then click on the preview to place it, or type exact pixel values. X is from the left, Y from the top.</p>
+            <div className="grid gap-1">
+              <div className="grid grid-cols-[12px_minmax(0,1fr)_72px_72px] gap-2 px-2 text-xs font-semibold" style={{ color: C.faint }}>
+                <span/><span>Element</span><span>X</span><span>Y</span>
+              </div>
+              {elements.map(key => {
+                const on = selectedElement === key;
+                return (
+                  <div key={key} role="button" tabIndex={0} aria-pressed={on}
+                    onClick={() => setSelectedElement(on ? null : key)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedElement(on ? null : key); } }}
+                    className="grid grid-cols-[12px_minmax(0,1fr)_72px_72px] items-center gap-2 px-2 py-1.5 rounded-[10px] cursor-pointer"
+                    style={on ? { background: C.page, boxShadow: `inset 0 0 0 2px ${P.sel}` } : undefined}>
+                    <span className="w-3 h-3 rounded-full" style={{ background: ELEMENT_COLORS[key] }}/>
+                    <span className="text-sm truncate" style={{ color: C.text, fontWeight: on ? 600 : 400 }}>{ELEMENT_LABELS[key]}</span>
+                    <input type="number" min={0} max={1860} value={resolved[key].x} aria-label={`${ELEMENT_LABELS[key]} X`}
+                      onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}
+                      onChange={e => setPos(key, 'x', Number(e.target.value))} className={smallField} style={smallStyle}/>
+                    <input type="number" min={0} max={1200} value={resolved[key].y} aria-label={`${ELEMENT_LABELS[key]} Y`}
+                      onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}
+                      onChange={e => setPos(key, 'y', Number(e.target.value))} className={smallField} style={smallStyle}/>
+                  </div>
+                );
+              })}
+            </div>
+            {contentType === 'default' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-[14px] p-4" style={{ background: C.page }}>
+                <div>
+                  <Label C={C}>Partner layout</Label>
+                  <MenuSelect field label="Partner layout" value={resolved.partnerAttribution.direction ?? 'horizontal'} onChange={v => setPartnerLayout('direction', v)} C={{ ...C, input: C.card }}
+                    options={[{ value: 'horizontal', label: 'Horizontal' }, { value: 'vertical', label: 'Vertical' }]}/>
+                </div>
+                <div>
+                  <Label C={C}>Partner logo height</Label>
+                  <input type="number" min={24} max={240}
+                    value={resolved.partnerAttribution.logoHeight ?? 90}
+                    onChange={e => setPartnerLayout('logoHeight', Math.max(24, Math.min(240, Number(e.target.value))))}
+                    className={`${NUMBER_FIELD} font-mono`} style={{ ...inputStyle(C), background: C.card }}/>
+                </div>
+                <button type="button" role="checkbox" aria-checked={resolved.partnerAttribution.showLabel !== false}
+                  onClick={() => setPartnerLayout('showLabel', resolved.partnerAttribution.showLabel === false)}
+                  className="flex items-center gap-2 self-end min-h-[46px] text-sm text-left" style={{ color: C.text }}>
+                  <Tick on={resolved.partnerAttribution.showLabel !== false} C={C}/>
+                  Show &quot;Offered by&quot;
+                </button>
+                <div className="sm:col-span-3 -mt-1.5">
+                  <Hint C={C}>The sample partner in the preview is replaced automatically by each course&apos;s selected partner.</Hint>
+                </div>
+              </div>
+            )}
+          </Sect>
+        </Card>
+
+        <Card C={C} className="min-w-0 lg:sticky lg:top-4">
+          <Sect C={C} first title="Preview" aside={selectedElement ? `Click to place ${ELEMENT_LABELS[selectedElement].toLowerCase()}` : undefined}>
+            {/* Same presentation as student certificate page */}
+            <div
+              ref={previewWrapRef}
+              onClick={handlePreviewClick}
+              style={{
+                width: '100%',
+                height: previewScale > 0 ? Math.round(CERT_H * previewScale) : 'auto',
+                position: 'relative',
+                overflow: 'hidden',
+                borderRadius: '10px',
+                boxShadow: `0 0 0 1px ${C.divider}`,
+                cursor: selectedElement ? 'crosshair' : 'default',
+                flexShrink: 0,
+              }}>
+              {/* Certificate scaled to fit */}
+              <div style={{ width: CERT_W, height: CERT_H, transform: `scale(${previewScale})`, transformOrigin: 'top left', pointerEvents: 'none' }}>
+                <CertificateTemplate
+                  settings={settings}
+                  studentName="Sample Student"
+                  courseName="Sample Course"
+                  issueDate={new Date().toLocaleDateString()}
+                  partnerName={contentType === 'default' ? 'Sample Partner' : null}
+                  partnerLogoUrl={contentType === 'default' ? SAMPLE_PARTNER_LOGO : null}
+                />
+              </div>
+              {/* Dots overlaid at scaled coordinates */}
+              {elements.map(key => {
+                const p = resolved[key];
+                if (!p) return null;
+                const color = ELEMENT_COLORS[key];
+                const isSelected = selectedElement === key;
+                return (
+                  <div key={key} style={{
+                    position: 'absolute',
+                    left: p.x * previewScale,
+                    top:  p.y * previewScale,
+                    width: isSelected ? 14 : 10,
+                    height: isSelected ? 14 : 10,
+                    borderRadius: '50%',
+                    background: color,
+                    border: '2px solid white',
+                    transform: 'translate(-50%, -50%)',
+                    boxShadow: isSelected ? `0 0 0 3px ${color}55` : '0 1px 4px rgba(0,0,0,0.5)',
+                    zIndex: 50,
+                    pointerEvents: 'none',
+                    transition: 'all 0.15s',
+                  }}/>
+                );
+              })}
+            </div>
+          </Sect>
+        </Card>
+      </div>
     </div>
   );
 }

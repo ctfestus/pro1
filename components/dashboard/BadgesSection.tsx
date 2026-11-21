@@ -1,18 +1,35 @@
 'use client';
 
-// Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
+// The admin Badges page: every badge with its image. Achievement badges take an upload here;
+// course, path and experience badges get their image from that item's editor.
 
-import { useState, useEffect, useRef } from 'react';
-import { Upload } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { CheckCircle2, Trash2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { Card, Empty, Pill, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 
-export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
-  const [badges, setBadges] = useState<{ id: string; name: string; description: string; icon: string; color: string; image_url: string | null; category: string; managed: 'course' | 'learning_path' | 'virtual_experience' | null }[]>([]);
+type Managed = 'course' | 'learning_path' | 'virtual_experience' | null;
+
+const CATEGORY_META = [
+  { key: 'course',             label: 'Course',             chip: 'Courses' },
+  { key: 'learning_path',      label: 'Learning path',      chip: 'Learning paths' },
+  { key: 'virtual_experience', label: 'Virtual experience', chip: 'Experiences' },
+  { key: 'achievement',        label: 'Achievement',        chip: 'Achievements' },
+] as const;
+const MANAGED_LABEL: Record<string, string> = { course: 'course editor', learning_path: 'learning path editor', virtual_experience: 'virtual experience editor' };
+
+export function BadgesSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
+  const [badges, setBadges] = useState<{ id: string; name: string; description: string; icon: string; image_url: string | null; category: string; managed: Managed }[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [removing, setRemoving]   = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [catIdx, setCatIdx] = useState(0);
+  const [category, setCategory] = useState('all');
+  const [search, setSearch] = useState('');
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -27,11 +44,11 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
       // synthesized straight from the course/path/VE so they appear immediately.
       const achievement = (seeded ?? [])
         .filter((b: any) => !/^(crs_|lp_|ve_)/.test(b.id))
-        .map((b: any) => ({ ...b, managed: null as 'course' | 'learning_path' | 'virtual_experience' | null }));
+        .map((b: any) => ({ ...b, managed: null as Managed }));
       const content = [
-        ...(courses ?? []).map((c: any) => ({ id: `crs_${c.id}`, name: `${c.title} Badge`, description: `Awarded for completing ${c.title}`, icon: 'graduated', color: '#6366f1', image_url: c.badge_image_url, category: 'course', managed: 'course' as const })),
-        ...(paths ?? []).map((p: any) => ({ id: `lp_${p.id}`, name: `${p.title} Badge`, description: `Awarded for completing ${p.title}`, icon: 'map', color: '#6366f1', image_url: p.badge_image_url, category: 'learning_path', managed: 'learning_path' as const })),
-        ...(ves ?? []).map((v: any) => ({ id: `ve_${v.id}`, name: `${v.title} Badge`, description: `Awarded for completing ${v.title}`, icon: 'briefcase', color: '#6366f1', image_url: v.badge_image_url, category: 'virtual_experience', managed: 'virtual_experience' as const })),
+        ...(courses ?? []).map((c: any) => ({ id: `crs_${c.id}`, name: `${c.title} Badge`, description: `Awarded for completing ${c.title}`, icon: 'graduated', image_url: c.badge_image_url, category: 'course', managed: 'course' as const })),
+        ...(paths ?? []).map((p: any) => ({ id: `lp_${p.id}`, name: `${p.title} Badge`, description: `Awarded for completing ${p.title}`, icon: 'map', image_url: p.badge_image_url, category: 'learning_path', managed: 'learning_path' as const })),
+        ...(ves ?? []).map((v: any) => ({ id: `ve_${v.id}`, name: `${v.title} Badge`, description: `Awarded for completing ${v.title}`, icon: 'briefcase', image_url: v.badge_image_url, category: 'virtual_experience', managed: 'virtual_experience' as const })),
       ];
       setBadges([...achievement, ...content]);
     })();
@@ -76,112 +93,99 @@ export function BadgesSection({ C }: { C: typeof LIGHT_C }) {
     }
   };
 
-  const CATEGORY_META = [
-    { key: 'achievement',        label: 'Achievement' },
-    { key: 'course',             label: 'Course' },
-    { key: 'learning_path',      label: 'Learning Path' },
-    { key: 'virtual_experience', label: 'Virtual Experience' },
-  ] as const;
-  const MANAGED_LABEL: Record<string, string> = { course: 'course editor', learning_path: 'learning path editor', virtual_experience: 'virtual experience editor' };
   const cats = CATEGORY_META.filter(m => badges.some(b => b.category === m.key));
-  const ci = Math.min(Math.max(catIdx, 0), Math.max(0, cats.length - 1));
-  const activeCat = cats[ci];
-  const activeBadges = activeCat ? badges.filter(b => b.category === activeCat.key) : [];
+  const term = search.trim().toLowerCase();
+  const visible = badges.filter(b =>
+    (category === 'all' || b.category === category)
+    && (!term || `${b.name} ${b.description ?? ''}`.toLowerCase().includes(term)));
+  const chip = (on: boolean) => on ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="space-y-5 pb-12">
+      <PageHeader C={C} title="Badges" sub="The image each badge shows. Without one, the default icon is used." actions={null} />
+
       {msg && (
-        <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{
-          background: msg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.10)',
-          color: msg.ok ? '#10b981' : '#ef4444',
-          border: `1px solid ${msg.ok ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
-        }}>
+        <div role={msg.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={msg.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+          {msg.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
           {msg.text}
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-        {/* Header + badge-type tabs */}
-        <div className="px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
-          <h2 className="text-base font-bold leading-none" style={{ color: C.text }}>Badge Images</h2>
-          <p className="text-xs mt-2" style={{ color: C.muted }}>Upload a custom image for each badge. If no image is uploaded, the emoji icon is shown instead.</p>
-          {cats.length > 1 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-              {cats.map((m, i) => {
-                const active = i === ci;
-                return (
-                  <button key={m.key} onClick={() => setCatIdx(i)}
-                    className="text-center px-4 py-4 rounded-md text-sm font-semibold transition-all"
-                    style={{ background: active ? C.cta : C.pill, color: active ? C.ctaText : C.text, border: 'none' }}>
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Badge rows for the active type */}
-        {activeBadges.map((badge, i) => {
-          const isUp  = uploading === badge.id;
-          const isRem = removing  === badge.id;
-          return (
-            <div key={badge.id}
-              className="flex items-center gap-4 px-5 py-4"
-              style={{ borderBottom: i < activeBadges.length - 1 ? `1px solid ${C.divider}` : 'none' }}>
-
-              {/* Badge preview */}
-              <div className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center overflow-hidden"
-                style={{ background: badge.image_url ? 'transparent' : `${badge.color}20` }}>
-                {badge.image_url
-                  ? <img src={badge.image_url} alt={badge.name} className="w-full h-full object-cover" />
-                  : <span className="text-2xl">{badge.icon}</span>
-                }
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{badge.name}</p>
-                <p className="text-xs mt-0.5 line-clamp-1" style={{ color: C.muted }}>{badge.description}</p>
-              </div>
-
-              {/* Actions */}
-              {badge.managed ? (
-                <span className="text-xs flex-shrink-0 text-right" style={{ color: C.faint }}>
-                  Managed in the {MANAGED_LABEL[badge.managed]}
-                </span>
-              ) : (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {badge.image_url && (
-                    <button
-                      onClick={() => handleRemove(badge)}
-                      disabled={isRem || isUp}
-                      className="px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
-                      style={{ background: C.deleteBg, color: C.deleteText, border: 'none' }}>
-                      {isRem ? 'Removing...' : 'Remove'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => fileRefs.current[badge.id]?.click()}
-                    disabled={isUp || isRem}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-40 transition-opacity"
-                    style={{ background: C.cta, color: C.ctaText }}>
-                    <Upload className="w-3.5 h-3.5" />
-                    {isUp ? 'Uploading...' : badge.image_url ? 'Replace' : 'Upload'}
-                  </button>
-                  <input
-                    ref={el => { fileRefs.current[badge.id] = el; }}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(badge, f); e.target.value = ''; }}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchBox value={search} onChange={setSearch} placeholder="Search badges" C={C} />
+        {cats.length > 1 && (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by badge type">
+            {[{ key: 'all', chip: 'All' }, ...cats].map(m => (
+              <button key={m.key} type="button" aria-pressed={category === m.key} onClick={() => setCategory(m.key)} className="h-8 px-3 rounded-full text-xs font-semibold" style={chip(category === m.key)}>
+                {m.chip}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      <Card C={C} className="overflow-hidden">
+        {visible.length === 0 ? (
+          <Empty C={C} title={badges.length ? 'No badges match these filters.' : 'No badges yet.'} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr>{['Badge', 'For', ''].map((h, i) => <th key={i} className="text-left px-4 py-3 text-xs font-semibold whitespace-nowrap" style={{ color: C.faint }}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {visible.map(badge => {
+                  const isUp  = uploading === badge.id;
+                  const isRem = removing  === badge.id;
+                  return (
+                    <tr key={badge.id} style={{ borderTop: `1px solid ${C.divider}` }}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex-shrink-0 w-11 h-11 rounded-xl grid place-items-center overflow-hidden" style={{ background: badge.image_url ? 'transparent' : C.pill }}>
+                            {badge.image_url
+                              ? <img src={badge.image_url} alt={badge.name} className="w-full h-full object-cover" />
+                              : <span className="text-xl">{badge.icon}</span>}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate" style={{ color: C.text }}>{badge.name}</p>
+                            <p className="text-xs line-clamp-1" style={{ color: C.muted }}>{badge.description}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><Pill tone="mute" C={C}>{CATEGORY_META.find(m => m.key === badge.category)?.label ?? 'Achievement'}</Pill></td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {badge.managed ? (
+                          <span className="text-xs" style={{ color: C.muted }}>Managed in the {MANAGED_LABEL[badge.managed]}</span>
+                        ) : (
+                          <div className="inline-flex items-center gap-2">
+                            {badge.image_url && (
+                              <button type="button" onClick={() => handleRemove(badge)} disabled={isRem || isUp} className={btnSmClass} style={btnStyle('danger', C)}>
+                                <Trash2 className="w-3.5 h-3.5" /> {isRem ? 'Removing...' : 'Remove'}
+                              </button>
+                            )}
+                            <button type="button" onClick={() => fileRefs.current[badge.id]?.click()} disabled={isUp || isRem} className={btnSmClass} style={btnStyle('sec', C)}>
+                              <Upload className="w-3.5 h-3.5" />
+                              {isUp ? 'Uploading...' : badge.image_url ? 'Change image' : 'Upload image'}
+                            </button>
+                            <input
+                              ref={el => { fileRefs.current[badge.id] = el; }}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(badge, f); e.target.value = ''; }}
+                            />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

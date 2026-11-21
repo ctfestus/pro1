@@ -1,13 +1,19 @@
 'use client';
 
-// Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
+// The admin Live sessions page: who joined each live class, and who missed it.
 
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Mail, Download, CheckCircle2, MinusCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2, Download, MinusCircle, Send, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useTheme } from '@/components/ThemeProvider';
 import { isScheduledSessionDate } from '@/lib/event-sessions';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
+import { Kpis, PageHeader } from '@/components/dashboard/content/kit';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { Tick } from '@/components/dashboard/cohorts/CohortModals';
+import { Card, Empty, Pill, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+
+const sessionLabel = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 function computeExpectedSessionDates(event: any): string[] {
   if (!event?.event_date) return [];
@@ -51,9 +57,9 @@ function computeExpectedSessionDates(event: any): string[] {
   return [];
 }
 
-export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+export function AttendanceReportSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -65,6 +71,8 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
   const [nudgeMsg, setNudgeMsg] = useState('');
   const [nudgeDate, setNudgeDate] = useState('');           // which session's absences to act on
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()); // students to nudge
+  const [search, setSearch] = useState('');
+  const [shown, setShown] = useState<'all' | 'attended' | 'missed'>('all');
 
   useEffect(() => {
     (async () => {
@@ -206,162 +214,133 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
     }
   };
 
-  const card = cardStyle(C) as React.CSSProperties;
-  const thStyle = { color: C.faint } as React.CSSProperties;
+  const term = search.trim().toLowerCase();
+  const visibleRows = studentRows.filter(r =>
+    (!term || `${r.name} ${r.email}`.toLowerCase().includes(term))
+    && (shown === 'all' || (shown === 'missed') === absentIds.has(r.id)));
+  const attendedCount = activeDate ? studentRows.length - absentRows.length : 0;
+  const dash = (n: number) => loading ? '--' : n;
+  const chip = (on: boolean) => on ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` };
+  const th = 'text-left px-4 py-3 text-xs font-semibold whitespace-nowrap';
 
   return (
-    <div className="space-y-5 pb-10">
-      <div className="rounded-2xl p-5" style={card}>
-        <p className="text-sm font-semibold mb-3" style={{ color: C.text }}>Select Live Session</p>
-        {eventsLoading ? (
-          <div className="h-10 rounded-lg animate-pulse" style={{ background: C.skeleton }} />
-        ) : (
-          <select value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)}
-            className="w-full rounded-lg px-4 py-3 text-sm"
-            style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text, outline: 'none' }}>
-            <option value="">Choose a live session to view attendance</option>
-            {events.map(e => (
-              <option key={e.id} value={e.id}>{e.title}{e.recurrence && e.recurrence !== 'once' ? ' (recurring)' : ''}</option>
-            ))}
-          </select>
-        )}
-      </div>
+    <div className="space-y-5 pb-12">
+      <PageHeader C={C} title="Live sessions" sub="Who joined each live class, and who missed it."
+        actions={selectedEventId && !loading && <>
+          {studentRows.length > 0 && (
+            <button type="button" onClick={handleExport} className={btnClass} style={btnStyle('sec', C)}>
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          )}
+          {absentRows.length > 0 && (
+            <button type="button" onClick={handleNudge} disabled={nudging || selectedIds.size === 0} className={btnClass} style={btnStyle('sec', C)}>
+              <Send className="w-4 h-4" /> {nudging ? 'Sending...' : `Nudge absent learners (${selectedIds.size})`}
+            </button>
+          )}
+        </>} />
+
+      {nudgeMsg && (
+        <div role={nudgeMsg.startsWith('Error') || nudgeMsg === 'Failed to send' ? 'alert' : 'status'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={nudgeMsg.startsWith('Error') || nudgeMsg === 'Failed to send'
+            ? { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }
+            : { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` }}>
+          {nudgeMsg.startsWith('Error') || nudgeMsg === 'Failed to send' ? <XCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+          {nudgeMsg}
+        </div>
+      )}
+
+      {eventsLoading ? (
+        <div className="h-10 w-full sm:w-72 rounded-xl animate-pulse" style={{ background: C.card }} />
+      ) : events.length === 0 ? (
+        <Card C={C}><Empty C={C} title="No live sessions yet" sub="Live sessions you create show here with their attendance." /></Card>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <MenuSelect fixed searchable label="Live session" placeholder="Choose a live session" value={selectedEventId} onChange={setSelectedEventId} C={C}
+            options={events.map(e => ({ value: e.id as string, label: `${e.title}${e.recurrence && e.recurrence !== 'once' ? ' (recurring)' : ''}` }))} />
+          {selectedEventId && sessionDates.length > 1 && (
+            <MenuSelect fixed label="Session to check absences against" value={activeDate ?? ''} onChange={setNudgeDate} C={C}
+              options={sessionDates.map(d => ({ value: d, label: sessionLabel(d) }))} />
+          )}
+        </div>
+      )}
+
+      {!eventsLoading && events.length > 0 && !selectedEventId && (
+        <Card C={C}><Empty C={C} title="Choose a live session to view attendance" /></Card>
+      )}
 
       {selectedEventId && (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Registered', value: loading ? '--' : registrations.length },
-              { label: 'Sessions', value: loading ? '--' : totalSessions },
-              { label: 'Total Joins', value: loading ? '--' : attendance.length },
-            ].map(s => (
-              <div key={s.label} className="rounded-2xl p-4" style={card}>
-                <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: C.faint }}>{s.label}</p>
-                <p className="text-2xl font-bold" style={{ color: C.text }}>{s.value}</p>
-              </div>
-            ))}
+          <Kpis C={C} items={[
+            { label: 'Registered', n: dash(studentRows.length), sub: `${plural(totalSessions, 'session')} recorded`, color: C.text },
+            { label: 'Attended', n: dash(attendedCount), sub: activeDate ? `${studentRows.length ? Math.round((attendedCount / studentRows.length) * 100) : 0}% on ${sessionLabel(activeDate)}` : 'No sessions yet', color: attendedCount ? P.good : C.text },
+            { label: 'Missed', n: dash(absentRows.length), sub: 'Registered, did not join', color: absentRows.length ? P.bad : C.text },
+            { label: 'Joins', n: dash(attendance.length), sub: 'Including rejoins', color: C.text },
+          ]} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search learner" C={C} />
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by attendance">
+              {([['all', 'All'], ['attended', 'Attended'], ['missed', 'Missed']] as const).map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={shown === id} onClick={() => setShown(id)} className="h-8 px-3 rounded-full text-xs font-semibold" style={chip(shown === id)}>{label}</button>
+              ))}
+            </div>
+            <div role="tablist" aria-label="Attendance view" className="inline-flex gap-1 p-1 rounded-[14px] ml-auto" style={{ background: C.card }}>
+              {([['summary', 'Summary'], ['matrix', 'Every session']] as const).map(([id, label]) => (
+                <button key={id} type="button" role="tab" aria-selected={viewMode === id} onClick={() => setViewMode(id)}
+                  className="h-8 px-3 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+                  style={viewMode === id ? { background: P.sel, color: P.onSel } : { color: C.muted }}>{label}</button>
+              ))}
+            </div>
           </div>
 
-          <div className="rounded-2xl overflow-hidden" style={card}>
-            {/* Carousel switcher header */}
-            <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <div className="flex items-center gap-3 min-w-0">
-                <h3 className="text-base font-bold leading-none capitalize" style={{ color: C.text }}>{viewMode}</h3>
-                <div className="flex items-center gap-2">
-                  {(['summary', 'matrix'] as const).map(m => (
-                    <button key={m} onClick={() => setViewMode(m)} aria-label={m}
-                      className="rounded-full transition-all"
-                      style={{ width: viewMode === m ? 18 : 7, height: 7, background: viewMode === m ? C.cta : C.cardBorder }} />
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setViewMode(viewMode === 'summary' ? 'matrix' : 'summary')} aria-label="Previous view"
-                  className="w-8 h-8 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                  style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                  <ChevronLeft className="w-4 h-4"/>
-                </button>
-                <button onClick={() => setViewMode(viewMode === 'summary' ? 'matrix' : 'summary')} aria-label="Next view"
-                  className="w-8 h-8 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-                  style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                  <ChevronRight className="w-4 h-4"/>
-                </button>
-              </div>
-            </div>
-            {/* Controls row */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <p className="text-xs" style={{ color: C.faint }}>{registrations.length} registered &middot; {totalSessions} sessions recorded</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {sessionDates.length > 1 && (
-                  <select value={activeDate ?? ''} onChange={e => setNudgeDate(e.target.value)}
-                    title="Session to check absences against"
-                    className="rounded-lg px-3 py-2 text-xs font-medium"
-                    style={{ background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text, outline: 'none' }}>
-                    {sessionDates.map(d => (
-                      <option key={d} value={d}>
-                        {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {absentRows.length > 0 && (
-                  <button onClick={handleNudge} disabled={nudging || selectedIds.size === 0}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
-                    style={{ background: '#fee2e2', color: '#dc2626', opacity: (nudging || selectedIds.size === 0) ? 0.6 : 1 }}>
-                    <Mail className="w-3.5 h-3.5" /> {nudging ? 'Sending...' : `Nudge absent (${selectedIds.size})`}
-                  </button>
-                )}
-                {studentRows.length > 0 && (
-                  <button onClick={handleExport}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
-                    style={{ background: C.pill, color: C.muted }}>
-                    <Download className="w-3.5 h-3.5" /> Export CSV
-                  </button>
-                )}
-                {nudgeMsg && (
-                  <span className="text-xs font-medium" style={{ color: nudgeMsg.startsWith('Error') ? '#dc2626' : '#16a34a' }}>
-                    {nudgeMsg}
-                  </span>
-                )}
-              </div>
-            </div>
-
+          <Card C={C} className="overflow-hidden">
             {loading ? (
-              <div className="px-5 py-10 space-y-3">
-                {[0,1,2,3].map(i => <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: C.skeleton }} />)}
+              <div className="p-5 space-y-3">
+                {[0, 1, 2, 3].map(i => <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: C.skeleton }} />)}
               </div>
             ) : studentRows.length === 0 ? (
-              <div className="px-5 py-16 text-center text-sm" style={{ color: C.faint }}>
-                No registered students for this event yet.
-              </div>
+              <Empty C={C} title="No registered students for this event yet." />
+            ) : visibleRows.length === 0 ? (
+              <Empty C={C} title="No learners match these filters." />
             ) : viewMode === 'summary' ? (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead>
-                    <tr style={{ ...thStyle, borderBottom: `1px solid ${C.divider}` }}>
-                      <th className="px-3 sm:px-4 py-3 text-center" style={{ width: 40 }}>
-                        <input type="checkbox" aria-label="Select all absent"
-                          checked={allAbsentSelected} disabled={absentRows.length === 0}
-                          onChange={toggleAllAbsent} style={{ accentColor: C.cta, cursor: absentRows.length === 0 ? 'default' : 'pointer' }} />
+                    <tr>
+                      <th className="pl-4 pr-1 py-3 w-10">
+                        <button type="button" role="checkbox" aria-checked={allAbsentSelected} aria-label="Select all absent" disabled={absentRows.length === 0} onClick={toggleAllAbsent} className="grid place-items-center disabled:opacity-40">
+                          <Tick on={allAbsentSelected} C={C} />
+                        </button>
                       </th>
-                      <th className="text-left px-1 sm:px-2 py-3 text-xs font-semibold uppercase tracking-wide">Student</th>
-                      <th className="text-center px-3 sm:px-4 py-3 text-xs font-semibold uppercase tracking-wide">Attended</th>
-                      <th className="text-center px-3 sm:px-4 py-3 text-xs font-semibold uppercase tracking-wide">Missed</th>
-                      <th className="hidden sm:table-cell text-right px-5 py-3 text-xs font-semibold uppercase tracking-wide">Last Joined</th>
+                      <th className={th} style={{ color: C.faint }}>Learner</th>
+                      <th className={th} style={{ color: C.faint }}>Attendance</th>
+                      <th className={th} style={{ color: C.faint }}>Sessions attended</th>
+                      <th className={th} style={{ color: C.faint }}>Last joined</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {studentRows.map(r => {
-                      const missed = totalSessions - r.count;
+                    {visibleRows.map(r => {
                       const isAbsent = absentIds.has(r.id);
                       return (
-                        <tr key={r.id}>
-                          <td className="px-3 sm:px-4 py-3 text-center">
-                            {isAbsent ? (
-                              <input type="checkbox" aria-label={`Nudge ${r.name}`}
-                                checked={selectedIds.has(r.id)} onChange={() => toggleStudent(r.id)}
-                                style={{ accentColor: C.cta, cursor: 'pointer' }} />
-                            ) : null}
+                        <tr key={r.id} style={{ borderTop: `1px solid ${C.divider}` }}>
+                          <td className="pl-4 pr-1 py-3">
+                            {isAbsent && (
+                              <button type="button" role="checkbox" aria-checked={selectedIds.has(r.id)} aria-label={`Nudge ${r.name}`} onClick={() => toggleStudent(r.id)} className="grid place-items-center">
+                                <Tick on={selectedIds.has(r.id)} C={C} />
+                              </button>
+                            )}
                           </td>
-                          <td className="px-1 sm:px-2 py-3">
+                          <td className="px-4 py-3">
                             <p className="font-semibold" style={{ color: C.text }}>{r.name}</p>
-                            <p className="text-xs" style={{ color: C.faint }}>{r.email}</p>
+                            <p className="text-xs" style={{ color: C.muted }}>{r.email}</p>
                           </td>
-                          <td className="px-3 sm:px-4 py-3 text-center">
-                            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
-                              style={{ background: '#dcfce7', color: '#16a34a' }}>
-                              <CheckCircle2 className="w-3 h-3" /> {r.count}
-                            </span>
+                          <td className="px-4 py-3">
+                            {!activeDate ? <span className="text-xs" style={{ color: C.muted }}>--</span>
+                              : isAbsent ? <Pill tone="bad" C={C}>Missed</Pill>
+                              : <Pill tone="good" dot C={C}>Attended</Pill>}
                           </td>
-                          <td className="px-3 sm:px-4 py-3 text-center">
-                            {missed > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
-                                style={{ background: '#fee2e2', color: '#dc2626' }}>
-                                <MinusCircle className="w-3 h-3" /> {missed}
-                              </span>
-                            ) : <span style={{ color: C.faint }}>--</span>}
-                          </td>
-                          <td className="hidden sm:table-cell px-5 py-3 text-right text-xs" style={{ color: C.faint }}>
+                          <td className="px-4 py-3 tabular-nums" style={{ color: C.text }}>{r.count} of {totalSessions}</td>
+                          <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: C.muted }}>
                             {r.lastJoined ? new Date(r.lastJoined).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never joined'}
                           </td>
                         </tr>
@@ -374,32 +353,31 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
               <div className="overflow-x-auto">
                 <table className="text-xs" style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
                   <thead>
-                    <tr style={{ ...thStyle, borderBottom: `1px solid ${C.divider}` }}>
-                      <th className="text-left px-5 py-3 font-semibold uppercase tracking-wide sticky left-0"
-                        style={{ ...thStyle, minWidth: 180, background: C.card }}>Student</th>
+                    <tr>
+                      <th className={`${th} sticky left-0`} style={{ color: C.faint, minWidth: 180, background: C.card }}>Learner</th>
                       {sessionDates.map(d => (
-                        <th key={d} className="px-3 py-3 font-semibold uppercase tracking-wide text-center" style={{ minWidth: 72 }}>
+                        <th key={d} className="px-3 py-3 font-semibold text-center whitespace-nowrap" style={{ color: C.faint, minWidth: 72 }}>
                           {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </th>
                       ))}
-                      <th className="px-4 py-3 font-semibold uppercase tracking-wide text-center">Total</th>
+                      <th className="px-4 py-3 font-semibold text-center" style={{ color: C.faint }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {studentRows.map(r => (
-                      <tr key={r.id}>
-                        <td className="px-5 py-3 sticky left-0" style={{ background: C.card }}>
+                    {visibleRows.map(r => (
+                      <tr key={r.id} style={{ borderTop: `1px solid ${C.divider}` }}>
+                        <td className="px-4 py-3 sticky left-0" style={{ background: C.card }}>
                           <p className="font-semibold text-sm" style={{ color: C.text }}>{r.name}</p>
-                          <p style={{ color: C.faint }}>{r.email}</p>
+                          <p style={{ color: C.muted }}>{r.email}</p>
                         </td>
                         {sessionDates.map(d => (
                           <td key={d} className="px-3 py-3 text-center">
                             {r.attended.has(d)
-                              ? <CheckCircle2 className="w-4 h-4 mx-auto" style={{ color: '#16a34a' }} />
-                              : <MinusCircle className="w-4 h-4 mx-auto" style={{ color: isDark ? '#333' : '#e5e7eb' }} />}
+                              ? <CheckCircle2 className="w-4 h-4 mx-auto" aria-label="Attended" style={{ color: P.good }} />
+                              : <MinusCircle className="w-4 h-4 mx-auto" aria-label="Missed" style={{ color: C.faint, opacity: 0.5 }} />}
                           </td>
                         ))}
-                        <td className="px-4 py-3 text-center font-bold text-sm" style={{ color: C.text }}>
+                        <td className="px-4 py-3 text-center font-semibold text-sm tabular-nums" style={{ color: C.text }}>
                           {r.count}/{totalSessions}
                         </td>
                       </tr>
@@ -408,7 +386,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
                 </table>
               </div>
             )}
-          </div>
+          </Card>
         </>
       )}
     </div>

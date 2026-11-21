@@ -6,20 +6,46 @@
 // The KPI strip and the compose panel's segment counts come back from the API alongside the page,
 // because both describe the whole set and cannot be recomputed from the rows on screen.
 
-import { useState, useEffect, useCallback, useContext } from 'react';
-import { AlertTriangle, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Download, Loader2, MinusCircle, Search, Send, XCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useContext, useMemo } from 'react';
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Download, Loader2, MoreHorizontal, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reportExportCSV } from '@/lib/dashboard-export';
 import { IsStaffContext } from '@/components/dashboard/context';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
+import { Kpis, PageHeader } from '@/components/dashboard/content/kit';
+import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
+import { FloatingMenu, menuPosition, type MenuPosition } from '@/components/dashboard/subscriptions/Menus';
+import { FIELD, inputStyle } from '@/components/dashboard/subscriptions/Modal';
+import { Bar, Card, CardHead, Empty, Pill, btnClass, btnSmClass, btnStyle, palette, type Tone } from '@/components/dashboard/subscriptions/ui';
+import { Hint, Label } from '@/components/create/EditorKit';
 
-const STATUS_META = {
-  not_started: { label: 'Not Started', color: '#6b7280', bg: 'rgba(107,114,128,0.12)', Icon: MinusCircle },
-  in_progress:  { label: 'In Progress', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  Icon: Clock },
-  stalled:      { label: 'Stalled',     color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   Icon: AlertTriangle },
-  failed:       { label: 'Failed',      color: '#dc2626', bg: 'rgba(220,38,38,0.12)',   Icon: XCircle },
-  completed:    { label: 'Completed',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   Icon: CheckCircle },
-} as const;
+const STATUS_META: Record<string, { label: string; tone: Tone }> = {
+  not_started: { label: 'Not started', tone: 'mute' },
+  in_progress: { label: 'In progress', tone: 'mute' },
+  stalled:     { label: 'Stalled',     tone: 'warn' },
+  failed:      { label: 'Failed',      tone: 'bad' },
+  completed:   { label: 'Completed',   tone: 'good' },
+};
+
+const TYPE_CHIPS: [string, string][] = [['all', 'All'], ['course', 'Courses'], ['virtual_experience', 'Experiences'], ['assignment', 'Assignments']];
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'not_started', label: 'Not started' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'stalled', label: 'Stalled (7+ days)' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'at_risk', label: 'At risk' },
+];
+const SEGMENTS = [
+  { key: 'not_started', label: 'Not started' },
+  { key: 'in_progress', label: 'In progress' },
+  { key: 'stalled',     label: 'Stalled' },
+  { key: 'failed',      label: 'Failed' },
+  { key: 'completed',   label: 'Completed' },
+  { key: 'all',         label: 'Everyone' },
+] as const;
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -33,7 +59,9 @@ const lastActiveLabel = (row: any) => row.lastActive
     : `${row.daysSinceActivity}d ago`
   : '--';
 
-export function StudentTrackingSection({ C }: { C: typeof LIGHT_C }) {
+export function StudentTrackingSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const isStaff = useContext(IsStaffContext);
   const [rows, setRows]           = useState<any[]>([]);
   const [total, setTotal]         = useState(0);
@@ -49,6 +77,7 @@ export function StudentTrackingSection({ C }: { C: typeof LIGHT_C }) {
   const [exporting, setExporting]         = useState(false);
   const [nudging, setNudging]             = useState<string | null>(null);
   const [nudged, setNudged]               = useState<Set<string>>(new Set());
+  const [menu, setMenu]                   = useState<{ row: any; position: MenuPosition } | null>(null);
 
   // Bulk message compose state
   const [composing, setComposing]         = useState(false);
@@ -217,315 +246,204 @@ export function StudentTrackingSection({ C }: { C: typeof LIGHT_C }) {
 
   const segmentCount = (seg: string) => (segCounts as any)[seg] ?? 0;
 
-  const sel = { fontSize: 13, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text, outline: 'none', cursor: 'pointer' } as React.CSSProperties;
-  const pageBtn = (disabled: boolean) => ({
-    display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 8, border: 'none',
-    background: C.pill, color: disabled ? C.faint : C.text, fontSize: 13, fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, minHeight: 36,
-  } as React.CSSProperties);
+  const chip = (on: boolean) => on ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` };
+  const keyOf = (row: any) => `${row.studentEmail}|${row.formId}`;
+  // Activity-only rows are visible for reporting, but the content was not assigned to
+  // their cohort. Keep the existing messaging boundary: viewing activity does not opt a
+  // learner into cohort nudges or bulk communication.
+  const canNudge = (row: any) => !row.activityOnly && (row.status === 'not_started' || row.status === 'stalled' || row.status === 'in_progress' || row.status === 'failed');
+  const cohortOptions = [{ value: 'all', label: 'All cohorts' }, ...cohorts.map(c => ({ value: c.id, label: c.name }))];
+
+  const kpis = [
+    { label: 'Records',     n: stats.total,       sub: 'One per learner and content',  color: C.text },
+    { label: 'Not started', n: stats.not_started, sub: 'Assigned, nothing opened',     color: C.text },
+    { label: 'In progress', n: stats.in_progress, sub: 'Active in the last 7 days',    color: C.text },
+    { label: 'Stalled',     n: stats.stalled,     sub: 'No activity for 7 days',       color: stats.stalled ? P.warn : C.text },
+    { label: 'Completed',   n: stats.completed,   sub: 'Finished the content',         color: stats.completed ? P.good : C.text },
+    { label: 'At risk',     n: stats.at_risk,     sub: 'Failed, or due within 3 days', color: stats.at_risk ? P.bad : C.text },
+  ];
+
+  const deadlineTag = (row: any) => {
+    if (!row.deadline || row.status === 'completed') return null;
+    const text = row.daysUntilDeadline < 0 ? 'Overdue' : row.daysUntilDeadline === 0 ? 'Due today' : `${row.daysUntilDeadline}d left`;
+    return <Pill tone={row.isAtRisk ? (row.daysUntilDeadline < 0 ? 'bad' : 'warn') : 'mute'} C={C}>{text}</Pill>;
+  };
+
+  const rowMenu = (row: any) => {
+    if (!canNudge(row)) return null;
+    const key = keyOf(row);
+    const open = menu !== null && keyOf(menu.row) === key;
+    return (
+      <button type="button" aria-label={`Actions for ${row.studentName || row.studentEmail}`} disabled={nudging === key}
+        onClick={(e) => setMenu(open ? null : { row, position: menuPosition(e.currentTarget, 90) })}
+        className="w-8 h-8 rounded-[10px] inline-grid place-items-center flex-shrink-0"
+        style={open ? { background: C.text, color: C.card } : { background: C.pill, color: C.muted }}>
+        {nudging === key ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
+      </button>
+    );
+  };
 
   return (
-    <div style={{ padding: '0 0 40px' }}>
-      <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${C.divider}` }}>
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0 }}>Student Tracking</h2>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Monitor student progress across all your content. Flag stalled or inactive learners.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={exportCsv}
-            disabled={exporting}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: 'none', background: C.pill, color: C.text, fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1, transition: 'all 0.15s' }}>
-            {exporting
-              ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-              : <Download style={{ width: 14, height: 14 }} />}
+    <div className="space-y-5 pb-12">
+      <PageHeader C={C} title="Tracking" sub="How every learner is getting on across your courses, experiences and assignments."
+        actions={<>
+          <button type="button" onClick={exportCsv} disabled={exporting} className={btnClass} style={btnStyle('sec', C)}>
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {exporting ? 'Preparing...' : 'Export CSV'}
           </button>
           {!isStaff && (
-          <button
-            onClick={() => { setComposing(v => !v); setMsgResult(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: 'none', background: composing ? C.cta : C.pill, color: composing ? C.ctaText : C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
-            <Send style={{ width: 14, height: 14 }} />
-            Message Segment
-          </button>
+            <button type="button" aria-pressed={composing} onClick={() => { setComposing(v => !v); setMsgResult(null); }} className={btnClass} style={btnStyle('pri', C)}>
+              <Send className="w-4 h-4" /> Message learners
+            </button>
           )}
-        </div>
-      </div>
+        </>} />
 
-      {/* Body */}
-      <div style={{ padding: 24 }}>
+      <Kpis C={C} items={kpis} />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" style={{ marginBottom: 24 }}>
-        {([
-          { key: 'total',       label: 'Total',       value: stats.total,       color: C.text    },
-          { key: 'not_started', label: 'Not Started', value: stats.not_started, color: '#6b7280' },
-          { key: 'in_progress', label: 'In Progress', value: stats.in_progress, color: '#f59e0b' },
-          { key: 'stalled',     label: 'Stalled',     value: stats.stalled,     color: '#ef4444' },
-          { key: 'completed',   label: 'Completed',   value: stats.completed,   color: '#22c55e' },
-          { key: 'at_risk',     label: 'At Risk',     value: stats.at_risk,     color: '#dc2626' },
-        ] as const).map(s => {
-          // Total is not a status -- it clears the filter rather than selecting one. Sending
-          // status=total would have asked the API for a status no row can hold, emptying the table.
-          const isClearAll = s.key === 'total';
-          const active = !isClearAll && statusFilter === s.key;
-          return (
-            <button key={s.key}
-              onClick={() => applyFilter(() => setStatusFilter(isClearAll || active ? 'all' : s.key))}
-              className="text-left"
-              style={{
-                borderRadius: 12, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
-                border: 'none',
-                background: active ? `${s.color}1f` : C.pill,
-              }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{s.label}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Compose panel */}
       {composing && (
-        <div style={{ background: C.pill, border: 'none', borderRadius: 16, padding: 24, marginBottom: 24 }}>
-          <p style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 16px' }}>Compose Message</p>
-
-          {/* Cohort + Content filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-            <div style={{ flex: '1 1 180px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cohort</p>
-              <select value={msgCohort} onChange={e => { setMsgCohort(e.target.value); setMsgFormId('all'); }} style={{ ...sel, width: '100%' }}>
-                <option value="all">All Cohorts</option>
-                {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+        <Card C={C}>
+          <CardHead C={C} title="Message learners" sub="An email to every learner in the group you pick." />
+          <div className="p-5 grid gap-4">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <Label C={C}>Cohort</Label>
+                <MenuSelect field searchable label="Cohort" value={msgCohort} options={cohortOptions} onChange={v => { setMsgCohort(v); setMsgFormId('all'); }} C={C} />
+              </div>
+              <div>
+                <Label C={C}>Content</Label>
+                <MenuSelect field searchable label="Content" value={msgFormId} onChange={setMsgFormId} C={C}
+                  options={[{ value: 'all', label: 'All content' }, ...composeForms.map(f => ({ value: f.id, label: f.title }))]} />
+              </div>
             </div>
-            <div style={{ flex: '1 1 220px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Course / Content</p>
-              <select value={msgFormId} onChange={e => setMsgFormId(e.target.value)} style={{ ...sel, width: '100%' }}>
-                <option value="all">All Content</option>
-                {composeForms.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
-              </select>
+
+            <div>
+              <Label C={C}>Send to</Label>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Send to">
+                {SEGMENTS.map(s => (
+                  <button key={s.key} type="button" aria-pressed={msgSegment === s.key} onClick={() => setMsgSegment(s.key)}
+                    className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-2" style={chip(msgSegment === s.key)}>
+                    {s.label}
+                    <span className="tabular-nums" style={{ opacity: 0.8 }}>{segLoading ? '--' : segmentCount(s.key)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label C={C}>Subject</Label>
+              <input value={msgSubject} onChange={e => setMsgSubject(e.target.value)} placeholder="For example, A message from the team" className={FIELD} style={inputStyle(C)} />
+            </div>
+
+            <div>
+              <Label C={C}>Message</Label>
+              <textarea value={msgBody} onChange={e => setMsgBody(e.target.value)} rows={5} placeholder="Hi {{name}}, ..." className={`${FIELD} resize-y leading-relaxed`} style={inputStyle(C)} />
+              <Hint C={C}>Use {'{{name}}'} to add each learner&apos;s name.</Hint>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={sendBulkMessage} disabled={msgSending || !msgSubject.trim() || !msgBody.trim()} className={btnClass} style={btnStyle('pri', C)}>
+                {msgSending || segLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {msgSending ? 'Sending...' : segLoading ? 'Send message' : `Send to ${segmentCount(msgSegment)} student${segmentCount(msgSegment) !== 1 ? 's' : ''}`}
+              </button>
+              <button type="button" onClick={() => { setComposing(false); setMsgResult(null); }} className={btnClass} style={btnStyle('sec', C)}>Cancel</button>
+              {msgResult && (
+                <span role="status" className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: P.good }}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  {msgResult.sent} email{msgResult.sent !== 1 ? 's' : ''} sent
+                </span>
+              )}
             </div>
           </div>
-
-          {/* Segment selector */}
-          <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send to</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {([
-              { key: 'not_started', label: 'Not Started', color: '#6b7280' },
-              { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
-              { key: 'stalled',     label: 'Stalled',     color: '#ef4444' },
-              { key: 'failed',      label: 'Failed',      color: '#dc2626' },
-              { key: 'completed',   label: 'Completed',   color: '#22c55e' },
-              { key: 'all',         label: 'Everyone',    color: C.cta    },
-            ] as const).map(s => {
-              const count = segmentCount(s.key);
-              const active = msgSegment === s.key;
-              return (
-                <button key={s.key} onClick={() => setMsgSegment(s.key)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, border: `1px solid ${active ? s.color : C.cardBorder}`, background: active ? `${s.color}18` : 'transparent', color: active ? s.color : C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
-                  {s.label}
-                  <span style={{ fontSize: 11, background: active ? s.color : C.divider, color: active ? '#fff' : C.faint, borderRadius: 10, padding: '1px 6px' }}>{segLoading ? '--' : count}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Subject */}
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subject</p>
-            <input
-              value={msgSubject} onChange={e => setMsgSubject(e.target.value)}
-              placeholder="e.g. A message from the team"
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }}
-            />
-          </div>
-
-          {/* Body */}
-          <div style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Message <span style={{ fontWeight: 400, textTransform: 'none' }}>-- use {'{{name}}'} for personalisation</span></p>
-            <textarea
-              value={msgBody} onChange={e => setMsgBody(e.target.value)}
-              rows={5}
-              placeholder="Hi {{name}}, ..."
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' as const, lineHeight: 1.6 }}
-            />
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              onClick={sendBulkMessage}
-              disabled={msgSending || !msgSubject.trim() || !msgBody.trim()}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderRadius: 10, background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 700, border: 'none', cursor: msgSending || !msgSubject.trim() || !msgBody.trim() ? 'not-allowed' : 'pointer', opacity: msgSending || !msgSubject.trim() || !msgBody.trim() ? 0.6 : 1 }}>
-              {msgSending || segLoading ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <Send style={{ width: 14, height: 14 }} />}
-              {msgSending ? 'Sending...' : segLoading ? 'Send message' : `Send to ${segmentCount(msgSegment)} student${segmentCount(msgSegment) !== 1 ? 's' : ''}`}
-            </button>
-            <button onClick={() => { setComposing(false); setMsgResult(null); }} style={{ fontSize: 13, color: C.muted, background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
-            {msgResult && (
-              <span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>
-                <Check style={{ width: 13, height: 13, display: 'inline', marginRight: 4 }} />
-                {msgResult.sent} email{msgResult.sent !== 1 ? 's' : ''} sent
-              </span>
-            )}
-          </div>
-        </div>
+        </Card>
       )}
 
-      {/* Filters */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px' }}>
-          <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: C.faint }} />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search student or content…"
-            style={{ ...sel, paddingLeft: 30, width: '100%', boxSizing: 'border-box' as const }}
-          />
-        </div>
-        <select value={cohortFilter} onChange={e => applyFilter(() => setCohortFilter(e.target.value))} style={sel}>
-          <option value="all">All Cohorts</option>
-          {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={typeFilter} onChange={e => applyFilter(() => setTypeFilter(e.target.value))} style={sel}>
-          <option value="all">All Types</option>
-          <option value="course">Courses</option>
-          <option value="virtual_experience">Virtual Experiences</option>
-          <option value="assignment">Assignments</option>
-        </select>
-        <select value={statusFilter} onChange={e => applyFilter(() => setStatusFilter(e.target.value))} style={sel}>
-          <option value="all">All Statuses</option>
-          <option value="not_started">Not Started</option>
-          <option value="in_progress">In Progress</option>
-          <option value="stalled">Stalled (7+ days)</option>
-          <option value="failed">Failed</option>
-          <option value="completed">Completed</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      <div>
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_110px_90px] sm:grid-cols-[1fr_1fr_70px_110px_110px_90px]"
-          style={{ gap: 0, padding: '14px 4px', borderBottom: `1px solid ${C.divider}` }}>
-          {['Student', 'Content', 'Progress', 'Status', 'Last Active', ''].map((h, i) => (
-            <div key={i} className={[1, 2, 4].includes(i) ? 'hidden sm:block' : ''} style={{ fontSize: 10, fontWeight: 600, color: C.faint, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchBox value={search} onChange={setSearch} placeholder="Search learner or content" C={C} />
+        <MenuSelect fixed searchable label="Filter by cohort" value={cohortFilter} options={cohortOptions} onChange={v => applyFilter(() => setCohortFilter(v))} C={C} />
+        <MenuSelect fixed label="Filter by status" value={statusFilter} options={STATUS_OPTIONS} onChange={v => applyFilter(() => setStatusFilter(v))} C={C} />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
+          {TYPE_CHIPS.map(([id, label]) => (
+            <button key={id} type="button" aria-pressed={typeFilter === id} onClick={() => applyFilter(() => setTypeFilter(id))} className="h-8 px-3 rounded-full text-xs font-semibold" style={chip(typeFilter === id)}>
+              {label}
+            </button>
           ))}
         </div>
-
-        {loading ? (
-          <div style={{ padding: 48, textAlign: 'center' }}>
-            <Loader2 style={{ width: 24, height: 24, color: C.faint, margin: '0 auto' }} className="animate-spin" />
-          </div>
-        ) : rows.length === 0 ? (
-          <div style={{ padding: 48, textAlign: 'center', color: C.muted, fontSize: 14 }}>
-            {stats.total === 0 ? 'No students assigned to your content yet.' : 'No results match your filters.'}
-          </div>
-        ) : (
-          rows.map((row, i) => {
-            const meta = STATUS_META[row.status as keyof typeof STATUS_META];
-            const nudgeKey = `${row.studentEmail}|${row.formId}`;
-            const isNudged = nudged.has(nudgeKey);
-            // Activity-only rows are visible for reporting, but the content was not assigned to
-            // their cohort. Keep the existing messaging boundary: viewing activity does not opt a
-            // learner into cohort nudges or bulk communication.
-            const canNudge = !row.activityOnly && (row.status === 'not_started' || row.status === 'stalled' || row.status === 'in_progress' || row.status === 'failed');
-            return (
-              <div key={nudgeKey}
-                className="grid grid-cols-[1fr_110px_90px] sm:grid-cols-[1fr_1fr_70px_110px_110px_90px]"
-                style={{ gap: 0, padding: '14px 4px', borderBottom: i < rows.length - 1 ? `1px solid ${C.divider}` : 'none', alignItems: 'center' }}>
-                {/* Student */}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.studentName || '--'}</div>
-                  <div style={{ fontSize: 11, color: C.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {row.studentEmail}{row.cohortName ? ` - ${row.cohortName}` : ''}
-                  </div>
-                </div>
-                {/* Content */}
-                <div className="hidden sm:block" style={{ fontSize: 13, color: C.text, paddingRight: 8, wordBreak: 'break-word' }}>{row.formTitle}</div>
-                {/* Progress % */}
-                <div className="hidden sm:block">
-                  <span style={{ fontSize: 13, fontWeight: 700, color: row.status === 'failed' ? '#dc2626' : row.progressPct === 100 ? C.green : row.progressPct > 0 ? '#f59e0b' : C.faint }}>
-                    {row.progressPct}%
-                  </span>
-                </div>
-                {/* Status */}
-                <div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: meta.bg, color: meta.color, whiteSpace: 'nowrap' }}>
-                    <meta.Icon style={{ width: 11, height: 11 }} />
-                    {meta.label}
-                  </span>
-                </div>
-                {/* Last Active */}
-                <div className="hidden sm:block">
-                  <div style={{ fontSize: 12, color: C.faint }}>{lastActiveLabel(row)}</div>
-                  {row.deadline && row.status !== 'completed' && (
-                    <div style={{ marginTop: 3 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                        background: row.isAtRisk ? (row.daysUntilDeadline < 0 ? '#fef2f2' : '#fffbeb') : C.pill,
-                        color: row.isAtRisk ? (row.daysUntilDeadline < 0 ? '#dc2626' : '#b45309') : C.faint,
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {row.daysUntilDeadline < 0 ? '⚠ Overdue'
-                          : row.daysUntilDeadline === 0 ? '⚠ Due today'
-                          : `${row.daysUntilDeadline}d left`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {/* Nudge */}
-                <div>
-                  {canNudge && (
-                    <button
-                      onClick={() => sendNudge(row)}
-                      disabled={nudging === nudgeKey || isNudged}
-                      title={isNudged ? 'Nudge sent' : row.status === 'not_started' ? 'Encourage to start' : 'Encourage to continue'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 6, border: `1px solid ${isNudged ? 'rgba(34,197,94,0.3)' : C.cardBorder}`, background: 'transparent', color: isNudged ? '#22c55e' : C.muted, cursor: nudging === nudgeKey || isNudged ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-                      {nudging === nudgeKey
-                        ? <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" />
-                        : isNudged
-                          ? <Check style={{ width: 11, height: 11 }} />
-                          : <Send style={{ width: 11, height: 11 }} />}
-                      {isNudged ? 'Sent' : 'Nudge'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
       </div>
 
-      {total > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
-          <div style={{ fontSize: 12, color: C.faint }}>
-            Showing {firstShown}-{lastShown} of {total} record{total !== 1 ? 's' : ''}
+      <Card C={C} className="overflow-hidden">
+        {loading ? (
+          <div className="py-12 grid place-items-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }} /></div>
+        ) : rows.length === 0 ? (
+          <Empty C={C} title={stats.total === 0 ? 'No students assigned to your content yet.' : 'No results match your filters.'} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead>
+                <tr>{['Learner', 'Content', 'Progress', 'Status', 'Last active', ''].map((h, i) => <th key={i} className="text-left px-4 py-3 text-xs font-semibold whitespace-nowrap" style={{ color: C.faint }}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {rows.map(row => {
+                  const meta = STATUS_META[row.status] ?? STATUS_META.not_started;
+                  return (
+                    <tr key={keyOf(row)} style={{ borderTop: `1px solid ${C.divider}` }}>
+                      <td className="px-4 py-3 max-w-[260px]">
+                        <p className="font-semibold truncate" style={{ color: C.text }}>{row.studentName || '--'}</p>
+                        <p className="text-xs truncate" style={{ color: C.muted }}>{row.studentEmail}{row.cohortName ? ` - ${row.cohortName}` : ''}</p>
+                      </td>
+                      <td className="px-4 py-3 break-words" style={{ color: C.text }}>{row.formTitle}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24"><Bar parts={[{ pct: row.progressPct, color: row.status === 'failed' ? P.bad : P.good }]} C={C} /></div>
+                          <span className="text-xs tabular-nums" style={{ color: C.muted }}>{row.progressPct}%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><Pill tone={meta.tone} dot={row.status === 'completed'} C={C}>{meta.label}</Pill></td>
+                      <td className="px-4 py-3">
+                        <div className="grid gap-1 justify-items-start">
+                          <span className="text-xs whitespace-nowrap" style={{ color: C.muted }}>{lastActiveLabel(row)}</span>
+                          {deadlineTag(row)}
+                        </div>
+                      </td>
+                      <td className="pl-2 pr-5 py-3 text-right whitespace-nowrap">
+                        {nudged.has(keyOf(row))
+                          ? <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: P.good }}><Check className="w-3.5 h-3.5" /> Nudged</span>
+                          : rowMenu(row)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+        )}
+      </Card>
+
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs" style={{ color: C.muted }}>Showing {firstShown}-{lastShown} of {total} record{total !== 1 ? 's' : ''}</p>
           {pageCount > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1 || loading}
-                style={pageBtn(page <= 1 || loading)}>
-                <ChevronLeft style={{ width: 14, height: 14 }} />
-                Previous
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1 || loading} className={btnSmClass} style={btnStyle('sec', C)}>
+                <ChevronLeft className="w-4 h-4" /> Previous
               </button>
-              <span style={{ fontSize: 12, color: C.muted, minWidth: 90, textAlign: 'center' }}>Page {page} of {pageCount}</span>
-              <button
-                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                disabled={page >= pageCount || loading}
-                style={pageBtn(page >= pageCount || loading)}>
-                Next
-                <ChevronRight style={{ width: 14, height: 14 }} />
+              <span className="text-xs min-w-[90px] text-center" style={{ color: C.muted }}>Page {page} of {pageCount}</span>
+              <button type="button" onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page >= pageCount || loading} className={btnSmClass} style={btnStyle('sec', C)}>
+                Next <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
         </div>
       )}
-      </div>
-      </div>
+
+      {menu && (
+        <FloatingMenu position={menu.position} label="learner actions" onClose={() => setMenu(null)} C={C}
+          items={[{
+            label: 'Nudge',
+            sub: menu.row.status === 'not_started' ? 'Encourage them to start' : 'Encourage them to continue',
+            icon: Send,
+            onClick: () => { const row = menu.row; setMenu(null); sendNudge(row); },
+          }]} />
+      )}
     </div>
   );
 }
