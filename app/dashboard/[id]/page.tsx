@@ -2583,7 +2583,7 @@ export default function FormDetailPage() {
   const type = getFormType(form.config);
 
   return (
-    <main className="admin-focus min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
+    <main className="min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
       {/* The course editor provides its own focused studio header and actions. */}
 
       {/* -- Top tab navigation with a full-width content workspace -- */}
