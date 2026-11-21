@@ -90,3 +90,23 @@ export function UnsavedChangesDialog({ creating, busy, canSave, onDiscard, onKee
     </Modal>
   );
 }
+
+/** Details in a panel from the right: a title, one line under it, and the content. */
+export function SidePanel({ title, sub, onClose, children, C }: { title: string; sub: string; onClose: () => void; children: ReactNode; C: ThemeColors }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end" style={{ background: 'rgba(4,8,20,0.45)' }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-xl h-full overflow-y-auto" style={{ background: C.card }}>
+        <div className="flex items-start gap-3 px-6 py-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[22px] leading-7 font-semibold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
+            <p className="text-sm" style={{ color: C.muted }}>{sub}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
