@@ -1,20 +1,25 @@
 'use client';
 
-// Overview (dashboard home) section, extracted verbatim from app/student/page.tsx.
-// OverviewSection is exported; inProgressProgress and InProgressRow are file-internal.
+// The student dashboard's home: statistics, work in progress, what is due soon, and
+// recommendations.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C } from '@/lib/theme';
-import { useScrollRow } from '@/lib/use-scroll-row';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
-import { isIndividualCohort } from '@/lib/cohort-kind';
+import { CarouselSkeleton, EmptyState, stripSqlSolutions } from '@/components/student/shared';
+import { deadlineTag } from '@/components/student/learning-card';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
+import { cleanList } from '@/lib/catalogue-preview-facts';
+
+/** The primary blue, for the Resume button and the progress it continues. */
+const BLUE = DARK_C.cta;
+import { DISPLAY_FONT, Pill, palette, plural } from '@/components/dashboard/subscriptions/ui';
 import type { SectionId } from '@/components/student/nav';
 import {
-  BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, TrendingUp,
+  Video, Briefcase, CheckCircle,
   Zap, Award, Medal, ClipboardList, CalendarDays, RefreshCw,
 } from 'lucide-react';
 
@@ -34,76 +39,11 @@ function inProgressProgress(form: any, attempt: any, isProject: boolean) {
   return { done: counts.done, total: counts.total, pct: courseProgressPct(questions, answers) };
 }
 
-// Scroll buttons for a card row, shown only when the row has more cards than fit.
-function RowArrows({ row, C }: { row: { overflows: boolean; scrollBy: (dir: number) => void }; C: typeof LIGHT_C }) {
-  if (!row.overflows) return null;
-  const btn = 'w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70';
-  return (
-    <div className="flex items-center gap-2 flex-shrink-0">
-      <button onClick={() => row.scrollBy(-1)} aria-label="Scroll left" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-        <ChevronLeft className="w-4 h-4"/>
-      </button>
-      <button onClick={() => row.scrollBy(1)} aria-label="Scroll right" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-        <ChevronRight className="w-4 h-4"/>
-      </button>
-    </div>
-  );
-}
-
-// "In progress" carousel
-function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Record<string, Date | null>; C: typeof LIGHT_C }) {
-  const { attach: rowRef, ...row } = useScrollRow();
-
-  return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>In progress</h3>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>Pick up where you left off</p>
-        </div>
-        <RowArrows row={row} C={C} />
-      </div>
-
-      <div ref={rowRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {items.map(({ form, attempt, isProject }: any, idx: number) => {
-          const { pct } = inProgressProgress(form, attempt, isProject);
-          const cover = form.config?.coverImage;
-          const href  = `/${form.slug || form.id}`;
-          // The first card is the likely LCP element on the overview landing:
-          // prioritize it and skip lazy-loading; lazy-load the rest of the row.
-          const isLcp = idx === 0;
-          return (
-            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
-              <a href={href} target="_blank" rel="noreferrer" className="block transition-transform hover:-translate-y-0.5">
-                <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
-                  <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}</div>
-                  {cover && <img src={resolveCoverUrl(cover)} alt="" loading={isLcp ? undefined : 'lazy'} fetchPriority={isLcp ? 'high' : undefined} className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                  {(() => {
-                    // The deadline when there is one, as Upcoming showed it; otherwise "In progress".
-                    const dl = deadlines[form.id];
-                    const days = dl ? Math.ceil((dl.getTime() - Date.now()) / 86400000) : null;
-                    const label = days === null ? 'In progress' : days < 0 ? 'Overdue' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
-                    const bg = days === null ? '#22c55e' : days < 0 ? '#D93025' : days <= 3 ? '#ea580c' : '#16a34a';
-                    return <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: bg, color: '#ffffff' }}>{label}</span>;
-                  })()}
-                </div>
-                <p className="text-xs mt-2" style={{ color: C.faint }}>{isProject ? 'Virtual Experience' : 'Course'}</p>
-                <p className="text-base font-bold leading-snug mt-0.5 mb-3 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
-                <ProgressBar value={pct} color="#22c55e"/>
-                <p className="text-[11px] mt-1" style={{ color: C.faint }}>{pct}% complete</p>
-              </a>
-            </div>
-          );
-        })}
-      </div>
-
-    </section>
-  );
-}
-
-export function OverviewSection({ user, userEmail, C, onNavigate }: {
-  user: any; userEmail: string; C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
+export function OverviewSection({ user, name, C, onNavigate }: {
+  user: any;
+  /** The learner's name, for the greeting. */
+  name: string | null;
+  C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
 }) {
   const [loading, setLoading]               = useState(true);
   const [loadError, setLoadError]           = useState(false);
@@ -116,20 +56,12 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   const [totalXP, setTotalXP] = useState(0);
   const [gpAttempts, setGpAttempts]         = useState<Record<string, any>>({});
   const [deadlines, setDeadlines]           = useState<Record<string, Date | null>>({});
-  const [certs, setCerts]                   = useState<any[]>([]);
-  const [myRank, setMyRank]                 = useState<number | null>(null);
-  const [totalInCohort, setTotalInCohort]   = useState(0);
+  const [certCount, setCertCount]           = useState(0);
   const [events, setEvents] = useState<any[]>([]);
   const [gaps, setGaps]                     = useState<any[]>([]);
-  const [assignmentStats, setAssignmentStats] = useState<{ total: number; submitted: number; graded: number } | null>(null);
   const [assignmentItems, setAssignmentItems] = useState<any[]>([]);
   const [refreshKey, setRefreshKey]           = useState(0);
-  const [allBadges, setAllBadges]             = useState<{ id: string; name: string; description: string; icon: string; color: string; image_url: string | null }[]>([]);
-  const [earnedBadgeIds, setEarnedBadgeIds]   = useState<Set<string>>(new Set());
-  const [streak, setStreak]                   = useState<{ current_streak: number; longest_streak: number } | null>(null);
-  const { attach: recRef, ...recRow } = useScrollRow();
-  const { attach: statRef, ...statRow } = useScrollRow();
-  const { attach: upRef, ...upRow } = useScrollRow();
+  const [badgeCount, setBadgeCount]           = useState(0);
 
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') setRefreshKey(k => k + 1); };
@@ -137,40 +69,39 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // The first load shows the skeleton; a refresh (coming back to the tab, Try again) swaps the
+  // figures in place instead of blanking the page.
+  const loadedOnce = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      if (!loadedOnce.current) setLoading(true);
       setLoadError(false);
       try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
 
       const { data: student, error: studentError } = await supabase
-        .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', user.id).single();
+        .from('students').select('cohort_id').eq('id', user.id).single();
       if (studentError) throw studentError;
       const cohort = student?.cohort_id ?? null;
-      // A synthetic individual-enrollment cohort (migration 165) has no real peer
-      // group, so its "leaderboard" is just the one student -- skip fetching it.
-      // Courses/VEs/events/assignments stay keyed off `cohort` as-is: they still
-      // correctly show whatever's actually tagged into that cohort's cohort_ids
-      // (the individually-purchased course), and naturally come back empty for
-      // content types individual enrollment never tags (events, VEs, assignments).
-      const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
       // Fetch the student's group memberships so we can include group assignments below
       const { data: gmRows, error: groupMembershipError } = await supabase.from('group_members').select('group_id').eq('student_id', user.id);
       if (groupMembershipError) throw groupMembershipError;
       const myGroupIds = (gmRows ?? []).map((r: any) => r.group_id as string);
 
-      const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignCrsRes, cohortAssignVeRes, certsData, lbData, eventsRes, gapsData, assignmentsRes, asmSubsRes, allBadgesRes, earnedBadgesRes, streakRes, groupAssignmentsRes, groupSubsRes] =
+      // What the cohort can open, light: titles, covers and deadlines for Upcoming, and the tags,
+      // level and tools the Recommended cards show. The lesson and mission content needed for
+      // progress is read below, only for work actually started.
+      const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignRes, certsData, eventsRes, gapsData, assignmentsRes, asmSubsRes, earnedBadgesRes, groupAssignmentsRes, groupSubsRes, xpRes] =
         await Promise.all([
           cohort
-            ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days, difficulty, tags, tools').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('courses').select('id, title, slug, cover_image, deadline_days, difficulty, tags, tools').eq('available_to_everyone', true).eq('status', 'published'),
           cohort
-            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').eq('available_to_everyone', true).eq('status', 'published'),
           supabase.from('course_attempts')
             .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
             .eq('student_id', user.id).order('updated_at', { ascending: false }),
@@ -178,17 +109,10 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
             .select('ve_id, completed_at, progress, updated_at')
             .eq('student_id', user.id),
           cohort
-            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).eq('content_type', 'course')
-            : Promise.resolve({ data: [] as any[] }),
-          cohort
-            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).eq('content_type', 'virtual_experience')
+            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).in('content_type', ['course', 'virtual_experience'])
             : Promise.resolve({ data: [] as any[] }),
           // By student id, not the signed-in user, so view-as shows the student's certificates.
-          supabase.from('certificates').select('id').eq('student_id', user.id).eq('revoked', false),
-          cohort && token && !inIndividualCohort
-            ? fetch(`/api/leaderboard?cohort_id=${encodeURIComponent(cohort)}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.json()).catch(() => ({ rankings: [] }))
-            : Promise.resolve({ rankings: [] }),
+          supabase.from('certificates').select('id', { count: 'exact', head: true }).eq('student_id', user.id).eq('revoked', false),
           cohort
             ? supabase.from('events').select('id, title, slug, event_date, event_time, cover_image').contains('cohort_ids', [cohort]).eq('status', 'published')
             : Promise.resolve({ data: [] as any[] }),
@@ -204,15 +128,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           supabase.from('assignment_submissions')
             .select('assignment_id, status')
             .eq('student_id', user.id),
-          // All badge definitions (public)
-          supabase.from('badges').select('id, name, description, icon, color, image_url').order('id'),
-          // Earned badge IDs for this student
-          supabase.from('student_badges').select('badge_id').eq('student_id', user.id),
-          // Streak
-          supabase.from('student_streaks')
-            .select('current_streak, longest_streak')
-            .eq('student_id', user.id)
-            .maybeSingle(),
+          supabase.from('student_badges').select('badge_id', { count: 'exact', head: true }).eq('student_id', user.id),
           // Assignments targeting the student's groups
           myGroupIds.length > 0
             ? supabase.from('assignments').select('id, title, deadline_date, cover_image').overlaps('group_ids', myGroupIds).eq('status', 'published')
@@ -221,19 +137,11 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           myGroupIds.length > 0
             ? supabase.from('assignment_submissions').select('assignment_id, status, participants').in('group_id', myGroupIds)
             : Promise.resolve({ data: [] as any[] }),
+          // Read from student_xp rather than summed here, so this figure and the leaderboard agree.
+          supabase.from('student_xp').select('total_xp').eq('student_id', user.id).maybeSingle(),
         ]);
 
       if (cancelled) return;
-
-      // Normalize courses and VEs into a unified shape with config reconstruction
-      const normalizedCourses = (courseRes.data ?? []).map((c: any) => ({
-        ...c, content_type: 'course',
-        config: { isCourse: true, title: c.title, coverImage: c.cover_image, questions: stripSqlSolutions(c.questions ?? []), deadline_days: c.deadline_days, passmark: c.passmark, description: c.description ?? '', learnOutcomes: c.learn_outcomes ?? [] },
-      }));
-      const normalizedVEs = (veRes.data ?? []).map((ve: any) => ({
-        ...ve, content_type: 'virtual_experience',
-        config: { isVirtualExperience: true, title: ve.title, coverImage: ve.cover_image, modules: ve.modules ?? [], deadline_days: ve.deadline_days },
-      }));
 
       // Deduplicate course attempts: passed+completed always wins over in-progress; higher score among completed.
       const caMap: Record<string, any> = {};
@@ -249,11 +157,39 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const gpMap: Record<string, any> = {};
       for (const a of gpAttRes.data ?? []) gpMap[a.ve_id] = a;
 
+      // The content behind started, unfinished work, wherever it was reached from: the cohort, a
+      // learning path, or open access. A course taken through a path is not assigned to the cohort
+      // itself, so the list above alone left it out of In progress.
+      const openCourseIds = Object.values(caMap).filter((a: any) => !a.completed_at).map((a: any) => a.course_id);
+      const openVeIds = Object.values(gpMap).filter((a: any) => !a.completed_at).map((a: any) => a.ve_id);
+      const [startedCourses, startedVes] = await Promise.all([
+        openCourseIds.length
+          ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days, questions').in('id', openCourseIds)
+          : Promise.resolve({ data: [] as any[] }),
+        openVeIds.length
+          ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, modules').in('id', openVeIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      if (cancelled) return;
+
+      // One list of courses and experiences: the started ones carry their content, the rest only
+      // what Upcoming needs.
+      const byId = new Map<string, any>();
+      const add = (row: any, type: 'course' | 'virtual_experience') => byId.set(row.id, {
+        ...byId.get(row.id), ...row, content_type: type,
+        config: type === 'course'
+          ? { title: row.title, coverImage: row.cover_image, questions: stripSqlSolutions(row.questions ?? byId.get(row.id)?.questions ?? []) }
+          : { title: row.title, coverImage: row.cover_image, modules: row.modules ?? byId.get(row.id)?.modules ?? [] },
+      });
+      for (const row of courseRes.data ?? []) add(row, 'course');
+      for (const row of startedCourses.data ?? []) add(row, 'course');
+      for (const row of veRes.data ?? []) add(row, 'virtual_experience');
+      for (const row of startedVes.data ?? []) add(row, 'virtual_experience');
+      const allLearning = [...byId.values()];
+
       // Deadline map
       const assignedAtMap: Record<string, string> = {};
-      for (const ca of cohortAssignCrsRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
-      for (const ca of cohortAssignVeRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
-      const allLearning = [...normalizedCourses, ...normalizedVEs];
+      for (const ca of cohortAssignRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
       const dlMap: Record<string, Date | null> = {};
       for (const f of allLearning) {
         const dl = f.deadline_days;
@@ -261,65 +197,32 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
         dlMap[f.id] = aa && dl ? new Date(new Date(aa).getTime() + Number(dl) * 86400000) : null;
       }
 
-      const isProjForm = (f: any) =>
-        f.content_type === 'guided_project' || f.content_type === 'virtual_experience' ||
-        f.config?.isGuidedProject || f.config?.isVirtualExperience;
-      const isCrsForm  = (f: any) => f.content_type === 'course' || f.config?.isCourse;
-
-      // Leaderboard rank
-      const rankings: any[] = (lbData as any)?.rankings ?? [];
-      const myEntry = rankings.find((r: any) => r.isMe);
-
       // Merge cohort assignments + group assignments, deduplicate by id
-      const cohortAsmRows = (assignmentsRes as any)?.data ?? [];
-      const groupAsmRows  = (groupAssignmentsRes as any)?.data ?? [];
       const asmById = new Map<string, any>();
-      for (const a of [...cohortAsmRows, ...groupAsmRows]) asmById.set(a.id, a);
+      for (const a of [...((assignmentsRes as any)?.data ?? []), ...((groupAssignmentsRes as any)?.data ?? [])]) asmById.set(a.id, a);
       const asmRows = Array.from(asmById.values());
 
       // Merge individual submissions + group submissions (individual wins on conflict)
-      const individualSubRows = (asmSubsRes as any)?.data ?? [];
-      const groupSubRowsMerge = (groupSubsRes as any)?.data ?? [];
-      const subById = new Map<string, any>();
-      for (const s of [
-        ...groupSubRowsMerge.filter((s: any) => Array.isArray(s.participants) && s.participants.includes(user.id)),
-        ...individualSubRows,
-      ]) subById.set(s.assignment_id, s);
-      const subRows = Array.from(subById.values());
-      const subMap  = new Map(subRows.map((s: any) => [s.assignment_id, s.status]));
+      const subMap = new Map<string, string>();
+      for (const sub of [
+        ...((groupSubsRes as any)?.data ?? []).filter((g: any) => Array.isArray(g.participants) && g.participants.includes(user.id)),
+        ...((asmSubsRes as any)?.data ?? []),
+      ]) subMap.set(sub.assignment_id, sub.status);
       for (const a of asmRows) {
         if (a.deadline_date) dlMap[a.id] = new Date(a.deadline_date);
       }
 
-      const { data: xpRow } = await supabase
-        .from('student_xp').select('total_xp').eq('student_id', user.id).maybeSingle();
-      setTotalXP((xpRow as any)?.total_xp ?? 0);
-
+      setTotalXP((xpRes as any)?.data?.total_xp ?? 0);
       setCourses(allLearning);
       setCourseAttempts(caMap);
       setGpAttempts(gpMap);
       setDeadlines(dlMap);
-      setCerts(certsData.data ?? []);
-      setMyRank(myEntry?.rank ?? null);
-      setTotalInCohort(rankings.length);
+      setCertCount((certsData as any)?.count ?? 0);
       setEvents((eventsRes as any)?.data ?? []);
       setGaps((gapsData as any)?.gaps ?? []);
-      setAssignmentStats({
-        total:     asmRows.length,
-        submitted: subRows.filter((s: any) => ['submitted', 'graded'].includes(s.status)).length,
-        graded:    subRows.filter((s: any) => s.status === 'graded').length,
-      });
-
-      // Store assignments in state so deadlines panel can render them
       setAssignmentItems(asmRows.map((a: any) => ({ ...a, _subStatus: subMap.get(a.id) ?? null })));
-
-      // Badges
-      setAllBadges((allBadgesRes as any)?.data ?? []);
-      setEarnedBadgeIds(new Set(((earnedBadgesRes as any)?.data ?? []).map((b: any) => b.badge_id)));
-
-      // Streak
-      const streakData = (streakRes as any)?.data;
-      setStreak(streakData ? { current_streak: streakData.current_streak, longest_streak: streakData.longest_streak } : null);
+      setBadgeCount((earnedBadgesRes as any)?.count ?? 0);
+      loadedOnce.current = true;
 
       } catch {
         if (!cancelled) setLoadError(true);
@@ -330,11 +233,9 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, userEmail, refreshKey]);
+  }, [user.id, refreshKey]);
 
-  const isProjForm = (f: any) =>
-    f.content_type === 'guided_project' || f.content_type === 'virtual_experience' ||
-    f.config?.isGuidedProject || f.config?.isVirtualExperience;
+  const isProjForm = (f: any) => f.content_type === 'virtual_experience';
 
   const now = useMemo(() => Date.now(), []);
 
@@ -370,7 +271,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     .sort((a, b) => b.ts - a.ts);
 
   // Deadlines in the next 14 days (excluding already-completed)
-  const upcomingDeadlines: Array<{ title: string; daysLeft: number; type: 'course' | 'project' | 'assignment' | 'event'; cover?: string | null }> = [
+  const upcomingDeadlines: Array<{ title: string; daysLeft: number; date: Date; type: 'course' | 'project' | 'assignment' | 'event'; cover?: string | null }> = [
     // Courses + VEs
     ...Object.entries(deadlines)
       .filter(([formId]) => courses.some(f => f.id === formId))
@@ -384,7 +285,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
         if (a || isEffectivelyDone(form, a, proj)) return null;
         const daysLeft = Math.ceil((dl.getTime() - now) / 86400000);
         if (daysLeft > 14) return null;
-        return { title: form.title, daysLeft, type: proj ? 'project' : 'course', cover: form.config?.coverImage ?? form.cover_image ?? null } as const;
+        return { title: form.title, daysLeft, date: dl, type: proj ? 'project' : 'course', cover: form.config?.coverImage ?? form.cover_image ?? null } as const;
       })
       .filter(Boolean) as any[],
     // Assignments
@@ -399,6 +300,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       .map(a => ({
         title: a.title,
         daysLeft: Math.ceil((new Date(a.deadline_date).getTime() - now) / 86400000),
+        date: new Date(a.deadline_date),
         type: 'assignment' as const,
         cover: a.cover_image ?? null,
       })),
@@ -410,7 +312,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
         if (Number.isNaN(d.getTime())) return null;
         const daysLeft = Math.ceil((d.getTime() - now) / 86400000);
         if (daysLeft < 0 || daysLeft > 14) return null;
-        return { title: ev.title, daysLeft, type: 'event' as const, cover: ev.cover_image ?? null };
+        return { title: ev.title, daysLeft, date: d, type: 'event' as const, cover: ev.cover_image ?? null };
       })
       .filter(Boolean) as any[],
   ].sort((a: any, b: any) => a.daysLeft - b.daysLeft);
@@ -432,117 +334,186 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     />
   );
 
+  const firstName = (name ?? '').trim().split(/\s+/)[0];
+  const dueThisWeek = upcomingDeadlines.filter(item => item.daysLeft <= 7).length;
+  const cardBox = 'rounded-2xl p-5 sm:p-6';
+  const sectionTitle = 'text-[22px] leading-7 font-bold';
+  const seeAll = (label: string, to: SectionId) => (
+    <button type="button" onClick={() => onNavigate(to)} className="flex-shrink-0 text-sm font-semibold hover:underline" style={{ color: C.text }}>{label}</button>
+  );
+  const typeIcon = { assignment: ClipboardList, project: Briefcase, event: CalendarDays, course: Video } as const;
+  const typeName = { assignment: 'Assignment', project: 'Virtual experience', event: 'Event', course: 'Course' } as const;
+
   return (
-    <div className="space-y-4 lg:space-y-6">
+    <div className="flex flex-col gap-6">
+      {/* Greeting, and how much is due this week. */}
+      <div>
+        <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+          {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: C.muted }}>
+          {dueThisWeek ? `${plural(dueThisWeek, 'thing')} coming up in the next 7 days` : 'Nothing coming up in the next 7 days'}
+        </p>
+      </div>
 
-      {/* Statistics carousel */}
-      <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Statistics</h3>
-          <RowArrows row={statRow} C={C} />
-        </div>
+      {/* Four tiles, each opening its section. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {([
+          { icon: Zap,         value: totalXP.toLocaleString(), label: 'XP earned',         nav: 'badges' },
+          { icon: CheckCircle, value: completedCount,           label: 'Courses completed', nav: 'courses' },
+          { icon: Award,       value: certCount,                label: 'Certificates',      nav: 'certificates' },
+          { icon: Medal,       value: badgeCount,               label: 'Badges',            nav: 'badges' },
+        ] as const).map(({ icon: Icon, value, label, nav }) => (
+          <button key={label} type="button" onClick={() => onNavigate(nav as SectionId)}
+            className="flex items-start justify-between gap-3 rounded-2xl p-5 text-left transition-shadow hover:shadow-md" style={{ background: C.card }}>
+            <span className="min-w-0">
+              <span className="block text-[28px] leading-9 font-bold tabular-nums" style={{ color: C.text }}>{value}</span>
+              <span className="mt-1 block text-sm" style={{ color: C.muted }}>{label}</span>
+            </span>
+            <Icon className="h-5 w-5 flex-shrink-0" style={{ color: C.faint }} />
+          </button>
+        ))}
+      </div>
 
-        <div ref={statRef} className="flex gap-5 overflow-x-auto pb-1 mt-4 snap-x"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {([
-            { icon: Zap,         color: '#eab308', bg: 'rgba(234,179,8,0.12)',  value: totalXP.toLocaleString(), label: 'XP earned',        nav: 'badges'       },
-            { icon: CheckCircle, color: '#16a34a', bg: 'rgba(22,163,74,0.12)',  value: completedCount,           label: 'Courses completed', nav: 'courses'      },
-            { icon: Award,       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', value: certs.length,             label: 'Certificates',      nav: 'certificates' },
-            { icon: Medal,       color: '#14b8a6', bg: 'rgba(20,184,166,0.12)', value: earnedBadgeIds.size,      label: 'Badges',            nav: 'badges'       },
-          ] as const).map(({ icon: Icon, color, bg, value, label, nav }) => (
-            <button key={label} onClick={() => onNavigate(nav as SectionId)}
-              className="flex-shrink-0 w-[180px] snap-start flex items-center gap-3 text-left transition-opacity hover:opacity-80">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: bg }}>
-                <Icon className="w-5 h-5" style={{ color }}/>
-              </div>
-              <div className="min-w-0">
-                <div className="text-2xl font-black tabular-nums leading-none" style={{ color: C.text }}>{value}</div>
-                <div className="text-[11px] font-medium mt-0.5 truncate" style={{ color: C.muted }}>{label}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* In Progress carousel */}
-      {inProgressItems.length > 0 && <InProgressRow items={inProgressItems} deadlines={deadlines} C={C} />}
-
-      {/* Upcoming -- deadlines + events, carousel */}
-      <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Upcoming</h3>
-          <RowArrows row={upRow} C={C} />
-        </div>
-
-        {upcomingDeadlines.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10">
-            <CheckCircle className="w-8 h-8 opacity-30" style={{ color: '#16a34a' }}/>
-            <p className="text-sm font-semibold" style={{ color: C.text }}>All clear!</p>
-            <p className="text-xs" style={{ color: C.faint }}>No deadlines or events in the next 14 days.</p>
+      {/* Side by side only from 1280px: with the menu open, a 1024px screen left In progress too
+          narrow for its cards, so below that Upcoming goes underneath. */}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        {/* In progress: each item its own white card, picture on the left, the most recent first. */}
+        <section>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className={sectionTitle} style={{ color: C.text }}>In progress</h2>
+            {inProgressItems.length > 4 && seeAll(`See all ${inProgressItems.length}`, 'courses')}
           </div>
-        ) : (
-          <div ref={upRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {upcomingDeadlines.map(({ title, daysLeft, type, cover }, idx) => {
-              const col = daysLeft < 0 ? '#ef4444' : daysLeft <= 3 ? '#f59e0b' : daysLeft <= 7 ? '#f97316' : '#16a34a';
-              const lbl = daysLeft < 0 ? 'Overdue' : daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft} days`;
-              const Icon = type === 'assignment' ? ClipboardList : type === 'project' ? Briefcase : type === 'event' ? CalendarDays : BookOpen;
-              const typeLabel = type === 'assignment' ? 'Assignment' : type === 'project' ? 'Project' : type === 'event' ? 'Event' : 'Course';
-              return (
-                <div key={`${type}-${title}-${idx}`} className="flex-shrink-0 w-[210px] snap-start">
-                  <div className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center" style={{ background: `${col}14` }}>
-                    <Icon className="w-10 h-10" style={{ color: col }}/>
-                    {cover && <img src={resolveCoverUrl(cover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                    <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: col, color: '#ffffff' }}>{lbl}</span>
-                  </div>
-                  <p className="text-xs mt-2" style={{ color: C.faint }}>{typeLabel}</p>
-                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{title}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Recommended for you -- last on page */}
-      {gaps.length > 0 && (
-        <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <TrendingUp className="w-5 h-5 flex-shrink-0" style={{ color: C.green }}/>
-              <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>Recommended for you</h3>
+          {inProgressItems.length === 0 ? (
+            <div className="mt-4 flex flex-col items-start gap-3 rounded-2xl p-6" style={{ background: C.card }}>
+              <p className="text-sm" style={{ color: C.muted }}>Nothing in progress yet.</p>
+              <button type="button" onClick={() => onNavigate('explore')} className="rounded-xl px-4 py-2 text-sm font-semibold"
+                style={{ background: C.cta, color: C.ctaText }}>Explore courses</button>
             </div>
-            <RowArrows row={recRow} C={C} />
-          </div>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>Topics you haven&apos;t explored yet</p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-4">
+              {inProgressItems.slice(0, 4).map(({ form, attempt, isProject }: any) => {
+                const { pct } = inProgressProgress(form, attempt, isProject);
+                const cover = form.config?.coverImage;
+                const tag = deadlineTag(deadlines[form.id], false);
+                return (
+                  <a key={form.id} href={`/${form.slug || form.id}`}
+                    className="group flex items-stretch gap-4 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:gap-5"
+                    style={{ background: C.card, boxShadow: '0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.18)' }}>
+                    {/* The picture inset in the card, its own rounded corners, filling the card's height so
+                        the white around it is the same on every side. */}
+                    <div className="relative w-24 flex-shrink-0 overflow-hidden rounded-lg sm:min-h-[90px] sm:w-[160px] sm:rounded-xl" style={{ background: C.pill }}>
+                      <div className="absolute inset-0 grid place-items-center">
+                        {isProject ? <Briefcase className="h-6 w-6" style={{ color: C.faint }} /> : <Video className="h-6 w-6" style={{ color: C.faint }} />}
+                      </div>
+                      {cover && <img src={resolveCoverUrl(cover)} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={e => (e.currentTarget.style.display = 'none')} />}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold" style={{ color: C.muted }}>{isProject ? 'Virtual experience' : 'Course'}</span>
+                        {tag && <Pill tone={tag.tone === 'red' ? 'bad' : tag.tone === 'amber' ? 'warn' : 'mute'} C={C}>{tag.label}</Pill>}
+                      </div>
+                      <p className="mt-1 truncate text-base leading-6 font-bold sm:text-lg" title={form.title} style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{form.title}</p>
+                      {/* Progress, then the action at the end of the same line, so the title has the
+                          card's whole width. */}
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="h-2 max-w-[280px] flex-1 overflow-hidden rounded-full" style={{ background: C.pill }}>
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: BLUE }} />
+                        </div>
+                        <span className="text-xs font-semibold tabular-nums whitespace-nowrap" style={{ color: C.text }}>{pct}%<span className="hidden sm:inline"> complete</span></span>
+                        <span className="ml-auto inline-flex h-9 flex-shrink-0 items-center rounded-full px-5 text-sm font-semibold transition-opacity group-hover:opacity-90"
+                          style={{ background: BLUE, color: '#ffffff' }}>
+                          Resume
+                        </span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-          <div ref={recRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {gaps.map((gap: any) => {
+        {/* Upcoming: a flat list, soonest first. */}
+        <section className={cardBox} style={{ background: C.card }}>
+          <h2 className={sectionTitle} style={{ color: C.text }}>Upcoming</h2>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>Next 14 days</p>
+          {upcomingDeadlines.length === 0 ? (
+            <p className="py-6 text-sm" style={{ color: C.muted }}>Nothing due in the next 14 days.</p>
+          ) : (
+            // A timeline: the date on the left, a dot on the line for each item, soonest first. The
+            // dot's colour is how close it is: red overdue, amber within three days, grey after.
+            <ol className="mt-4">
+              {upcomingDeadlines.map((item, idx) => {
+                const Icon = typeIcon[item.type];
+                const when = item.daysLeft < 0 ? 'Overdue' : item.daysLeft === 0 ? 'Today' : item.daysLeft === 1 ? 'Tomorrow' : `In ${item.daysLeft} days`;
+                const P = palette(C);
+                const dot = item.daysLeft < 0 ? P.bad : item.daysLeft <= 3 ? P.warn : C.faint;
+                const last = idx === upcomingDeadlines.length - 1;
+                return (
+                  <li key={`${item.type}-${item.title}-${idx}`} className="flex gap-3">
+                    <div className="w-11 flex-shrink-0 pt-0.5 text-right">
+                      <p className="text-base leading-5 font-bold tabular-nums" style={{ color: C.text }}>{item.date.getDate()}</p>
+                      <p className="text-xs" style={{ color: C.muted }}>{item.date.toLocaleDateString('en-GB', { month: 'short' })}</p>
+                    </div>
+                    {/* A ring on a dashed line; the line runs from this ring down to the next. */}
+                    <div className="relative flex w-4 flex-shrink-0 justify-center">
+                      <span className="relative z-10 mt-1 grid h-4 w-4 place-items-center rounded-full" style={{ background: C.card, boxShadow: `inset 0 0 0 2px ${dot}` }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+                      </span>
+                      {!last && <span className="absolute bottom-[-4px] top-6 border-l-2 border-dashed opacity-50" style={{ borderColor: C.faint }} />}
+                    </div>
+                    <div className={`min-w-0 flex-1 ${last ? '' : 'pb-5'}`}>
+                      <p className="text-sm font-semibold leading-5" style={{ color: C.text }}>{item.title}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
+                        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>{typeName[item.type]}, <span style={{ color: item.daysLeft <= 3 ? dot : C.muted, fontWeight: item.daysLeft <= 3 ? 600 : 400 }}>{when.charAt(0).toLowerCase() + when.slice(1)}</span></span>
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      {/* Recommended for you: each its own white card, as on the landing page. */}
+      {gaps.length > 0 && (
+        <section className="defer-render">
+          <h2 className={sectionTitle} style={{ color: C.text }}>Recommended for you</h2>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>Topics you have not explored yet</p>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+            {gaps.slice(0, 4).map((gap: any) => {
               const isVE = gap.course.contentType === 'virtual_experience' || gap.course.contentType === 'guided_project';
               const liveItem = courses.find((c: any) => c.id === gap.course.formId);
               if (!liveItem) return null;
-              const href = isVE ? '/student#virtual_experiences' : `/${liveItem.slug || liveItem.id}`;
+              const href = `/${liveItem.slug || liveItem.id}`;
               const rawCover = gap.course.coverImage;
               const safeCover = (() => {
                 try { const u = new URL(rawCover ?? ''); return (u.protocol === 'https:' || u.protocol === 'http:') ? rawCover : null; } catch { return null; }
               })();
+              const isDark = C.page !== LIGHT_C.page;
               return (
-                <a key={gap.course.formId} href={href}
-                  className="flex-shrink-0 w-[220px] snap-start block no-underline transition-transform hover:-translate-y-0.5">
-                  <div className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center"
-                    style={{ background: 'rgba(34,197,94,0.10)' }}>
-                    {isVE ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}
-                    {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                    {gap.topic && (
-                      <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md"
-                        style={{ background: '#16a34a', color: '#ffffff' }}>
-                        {String(gap.topic).slice(0, 24)}
+                <a key={gap.course.formId} href={href} className={FRAMED_CARD} style={{ background: C.card }}>
+                  <div className="relative aspect-video w-full overflow-hidden" style={{ background: C.pill }}>
+                    <div className="absolute inset-0 grid place-items-center">
+                      {isVE ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
+                    </div>
+                    {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" onError={e => (e.currentTarget.style.display = 'none')} />}
+                    {/* An experience's industry on the cover, as on the landing page. */}
+                    {isVE && liveItem.industry && (
+                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                        {liveItem.industry}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs mt-2" style={{ color: C.faint }}>{isVE ? 'Virtual Experience' : 'Course'}</p>
-                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{gap.course.title}</p>
+                  {/* The landing page's card body: the title on two lines, then tags, level and tools. */}
+                  <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+                    <p className="line-clamp-2 min-h-[40px] text-[15px] leading-5 font-bold" style={{ color: C.text }}>{gap.course.title}</p>
+                    <CardMeta tags={cleanList(liveItem.tags)} level={liveItem.difficulty ? String(liveItem.difficulty).charAt(0).toUpperCase() + String(liveItem.difficulty).slice(1) : undefined} tools={cleanList(liveItem.tools)}
+                      isDark={isDark} text={C.text} muted={C.muted} />
+                  </div>
                 </a>
               );
             })}
@@ -553,4 +524,3 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   );
 }
 
-// --- Copyable detail row used inside payment option cards ---
