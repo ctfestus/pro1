@@ -803,7 +803,7 @@ export default function StudentDashboard() {
             )}
 
             {activeSection === 'overview' && user && (
-              <OverviewSection user={{ ...user, id: effectiveId, email: effectiveEmail }} C={C} onNavigate={goSection}/>
+              <OverviewSection user={{ ...user, id: effectiveId, email: effectiveEmail }} name={viewingAs?.name ?? profile?.full_name ?? null} C={C} onNavigate={goSection}/>
             )}
             {activeSection === 'my_program' && user && (
               <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>

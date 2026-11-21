@@ -5,15 +5,20 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C } from '@/lib/theme';
-import { useScrollRow } from '@/lib/use-scroll-row';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
+import { CarouselSkeleton, EmptyState, stripSqlSolutions } from '@/components/student/shared';
+import { deadlineTag } from '@/components/student/learning-card';
+import { FRAMED_CARD } from '@/components/CardMeta';
+
+/** The primary blue, for the Resume button and the progress it continues. */
+const BLUE = DARK_C.cta;
+import { DISPLAY_FONT, Pill, palette, plural } from '@/components/dashboard/subscriptions/ui';
 import type { SectionId } from '@/components/student/nav';
 import {
-  BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, TrendingUp,
+  Video, Briefcase, CheckCircle,
   Zap, Award, Medal, ClipboardList, CalendarDays, RefreshCw,
 } from 'lucide-react';
 
@@ -33,76 +38,11 @@ function inProgressProgress(form: any, attempt: any, isProject: boolean) {
   return { done: counts.done, total: counts.total, pct: courseProgressPct(questions, answers) };
 }
 
-// Scroll buttons for a card row, shown only when the row has more cards than fit.
-function RowArrows({ row, C }: { row: { overflows: boolean; scrollBy: (dir: number) => void }; C: typeof LIGHT_C }) {
-  if (!row.overflows) return null;
-  const btn = 'w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70';
-  return (
-    <div className="flex items-center gap-2 flex-shrink-0">
-      <button onClick={() => row.scrollBy(-1)} aria-label="Scroll left" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-        <ChevronLeft className="w-4 h-4"/>
-      </button>
-      <button onClick={() => row.scrollBy(1)} aria-label="Scroll right" className={btn} style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-        <ChevronRight className="w-4 h-4"/>
-      </button>
-    </div>
-  );
-}
-
-// "In progress" carousel
-function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Record<string, Date | null>; C: typeof LIGHT_C }) {
-  const { attach: rowRef, ...row } = useScrollRow();
-
-  return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>In progress</h3>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>Pick up where you left off</p>
-        </div>
-        <RowArrows row={row} C={C} />
-      </div>
-
-      <div ref={rowRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {items.map(({ form, attempt, isProject }: any, idx: number) => {
-          const { pct } = inProgressProgress(form, attempt, isProject);
-          const cover = form.config?.coverImage;
-          const href  = `/${form.slug || form.id}`;
-          // The first card is the likely LCP element on the overview landing:
-          // prioritize it and skip lazy-loading; lazy-load the rest of the row.
-          const isLcp = idx === 0;
-          return (
-            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
-              <a href={href} className="block transition-transform hover:-translate-y-0.5">
-                <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
-                  <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}</div>
-                  {cover && <img src={resolveCoverUrl(cover)} alt="" loading={isLcp ? undefined : 'lazy'} fetchPriority={isLcp ? 'high' : undefined} className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                  {(() => {
-                    // The deadline when there is one, as Upcoming showed it; otherwise "In progress".
-                    const dl = deadlines[form.id];
-                    const days = dl ? Math.ceil((dl.getTime() - Date.now()) / 86400000) : null;
-                    const label = days === null ? 'In progress' : days < 0 ? 'Overdue' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`;
-                    const bg = days === null ? '#22c55e' : days < 0 ? '#D93025' : days <= 3 ? '#ea580c' : '#16a34a';
-                    return <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: bg, color: '#ffffff' }}>{label}</span>;
-                  })()}
-                </div>
-                <p className="text-xs mt-2" style={{ color: C.faint }}>{isProject ? 'Virtual Experience' : 'Course'}</p>
-                <p className="text-base font-bold leading-snug mt-0.5 mb-3 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
-                <ProgressBar value={pct} color="#22c55e"/>
-                <p className="text-[11px] mt-1" style={{ color: C.faint }}>{pct}% complete</p>
-              </a>
-            </div>
-          );
-        })}
-      </div>
-
-    </section>
-  );
-}
-
-export function OverviewSection({ user, C, onNavigate }: {
-  user: any; C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
+export function OverviewSection({ user, name, C, onNavigate }: {
+  user: any;
+  /** The learner's name, for the greeting. */
+  name: string | null;
+  C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
 }) {
   const [loading, setLoading]               = useState(true);
   const [loadError, setLoadError]           = useState(false);
@@ -121,9 +61,6 @@ export function OverviewSection({ user, C, onNavigate }: {
   const [assignmentItems, setAssignmentItems] = useState<any[]>([]);
   const [refreshKey, setRefreshKey]           = useState(0);
   const [badgeCount, setBadgeCount]           = useState(0);
-  const { attach: recRef, ...recRow } = useScrollRow();
-  const { attach: statRef, ...statRow } = useScrollRow();
-  const { attach: upRef, ...upRow } = useScrollRow();
 
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') setRefreshKey(k => k + 1); };
@@ -332,7 +269,7 @@ export function OverviewSection({ user, C, onNavigate }: {
     .sort((a, b) => b.ts - a.ts);
 
   // Deadlines in the next 14 days (excluding already-completed)
-  const upcomingDeadlines: Array<{ title: string; daysLeft: number; type: 'course' | 'project' | 'assignment' | 'event'; cover?: string | null }> = [
+  const upcomingDeadlines: Array<{ title: string; daysLeft: number; date: Date; type: 'course' | 'project' | 'assignment' | 'event'; cover?: string | null }> = [
     // Courses + VEs
     ...Object.entries(deadlines)
       .filter(([formId]) => courses.some(f => f.id === formId))
@@ -346,7 +283,7 @@ export function OverviewSection({ user, C, onNavigate }: {
         if (a || isEffectivelyDone(form, a, proj)) return null;
         const daysLeft = Math.ceil((dl.getTime() - now) / 86400000);
         if (daysLeft > 14) return null;
-        return { title: form.title, daysLeft, type: proj ? 'project' : 'course', cover: form.config?.coverImage ?? form.cover_image ?? null } as const;
+        return { title: form.title, daysLeft, date: dl, type: proj ? 'project' : 'course', cover: form.config?.coverImage ?? form.cover_image ?? null } as const;
       })
       .filter(Boolean) as any[],
     // Assignments
@@ -361,6 +298,7 @@ export function OverviewSection({ user, C, onNavigate }: {
       .map(a => ({
         title: a.title,
         daysLeft: Math.ceil((new Date(a.deadline_date).getTime() - now) / 86400000),
+        date: new Date(a.deadline_date),
         type: 'assignment' as const,
         cover: a.cover_image ?? null,
       })),
@@ -372,7 +310,7 @@ export function OverviewSection({ user, C, onNavigate }: {
         if (Number.isNaN(d.getTime())) return null;
         const daysLeft = Math.ceil((d.getTime() - now) / 86400000);
         if (daysLeft < 0 || daysLeft > 14) return null;
-        return { title: ev.title, daysLeft, type: 'event' as const, cover: ev.cover_image ?? null };
+        return { title: ev.title, daysLeft, date: d, type: 'event' as const, cover: ev.cover_image ?? null };
       })
       .filter(Boolean) as any[],
   ].sort((a: any, b: any) => a.daysLeft - b.daysLeft);
@@ -394,118 +332,177 @@ export function OverviewSection({ user, C, onNavigate }: {
     />
   );
 
+  const firstName = (name ?? '').trim().split(/\s+/)[0];
+  const dueThisWeek = upcomingDeadlines.filter(item => item.daysLeft <= 7).length;
+  const cardBox = 'rounded-2xl p-5 sm:p-6';
+  const sectionTitle = 'text-[22px] leading-7 font-bold';
+  const seeAll = (label: string, to: SectionId) => (
+    <button type="button" onClick={() => onNavigate(to)} className="flex-shrink-0 text-sm font-semibold hover:underline" style={{ color: C.text }}>{label}</button>
+  );
+  const typeIcon = { assignment: ClipboardList, project: Briefcase, event: CalendarDays, course: Video } as const;
+  const typeName = { assignment: 'Assignment', project: 'Virtual experience', event: 'Event', course: 'Course' } as const;
+
   return (
-    <div className="space-y-4 lg:space-y-6">
+    <div className="flex flex-col gap-6">
+      {/* Greeting, and how much is due this week. */}
+      <div>
+        <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+          {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: C.muted }}>
+          {dueThisWeek ? `${plural(dueThisWeek, 'thing')} coming up in the next 7 days` : 'Nothing coming up in the next 7 days'}
+        </p>
+      </div>
 
-      {/* Statistics carousel */}
-      <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Statistics</h3>
-          <RowArrows row={statRow} C={C} />
-        </div>
+      {/* Four tiles, each opening its section. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {([
+          { icon: Zap,         value: totalXP.toLocaleString(), label: 'XP earned',         nav: 'badges' },
+          { icon: CheckCircle, value: completedCount,           label: 'Courses completed', nav: 'courses' },
+          { icon: Award,       value: certCount,                label: 'Certificates',      nav: 'certificates' },
+          { icon: Medal,       value: badgeCount,               label: 'Badges',            nav: 'badges' },
+        ] as const).map(({ icon: Icon, value, label, nav }) => (
+          <button key={label} type="button" onClick={() => onNavigate(nav as SectionId)}
+            className="flex items-start justify-between gap-3 rounded-2xl p-5 text-left transition-shadow hover:shadow-md" style={{ background: C.card }}>
+            <span className="min-w-0">
+              <span className="block text-[28px] leading-9 font-bold tabular-nums" style={{ color: C.text }}>{value}</span>
+              <span className="mt-1 block text-sm" style={{ color: C.muted }}>{label}</span>
+            </span>
+            <Icon className="h-5 w-5 flex-shrink-0" style={{ color: C.faint }} />
+          </button>
+        ))}
+      </div>
 
-        <div ref={statRef} className="flex gap-5 overflow-x-auto pb-1 mt-4 snap-x"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {([
-            { icon: Zap,         color: '#eab308', bg: 'rgba(234,179,8,0.12)',  value: totalXP.toLocaleString(), label: 'XP earned',        nav: 'badges'       },
-            { icon: CheckCircle, color: '#16a34a', bg: 'rgba(22,163,74,0.12)',  value: completedCount,           label: 'Courses completed', nav: 'courses'      },
-            { icon: Award,       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', value: certCount,             label: 'Certificates',      nav: 'certificates' },
-            { icon: Medal,       color: '#14b8a6', bg: 'rgba(20,184,166,0.12)', value: badgeCount,      label: 'Badges',            nav: 'badges'       },
-          ] as const).map(({ icon: Icon, color, bg, value, label, nav }) => (
-            <button key={label} onClick={() => onNavigate(nav as SectionId)}
-              className="flex-shrink-0 w-[180px] snap-start flex items-center gap-3 text-left transition-opacity hover:opacity-80">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: bg }}>
-                <Icon className="w-5 h-5" style={{ color }}/>
-              </div>
-              <div className="min-w-0">
-                <div className="text-2xl font-black tabular-nums leading-none" style={{ color: C.text }}>{value}</div>
-                <div className="text-[11px] font-medium mt-0.5 truncate" style={{ color: C.muted }}>{label}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* In Progress carousel */}
-      {inProgressItems.length > 0 && <InProgressRow items={inProgressItems} deadlines={deadlines} C={C} />}
-
-      {/* Upcoming -- deadlines + events, carousel */}
-      <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-[22px] leading-7 font-bold" style={{ color: C.text }}>Upcoming</h3>
-          <RowArrows row={upRow} C={C} />
-        </div>
-
-        {upcomingDeadlines.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10">
-            <CheckCircle className="w-8 h-8 opacity-30" style={{ color: '#16a34a' }}/>
-            <p className="text-sm font-semibold" style={{ color: C.text }}>All clear!</p>
-            <p className="text-xs" style={{ color: C.faint }}>No deadlines or events in the next 14 days.</p>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* In progress: each item its own white card, picture on the left, the most recent first. */}
+        <section>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className={sectionTitle} style={{ color: C.text }}>In progress</h2>
+            {inProgressItems.length > 4 && seeAll(`See all ${inProgressItems.length}`, 'courses')}
           </div>
-        ) : (
-          <div ref={upRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {upcomingDeadlines.map(({ title, daysLeft, type, cover }, idx) => {
-              const col = daysLeft < 0 ? '#ef4444' : daysLeft <= 3 ? '#f59e0b' : daysLeft <= 7 ? '#f97316' : '#16a34a';
-              const lbl = daysLeft < 0 ? 'Overdue' : daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft} days`;
-              const Icon = type === 'assignment' ? ClipboardList : type === 'project' ? Briefcase : type === 'event' ? CalendarDays : BookOpen;
-              const typeLabel = type === 'assignment' ? 'Assignment' : type === 'project' ? 'Project' : type === 'event' ? 'Event' : 'Course';
-              return (
-                <div key={`${type}-${title}-${idx}`} className="flex-shrink-0 w-[210px] snap-start">
-                  <div className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center" style={{ background: `${col}14` }}>
-                    <Icon className="w-10 h-10" style={{ color: col }}/>
-                    {cover && <img src={resolveCoverUrl(cover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-                    <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: col, color: '#ffffff' }}>{lbl}</span>
-                  </div>
-                  <p className="text-xs mt-2" style={{ color: C.faint }}>{typeLabel}</p>
-                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{title}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Recommended for you -- last on page */}
-      {gaps.length > 0 && (
-        <section className="rounded-2xl p-5 sm:p-6 defer-render" style={{ background: C.card }}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <TrendingUp className="w-5 h-5 flex-shrink-0" style={{ color: C.green }}/>
-              <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>Recommended for you</h3>
+          {inProgressItems.length === 0 ? (
+            <div className="mt-4 flex flex-col items-start gap-3 rounded-2xl p-6" style={{ background: C.card }}>
+              <p className="text-sm" style={{ color: C.muted }}>Nothing in progress yet.</p>
+              <button type="button" onClick={() => onNavigate('explore')} className="rounded-xl px-4 py-2 text-sm font-semibold"
+                style={{ background: C.cta, color: C.ctaText }}>Explore courses</button>
             </div>
-            <RowArrows row={recRow} C={C} />
-          </div>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>Topics you haven&apos;t explored yet</p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-4">
+              {inProgressItems.slice(0, 4).map(({ form, attempt, isProject }: any) => {
+                const { pct } = inProgressProgress(form, attempt, isProject);
+                const cover = form.config?.coverImage;
+                const tag = deadlineTag(deadlines[form.id], false);
+                return (
+                  <a key={form.id} href={`/${form.slug || form.id}`}
+                    className="group flex flex-col gap-4 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:flex-row sm:items-center sm:gap-6"
+                    style={{ background: C.card, boxShadow: '0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.18)' }}>
+                    {/* The picture inset in the card, its own rounded corners. */}
+                    <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl sm:w-[42%] sm:max-w-[300px]" style={{ background: C.pill }}>
+                      <div className="absolute inset-0 grid place-items-center">
+                        {isProject ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
+                      </div>
+                      {cover && <img src={resolveCoverUrl(cover)} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={e => (e.currentTarget.style.display = 'none')} />}
+                    </div>
+                    <div className="min-w-0 flex-1 sm:py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold" style={{ color: C.muted }}>{isProject ? 'Virtual experience' : 'Course'}</span>
+                        {tag && <Pill tone={tag.tone === 'red' ? 'bad' : tag.tone === 'amber' ? 'warn' : 'mute'} C={C}>{tag.label}</Pill>}
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-[22px] leading-7 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{form.title}</p>
+                      <div className="mt-4 flex items-center gap-4">
+                        <div className="h-2 max-w-[320px] flex-1 overflow-hidden rounded-full" style={{ background: C.pill }}>
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: BLUE }} />
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums" style={{ color: C.text }}>{pct}% complete</span>
+                      </div>
+                      <span className="mt-5 inline-flex h-10 items-center rounded-full px-6 text-sm font-semibold transition-opacity group-hover:opacity-90"
+                        style={{ background: BLUE, color: '#ffffff' }}>
+                        {isProject ? 'Resume experience' : 'Resume course'}
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-          <div ref={recRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {gaps.map((gap: any) => {
+        {/* Upcoming: a flat list, soonest first. */}
+        <section className={cardBox} style={{ background: C.card }}>
+          <h2 className={sectionTitle} style={{ color: C.text }}>Upcoming</h2>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>Next 14 days</p>
+          {upcomingDeadlines.length === 0 ? (
+            <p className="py-6 text-sm" style={{ color: C.muted }}>Nothing due in the next 14 days.</p>
+          ) : (
+            // A timeline: the date on the left, a dot on the line for each item, soonest first. The
+            // dot's colour is how close it is: red overdue, amber within three days, grey after.
+            <ol className="mt-4">
+              {upcomingDeadlines.map((item, idx) => {
+                const Icon = typeIcon[item.type];
+                const when = item.daysLeft < 0 ? 'Overdue' : item.daysLeft === 0 ? 'Today' : item.daysLeft === 1 ? 'Tomorrow' : `In ${item.daysLeft} days`;
+                const P = palette(C);
+                const dot = item.daysLeft < 0 ? P.bad : item.daysLeft <= 3 ? P.warn : C.faint;
+                const last = idx === upcomingDeadlines.length - 1;
+                return (
+                  <li key={`${item.type}-${item.title}-${idx}`} className="flex gap-3">
+                    <div className="w-11 flex-shrink-0 pt-0.5 text-right">
+                      <p className="text-base leading-5 font-bold tabular-nums" style={{ color: C.text }}>{item.date.getDate()}</p>
+                      <p className="text-xs" style={{ color: C.muted }}>{item.date.toLocaleDateString('en-GB', { month: 'short' })}</p>
+                    </div>
+                    {/* A ring on a dashed line; the line runs from this ring down to the next. */}
+                    <div className="relative flex w-4 flex-shrink-0 justify-center">
+                      <span className="relative z-10 mt-1 grid h-4 w-4 place-items-center rounded-full" style={{ background: C.card, boxShadow: `inset 0 0 0 2px ${dot}` }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+                      </span>
+                      {!last && <span className="absolute bottom-[-4px] top-6 border-l-2 border-dashed opacity-50" style={{ borderColor: C.faint }} />}
+                    </div>
+                    <div className={`min-w-0 flex-1 ${last ? '' : 'pb-5'}`}>
+                      <p className="text-sm font-semibold leading-5" style={{ color: C.text }}>{item.title}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
+                        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>{typeName[item.type]}, <span style={{ color: item.daysLeft <= 3 ? dot : C.muted, fontWeight: item.daysLeft <= 3 ? 600 : 400 }}>{when.charAt(0).toLowerCase() + when.slice(1)}</span></span>
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      {/* Recommended for you: each its own white card, as on the landing page. */}
+      {gaps.length > 0 && (
+        <section className="defer-render">
+          <h2 className={sectionTitle} style={{ color: C.text }}>Recommended for you</h2>
+          <p className="mt-1 text-sm" style={{ color: C.muted }}>Topics you have not explored yet</p>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+            {gaps.slice(0, 4).map((gap: any) => {
               const isVE = gap.course.contentType === 'virtual_experience' || gap.course.contentType === 'guided_project';
               const liveItem = courses.find((c: any) => c.id === gap.course.formId);
               if (!liveItem) return null;
-              // The item's own page, as In progress links it; an experience used to open the list.
               const href = `/${liveItem.slug || liveItem.id}`;
               const rawCover = gap.course.coverImage;
               const safeCover = (() => {
                 try { const u = new URL(rawCover ?? ''); return (u.protocol === 'https:' || u.protocol === 'http:') ? rawCover : null; } catch { return null; }
               })();
               return (
-                <a key={gap.course.formId} href={href}
-                  className="flex-shrink-0 w-[220px] snap-start block no-underline transition-transform hover:-translate-y-0.5">
-                  <div className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center"
-                    style={{ background: 'rgba(34,197,94,0.10)' }}>
-                    {isVE ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}
-                    {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
+                <a key={gap.course.formId} href={href} className={FRAMED_CARD} style={{ background: C.card }}>
+                  <div className="relative aspect-video w-full overflow-hidden" style={{ background: C.pill }}>
+                    <div className="absolute inset-0 grid place-items-center">
+                      {isVE ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
+                    </div>
+                    {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" onError={e => (e.currentTarget.style.display = 'none')} />}
                     {gap.topic && (
-                      <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-md"
-                        style={{ background: '#16a34a', color: '#ffffff' }}>
-                        {String(gap.topic).slice(0, 24)}
+                      <span className="absolute left-0 top-3 max-w-[80%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                        {String(gap.topic)}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs mt-2" style={{ color: C.faint }}>{isVE ? 'Virtual Experience' : 'Course'}</p>
-                  <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{gap.course.title}</p>
+                  <div className="px-4 pt-3.5 pb-[18px]">
+                    <p className="text-xs" style={{ color: C.faint }}>{isVE ? 'Virtual experience' : 'Course'}</p>
+                    <p className="mt-0.5 line-clamp-2 text-[15px] leading-5 font-bold" style={{ color: C.text }}>{gap.course.title}</p>
+                  </div>
                 </a>
               );
             })}
