@@ -68,6 +68,7 @@ export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, p
       {children}
       <LandingFooter
         appName={appName}
+        programmes={programmes}
         primaryColor={primaryColor}
         fontFamily={bFont}
         user={user}

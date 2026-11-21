@@ -906,6 +906,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {/* FOOTER */}
       <LandingFooter
         appName={appName}
+        programmes={programmes}
         isPageDark={isPageDark}
         primaryColor={primaryColor}
         user={user}

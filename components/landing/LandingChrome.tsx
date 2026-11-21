@@ -17,6 +17,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
 import type { NavSubGroup } from '@/lib/landing-nav';
+import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { M3, GUTTER } from '@/components/landing/type';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -109,6 +110,8 @@ export interface LandingFooterProps {
   footerLink2Label?: string; footerLink2Url?: string;
   footerLink3Label?: string; footerLink3Url?: string;
   footerLink4Label?: string; footerLink4Url?: string;
+  /** What the site offers, so a link to a section with nothing in it is left out. */
+  programmes: ProgrammeItem[];
 }
 
 // --- Nav profile menu ---
@@ -683,16 +686,25 @@ export function LandingNav({
 export function LandingFooter({
   appName, isPageDark, primaryColor, fontFamily, user, footerTagline, footerLinksHeading,
   footerLink1Label, footerLink1Url, footerLink2Label, footerLink2Url,
-  footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url,
+  footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url, programmes,
 }: LandingFooterProps) {
   const { publicSignupEnabled } = useTenant();
   // Section links work from any page that wears this footer: they go home and scroll.
+  // The home page leaves out a section with nothing in it, so a link to that section goes too.
+  // Any other link (a page of its own, another site) always shows.
+  const SECTION_TYPE: Record<string, ProgrammeItem['type']> = {
+    'section-courses': 'course', 'section-paths': 'path', 'section-ves': 've', 'section-certifications': 'certification',
+  };
+  const leadsSomewhere = (href: string) => {
+    const type = SECTION_TYPE[href.split('#')[1] ?? ''];
+    return !type || programmes.some(p => p.type === type);
+  };
   const learnLinks = [
     [footerLink1Label || 'Courses',             footerLink1Url || '/#section-courses'],
     [footerLink2Label || 'Learning paths',      footerLink2Url || '/#section-paths'],
     [footerLink3Label || 'Virtual experiences', footerLink3Url || '/#section-ves'],
     [footerLink4Label || 'Certifications',      footerLink4Url || '/#section-certifications'],
-  ];
+  ].filter(([label, href]) => label && leadsSomewhere(href));
   // Sign up only while signups are open, as in the nav; Dashboard only for someone signed in.
   const accountLinks = [
     ['Log in', '/auth'],
@@ -722,7 +734,7 @@ export function LandingFooter({
                 {footerLinksHeading || 'Learn'}
               </div>
               <div className="flex flex-col gap-2 items-start">
-                {learnLinks.filter(([label]) => label).map(link)}
+                {learnLinks.map(link)}
               </div>
             </div>
             <div>
