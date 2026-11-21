@@ -20,7 +20,7 @@ import { FitTags, ToolLogos } from '@/components/CardMeta';
 // The notch is the section's own ground showing through: the panel stops above it, the foot stops
 // to its left, and the fillet rounds the inside corner where the two meet.
 const CARD_CSS = `
-.path-card { --r: 12px; --nw: 164px; --nh: 68px; position: relative; display: block; height: 440px; color: #1C1D1F; text-decoration: none; outline: none; }
+.path-card { --r: 24px; --nw: 164px; --nh: 68px; position: relative; display: block; height: 440px; color: #1C1D1F; text-decoration: none; outline: none; }
 .path-card .pc-panel { position: absolute; inset: 0 0 var(--nh) 0; border-radius: var(--r) var(--r) var(--r) 0; background: var(--tint); overflow: hidden; }
 .path-card .pc-foot { position: absolute; left: 0; bottom: 0; width: calc(100% - var(--nw)); height: calc(var(--nh) + 1px); background: var(--tint); border-radius: 0 0 var(--r) var(--r); }
 .path-card .pc-fillet { position: absolute; right: calc(var(--nw) - var(--r)); bottom: calc(var(--nh) - var(--r)); width: var(--r); height: var(--r);
