@@ -314,6 +314,7 @@ export function LegalPageClient({
       <div className="legal-screen-only">
         <LandingFooter
           appName={appName}
+          programmes={programmes}
           isPageDark={dark}
           primaryColor={primaryColor}
           fontFamily={bFont}

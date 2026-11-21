@@ -247,6 +247,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
       <LandingFooter
         appName={appName}
+        programmes={programmes}
         primaryColor={primaryColor}
         fontFamily={bFont}
         user={user}
