@@ -6,13 +6,15 @@ import { supabase } from '@/lib/supabase';
 import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, TrendingUp, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
   ExternalLink, Pencil,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { Bar as SharedBar, Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, type Tone } from '@/components/dashboard/subscriptions/ui';
 import { Kpis } from '@/components/dashboard/content/kit';
+import { MenuSelect } from '@/components/MenuSelect';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -1165,13 +1167,17 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   ] as { value: typeof quickType; label: string }[];
 
   // -- Shared style tokens --
-  const card = isDark
-    ? 'overflow-hidden rounded-2xl border border-zinc-800/60 bg-zinc-900/35'
-    : 'overflow-hidden rounded-2xl border border-[rgba(0,0,0,0.07)] bg-white';
+  // The dashboard colours with the shared blue, for chips, buttons and switches.
+  const PC = isDark ? DARK_C : { ...LIGHT_C, cta: DARK_C.cta };
+  const P = palette(PC);
+  const chipStyle = (on: boolean) => (on ? { background: P.sel, color: P.onSel } : { background: PC.card, color: PC.muted, boxShadow: `inset 0 0 0 1px ${PC.divider}` });
+  // Each part of the tab is a flat section of the page's white card, with a divider line above it.
+  const sectionCls = 'space-y-4 border-t pt-5';
+  const sectionStyle = { borderColor: PC.divider };
+  const sectionTitle = 'text-base font-semibold';
+  const card = isDark ? 'border-t border-white/[0.08] pt-5' : 'border-t border-black/[0.07] pt-5';
 
-  const cardHeader = isDark
-    ? 'px-6 py-4 border-b border-zinc-800 flex items-center gap-3'
-    : 'px-6 py-4 border-b border-[rgba(0,0,0,0.06)] flex items-center gap-3';
+  const cardHeader = 'flex items-center gap-3 pb-4';
 
   const cardTitle = isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-gray-900';
   const cardSub   = isDark ? 'text-xs text-zinc-500 mt-0.5' : 'text-xs text-gray-400 mt-0.5';
@@ -1182,19 +1188,14 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 
   // One soft field style, no border, green ring on focus (as the experience editor).
   const input = isDark
-    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
-    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
-  // A field sitting on the soft AI panel is white, so it still reads as a field.
-  const inputOnSoft = isDark
-    ? 'w-full bg-[#1B1C1F] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
-    : 'w-full bg-white border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
+    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#3E93FF]'
+    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#3E93FF]';
   const chipBg = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
-  const chipText = isDark ? '#e4e4e7' : '#111';
-  const softBtn = `inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed ${isDark ? 'bg-[rgba(255,255,255,0.055)] text-zinc-200 disabled:text-zinc-500' : 'bg-[#F4F6F9] text-gray-900 disabled:text-[#8a929e]'}`;
+  const softBtn = `${btnClass} flex-shrink-0`;
 
 
-  // Not ready yet reads as grey (the important flag beats the inline accent colour).
-  const primaryBtn = `w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-100 disabled:cursor-not-allowed ${isDark ? 'disabled:bg-[rgba(255,255,255,0.055)]! disabled:text-[#7A8088]!' : 'disabled:bg-[#F4F6F9]! disabled:text-[#8a929e]!'}`;
+  // Faded until it can send.
+  const primaryBtn = 'w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-45 disabled:cursor-not-allowed';
 
   const feedback = (ok: boolean) => ok
     ? (isDark
@@ -1223,8 +1224,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   const on = selectedCohortId === c.id;
                   return (
                     <button key={c.id} type="button" aria-pressed={on} onClick={() => { setSelectedCohortId(c.id); setBlastResult(null); }}
-                      className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
-                      style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
+                      className="h-8 rounded-full px-3 text-xs font-semibold transition-colors" style={chipStyle(on)}>
                       {c.name}
                     </button>
                   );
@@ -1247,10 +1247,9 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   const on = blastSegment === seg.value;
                   return (
                     <button key={seg.value} type="button" aria-pressed={on} onClick={() => { setBlastSegment(seg.value); setBlastResult(null); }}
-                      className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-colors"
-                      style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors" style={chipStyle(on)}>
                       {seg.label}
-                      {count !== undefined && <span className="tabular-nums" style={{ opacity: on ? 1 : 0.65 }}>{count}</span>}
+                      {count !== undefined && <span className="tabular-nums" style={{ opacity: 0.7 }}>{count}</span>}
                     </button>
                   );
                 })}
@@ -1259,23 +1258,20 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           )}
 
           {/* Optional AI draft: tone and what it is about; the purpose stays the content's default. */}
-          <div className="space-y-3 rounded-xl p-4" style={{ background: chipBg }}>
+          <div className={sectionCls} style={sectionStyle}>
             <div className="flex items-center justify-between gap-3">
-              <p className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-gray-900'}>Draft with AI</p>
-              <span className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-500'}>Optional</span>
+              <h3 className={sectionTitle} style={{ color: PC.text }}>Draft with AI</h3>
+              <span className="text-xs" style={{ color: PC.muted }}>Optional</span>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
               <div>
-                <label className={label} htmlFor="blast-tone">Tone</label>
-                <select id="blast-tone" value={blastTone} onChange={e => setBlastTone(e.target.value as 'friendly' | 'professional' | 'casual')} className={inputOnSoft}>
-                  <option value="friendly">Friendly</option>
-                  <option value="professional">Professional</option>
-                  <option value="casual">Casual</option>
-                </select>
+                <span className={label}>Tone</span>
+                <MenuSelect label="Tone" field value={blastTone} onChange={setBlastTone} C={PC}
+                  options={[{ value: 'friendly', label: 'Friendly' }, { value: 'professional', label: 'Professional' }, { value: 'casual', label: 'Casual' }] as const} />
               </div>
               <div>
                 <label className={label} htmlFor="blast-about">What is it about?</label>
-                <input id="blast-about" type="text" value={blastPrompt} onChange={e => setBlastPrompt(e.target.value)} className={inputOnSoft}
+                <input id="blast-about" type="text" value={blastPrompt} onChange={e => setBlastPrompt(e.target.value)} className={input}
                   placeholder={isEvent ? 'e.g. The venue has changed; doors open at 6pm' : isVE ? 'e.g. Week 2 starts Monday; the board pack is due Friday' : 'e.g. A new module is open; finish it by Friday'} />
               </div>
             </div>
@@ -1285,13 +1281,14 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                 <span>{blastAiResult.msg}</span>
               </div>
             )}
-            <button type="button" onClick={handleGenerateBroadcastEmail} disabled={blastAiLoading}
-              className="inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: courseAccent, color: '#fff' }}>
-              {blastAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Draft the email'}
+            <button type="button" onClick={handleGenerateBroadcastEmail} disabled={blastAiLoading} className={btnSmClass} style={btnStyle('sec', PC)}>
+              {blastAiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" style={{ color: PC.muted }} />}
+              Draft the email
             </button>
           </div>
 
+          <div className={sectionCls} style={sectionStyle}>
+          <h3 className={sectionTitle} style={{ color: PC.text }}>Message</h3>
           <div>
             <label className={label} htmlFor="blast-subject">Subject</label>
             <input id="blast-subject" type="text" value={blastSubject} onChange={e => { setBlastSubject(e.target.value); setBlastResult(null); }}
@@ -1320,15 +1317,18 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             ))}
             {isEvent && <span className="basis-full">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
           </div>
+          </div>
+          <div className={sectionCls} style={sectionStyle}>
+          <h3 className={sectionTitle} style={{ color: PC.text }}>Test and send</h3>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handlePreview} disabled={previewing || !blastSubject.trim() || !blastHasBody}
-              className={softBtn}>
+              className={softBtn} style={btnStyle('sec', PC)}>
               {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />} Preview
             </button>
             <input type="email" value={testTo} onChange={e => { setTestTo(e.target.value); setBlastResult(null); }}
               placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-[160px] flex-1`} />
             <button type="button" onClick={handleTestSend} disabled={testSending || !testTo.trim() || !blastSubject.trim() || !blastHasBody}
-              className={softBtn}>
+              className={softBtn} style={btnStyle('sec', PC)}>
               {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send test
             </button>
           </div>
@@ -1339,14 +1339,15 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             </div>
           )}
           <button onClick={handleBlast} disabled={blasting || !blastSubject.trim() || !blastHasBody}
-            className={primaryBtn} style={{ background: courseAccent }}>
+            className={primaryBtn} style={{ background: PC.cta }}>
             {blasting
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <><Send className="w-4 h-4" /> Send to {(isCourse || isVE) && segmentCounts ? `${segmentCounts[blastSegment]} ${isEvent ? 'attendee' : 'learner'}${segmentCounts[blastSegment] !== 1 ? 's' : ''}` : 'all'}</>}
           </button>
           <p className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-500'}>
-            {(blastSubject.trim() && blastHasBody) ? ((isCourse || isVE) ? 'Only enrolled learners with an email address will receive this.' : 'Only recipients who gave an email address will receive this.') : 'The button turns green once there is a subject and a message.'}
+            {(blastSubject.trim() && blastHasBody) ? ((isCourse || isVE) ? 'Only enrolled learners with an email address will receive this.' : 'Only recipients who gave an email address will receive this.') : 'Add a subject and a message to send.'}
           </p>
+          </div>
       </div>
 
       {blastPreview && (
@@ -1387,29 +1388,23 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
       {isEvent && (
         <div className={card}>
           <div className={cardHeader}>
-            <div className={sectionIconBg} style={{ background: `${courseAccent}14` }}>
-              <Bell className="w-4 h-4" style={{ color: courseAccent }} />
+            <div className={sectionIconBg} style={{ background: PC.pill }}>
+              <Bell className="w-4 h-4" style={{ color: PC.muted }} />
             </div>
             <div>
               <p className={cardTitle}>Event Reminder</p>
               <p className={cardSub}>Notify all registrants about the upcoming event</p>
             </div>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
               {(['24hr', '1hr'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setReminderType(t)}
-                  className={`py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                    reminderType === t
-                      ? isDark
-                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                        : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      : isDark
-                        ? 'border-zinc-700/60 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
-                        : 'border-[rgba(0,0,0,0.07)] text-[#888] hover:border-[rgba(0,0,0,0.14)] hover:text-[#555] bg-white'
-                  }`}
+                  aria-pressed={reminderType === t}
+                  className="h-10 rounded-xl text-sm font-semibold transition-colors"
+                  style={chipStyle(reminderType === t)}
                 >
                   {t === '24hr' ? '24 Hours Before' : '1 Hour Before'}
                 </button>
@@ -1425,7 +1420,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               onClick={handleReminder}
               disabled={reminding}
               className={primaryBtn}
-              style={{ background: courseAccent }}
+              style={{ background: PC.cta }}
             >
               {reminding ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Send {reminderType === '1hr' ? '1-Hour' : '24-Hour'} Reminder</>}
             </button>
@@ -1438,8 +1433,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
       {!(isCourse || isVE) && (
       <div className={card}>
         <div className={cardHeader}>
-          <div className={sectionIconBg} style={{ background: `${courseAccent}14` }}>
-            <Send className="w-4 h-4" style={{ color: courseAccent }} />
+          <div className={sectionIconBg} style={{ background: PC.pill }}>
+            <Send className="w-4 h-4" style={{ color: PC.muted }} />
           </div>
           <div>
             <p className={cardTitle}>Test Send</p>
@@ -1450,7 +1445,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             </p>
           </div>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="space-y-4">
           <div>
             <label className={label}>Recipient Email</label>
             <input
@@ -1469,15 +1464,9 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   <button
                     key={t.value}
                     onClick={() => { setQuickType(t.value); setQuickResult(null); }}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-medium border transition-all text-left ${
-                      quickType === t.value
-                        ? isDark
-                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                          : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                        : isDark
-                          ? 'border-zinc-700/60 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
-                          : 'border-[rgba(0,0,0,0.07)] text-[#888] hover:border-[rgba(0,0,0,0.14)] hover:text-[#555] bg-white'
-                    }`}
+                    aria-pressed={quickType === t.value}
+                    className="h-10 px-3 rounded-xl text-xs font-semibold transition-colors text-left"
+                    style={chipStyle(quickType === t.value)}
                   >
                     {t.label}
                   </button>
@@ -1495,7 +1484,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             onClick={handleQuickSend}
             disabled={quickSending || !quickTo.trim()}
             className={primaryBtn}
-            style={{ background: courseAccent }}
+            style={{ background: PC.cta }}
           >
             {quickSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Send Email</>}
           </button>
@@ -1512,81 +1501,61 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 }
 
 // -- Leaderboard Tab ---
-function LeaderboardTab({ form, courseProgress }: { form: any; courseProgress: any[] }) {
+function LeaderboardTab({ courseProgress }: { courseProgress: any[] }) {
   const { theme } = useTheme();
   const isDark = theme !== 'light';
-  const courseAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || '#00bf63';
+  const PC = isDark ? DARK_C : { ...LIGHT_C, cta: DARK_C.cta };
+  const P = palette(PC);
+  // Gold, silver and bronze for the top three ranks.
+  const medal = isDark ? ['#f2c14e', '#b8c0cc', '#e0955a'] : ['#c98a04', '#8a94a3', '#b0632a'];
 
   // Learners who finished, by score, with XP breaking ties.
   const rows = courseProgress
     .filter(p => p.completed)
     .map(p => ({ ...p, pct: p.score ?? 0 }))
     .sort((a, b) => b.pct - a.pct || (b.points ?? 0) - (a.points ?? 0));
-
-  const txt   = isDark ? 'text-white' : 'text-zinc-900';
-  const muted = isDark ? 'text-zinc-400' : 'text-zinc-500';
-  const soft  = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
-  const line  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
-  const good  = isDark ? '#5fd39a' : '#00a656';
-  const bad   = isDark ? '#F28B82' : '#D93025';
-  const gold  = isDark ? '#f2c14e' : '#c98a04';
-  const medal = [gold, isDark ? '#b8c0cc' : '#8a94a3', isDark ? '#e0955a' : '#b0632a'];
-
-  if (rows.length === 0) return (
-    <div className="rounded-2xl p-14 text-center" style={{ background: soft }}>
-      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `${courseAccent}14`, color: courseAccent }}><Trophy className="h-5 w-5" /></span>
-      <p className={`mt-4 font-semibold ${txt}`}>No one has finished yet</p>
-      <p className={`mt-1 text-sm ${muted}`}>Learners appear here, ranked by score, once they finish the course.</p>
-    </div>
-  );
+  const grid = 'grid grid-cols-[36px_minmax(0,1fr)_70px] sm:grid-cols-[44px_minmax(0,1fr)_minmax(120px,220px)_90px] items-center gap-x-3.5 gap-y-2';
 
   return (
-    <div className="space-y-3">
-      <p className={`text-sm ${muted}`}>{rows.length} learner{rows.length === 1 ? '' : 's'} finished. Ranked by score; XP breaks ties.</p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-left text-sm">
-          <thead>
-            <tr className={`text-xs ${muted}`}>
-              <th className="w-14 px-2 py-2 font-medium">Rank</th>
-              <th className="px-2 py-2 font-medium">Learner</th>
-              <th className="w-44 px-2 py-2 font-medium">Score</th>
-              <th className="w-24 px-2 py-2 font-medium">XP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const rank = i + 1;
-              const tint = medal[i];
-              const pts = r.points ?? 0;
-              return (
-                <tr key={`${r.student_id}_${i}`} style={{ borderTop: `1px solid ${line}`, background: rank === 1 ? `color-mix(in srgb, ${gold} 7%, transparent)` : undefined }}>
-                  <td className="px-2 py-3">
-                    <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold tabular-nums"
-                      style={tint ? { background: `color-mix(in srgb, ${tint} 20%, transparent)`, color: tint } : { background: soft, color: isDark ? '#A8B5C2' : '#555' }}>
-                      {rank}
-                    </span>
-                  </td>
-                  <td className={`px-2 py-3 ${txt} ${rank <= 3 ? 'font-semibold' : ''}`}>{r.student_name || 'Unknown'}</td>
-                  <td className="px-2 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-20 overflow-hidden rounded-full" style={{ background: soft }}>
-                        <div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: r.passed ? good : bad }} />
-                      </div>
-                      <span className={`text-xs font-semibold tabular-nums ${txt}`}>{r.pct}%</span>
-                    </div>
-                  </td>
-                  <td className="px-2 py-3">
-                    {pts > 0
-                      ? <span className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums" style={{ color: gold }}><Star className="h-3.5 w-3.5" />{pts.toLocaleString()}</span>
-                      : <span className={`text-xs ${muted}`}>--</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <Card C={PC} className="overflow-hidden">
+      <div className="px-5 py-4 flex flex-wrap items-baseline justify-between gap-3" style={{ borderBottom: `1px solid ${PC.divider}` }}>
+        <h3 className="text-base font-semibold" style={{ color: PC.text }}>Leaderboard</h3>
+        <span className="text-xs" style={{ color: PC.muted }}>{rows.length ? `${rows.length} finished. ` : ''}Ranked by score; XP breaks ties.</span>
       </div>
-    </div>
+      {rows.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <Trophy className="mx-auto h-6 w-6" style={{ color: PC.muted }} />
+          <p className="mt-3 text-sm font-semibold" style={{ color: PC.text }}>No one has finished yet</p>
+          <p className="mt-1 text-sm" style={{ color: PC.muted }}>Learners appear here, ranked by score, once they finish the course.</p>
+        </div>
+      ) : (
+        <>
+          <div className={`${grid} hidden sm:grid px-5 py-2.5 text-xs font-semibold`} style={{ color: PC.faint }}>
+            <span>Rank</span><span>Learner</span><span>Score</span><span className="text-right">XP</span>
+          </div>
+          {rows.map((r, i) => {
+            const tint = medal[i];
+            const pts = r.points ?? 0;
+            return (
+              <div key={`${r.student_id}_${i}`} className={`${grid} px-5 py-3`} style={{ borderTop: `1px solid ${PC.divider}` }}>
+                <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold tabular-nums"
+                  style={tint ? { background: `color-mix(in srgb, ${tint} 20%, transparent)`, color: tint } : { background: PC.pill, color: PC.muted }}>
+                  {i + 1}
+                </span>
+                <span className="min-w-0 truncate text-sm font-semibold" style={{ color: PC.text }}>{r.student_name || 'Unknown'}</span>
+                <div className="col-span-2 row-start-2 col-start-2 sm:col-span-1 sm:row-start-auto sm:col-start-auto">
+                  <p className="mb-1.5 text-xs" style={{ color: PC.text }}>{r.pct}%</p>
+                  <SharedBar parts={[{ pct: r.pct, color: r.passed ? P.good : P.bad }]} C={PC} />
+                </div>
+                <span className="col-start-3 row-start-1 sm:col-start-auto sm:row-start-auto text-right text-sm font-semibold tabular-nums" style={{ color: PC.text }}>
+                  {pts.toLocaleString('en-GB')} <span className="text-xs font-normal" style={{ color: PC.muted }}>XP</span>
+                </span>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -2713,8 +2682,8 @@ export default function FormDetailPage() {
                         publishFooter: <DuplicateRow kind={type} onClone={handleClone} />,
                       } : {})} />
                   ) : (
-                    <div className={shownTab === 'responses' && type === 'course' ? 'mt-4 w-full' : 'mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full'}
-                      style={shownTab === 'responses' && type === 'course' ? undefined : { background: isLight ? '#ffffff' : '#1E1F26' }}>
+                    <div className={(shownTab === 'responses' && type === 'course') || shownTab === 'leaderboard' ? 'mt-4 w-full' : 'mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full'}
+                      style={(shownTab === 'responses' && type === 'course') || shownTab === 'leaderboard' ? undefined : { background: isLight ? '#ffffff' : '#1E1F26' }}>
                       {shownTab === 'responses' && type !== 'virtual_experience' && (
                         <ResponsesTab
                           form={form}
@@ -2733,7 +2702,7 @@ export default function FormDetailPage() {
                         <VirtualExperienceReportTab form={form} onCount={setVeLearnerCount} />
                       )}
                       {shownTab === 'leaderboard' && (
-                        <LeaderboardTab form={form} courseProgress={courseProgress} />
+                        <LeaderboardTab courseProgress={courseProgress} />
                       )}
                       {shownTab === 'email' && (
                         <EmailTab form={form} formUrl={formUrl} courseProgress={courseProgress} cohortStudents={cohortStudents} formCohorts={formCohorts} />
