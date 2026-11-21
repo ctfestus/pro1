@@ -1,9 +1,9 @@
 'use client';
 
-// Overview (dashboard home) section, extracted verbatim from app/student/page.tsx.
-// OverviewSection is exported; inProgressProgress and InProgressRow are file-internal.
+// The student dashboard's home: statistics, work in progress, what is due soon, and
+// recommendations.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
 import { useScrollRow } from '@/lib/use-scroll-row';
@@ -11,7 +11,6 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
-import { isIndividualCohort } from '@/lib/cohort-kind';
 import type { SectionId } from '@/components/student/nav';
 import {
   BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, TrendingUp,
@@ -75,7 +74,7 @@ function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Recor
           const isLcp = idx === 0;
           return (
             <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
-              <a href={href} target="_blank" rel="noreferrer" className="block transition-transform hover:-translate-y-0.5">
+              <a href={href} className="block transition-transform hover:-translate-y-0.5">
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
                   <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}</div>
                   {cover && <img src={resolveCoverUrl(cover)} alt="" loading={isLcp ? undefined : 'lazy'} fetchPriority={isLcp ? 'high' : undefined} className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
@@ -102,8 +101,8 @@ function InProgressRow({ items, deadlines, C }: { items: any[]; deadlines: Recor
   );
 }
 
-export function OverviewSection({ user, userEmail, C, onNavigate }: {
-  user: any; userEmail: string; C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
+export function OverviewSection({ user, C, onNavigate }: {
+  user: any; C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
 }) {
   const [loading, setLoading]               = useState(true);
   const [loadError, setLoadError]           = useState(false);
@@ -116,17 +115,12 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   const [totalXP, setTotalXP] = useState(0);
   const [gpAttempts, setGpAttempts]         = useState<Record<string, any>>({});
   const [deadlines, setDeadlines]           = useState<Record<string, Date | null>>({});
-  const [certs, setCerts]                   = useState<any[]>([]);
-  const [myRank, setMyRank]                 = useState<number | null>(null);
-  const [totalInCohort, setTotalInCohort]   = useState(0);
+  const [certCount, setCertCount]           = useState(0);
   const [events, setEvents] = useState<any[]>([]);
   const [gaps, setGaps]                     = useState<any[]>([]);
-  const [assignmentStats, setAssignmentStats] = useState<{ total: number; submitted: number; graded: number } | null>(null);
   const [assignmentItems, setAssignmentItems] = useState<any[]>([]);
   const [refreshKey, setRefreshKey]           = useState(0);
-  const [allBadges, setAllBadges]             = useState<{ id: string; name: string; description: string; icon: string; color: string; image_url: string | null }[]>([]);
-  const [earnedBadgeIds, setEarnedBadgeIds]   = useState<Set<string>>(new Set());
-  const [streak, setStreak]                   = useState<{ current_streak: number; longest_streak: number } | null>(null);
+  const [badgeCount, setBadgeCount]           = useState(0);
   const { attach: recRef, ...recRow } = useScrollRow();
   const { attach: statRef, ...statRow } = useScrollRow();
   const { attach: upRef, ...upRow } = useScrollRow();
@@ -137,40 +131,38 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // The first load shows the skeleton; a refresh (coming back to the tab, Try again) swaps the
+  // figures in place instead of blanking the page.
+  const loadedOnce = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      if (!loadedOnce.current) setLoading(true);
       setLoadError(false);
       try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
 
       const { data: student, error: studentError } = await supabase
-        .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', user.id).single();
+        .from('students').select('cohort_id').eq('id', user.id).single();
       if (studentError) throw studentError;
       const cohort = student?.cohort_id ?? null;
-      // A synthetic individual-enrollment cohort (migration 165) has no real peer
-      // group, so its "leaderboard" is just the one student -- skip fetching it.
-      // Courses/VEs/events/assignments stay keyed off `cohort` as-is: they still
-      // correctly show whatever's actually tagged into that cohort's cohort_ids
-      // (the individually-purchased course), and naturally come back empty for
-      // content types individual enrollment never tags (events, VEs, assignments).
-      const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
       // Fetch the student's group memberships so we can include group assignments below
       const { data: gmRows, error: groupMembershipError } = await supabase.from('group_members').select('group_id').eq('student_id', user.id);
       if (groupMembershipError) throw groupMembershipError;
       const myGroupIds = (gmRows ?? []).map((r: any) => r.group_id as string);
 
-      const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignCrsRes, cohortAssignVeRes, certsData, lbData, eventsRes, gapsData, assignmentsRes, asmSubsRes, allBadgesRes, earnedBadgesRes, streakRes, groupAssignmentsRes, groupSubsRes] =
+      // What the cohort can open, light: titles, covers and deadlines for Upcoming. The lesson and
+      // mission content needed for progress is read below, only for work actually started.
+      const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignRes, certsData, eventsRes, gapsData, assignmentsRes, asmSubsRes, earnedBadgesRes, groupAssignmentsRes, groupSubsRes, xpRes] =
         await Promise.all([
           cohort
-            ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('courses').select('id, title, slug, cover_image, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
           cohort
-            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
           supabase.from('course_attempts')
             .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
             .eq('student_id', user.id).order('updated_at', { ascending: false }),
@@ -178,17 +170,10 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
             .select('ve_id, completed_at, progress, updated_at')
             .eq('student_id', user.id),
           cohort
-            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).eq('content_type', 'course')
-            : Promise.resolve({ data: [] as any[] }),
-          cohort
-            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).eq('content_type', 'virtual_experience')
+            ? supabase.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohort).in('content_type', ['course', 'virtual_experience'])
             : Promise.resolve({ data: [] as any[] }),
           // By student id, not the signed-in user, so view-as shows the student's certificates.
-          supabase.from('certificates').select('id').eq('student_id', user.id).eq('revoked', false),
-          cohort && token && !inIndividualCohort
-            ? fetch(`/api/leaderboard?cohort_id=${encodeURIComponent(cohort)}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.json()).catch(() => ({ rankings: [] }))
-            : Promise.resolve({ rankings: [] }),
+          supabase.from('certificates').select('id', { count: 'exact', head: true }).eq('student_id', user.id).eq('revoked', false),
           cohort
             ? supabase.from('events').select('id, title, slug, event_date, event_time, cover_image').contains('cohort_ids', [cohort]).eq('status', 'published')
             : Promise.resolve({ data: [] as any[] }),
@@ -204,15 +189,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           supabase.from('assignment_submissions')
             .select('assignment_id, status')
             .eq('student_id', user.id),
-          // All badge definitions (public)
-          supabase.from('badges').select('id, name, description, icon, color, image_url').order('id'),
-          // Earned badge IDs for this student
-          supabase.from('student_badges').select('badge_id').eq('student_id', user.id),
-          // Streak
-          supabase.from('student_streaks')
-            .select('current_streak, longest_streak')
-            .eq('student_id', user.id)
-            .maybeSingle(),
+          supabase.from('student_badges').select('badge_id', { count: 'exact', head: true }).eq('student_id', user.id),
           // Assignments targeting the student's groups
           myGroupIds.length > 0
             ? supabase.from('assignments').select('id, title, deadline_date, cover_image').overlaps('group_ids', myGroupIds).eq('status', 'published')
@@ -221,19 +198,11 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           myGroupIds.length > 0
             ? supabase.from('assignment_submissions').select('assignment_id, status, participants').in('group_id', myGroupIds)
             : Promise.resolve({ data: [] as any[] }),
+          // Read from student_xp rather than summed here, so this figure and the leaderboard agree.
+          supabase.from('student_xp').select('total_xp').eq('student_id', user.id).maybeSingle(),
         ]);
 
       if (cancelled) return;
-
-      // Normalize courses and VEs into a unified shape with config reconstruction
-      const normalizedCourses = (courseRes.data ?? []).map((c: any) => ({
-        ...c, content_type: 'course',
-        config: { isCourse: true, title: c.title, coverImage: c.cover_image, questions: stripSqlSolutions(c.questions ?? []), deadline_days: c.deadline_days, passmark: c.passmark, description: c.description ?? '', learnOutcomes: c.learn_outcomes ?? [] },
-      }));
-      const normalizedVEs = (veRes.data ?? []).map((ve: any) => ({
-        ...ve, content_type: 'virtual_experience',
-        config: { isVirtualExperience: true, title: ve.title, coverImage: ve.cover_image, modules: ve.modules ?? [], deadline_days: ve.deadline_days },
-      }));
 
       // Deduplicate course attempts: passed+completed always wins over in-progress; higher score among completed.
       const caMap: Record<string, any> = {};
@@ -249,11 +218,39 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const gpMap: Record<string, any> = {};
       for (const a of gpAttRes.data ?? []) gpMap[a.ve_id] = a;
 
+      // The content behind started, unfinished work, wherever it was reached from: the cohort, a
+      // learning path, or open access. A course taken through a path is not assigned to the cohort
+      // itself, so the list above alone left it out of In progress.
+      const openCourseIds = Object.values(caMap).filter((a: any) => !a.completed_at).map((a: any) => a.course_id);
+      const openVeIds = Object.values(gpMap).filter((a: any) => !a.completed_at).map((a: any) => a.ve_id);
+      const [startedCourses, startedVes] = await Promise.all([
+        openCourseIds.length
+          ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days, questions').in('id', openCourseIds)
+          : Promise.resolve({ data: [] as any[] }),
+        openVeIds.length
+          ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, modules').in('id', openVeIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      if (cancelled) return;
+
+      // One list of courses and experiences: the started ones carry their content, the rest only
+      // what Upcoming needs.
+      const byId = new Map<string, any>();
+      const add = (row: any, type: 'course' | 'virtual_experience') => byId.set(row.id, {
+        ...byId.get(row.id), ...row, content_type: type,
+        config: type === 'course'
+          ? { title: row.title, coverImage: row.cover_image, questions: stripSqlSolutions(row.questions ?? byId.get(row.id)?.questions ?? []) }
+          : { title: row.title, coverImage: row.cover_image, modules: row.modules ?? byId.get(row.id)?.modules ?? [] },
+      });
+      for (const row of courseRes.data ?? []) add(row, 'course');
+      for (const row of startedCourses.data ?? []) add(row, 'course');
+      for (const row of veRes.data ?? []) add(row, 'virtual_experience');
+      for (const row of startedVes.data ?? []) add(row, 'virtual_experience');
+      const allLearning = [...byId.values()];
+
       // Deadline map
       const assignedAtMap: Record<string, string> = {};
-      for (const ca of cohortAssignCrsRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
-      for (const ca of cohortAssignVeRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
-      const allLearning = [...normalizedCourses, ...normalizedVEs];
+      for (const ca of cohortAssignRes.data ?? []) assignedAtMap[ca.content_id] = ca.assigned_at;
       const dlMap: Record<string, Date | null> = {};
       for (const f of allLearning) {
         const dl = f.deadline_days;
@@ -261,65 +258,32 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
         dlMap[f.id] = aa && dl ? new Date(new Date(aa).getTime() + Number(dl) * 86400000) : null;
       }
 
-      const isProjForm = (f: any) =>
-        f.content_type === 'guided_project' || f.content_type === 'virtual_experience' ||
-        f.config?.isGuidedProject || f.config?.isVirtualExperience;
-      const isCrsForm  = (f: any) => f.content_type === 'course' || f.config?.isCourse;
-
-      // Leaderboard rank
-      const rankings: any[] = (lbData as any)?.rankings ?? [];
-      const myEntry = rankings.find((r: any) => r.isMe);
-
       // Merge cohort assignments + group assignments, deduplicate by id
-      const cohortAsmRows = (assignmentsRes as any)?.data ?? [];
-      const groupAsmRows  = (groupAssignmentsRes as any)?.data ?? [];
       const asmById = new Map<string, any>();
-      for (const a of [...cohortAsmRows, ...groupAsmRows]) asmById.set(a.id, a);
+      for (const a of [...((assignmentsRes as any)?.data ?? []), ...((groupAssignmentsRes as any)?.data ?? [])]) asmById.set(a.id, a);
       const asmRows = Array.from(asmById.values());
 
       // Merge individual submissions + group submissions (individual wins on conflict)
-      const individualSubRows = (asmSubsRes as any)?.data ?? [];
-      const groupSubRowsMerge = (groupSubsRes as any)?.data ?? [];
-      const subById = new Map<string, any>();
-      for (const s of [
-        ...groupSubRowsMerge.filter((s: any) => Array.isArray(s.participants) && s.participants.includes(user.id)),
-        ...individualSubRows,
-      ]) subById.set(s.assignment_id, s);
-      const subRows = Array.from(subById.values());
-      const subMap  = new Map(subRows.map((s: any) => [s.assignment_id, s.status]));
+      const subMap = new Map<string, string>();
+      for (const sub of [
+        ...((groupSubsRes as any)?.data ?? []).filter((g: any) => Array.isArray(g.participants) && g.participants.includes(user.id)),
+        ...((asmSubsRes as any)?.data ?? []),
+      ]) subMap.set(sub.assignment_id, sub.status);
       for (const a of asmRows) {
         if (a.deadline_date) dlMap[a.id] = new Date(a.deadline_date);
       }
 
-      const { data: xpRow } = await supabase
-        .from('student_xp').select('total_xp').eq('student_id', user.id).maybeSingle();
-      setTotalXP((xpRow as any)?.total_xp ?? 0);
-
+      setTotalXP((xpRes as any)?.data?.total_xp ?? 0);
       setCourses(allLearning);
       setCourseAttempts(caMap);
       setGpAttempts(gpMap);
       setDeadlines(dlMap);
-      setCerts(certsData.data ?? []);
-      setMyRank(myEntry?.rank ?? null);
-      setTotalInCohort(rankings.length);
+      setCertCount((certsData as any)?.count ?? 0);
       setEvents((eventsRes as any)?.data ?? []);
       setGaps((gapsData as any)?.gaps ?? []);
-      setAssignmentStats({
-        total:     asmRows.length,
-        submitted: subRows.filter((s: any) => ['submitted', 'graded'].includes(s.status)).length,
-        graded:    subRows.filter((s: any) => s.status === 'graded').length,
-      });
-
-      // Store assignments in state so deadlines panel can render them
       setAssignmentItems(asmRows.map((a: any) => ({ ...a, _subStatus: subMap.get(a.id) ?? null })));
-
-      // Badges
-      setAllBadges((allBadgesRes as any)?.data ?? []);
-      setEarnedBadgeIds(new Set(((earnedBadgesRes as any)?.data ?? []).map((b: any) => b.badge_id)));
-
-      // Streak
-      const streakData = (streakRes as any)?.data;
-      setStreak(streakData ? { current_streak: streakData.current_streak, longest_streak: streakData.longest_streak } : null);
+      setBadgeCount((earnedBadgesRes as any)?.count ?? 0);
+      loadedOnce.current = true;
 
       } catch {
         if (!cancelled) setLoadError(true);
@@ -330,11 +294,9 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, userEmail, refreshKey]);
+  }, [user.id, refreshKey]);
 
-  const isProjForm = (f: any) =>
-    f.content_type === 'guided_project' || f.content_type === 'virtual_experience' ||
-    f.config?.isGuidedProject || f.config?.isVirtualExperience;
+  const isProjForm = (f: any) => f.content_type === 'virtual_experience';
 
   const now = useMemo(() => Date.now(), []);
 
@@ -447,8 +409,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
           {([
             { icon: Zap,         color: '#eab308', bg: 'rgba(234,179,8,0.12)',  value: totalXP.toLocaleString(), label: 'XP earned',        nav: 'badges'       },
             { icon: CheckCircle, color: '#16a34a', bg: 'rgba(22,163,74,0.12)',  value: completedCount,           label: 'Courses completed', nav: 'courses'      },
-            { icon: Award,       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', value: certs.length,             label: 'Certificates',      nav: 'certificates' },
-            { icon: Medal,       color: '#14b8a6', bg: 'rgba(20,184,166,0.12)', value: earnedBadgeIds.size,      label: 'Badges',            nav: 'badges'       },
+            { icon: Award,       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', value: certCount,             label: 'Certificates',      nav: 'certificates' },
+            { icon: Medal,       color: '#14b8a6', bg: 'rgba(20,184,166,0.12)', value: badgeCount,      label: 'Badges',            nav: 'badges'       },
           ] as const).map(({ icon: Icon, color, bg, value, label, nav }) => (
             <button key={label} onClick={() => onNavigate(nav as SectionId)}
               className="flex-shrink-0 w-[180px] snap-start flex items-center gap-3 text-left transition-opacity hover:opacity-80">
@@ -522,7 +484,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
               const isVE = gap.course.contentType === 'virtual_experience' || gap.course.contentType === 'guided_project';
               const liveItem = courses.find((c: any) => c.id === gap.course.formId);
               if (!liveItem) return null;
-              const href = isVE ? '/student#virtual_experiences' : `/${liveItem.slug || liveItem.id}`;
+              // The item's own page, as In progress links it; an experience used to open the list.
+              const href = `/${liveItem.slug || liveItem.id}`;
               const rawCover = gap.course.coverImage;
               const safeCover = (() => {
                 try { const u = new URL(rawCover ?? ''); return (u.protocol === 'https:' || u.protocol === 'http:') ? rawCover : null; } catch { return null; }
@@ -553,4 +516,3 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   );
 }
 
-// --- Copyable detail row used inside payment option cards ---
