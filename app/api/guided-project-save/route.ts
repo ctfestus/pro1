@@ -55,6 +55,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // An edit is allowed to the experience's owner, or to any admin, as reading it is (RLS). The
+  // owner's guides are the ones the experience may use, whoever saves it.
+  let existing: { user_id: string; cohort_ids: string[] | null; slug: string | null; status: string | null } | null = null;
+  if (editId) {
+    const { data } = await supabase
+      .from('virtual_experiences')
+      .select('user_id, cohort_ids, slug, status')
+      .eq('id', editId)
+      .maybeSingle();
+    if (!data || (data.user_id !== user.id && auth.role !== 'admin')) {
+      return NextResponse.json({ error: 'Virtual experience not found.' }, { status: 404 });
+    }
+    existing = data;
+  }
+
   // Guide identity and consent are server-owned facts. Never persist a browser-supplied
   // snapshot directly: resolve the selected record, verify access, and build the public
   // snapshot from canonical data so names, photos and consent cannot be forged.
@@ -62,7 +77,7 @@ export async function POST(req: NextRequest) {
   try {
     verifiedGuide = await resolveExperienceGuide({
       db: supabase,
-      ownerId: user.id,
+      ownerId: existing?.user_id ?? user.id,
       requestedGuideId: config.guideId,
       publishing: formStatus === 'published',
     });
@@ -92,8 +107,9 @@ export async function POST(req: NextRequest) {
     cohort_ids:     newCohortIds,
     available_to_everyone: openAccess,
     group_ids:      [],
-    cover_image:    coverImage || config.coverImage || null,
-    deadline_days:  deadline_days ? Number(deadline_days) : (config.deadline_days ? Number(config.deadline_days) : null),
+    // What the editor sends is the whole truth: an empty cover or deadline means it was cleared.
+    cover_image:    coverImage || null,
+    deadline_days:  deadline_days ? Number(deadline_days) : null,
     theme:          config.theme         ?? null,
     mode:           config.mode          ?? null,
     font:           config.font          ?? null,
@@ -167,22 +183,13 @@ export async function POST(req: NextRequest) {
     payload.dataset = Object.keys(datasetMeta).length ? datasetMeta : null;
   }
 
-  if (editId) {
-    // Fetch current cohort_ids/status before updating so we can detect newly added cohorts and first publish
-    const { data: existing } = await supabase
-      .from('virtual_experiences')
-      .select('cohort_ids, slug, status')
-      .eq('id', editId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!existing) return NextResponse.json({ error: 'Virtual experience not found.' }, { status: 404 });
-
+  if (editId && existing) {
+    // `existing` (read above) holds the cohort_ids/status before this save, to detect newly added
+    // cohorts and a first publish.
     const { error } = await supabase
       .from('virtual_experiences')
       .update(payload)
-      .eq('id', editId)
-      .eq('user_id', user.id);
+      .eq('id', editId);
 
     if (error) {
       console.error('[guided-project-save] update error:', error);
@@ -239,7 +246,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
-    return NextResponse.json({ id: editId, slug: existing.slug, registrationWarning });
+    return NextResponse.json({ id: editId, slug: existing.slug, registrationWarning, dataset: payload.dataset });
   }
 
   // Generate slug for new VE
@@ -284,5 +291,5 @@ export async function POST(req: NextRequest) {
     }).catch(() => {});
   }
 
-  return NextResponse.json({ id: data.id, slug: data.slug, registrationWarning });
+  return NextResponse.json({ id: data.id, slug: data.slug, registrationWarning, dataset: payload.dataset });
 }

@@ -220,7 +220,7 @@ AI Reviewer step fields:
 - rubric: array of exactly 4 specific grading criteria relevant to this module's learning objectives. Each criterion should be a single evaluable statement e.g. "Query uses SUMIF or SUMIFS correctly to aggregate by the required dimension" or "Revenue calculation formula references the correct column range without hardcoded values".
 - schema: (code_review only) describe the dataset columns as a simple column list or CREATE TABLE statement so the AI can validate references.
 - context: (excel_review only) describe the domain and what key cells or ranges should calculate e.g. "This is a financial model. Column F should calculate net profit margin using revenue in column D and costs in column E."
-- minScore: 6 for all AI reviewer steps.
+- minScore: 70 for all AI reviewer steps (scores are out of 100).
 - NO options, NO correctAnswer, NO expectedAnswer.
 
 Order within regular lessons: mcq, mcq, task, text.
@@ -232,7 +232,7 @@ IDs: use "mod-1", "les-1-1", "req-1-1-1" format.
 Generate:
 - 3-4 modules (each a project phase: data exploration  analysis  visualisation  insights)
 - 2-3 lessons per module
-- 4 requirements per lesson: regular lessons get 2 mcq + 1 task + 1 text; capstone lessons (last lesson of each module) get 2 mcq + 1 task + 1 AI reviewer step (code_review, excel_review, or dashboard_critique) with rubric, schema/context, and minScore: 6
+- 4 requirements per lesson: regular lessons get 2 mcq + 1 task + 1 text; capstone lessons (last lesson of each module) get 2 mcq + 1 task + 1 AI reviewer step (code_review, excel_review, or dashboard_critique) with rubric, schema/context, and minScore: 70
 - tagline: one punchy sentence
 - background: 2-3 direct sentences (HTML <p>)
 - description: 1 sentence summary (HTML <p>)
@@ -360,7 +360,7 @@ Choose type based on tools: SQL or Python present  "code_review". Excel present 
 - rubric: array of exactly 4 specific grading criteria for this module's objectives. Each is one evaluable statement e.g. "Query correctly uses GROUP BY to aggregate ${pass1.dataset?.filename ? 'the dataset' : 'data'} by the required dimension" or "Revenue formula references the correct column range without hardcoded values".
 - schema: (code_review only) list the dataset columns as a simple column description so the AI can validate references e.g. "Table: transactions. Columns: id (int), region (text), amount (decimal), date (date), status (text)".
 - context: (excel_review only) describe the domain and what key cells should calculate e.g. "This is a sales analysis model for ${pass1.company || 'the company'}. Column E should calculate total revenue using SUMIF on the region column.".
-- minScore: 6.
+- minScore: 70 (scores are out of 100).
 - NO options, NO correctAnswer, NO expectedAnswer.
 
 IDs: "mod-1", "les-1-1", "req-1-1-1" (task = "req-1-1-3", 4th requirement = "req-1-1-4").
