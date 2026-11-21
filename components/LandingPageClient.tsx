@@ -9,11 +9,11 @@ import { useTenant } from '@/components/TenantProvider';
 import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
-import { CataloguePreview, LevelBars, type CatalogueItem } from '@/components/CataloguePreview';
+import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
 import { MenuSelect } from '@/components/MenuSelect';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
-import { useToolIcons } from '@/lib/use-tool-icons';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -475,81 +475,18 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   return { openHover, scheduleClose, portal };
 }
 
-/** The course card's small grey labels (tags and the "+N" after them). */
-function TagChip({ children, isDark }: { children: React.ReactNode; isDark?: boolean }) {
-  return (
-    <span className="inline-flex flex-shrink-0 items-center h-[22px] px-2 rounded-md text-[12px] font-medium whitespace-nowrap"
-      style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#F1F3F5', color: isDark ? 'rgba(255,255,255,0.75)' : '#4b5160' }}>
-      {children}
-    </span>
-  );
-}
-
 /**
- * As many tags as fit on one line; when some do not, "+N" counts them. Measured from the card's
- * own width, so a phone shows fewer than a desktop, and measured again when the card resizes.
+ * One card: its own white card with a soft shadow, the cover edge to edge across its top, then
+ * the title, partner, and the tags, level and tools.
  */
-function FitTags({ tags, isDark }: { tags: string[]; isDark?: boolean }) {
-  const rowRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(tags.length);
-  useEffect(() => {
-    const row = rowRef.current, measure = measureRef.current;
-    if (!row || !measure) return;
-    const GAP = 6, MORE = 34; // the space between chips, and room for the "+N" chip
-    const fit = () => {
-      const widths = [...measure.children].map(el => (el as HTMLElement).offsetWidth);
-      const span = (n: number) => widths.slice(0, n).reduce((sum, w) => sum + w, 0) + GAP * Math.max(0, n - 1);
-      if (span(widths.length) <= row.clientWidth) { setShown(widths.length); return; }
-      let n = widths.length - 1;
-      while (n > 1 && span(n) + GAP + MORE > row.clientWidth) n--;
-      setShown(n);
-    };
-    // The card resizing changes the room; the hidden row resizing (the web font arriving after the
-    // first measure) changes the tags' own widths. Either one re-fits.
-    const obs = new ResizeObserver(fit);
-    obs.observe(row);
-    obs.observe(measure);
-    return () => obs.disconnect();
-  }, [tags]);
-  return (
-    <div ref={rowRef} className="relative flex gap-1.5 overflow-hidden">
-      {tags.slice(0, shown).map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
-      {shown < tags.length && <TagChip isDark={isDark}>+{tags.length - shown}</TagChip>}
-      {/* Every tag, invisible, so their widths can be read whatever is showing. */}
-      <div ref={measureRef} aria-hidden="true" className="absolute left-0 top-0 invisible flex gap-1.5">
-        {tags.map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
-      </div>
-    </div>
-  );
-}
-
-/**
- * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
- * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
- * straight on the panel behind them (the experience and certification rows).
- */
-function ProgrammeCard({ item, user, isDark, hFont, framed }: {
-  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string; framed?: boolean;
+function ProgrammeCard({ item, user, isDark, hFont }: {
+  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string;
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
-  const toolIcon = useToolIcons();
-  // The framed course card's details: tags, then the level on the left and the course's tools on the
-  // right (picked in the course editor; separate from the category, which sets the tab).
-  const tags = framed ? item.tags ?? [] : [];
-  const tools = framed ? item.tools ?? [] : [];
-  const level = framed ? item.level : undefined;
   return (
-    <Link href={landingHref(item, user)}
-      className={framed
-        ? 'flex flex-col h-full group cursor-pointer rounded-xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
-        : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
-      style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
-      <div className={framed
-          ? 'relative overflow-hidden w-full aspect-video'
-          : 'relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]'}
-        style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
+    <Link href={landingHref(item, user)} className={FRAMED_CARD} style={{ background: isDark ? '#1E1F26' : '#ffffff' }}>
+      <div className="relative overflow-hidden w-full aspect-video" style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
           : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: NO_COVER_BG }}>
@@ -558,43 +495,24 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
         }
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
+        {/* An experience's industry on the cover, in the pop-up's yellow tag. Courses leave it off:
+            their category is the tab above the grid. */}
+        {item.type === 've' && item.category && (
+          <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+            {item.category}
+          </span>
+        )}
       </div>
-      <div className={framed ? 'flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
-        {/* Two lines kept for the title on a course card, so the details line up across a row. */}
-        {/* A course card is full width on a phone, so it keeps the 15px title there too. */}
-        <p className={`line-clamp-2 ${framed ? 'text-[15px] leading-5 min-h-[40px]' : 'text-[13px] leading-[18px] sm:text-[15px] sm:leading-5'}`} style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
+      <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+        {/* Two lines kept for the title, so the details line up across a row. */}
+        <p className="line-clamp-2 text-[15px] leading-5 min-h-[40px]" style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
         {item.partnerName && (
           <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
             {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
             <span>Offered by {item.partnerName}</span>
           </div>
         )}
-        {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
-        {(tags.length > 0 || level || tools.length > 0) && (
-          <div className="mt-auto pt-2.5 flex flex-col gap-2">
-            {tags.length > 0 && <FitTags tags={tags} isDark={isDark} />}
-            {(level || tools.length > 0) && (
-              <div className="flex items-center justify-between gap-2 min-h-[22px]">
-                {level ? (
-                  <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: muted }}>
-                    <LevelBars level={level} color={text} track={isDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
-                    {level}
-                  </span>
-                ) : <span />}
-                {tools.length > 0 && (
-                  <span className="flex flex-shrink-0 items-center gap-1.5">
-                    {/* Each tool's logo; a tool the library has no logo for shows its name. */}
-                    {/* The stored logo, no frame; some logos carry the tool's name themselves, so the
-                        width follows the image. */}
-                    {tools.map(tool => toolIcon(tool)
-                      ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
-                      : <span key={tool} className="text-[12px] font-semibold" style={{ color: muted }}>{tool}</span>)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <CardMeta tags={item.tags} level={item.level} tools={item.tools} isDark={isDark} text={text} muted={muted} />
       </div>
     </Link>
   );
@@ -676,7 +594,7 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
         {shown.map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
-            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} framed />
+            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} />
           </div>
         ))}
       </div>
@@ -686,8 +604,8 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
 }
 
 /**
- * Virtual experiences and certifications: a grid of eight a page, four across on a large screen,
- * with previous and next once there is more than one page.
+ * Virtual experiences and certifications: white cards, eight a page, four across on a large screen
+ * and one on a phone, with previous and next once there is more than one page.
  */
 function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont, isDark }: {
   items: ProgrammeItem[]; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
@@ -716,9 +634,10 @@ function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont,
   };
 
   return (
-    <section className="rounded-2xl p-4 sm:p-6" style={{ background: isDark ? '#1E1F26' : 'white' }}>
+    // White cards on the page itself, as in the courses grid.
+    <section>
       {pages > 1 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end mb-4">
           <div className="flex items-center gap-3">
             <span className="tabular-nums" style={{ ...M3.labelLarge, fontWeight: 600, color: rowMuted, fontFamily: bFont ?? hFont }}>
               {page + 1} / {pages}
@@ -728,7 +647,7 @@ function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont,
           </div>
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 pt-4 pb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         {visible.map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
             <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} />

@@ -105,6 +105,10 @@ export async function POST(req: NextRequest) {
     company:        config.company       ?? null,
     duration:       config.duration      ?? null,
     tools:          config.tools         ?? [],
+    // Topics (migration 248): trimmed, no blanks, no repeats ignoring case.
+    tags:           (Array.isArray(config.tags) ? config.tags : [])
+                      .map((t: unknown) => (typeof t === 'string' ? t.trim() : ''))
+                      .filter((t: string, i: number, all: string[]) => t && all.findIndex(o => o.toLowerCase() === t.toLowerCase()) === i),
     tool_logos:     config.toolLogos     ?? {},
     tagline:        config.tagline       ?? null,
     background:     config.background    ?? null,

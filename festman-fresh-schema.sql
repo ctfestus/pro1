@@ -356,6 +356,8 @@ CREATE TABLE public.virtual_experiences (
   company         text,
   duration        text,
   tools           text[]      DEFAULT '{}',
+  -- migration 248: topics the experience covers, shown on cards and the hover preview.
+  tags            text[]      NOT NULL DEFAULT '{}',
   tool_logos      jsonb       DEFAULT '{}',
   tagline         text,
   background      text,

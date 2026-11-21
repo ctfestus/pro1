@@ -25,6 +25,7 @@ import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 import { CataloguePreview, TYPE_ICON, resolvedCover, type CatalogueItem, type CatalogueType } from '@/components/CataloguePreview';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { LIGHT_C } from '@/lib/theme';
@@ -228,7 +229,7 @@ export function ExploreSection({ C }: {
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
-              <CataloguePreview item={hover.item} accent={typeColor[hover.item.type]} href={directHref(hover.item)} onOpen={open} C={C} />
+              <CataloguePreview item={hover.item} accent={typeColor[hover.item.type]} href={directHref(hover.item)} onOpen={open} compact C={C} />
             </HoverPreviewCard>
           )}
         </AnimatePresence>,
@@ -256,7 +257,8 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   const remaining = Math.max(0, items.length - visibleItems.length);
 
   return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
+    // Cards on the page itself, each its own white card, as on the landing page.
+    <section>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-7 h-7 rounded-lg grid place-items-center flex-shrink-0" style={{ background: `${accent}16` }}>
@@ -271,10 +273,11 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
         </span>
       </div>
 
-      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 pt-4">
         {visibleItems.map(item => (
           <div
             key={item.id}
+            className="min-w-0"
             onMouseEnter={e => onHover(item, e.currentTarget)}
             onMouseLeave={onHoverLeave}
           >
@@ -283,10 +286,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
               const href = directHref(item);
               const inner = (
                 <>
-                  <div
-                    className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                    style={{ background: coverUrl ? '#0b0b0d' : C.pill }}
-                  >
+                  <div className="relative overflow-hidden w-full aspect-video" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
                     {coverUrl
                       ? <img src={coverUrl} alt={item.title} loading="lazy"
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
@@ -315,20 +315,21 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                     )}
                   </div>
 
-                  <p className="text-base font-bold leading-snug mt-3 line-clamp-2" style={{ color: C.text }}>
-                    {item.title}
-                  </p>
-                  {item.locked && item.prices?.length ? (
-                    <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
-                  ) : null}
+                  <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+                    {/* Two lines kept for the title, so the details line up across a row. */}
+                    <p className="text-[15px] leading-5 min-h-[40px] font-bold line-clamp-2" style={{ color: C.text }}>
+                      {item.title}
+                    </p>
+                    {item.locked && item.prices?.length ? (
+                      <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
+                    ) : null}
+                    <CardMeta tags={item.topics} level={item.level} tools={item.tools}
+                      isDark={C.page !== LIGHT_C.page} text={C.text} muted={C.muted} />
+                  </div>
                 </>
               );
               return (
-                <a
-                  href={href}
-                  className="group block transition-transform duration-300 hover:-translate-y-1"
-                  style={{ textDecoration: 'none' }}
-                >
+                <a href={href} className={FRAMED_CARD} style={{ background: C.card, textDecoration: 'none' }}>
                   {inner}
                 </a>
               );
