@@ -394,33 +394,35 @@ export function OverviewSection({ user, name, C, onNavigate }: {
                 const tag = deadlineTag(deadlines[form.id], false);
                 return (
                   <a key={form.id} href={`/${form.slug || form.id}`}
-                    className="group flex flex-col gap-4 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:flex-row sm:items-stretch sm:gap-6 sm:p-5"
+                    className="group flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:flex-nowrap sm:items-stretch sm:gap-5"
                     style={{ background: C.card, boxShadow: '0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.18)' }}>
-                    {/* The picture inset in the card, its own rounded corners. Beside the text it fills the
-                        card's height, so the white around it is the same on every side at any width. */}
-                    <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl sm:aspect-auto sm:min-h-[150px] sm:w-[42%] sm:max-w-[300px]" style={{ background: C.pill }}>
+                    {/* The picture inset in the card, its own rounded corners. From a tablet up it fills the
+                        card's height, so the white around it is the same on every side; on a phone it is
+                        a small picture beside the text, the button on its own line below. */}
+                    <div className="relative aspect-video w-24 flex-shrink-0 self-start overflow-hidden rounded-lg sm:aspect-auto sm:min-h-[90px] sm:w-[160px] sm:self-stretch sm:rounded-xl" style={{ background: C.pill }}>
                       <div className="absolute inset-0 grid place-items-center">
-                        {isProject ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
+                        {isProject ? <Briefcase className="h-6 w-6" style={{ color: C.faint }} /> : <Video className="h-6 w-6" style={{ color: C.faint }} />}
                       </div>
                       {cover && <img src={resolveCoverUrl(cover)} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={e => (e.currentTarget.style.display = 'none')} />}
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col justify-center sm:py-1">
+                    <div className="flex min-w-0 flex-1 basis-[calc(100%-112px)] flex-col justify-center sm:basis-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold" style={{ color: C.muted }}>{isProject ? 'Virtual experience' : 'Course'}</span>
+                        <span className="text-xs font-semibold" style={{ color: C.muted }}>{isProject ? 'Virtual experience' : 'Course'}</span>
                         {tag && <Pill tone={tag.tone === 'red' ? 'bad' : tag.tone === 'amber' ? 'warn' : 'mute'} C={C}>{tag.label}</Pill>}
                       </div>
-                      <p className="mt-2 line-clamp-2 text-[22px] leading-7 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{form.title}</p>
-                      <div className="mt-4 flex items-center gap-4">
-                        <div className="h-2 max-w-[320px] flex-1 overflow-hidden rounded-full" style={{ background: C.pill }}>
+                      <p className="mt-1 line-clamp-2 text-base leading-6 font-bold sm:text-lg" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{form.title}</p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="h-2 max-w-[280px] flex-1 overflow-hidden rounded-full" style={{ background: C.pill }}>
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: BLUE }} />
                         </div>
-                        <span className="text-sm font-semibold tabular-nums" style={{ color: C.text }}>{pct}% complete</span>
+                        <span className="text-xs font-semibold tabular-nums" style={{ color: C.text }}>{pct}% complete</span>
                       </div>
-                      <span className="mt-5 inline-flex h-10 items-center self-start rounded-full px-6 text-sm font-semibold transition-opacity group-hover:opacity-90"
-                        style={{ background: BLUE, color: '#ffffff' }}>
-                        {isProject ? 'Resume experience' : 'Resume course'}
-                      </span>
                     </div>
+                    {/* The action at the far end, so the card stays one slim row. */}
+                    <span className="inline-flex h-10 w-full flex-shrink-0 items-center justify-center rounded-full px-6 text-sm font-semibold transition-opacity group-hover:opacity-90 sm:w-auto sm:self-center"
+                      style={{ background: BLUE, color: '#ffffff' }}>
+                      Resume
+                    </span>
                   </a>
                 );
               })}
