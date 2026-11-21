@@ -476,25 +476,17 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
 }
 
 /**
- * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
- * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
- * straight on the panel behind them (the experience and certification rows).
+ * One card: its own white card with a soft shadow, the cover edge to edge across its top, then
+ * the title, partner, and the tags, level and tools.
  */
-function ProgrammeCard({ item, user, isDark, hFont, framed }: {
-  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string; framed?: boolean;
+function ProgrammeCard({ item, user, isDark, hFont }: {
+  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string;
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
   return (
-    <Link href={landingHref(item, user)}
-      className={framed
-        ? FRAMED_CARD
-        : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
-      style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
-      <div className={framed
-          ? 'relative overflow-hidden w-full aspect-video'
-          : 'relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]'}
-        style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
+    <Link href={landingHref(item, user)} className={FRAMED_CARD} style={{ background: isDark ? '#1E1F26' : '#ffffff' }}>
+      <div className="relative overflow-hidden w-full aspect-video" style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
           : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]" style={{ background: NO_COVER_BG }}>
@@ -504,20 +496,16 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
       </div>
-      <div className={framed ? 'flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
-        {/* Two lines kept for the title on a course card, so the details line up across a row. */}
-        {/* A course card is full width on a phone, so it keeps the 15px title there too. */}
-        <p className={`line-clamp-2 ${framed ? 'text-[15px] leading-5 min-h-[40px]' : 'text-[13px] leading-[18px] sm:text-[15px] sm:leading-5'}`} style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
+      <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+        {/* Two lines kept for the title, so the details line up across a row. */}
+        <p className="line-clamp-2 text-[15px] leading-5 min-h-[40px]" style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
         {item.partnerName && (
           <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
             {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
             <span>Offered by {item.partnerName}</span>
           </div>
         )}
-        {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
-        {/* Tags, then the level and the tools (picked in the course editor; separate from the
-            category, which sets the tab). */}
-        {framed && <CardMeta tags={item.tags} level={item.level} tools={item.tools} isDark={isDark} text={text} muted={muted} />}
+        <CardMeta tags={item.tags} level={item.level} tools={item.tools} isDark={isDark} text={text} muted={muted} />
       </div>
     </Link>
   );
@@ -599,7 +587,7 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
         {shown.map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
-            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} framed />
+            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} />
           </div>
         ))}
       </div>
@@ -609,8 +597,8 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
 }
 
 /**
- * Virtual experiences and certifications: a grid of eight a page, four across on a large screen,
- * with previous and next once there is more than one page.
+ * Virtual experiences and certifications: white cards, eight a page, four across on a large screen
+ * and one on a phone, with previous and next once there is more than one page.
  */
 function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont, isDark }: {
   items: ProgrammeItem[]; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
@@ -639,9 +627,10 @@ function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont,
   };
 
   return (
-    <section className="rounded-2xl p-4 sm:p-6" style={{ background: isDark ? '#1E1F26' : 'white' }}>
+    // White cards on the page itself, as in the courses grid.
+    <section>
       {pages > 1 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end mb-4">
           <div className="flex items-center gap-3">
             <span className="tabular-nums" style={{ ...M3.labelLarge, fontWeight: 600, color: rowMuted, fontFamily: bFont ?? hFont }}>
               {page + 1} / {pages}
@@ -651,7 +640,7 @@ function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont,
           </div>
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 pt-4 pb-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
         {visible.map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
             <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} />
