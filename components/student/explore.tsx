@@ -152,7 +152,7 @@ export function ExploreSection({ C }: {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <div className="space-y-3">
         {/* Type on the left, access on the right of the same line. Access began as a second row
             of pills and read as more of the same control, when it asks a different question --
@@ -208,7 +208,6 @@ export function ExploreSection({ C }: {
           type={type}
           items={list}
           C={C}
-          accent={typeColor[type]}
           onOpen={open}
           onHover={openHover}
           onHoverLeave={scheduleClose}
@@ -239,12 +238,11 @@ export function ExploreSection({ C }: {
   );
 }
 
-function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverLeave }: {
+function CatalogueRow({ title, type, items, C, onOpen, onHover, onHoverLeave }: {
   title: string;
   type: CatalogueType;
   items: CatalogueItem[];
   C: typeof LIGHT_C;
-  accent: string;
   onOpen: (item: CatalogueItem) => void;
   onHover: (item: CatalogueItem, el: HTMLElement) => void;
   onHoverLeave: () => void;
@@ -258,18 +256,13 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   return (
     // Cards on the page itself, each its own white card, as on the landing page.
     <section>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-7 h-7 rounded-lg grid place-items-center flex-shrink-0" style={{ background: `${accent}16` }}>
-            <Icon className="w-[15px] h-[15px]" style={{ color: accent }} />
-          </span>
-          <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>
-            {title}
-          </h3>
-        </div>
-        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.faint }}>
-          {items.length} item{items.length !== 1 ? 's' : ''}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className="w-8 h-8 rounded-lg grid place-items-center flex-shrink-0" style={{ background: C.card }}>
+          <Icon className="w-4 h-4" style={{ color: C.text }} />
         </span>
+        <h3 className="text-[22px] leading-7 font-bold truncate" style={{ color: C.text }}>
+          {title}
+        </h3>
       </div>
 
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 pt-4">
