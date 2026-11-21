@@ -592,6 +592,10 @@ function VirtualExperienceCreatePageInner() {
 
   const [deadlineDays, setDeadlineDays] = useState<string>('');
   const [coverImage,  setCoverImage]  = useState('');
+  // The status as last saved. A live experience offers Unpublish, not Save draft, since saving a
+  // draft takes it away from its cohorts.
+  const [savedStatus, setSavedStatus] = useState<'draft' | 'published'>('draft');
+  const createdId = useRef<string | null>(null);
   const [showCoverLibrary, setShowCoverLibrary] = useState(false);
   const [richTextImageLibraryOpen, setRichTextImageLibraryOpen] = useState(false);
   const richTextImageResolver = useRef<((url: string | null) => void) | null>(null);
@@ -673,6 +677,8 @@ function VirtualExperienceCreatePageInner() {
 
   // Load cohorts + existing project if editing
   useEffect(() => {
+    // Just created by the first save: what is on screen is already that experience.
+    if (editId && editId === createdId.current) return;
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/auth'); return; }
@@ -687,6 +693,7 @@ function VirtualExperienceCreatePageInner() {
         const { data: ve } = await supabase.from('virtual_experiences').select('*').eq('id', editId).maybeSingle();
         if (ve) {
           setVeSlug(ve.slug || '');
+          setSavedStatus(ve.status === 'published' ? 'published' : 'draft');
           const cfg: any = {
             isVirtualExperience: true, modules: ve.modules ?? [], industry: ve.industry,
             difficulty: ve.difficulty, role: ve.role, company: ve.company, duration: ve.duration,
@@ -867,14 +874,18 @@ function VirtualExperienceCreatePageInner() {
 
   const setGuideStatus = async (guide: any, status: 'active' | 'archived') => {
     setGuideError('');
-    const res = await fetch('/api/experience-guides', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-      body: JSON.stringify({ id: guide.id, status }),
-    });
-    const json = await res.json();
-    if (!res.ok) { setGuideError(json.error || 'Could not update this profile.'); return; }
-    setExperienceGuides(list => list.map(g => g.id === guide.id ? json.guide : g));
+    try {
+      const res = await fetch('/api/experience-guides', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+        body: JSON.stringify({ id: guide.id, status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setGuideError(json.error || 'Could not update this profile.'); return; }
+      setExperienceGuides(list => list.map(g => g.id === guide.id ? json.guide : g));
+    } catch {
+      setGuideError('Could not update this profile. Check your connection and try again.');
+    }
   };
 
   /**
@@ -1021,7 +1032,7 @@ function VirtualExperienceCreatePageInner() {
   // someone tries to leave, not on every keystroke. A loaded experience starts clean; a new one
   // (generated or blank) counts as unsaved until its first save.
   const savedSnapshot = useRef<string | null>(null);
-  const snapshotNow = () => JSON.stringify([config, title, coverImage, selectedCohorts, availableToEveryone, deadlineDays, industry, customIndustry, difficulty]);
+  const snapshotNow = (cfg = config) => JSON.stringify([cfg, title, coverImage, selectedCohorts, availableToEveryone, deadlineDays, industry, customIndustry, difficulty]);
   const hasUnsavedChanges = () => step === 2 && !!config && savedSnapshot.current !== null && savedSnapshot.current !== snapshotNow();
   const unsavedRef = useRef(hasUnsavedChanges);
   unsavedRef.current = hasUnsavedChanges;
@@ -1554,13 +1565,26 @@ function VirtualExperienceCreatePageInner() {
       // Stay in the editor so the user can keep editing. Remember the new id (and reflect it in
       // the URL without a reload) so repeat saves update this record instead of creating new ones.
       if (!effectiveId && json.id) {
+        // The URL change re-runs the load effect (it reads the id from the URL); this tells it the
+        // experience on screen is already the one in the database.
+        createdId.current = json.id;
         setSavedId(json.id);
         window.history.replaceState(null, '', `/create/guided-project?id=${json.id}`);
       }
       if (json.slug) setVeSlug(json.slug);
       if (json.registrationWarning) setSaveWarning(json.registrationWarning);
+      setSavedStatus(status);
       setSaveSuccess(true);
-      savedSnapshot.current = snapshotNow();
+      // An uploaded CSV is stored once: keep the link the server returns, so the next save does
+      // not upload it again.
+      let savedConfig = config;
+      if (config.dataset?.csvContent && json.dataset?.url) {
+        const dataset = { filename: config.dataset.filename, description: config.dataset.description, url: json.dataset.url };
+        savedConfig = { ...config, dataset };
+        setConfig(c => c ? { ...c, dataset } : c);
+        setDatasetUrl(json.dataset.url);
+      }
+      savedSnapshot.current = snapshotNow(savedConfig);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (e: any) {
       setSaveError(e.message);
@@ -1628,17 +1652,19 @@ function VirtualExperienceCreatePageInner() {
                     <Eye className="w-3.5 h-3.5" /> Preview
                   </span>
                 )}
-                <button onClick={() => handleSave('draft')} disabled={saving}
+                <button disabled={saving}
+                  onClick={() => { if (savedStatus !== 'published' || window.confirm('Unpublish this experience? Learners lose access until you publish it again.')) handleSave('draft'); }}
+                  title={savedStatus === 'published' ? 'Takes it away from learners and their cohorts until you publish it again' : undefined}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
                   style={{ color: C.muted, background: 'transparent' }}>
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                  Save draft
+                  {savedStatus === 'published' ? 'Unpublish' : 'Save draft'}
                 </button>
                 <button onClick={() => handleSave('published')} disabled={saving}
                   className="flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-bold transition-all hover:opacity-85"
                   style={{ background: saveSuccess ? '#16a34a' : C.cta, color: C.ctaText }}>
                   {saveSuccess ? <Check className="w-3.5 h-3.5"/> : <CheckCircle2 className="w-3.5 h-3.5"/>}
-                  {saveSuccess ? 'Saved' : effectiveId ? 'Update' : 'Publish'}
+                  {saveSuccess ? 'Saved' : savedStatus === 'published' ? 'Publish changes' : 'Publish'}
                 </button>
               </div>
             ) : (
@@ -2495,7 +2521,7 @@ function VirtualExperienceCreatePageInner() {
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd(mod.id, les.id)}>
                                         <SortableContext items={les.requirements.map(r => r.id)} strategy={verticalListSortingStrategy}>
                                         {les.requirements.map((req, qi) => {
-                                          const opts = req.options?.length === 4 ? req.options : ['', '', '', ''];
+                                          const opts = req.options?.length ? req.options : ['', '', '', ''];
                                           // One neutral style for the notes that say what a task type does.
                                           const tc = { bg: C.pill, color: C.muted };
                                           return (
@@ -2558,6 +2584,12 @@ function VirtualExperienceCreatePageInner() {
                                                       // stay at 0 until an instructor sets an amount.
                                                       sharePoints: type === 'linkedin_share' ? (req.sharePoints ?? DEFAULT_LINKEDIN_SHARE_POINTS) : undefined,
                                                       emailFrame: isDeliverable ? false : req.emailFrame,
+                                                      // Grading settings belong to the old type: a pass mark or rubric
+                                                      // carried over would grade the new one without showing it.
+                                                      ...(type !== req.type ? {
+                                                        rubric: undefined, context: undefined, schema: undefined, minScore: undefined,
+                                                        reviewSheetNames: undefined, documentReviewMode: undefined, reviewLanguage: undefined,
+                                                      } : {}),
                                                     });
                                                   }}
                                                   style={{ padding: '6px 9px', borderRadius: 9, border: '1px solid transparent', background: C.input, color: C.text, fontSize: 11, fontWeight: 700 }}>
@@ -2645,7 +2677,7 @@ function VirtualExperienceCreatePageInner() {
                                                           if (!file) return;
                                                           try {
                                                             const { url } = await uploadToGithub(file, 've-email-attachments');
-                                                            updateReq(mod.id, les.id, req.id, { attachments: [...(req.attachments || []), { name: file.name, url, mimeType: file.type }] });
+                                                            updateReq(mod.id, les.id, req.id, r => ({ attachments: [...(r.attachments || []), { name: file.name, url, mimeType: file.type }] }));
                                                           } catch { alert('Upload failed'); }
                                                           e.target.value = '';
                                                         }} />
@@ -2727,7 +2759,7 @@ function VirtualExperienceCreatePageInner() {
                                                             if (!file) return;
                                                             try {
                                                               const { url } = await uploadToGithub(file, 've-email-attachments');
-                                                              updateReq(mod.id, les.id, req.id, { attachments: [...(req.attachments || []), { name: file.name, url, mimeType: file.type }] });
+                                                              updateReq(mod.id, les.id, req.id, r => ({ attachments: [...(r.attachments || []), { name: file.name, url, mimeType: file.type }] }));
                                                             } catch { alert('Upload failed'); }
                                                             e.target.value = '';
                                                           }} />
@@ -2799,7 +2831,9 @@ function VirtualExperienceCreatePageInner() {
                                                         <input value={opt}
                                                           onChange={e => {
                                                             const newOpts = [...opts]; newOpts[oi] = e.target.value;
-                                                            updateReq(mod.id, les.id, req.id, { options: newOpts, correctAnswer: req.correctAnswer === opt ? e.target.value : req.correctAnswer });
+                                                            // The answer follows its option when that option is renamed. An empty option is never
+                                                            // the answer, so typing into one cannot pick it by accident.
+                                                            updateReq(mod.id, les.id, req.id, { options: newOpts, correctAnswer: opt && req.correctAnswer === opt ? e.target.value : req.correctAnswer });
                                                           }}
                                                           className="flex-1 bg-transparent text-sm outline-none"
                                                           style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, borderColor: isCorrect ? C.cta : 'transparent', color: isCorrect ? C.cta : C.text, fontWeight: isCorrect ? 600 : 400 }}
@@ -2825,7 +2859,7 @@ function VirtualExperienceCreatePageInner() {
                                                   updateReq(mod.id, les.id, req.id, {
                                                     options: nextOptions,
                                                     optionFeedback: decisionFeedback,
-                                                    correctAnswer: req.correctAnswer === decisionOptions[index] ? value : req.correctAnswer,
+                                                    correctAnswer: decisionOptions[index] && req.correctAnswer === decisionOptions[index] ? value : req.correctAnswer,
                                                   });
                                                 };
                                                 const updateDecisionFeedback = (index: number, value: string) => {
@@ -3214,7 +3248,7 @@ function VirtualExperienceCreatePageInner() {
                         const selected = industry === ind.id;
                         return (
                           <button key={ind.id} type="button" aria-pressed={selected}
-                            onClick={() => { setIndustry(ind.id); if (ind.id !== 'other') setConfig(c => c ? { ...c, industry: ind.id } : c); }}
+                            onClick={() => { setIndustry(ind.id); setConfig(c => c ? { ...c, industry: ind.id === 'other' ? (customIndustry.trim() || 'other') : ind.id } : c); }}
                             className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
                             style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
                             {ind.label}
