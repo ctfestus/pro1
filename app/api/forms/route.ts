@@ -180,6 +180,8 @@ export async function POST(req: NextRequest) {
           show_answers:   config.showAnswers      ?? 'per_question',
           max_attempts:   config.maxAttempts      ?? null,
           ai_tutor_enabled: config.enableAiTutor  ?? false,
+          difficulty:     config.difficulty      ?? null,
+          tags:           config.tags            ?? [],
         })
         .select('id, slug, status')
         .single());
@@ -324,6 +326,8 @@ export async function PUT(req: NextRequest) {
       show_answers:   config.showAnswers      ?? 'per_question',
       max_attempts:   config.maxAttempts      ?? null,
       ai_tutor_enabled: config.enableAiTutor  ?? false,
+      difficulty:     config.difficulty      ?? null,
+      tags:           config.tags            ?? [],
     };
   } else if (found.table === 'events') {
     updatePayload = {
