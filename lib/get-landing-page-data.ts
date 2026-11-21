@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { adminClient } from './admin-client';
 import { resolveCoverUrl } from './cloudinary-url';
 import type { SiteConfig } from './site-templates';
-import { previewFacts, type PreviewFacts } from './catalogue-preview-facts';
+import { cleanList, previewFacts, type PreviewFacts } from './catalogue-preview-facts';
 
 export type PathCourse = {
   id: string;
@@ -29,6 +29,8 @@ export type ProgrammeItem = {
   partnerLogoUrl?: string;
   /** An experience's role and company, under the title in the hover preview. */
   byline?: string;
+  /** A course's tags (topics such as AI), every one of them; its tools come through PreviewFacts. */
+  tags?: string[];
   pathCourses?: PathCourse[];
 } & PreviewFacts;
 
@@ -134,7 +136,7 @@ const getProgrammes = unstable_cache(
     // never the catalogue.
     const db = adminClient();
     const extraResults = await Promise.all([
-      courseIds.length ? db.from('courses').select('id,learn_outcomes').in('id', courseIds) : empty,
+      courseIds.length ? db.from('courses').select('id,difficulty,tags,tools').in('id', courseIds) : empty,
       experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools').in('id', experienceIds) : empty,
       certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
     ]);
@@ -155,7 +157,10 @@ const getProgrammes = unstable_cache(
       category: row.category ?? '',
       partnerName: row.partner_name ?? undefined,
       partnerLogoUrl: row.partner_logo_url ?? undefined,
-      ...previewFacts(extras.get(row.id) ?? {}),
+      // Level and tools for the card and pop-up. Learning outcomes stay off the course pop-up here;
+      // the course page lists them. Tags are read whole: previewFacts keeps only four topics.
+      ...previewFacts({ difficulty: extras.get(row.id)?.difficulty, tools: extras.get(row.id)?.tools }),
+      tags: cleanList(extras.get(row.id)?.tags),
     }));
 
     const experiences: ProgrammeItem[] = (experiencesResult.data ?? []).map((row) => ({
@@ -227,7 +232,7 @@ const getProgrammes = unstable_cache(
 
     return [...courses, ...experiences, ...certifications, ...paths];
   },
-  ['landing-programmes-v4'],
+  ['landing-programmes-v5'],
   { revalidate: 60, tags: ['landing-programmes'] },
 );
 

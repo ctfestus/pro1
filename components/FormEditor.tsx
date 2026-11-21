@@ -29,7 +29,8 @@ import type {
 } from '@/lib/course-schema';
 import { questionNumbers, itemIssues, courseIssues } from '@/lib/course-validation';
 import { groupOutline, moveModule, moduleIds } from '@/lib/course-outline';
-import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
+import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS, COURSE_DIFFICULTIES } from '@/lib/course-schema';
+import { useToolIconMap } from '@/lib/use-tool-icons';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -562,6 +563,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
   const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string; kind: 'Course' | 'Event' }[]>([]);
   const [cohorts, setCohorts]               = useState<{ id: string; name: string }[]>([]);
   const [partners, setPartners]               = useState<{ id: string; name: string; is_active: boolean }[]>([]);
+  // Course tags are typed one at a time; tools are picked from the platform's logo list.
+  const [tagDraft, setTagDraft]               = useState('');
+  const toolIconMap = useToolIconMap();
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [courseAvailableToEveryone, setCourseAvailableToEveryone] = useState(false);
 
@@ -641,7 +645,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     setIsLoading(true);
     (async () => {
       if (contentType === 'course') {
-        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled').eq('id', formId).maybeSingle();
+        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
         if (course) {
           setFormConfig({
             isCourse: true,
@@ -667,6 +671,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
             category: course.category ?? null,
             badgeImageUrl: course.badge_image_url ?? null,
             partnerId: course.partner_id ?? null,
+            difficulty: course.difficulty ?? null,
+            tags: course.tags ?? [],
+            tools: course.tools ?? [],
           });
           setCustomSlug(course.slug || '');
           const loadedCohorts = course.cohort_ids ?? [];
@@ -2332,6 +2339,86 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                     </div>
                     <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
                       Students can filter courses by category on their dashboard.
+                    </p>
+                  </div>
+
+                  {/* Level */}
+                  <div>
+                    <label className={labelCls} style={labelStyle}>Level</label>
+                    <div className="flex max-w-full flex-wrap gap-2" role="radiogroup" aria-label="Level">
+                      {[null, ...COURSE_DIFFICULTIES].map(level => {
+                        const on = (formConfig.difficulty ?? null) === level;
+                        return (
+                          <button key={level ?? 'none'} type="button" role="radio" aria-checked={on}
+                            onClick={() => updateConfig({ difficulty: level })}
+                            className="min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                            style={{ background: on ? accentColor : FE.card, color: on ? '#fff' : FE.muted, boxShadow: on ? 'none' : `inset 0 0 0 1px ${FE.divider}` }}>
+                            {level ? level.charAt(0).toUpperCase() + level.slice(1) : 'Not set'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
+                      Shown on the course card and its pop-up on the home page.
+                    </p>
+                  </div>
+
+                  {/* Tags: topics, typed */}
+                  <div>
+                    <label className={labelCls} style={labelStyle}>Tags</label>
+                    {(formConfig.tags ?? []).length > 0 && (
+                      <div className="mb-2 flex max-w-full flex-wrap gap-2">
+                        {(formConfig.tags ?? []).map(tag => (
+                          <span key={tag} className="inline-flex min-h-8 items-center gap-1.5 rounded-full pl-3 pr-1.5 text-xs font-semibold" style={{ background: FE.card, color: FE.text, boxShadow: `inset 0 0 0 1px ${FE.divider}` }}>
+                            {tag}
+                            <button type="button" aria-label={`Remove ${tag}`} onClick={() => updateConfig({ tags: (formConfig.tags ?? []).filter(t => t !== tag) })}
+                              className="grid h-5 w-5 place-items-center rounded-full transition-opacity hover:opacity-70" style={{ color: FE.muted }}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={tagDraft}
+                      onChange={e => setTagDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter' && e.key !== ',') return;
+                        e.preventDefault();
+                        const tag = tagDraft.trim();
+                        const tags = formConfig.tags ?? [];
+                        if (tag && !tags.some(t => t.toLowerCase() === tag.toLowerCase())) updateConfig({ tags: [...tags, tag] });
+                        setTagDraft('');
+                      }}
+                      placeholder="Type a tag and press Enter, e.g. AI, Automation"
+                      className={inputCls}
+                      style={inputStyle}
+                    />
+                    <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
+                      Topics the course covers. The card shows as many as fit; the pop-up shows them all.
+                    </p>
+                  </div>
+
+                  {/* Tools: software, picked from the logo list so each has a logo */}
+                  <div>
+                    <label className={labelCls} style={labelStyle}>Tools</label>
+                    <div className="flex max-w-full flex-wrap gap-2">
+                      {Object.keys(toolIconMap).sort((a, b) => a.localeCompare(b)).map(name => {
+                        const on = (formConfig.tools ?? []).includes(name);
+                        return (
+                          <button key={name} type="button" aria-pressed={on}
+                            onClick={() => updateConfig({ tools: on ? (formConfig.tools ?? []).filter(t => t !== name) : [...(formConfig.tools ?? []), name] })}
+                            className="inline-flex min-h-8 items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                            style={{ background: on ? accentColor : FE.card, color: on ? '#fff' : FE.muted, boxShadow: on ? 'none' : `inset 0 0 0 1px ${FE.divider}` }}>
+                            <img src={toolIconMap[name]} alt="" className="h-4 w-4 object-contain" />
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
+                      Software the course uses, shown with its logo on the card and pop-up.
                     </p>
                   </div>
 

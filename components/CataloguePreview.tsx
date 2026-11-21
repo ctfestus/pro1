@@ -2,7 +2,7 @@
 
 /**
  * The hover preview for a catalogue item: an inset cover with its category, title and byline,
- * description, facts (level, duration, tools, exam time, pass mark, topics), what you will learn,
+ * description, facts (topics, level, duration, exam time, pass mark, tools), what you will learn,
  * and one full-width action. A learning path shows its contents instead.
  *
  * Explore on the student dashboard and the public landing page both render this one component, so
@@ -244,6 +244,8 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
 
         {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
           <div className="flex flex-wrap gap-2">
+            {/* Tags (topics) first, then the level, then the rest. */}
+            {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}
             {item.level && <PreviewFact C={C} icon={<GraduationCap className="h-3.5 w-3.5" />}>{item.level} level</PreviewFact>}
             {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
             {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
@@ -251,7 +253,6 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
             {item.tools?.map(tool => (
               <PreviewFact key={tool} C={C} icon={toolIcon(tool) ? <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" /> : null}>{tool}</PreviewFact>
             ))}
-            {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}
           </div>
         )}
 

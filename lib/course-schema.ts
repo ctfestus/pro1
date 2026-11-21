@@ -236,6 +236,28 @@ export interface FormConfig {
   category?: string | null;
   partnerId?: string | null;
   badgeImageUrl?: string | null;
+  // Migration 246. Tags are topics (AI, Automation); tools are software (Excel, Zapier) and show
+  // with the tool's logo. They are separate on purpose.
+  difficulty?: CourseDifficulty | null;
+  tags?: string[];
+  tools?: string[];
+}
+
+/** A course's level, the same three as virtual experiences and books. */
+export type CourseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+export const COURSE_DIFFICULTIES: CourseDifficulty[] = ['beginner', 'intermediate', 'advanced'];
+
+/** Trimmed, non-empty, no repeats (ignoring case), first spelling kept. */
+function cleanLabels(list: unknown): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (!value || seen.has(value.toLowerCase())) continue;
+    seen.add(value.toLowerCase());
+    out.push(value);
+  }
+  return out;
 }
 
 // --- Certifications ---
@@ -472,6 +494,11 @@ export function normalizeFormConfig(raw: any): FormConfig {
     courseTimer,
     pointsSystem,
     questions: rest.questions !== undefined ? normalizeQuestions(rest.questions) : rest.questions,
+    ...(rest.isCourse ? {
+      difficulty: COURSE_DIFFICULTIES.includes(rest.difficulty) ? rest.difficulty : null,
+      tags: cleanLabels(rest.tags),
+      tools: cleanLabels(rest.tools),
+    } : {}),
   } as FormConfig;
 }
 

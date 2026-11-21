@@ -12,6 +12,7 @@ import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -422,6 +423,7 @@ function toPreviewItem(item: ProgrammeItem): CatalogueItem {
     bylineLogo: item.partnerLogoUrl ?? null,
     outcomes: item.outcomes,
     level: item.level,
+    topics: item.tags,
     duration: item.duration,
     tools: item.tools,
     examMinutes: item.examMinutes,
@@ -468,6 +470,58 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark }: {
   return { openHover, scheduleClose, portal };
 }
 
+/** How many of a level's three bars are filled. */
+const LEVEL_BARS: Record<string, number> = { Beginner: 1, Intermediate: 2, Advanced: 3 };
+
+/** The course card's small grey labels (tags and the "+N" after them). */
+function TagChip({ children, isDark }: { children: React.ReactNode; isDark?: boolean }) {
+  return (
+    <span className="inline-flex flex-shrink-0 items-center h-[22px] px-2 rounded-md text-[12px] font-medium whitespace-nowrap"
+      style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#F1F3F5', color: isDark ? 'rgba(255,255,255,0.75)' : '#4b5160' }}>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * As many tags as fit on one line; when some do not, "+N" counts them. Measured from the card's
+ * own width, so a phone shows fewer than a desktop, and measured again when the card resizes.
+ */
+function FitTags({ tags, isDark }: { tags: string[]; isDark?: boolean }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(tags.length);
+  useEffect(() => {
+    const row = rowRef.current, measure = measureRef.current;
+    if (!row || !measure) return;
+    const GAP = 6, MORE = 34; // the space between chips, and room for the "+N" chip
+    const fit = () => {
+      const widths = [...measure.children].map(el => (el as HTMLElement).offsetWidth);
+      const span = (n: number) => widths.slice(0, n).reduce((sum, w) => sum + w, 0) + GAP * Math.max(0, n - 1);
+      if (span(widths.length) <= row.clientWidth) { setShown(widths.length); return; }
+      let n = widths.length - 1;
+      while (n > 1 && span(n) + GAP + MORE > row.clientWidth) n--;
+      setShown(n);
+    };
+    // The card resizing changes the room; the hidden row resizing (the web font arriving after the
+    // first measure) changes the tags' own widths. Either one re-fits.
+    const obs = new ResizeObserver(fit);
+    obs.observe(row);
+    obs.observe(measure);
+    return () => obs.disconnect();
+  }, [tags]);
+  return (
+    <div ref={rowRef} className="relative flex gap-1.5 overflow-hidden">
+      {tags.slice(0, shown).map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
+      {shown < tags.length && <TagChip isDark={isDark}>+{tags.length - shown}</TagChip>}
+      {/* Every tag, invisible, so their widths can be read whatever is showing. */}
+      <div ref={measureRef} aria-hidden="true" className="absolute left-0 top-0 invisible flex gap-1.5">
+        {tags.map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
+      </div>
+    </div>
+  );
+}
+
 /**
  * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
  * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
@@ -478,6 +532,11 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
+  const toolIcon = useToolIcons();
+  // The framed course card's details: tags, then the level on the left and tool logos on the right.
+  const tags = framed ? item.tags ?? [] : [];
+  const tools = framed ? item.tools ?? [] : [];
+  const bars = framed && item.level ? LEVEL_BARS[item.level] ?? 0 : 0;
   return (
     <Link href={landingHref(item, user)}
       className={framed
@@ -497,8 +556,9 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
       </div>
-      <div className={framed ? 'px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
-        <p className="line-clamp-2 text-[13px] leading-[18px] sm:text-[15px] sm:leading-5" style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
+      <div className={framed ? 'flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
+        {/* Two lines kept for the title on a course card, so the details line up across a row. */}
+        <p className={`line-clamp-2 text-[13px] leading-[18px] sm:text-[15px] sm:leading-5 ${framed ? 'min-h-[36px] sm:min-h-[40px]' : ''}`} style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
         {item.partnerName && (
           <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
             {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
@@ -506,6 +566,34 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
           </div>
         )}
         {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
+        {(tags.length > 0 || bars > 0 || tools.length > 0) && (
+          <div className="mt-auto pt-2.5 flex flex-col gap-2">
+            {tags.length > 0 && <FitTags tags={tags} isDark={isDark} />}
+            {(bars > 0 || tools.length > 0) && (
+              <div className="flex items-center justify-between gap-2 min-h-[22px]">
+                {bars > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: muted }}>
+                    <span aria-hidden="true" className="inline-flex items-end gap-[2px] h-[11px]">
+                      {[5, 8, 11].map((h, i) => (
+                        <i key={h} className="block w-[3px] rounded-[1px]" style={{ height: h, background: i < bars ? text : (isDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1') }} />
+                      ))}
+                    </span>
+                    {item.level}
+                  </span>
+                ) : <span />}
+                {tools.length > 0 && (
+                  <span className="flex flex-shrink-0 items-center gap-1.5">
+                    {tools.map(tool => toolIcon(tool)
+                      ? <span key={tool} title={tool} className="grid place-items-center w-[22px] h-[22px] rounded-md" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>
+                          <img src={toolIcon(tool)!} alt={tool} className="w-3.5 h-3.5 object-contain" />
+                        </span>
+                      : <span key={tool} className="inline-flex items-center h-[22px] px-[7px] rounded-md text-[11px] font-semibold" style={{ color: muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>{tool}</span>)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Link>
   );
