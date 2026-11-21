@@ -150,11 +150,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
   const isMobile = containerW > 0 && containerW < 640;
-  // Two whole cards side by side only when each still gets close to 500px; below that (tablets) the
-  // text wrapped line by line and pushed the button out of the card, so it is one card at a time.
-  // Sizing the cards to the track means the last one is never cut off at the edge.
-  const perView = fullWidth || containerW < 1000 ? 1 : 2;
-  const max = Math.max(0, cards.length - perView);
+  const max = Math.max(0, cards.length - 1);
   // Clamped on read: switching off the card on screen shortens the list under a stored index,
   // which would otherwise point past the end and leave the track scrolled onto nothing.
   const idx = Math.min(storedIdx, max);
@@ -174,16 +170,21 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   }, [paused, userPaused, reduced, max, idx]);
 
   const hasSideImage = cards.some(c => c.imageLayout === 'side' && !!c.bgImage);
+  // Each card keeps its own size (646 x 297, smaller only on a narrow screen) and the next one
+  // peeks in from the edge, so the pictures keep their shape instead of being cropped to fit.
   const CARD_W = fullWidth
     ? (containerW > 0 ? containerW : 1280)
-    : (containerW > 0 ? (containerW - GAP * (perView - 1)) / perView : 646);
+    : (containerW > 0 ? Math.min(646, containerW - 40) : 646);
   const CARD_H = fullWidth
     ? (isMobile ? 380 : Math.max(340, Math.min(500, Math.round((containerW || 1280) * 0.34))))
-    : isMobile
-      ? (hasSideImage ? 430 : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646))))
-      // Two to a row makes each card narrower than before, so the height no longer scales with
-      // the width: it holds the badge, a two-line title, the description and the button.
-      : 300;
+    : (isMobile && hasSideImage)
+      ? 430
+      : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646)));
+
+  // The last card stops flush with the right edge rather than sliding past it.
+  const totalW = cards.length * CARD_W + (cards.length - 1) * GAP;
+  const maxTranslate = containerW > 0 ? Math.max(0, totalW - containerW) : (max * (CARD_W + GAP));
+  const getTranslate = (i: number) => i === max ? maxTranslate : i * (CARD_W + GAP);
 
 
   const goTo = (next: number) => setIdx(Math.max(0, Math.min(next, max)));
@@ -216,7 +217,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
         )}
 
         <div ref={clipRef} style={{ overflow: 'hidden', touchAction: 'pan-y' }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${idx * (CARD_W + GAP)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
+        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${getTranslate(idx)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
           {cards.map((ad, i) => {
             const active = i === idx;
             const contentKey = active ? `on-${idx}` : `off-${i}`;
@@ -296,12 +297,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                     </motion.span>
                   )}
                   <motion.h3 variants={bannerItem} className="font-bold leading-tight mb-2"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(17px,4.6vw,22px)' : 'clamp(20px,2vw,30px)', maxWidth: isSide ? 'none' : 380 }}>
+                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(18px,5vw,24px)' : 'clamp(22px,2.2vw,34px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
                     <motion.p variants={bannerItem} className="leading-relaxed"
-                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 14, maxWidth: isSide ? 'none' : 380 }}>
+                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 15, maxWidth: isSide ? 'none' : 380 }}>
                       {ad.description}
                     </motion.p>
                   )}
@@ -310,7 +311,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: 13, padding: isMobile ? '9px 16px' : '10px 20px' }}>
+                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 24px' }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
