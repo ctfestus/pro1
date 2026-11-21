@@ -123,7 +123,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
 
   if (item.type === 'learning_path') {
     // A path's preview, the width of the others: cover, title, description, skills (six,
-    // then "+N"), the item count with the tools, the first four items as a numbered list, action.
+    // then "+N"), the item count with the tools, action.
     const pathItems = item.pathItems ?? [];
     const skills = item.skills ?? [];
     const coverUrl = resolvedCover(item.coverImage);
@@ -161,17 +161,6 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
               </span>
               {(item.tools?.length ?? 0) > 0 && <ToolLogos tools={item.tools!} muted={C.muted} />}
             </div>
-          )}
-          {pathItems.length > 0 && (
-            <ol className="flex flex-col gap-1.5 text-[13px] leading-[18px]" style={{ color: C.text }}>
-              {pathItems.slice(0, 4).map((pathItem, i) => (
-                <li key={pathItem.id} className="flex gap-2">
-                  <span className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full text-[11px] font-bold" style={{ background: C.pill, color: C.muted }}>{i + 1}</span>
-                  <span className="line-clamp-1">{pathItem.title}</span>
-                </li>
-              ))}
-              {pathItems.length > 4 && <li className="pl-[26px]" style={{ color: C.muted }}>and {pathItems.length - 4} more</li>}
-            </ol>
           )}
           {item.locked ? (
             <button type="button" onClick={() => onOpen(item)}
