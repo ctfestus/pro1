@@ -24,8 +24,8 @@ describe('public content access parity', () => {
   });
 
   it('shows public virtual experiences in the overview with or without a cohort', () => {
-    expect(overview).toContain("from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`)");
-    expect(overview).toContain("from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').eq('available_to_everyone', true)");
+    expect(overview).toContain("from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`)");
+    expect(overview).toContain("from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').eq('available_to_everyone', true)");
   });
 
   it('loads public and attempted virtual experiences in My Learning without a cohort', () => {

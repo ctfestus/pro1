@@ -11,7 +11,8 @@ import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-comple
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { CarouselSkeleton, EmptyState, stripSqlSolutions } from '@/components/student/shared';
 import { deadlineTag } from '@/components/student/learning-card';
-import { FRAMED_CARD } from '@/components/CardMeta';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
+import { cleanList } from '@/lib/catalogue-preview-facts';
 
 /** The primary blue, for the Resume button and the progress it continues. */
 const BLUE = DARK_C.cta;
@@ -90,16 +91,17 @@ export function OverviewSection({ user, name, C, onNavigate }: {
       if (groupMembershipError) throw groupMembershipError;
       const myGroupIds = (gmRows ?? []).map((r: any) => r.group_id as string);
 
-      // What the cohort can open, light: titles, covers and deadlines for Upcoming. The lesson and
-      // mission content needed for progress is read below, only for work actually started.
+      // What the cohort can open, light: titles, covers and deadlines for Upcoming, and the tags,
+      // level and tools the Recommended cards show. The lesson and mission content needed for
+      // progress is read below, only for work actually started.
       const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignRes, certsData, eventsRes, gapsData, assignmentsRes, asmSubsRes, earnedBadgesRes, groupAssignmentsRes, groupSubsRes, xpRes] =
         await Promise.all([
           cohort
-            ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('courses').select('id, title, slug, cover_image, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('courses').select('id, title, slug, cover_image, deadline_days, difficulty, tags, tools').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('courses').select('id, title, slug, cover_image, deadline_days, difficulty, tags, tools').eq('available_to_everyone', true).eq('status', 'published'),
           cohort
-            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
-            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
+            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, deadline_days, industry, difficulty, tags, tools').eq('available_to_everyone', true).eq('status', 'published'),
           supabase.from('course_attempts')
             .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
             .eq('student_id', user.id).order('updated_at', { ascending: false }),
@@ -491,6 +493,7 @@ export function OverviewSection({ user, name, C, onNavigate }: {
               const safeCover = (() => {
                 try { const u = new URL(rawCover ?? ''); return (u.protocol === 'https:' || u.protocol === 'http:') ? rawCover : null; } catch { return null; }
               })();
+              const isDark = C.page !== LIGHT_C.page;
               return (
                 <a key={gap.course.formId} href={href} className={FRAMED_CARD} style={{ background: C.card }}>
                   <div className="relative aspect-video w-full overflow-hidden" style={{ background: C.pill }}>
@@ -498,15 +501,18 @@ export function OverviewSection({ user, name, C, onNavigate }: {
                       {isVE ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
                     </div>
                     {safeCover && <img src={resolveCoverUrl(safeCover)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" onError={e => (e.currentTarget.style.display = 'none')} />}
-                    {gap.topic && (
-                      <span className="absolute left-0 top-3 max-w-[80%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
-                        {String(gap.topic)}
+                    {/* An experience's industry on the cover, as on the landing page. */}
+                    {isVE && liveItem.industry && (
+                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                        {liveItem.industry}
                       </span>
                     )}
                   </div>
-                  <div className="px-4 pt-3.5 pb-[18px]">
-                    <p className="text-xs" style={{ color: C.faint }}>{isVE ? 'Virtual experience' : 'Course'}</p>
-                    <p className="mt-0.5 line-clamp-2 text-[15px] leading-5 font-bold" style={{ color: C.text }}>{gap.course.title}</p>
+                  {/* The landing page's card body: the title on two lines, then tags, level and tools. */}
+                  <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+                    <p className="line-clamp-2 min-h-[40px] text-[15px] leading-5 font-bold" style={{ color: C.text }}>{gap.course.title}</p>
+                    <CardMeta tags={cleanList(liveItem.tags)} level={liveItem.difficulty ? String(liveItem.difficulty).charAt(0).toUpperCase() + String(liveItem.difficulty).slice(1) : undefined} tools={cleanList(liveItem.tools)}
+                      isDark={isDark} text={C.text} muted={C.muted} />
                   </div>
                 </a>
               );
