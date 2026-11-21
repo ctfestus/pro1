@@ -292,7 +292,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
                 <span className="flex flex-wrap justify-end gap-1.5">
                   {/* The logo alone, as on the card; the name only when the tool has no logo. */}
                   {item.tools?.map(tool => toolIcon(tool)
-                    ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-5 w-auto max-w-[72px] object-contain" />
+                    ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
                     : <span key={tool} className="text-[12px] font-semibold" style={{ color: C.text }}>{tool}</span>)}
                 </span>
               </div>

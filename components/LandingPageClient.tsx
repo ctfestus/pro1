@@ -585,7 +585,7 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
                     {/* The stored logo, no frame; some logos carry the tool's name themselves, so the
                         width follows the image. */}
                     {tools.map(tool => toolIcon(tool)
-                      ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-5 w-auto max-w-[72px] object-contain" />
+                      ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
                       : <span key={tool} className="text-[12px] font-semibold" style={{ color: muted }}>{tool}</span>)}
                   </span>
                 )}
