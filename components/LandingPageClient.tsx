@@ -110,7 +110,7 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
 }) {
   return (
     <div className="mb-6">
-      <h2 style={{ ...M3.headlineMedium, fontWeight: 900, fontFamily: hFont, color }}>{title}</h2>
+      <h2 style={{ ...M3.headlineMedium, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
@@ -293,7 +293,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                       {ad.label}
                     </motion.span>
                   )}
-                  <motion.h3 variants={bannerItem} className="font-black leading-tight mb-2"
+                  <motion.h3 variants={bannerItem} className="font-bold leading-tight mb-2"
                     style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(17px,4.6vw,22px)' : 'clamp(20px,2vw,30px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
@@ -468,15 +468,25 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark }: {
   return { openHover, scheduleClose, portal };
 }
 
-/** One card: cover (with the category on it when asked), title, partner and level. */
-function ProgrammeCard({ item, user, isDark, hFont, showCategory }: {
-  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string; showCategory?: boolean;
+/**
+ * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
+ * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
+ * straight on the panel behind them (the experience and certification rows).
+ */
+function ProgrammeCard({ item, user, isDark, hFont, framed }: {
+  item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string; framed?: boolean;
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
   return (
-    <Link href={landingHref(item, user)} className="block group cursor-pointer transition-transform duration-300 hover:-translate-y-1">
-      <div className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
+    <Link href={landingHref(item, user)}
+      className={framed
+        ? 'flex flex-col h-full group cursor-pointer rounded-2xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
+        : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
+      style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
+      <div className={framed
+          ? 'relative overflow-hidden w-full aspect-video'
+          : 'relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]'}
         style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
@@ -486,87 +496,62 @@ function ProgrammeCard({ item, user, isDark, hFont, showCategory }: {
         }
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
           style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
-        {/* The same yellow tag the hover preview puts on its cover. */}
-        {showCategory && item.category && (
-          <span className="absolute left-0 top-3 max-w-[70%] truncate px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
-            {item.category}
-          </span>
-        )}
       </div>
-      <p className="mt-3 line-clamp-2 text-sm leading-5 sm:text-base sm:leading-6" style={{ fontWeight: 700, letterSpacing: '0.15px', color: text, fontFamily: hFont }}>{item.title}</p>
-      {item.partnerName && (
-        <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
-          {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
-          <span>Offered by {item.partnerName}</span>
-        </div>
-      )}
-      {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
+      <div className={framed ? 'px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
+        <p className="line-clamp-2 text-sm leading-5 sm:text-base sm:leading-6" style={{ fontWeight: 700, letterSpacing: '0.15px', color: text, fontFamily: hFont }}>{item.title}</p>
+        {item.partnerName && (
+          <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
+            {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
+            <span>Offered by {item.partnerName}</span>
+          </div>
+        )}
+        {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
+      </div>
     </Link>
   );
 }
 
 /**
- * Courses: one panel with a chip per category (All first) over a grid, four across on a wide
- * screen, three on a tablet and two on a phone. Eight show at first and Show more adds eight.
+ * Courses: a chip per category, used as tabs, over a grid of cards on the page itself. The first
+ * category is chosen from the start and the grid shows all of the chosen category's courses, each
+ * its own white card, four across on a wide screen, three on a tablet and two on a phone.
  */
 function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   courses: ProgrammeItem[]; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
 }) {
   const groups = groupByField(courses, 'category');
-  const [category, setCategory] = useState<string | null>(null);
-  const [shown, setShown] = useState(GRID_PAGE_SIZE);
-  const list = category === null ? groups.flatMap(([, items]) => items) : (groups.find(([name]) => name === category)?.[1] ?? []);
-  const visible = list.slice(0, shown);
-  const remaining = list.length - visible.length;
+  const [chosen, setChosen] = useState<string | null>(null);
+  // Read through the list, so a category that disappears (a course unpublished) falls back to the first.
+  const current = groups.find(([name]) => name === chosen) ?? groups[0];
   const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark });
 
-  const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
   const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
-  const chip = (name: string | null, label: string, count: number) => {
-    const on = category === name;
-    return (
-      <button key={label} type="button" aria-pressed={on} onClick={() => { setCategory(name); setShown(GRID_PAGE_SIZE); }}
-        className="flex-shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full transition-colors"
-        style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, ...(on ? { background: '#3E93FF', color: '#ffffff' } : quiet) }}>
-        {label}
-        <span style={{ fontWeight: 500, opacity: 0.75 }}>{count}</span>
-      </button>
-    );
-  };
 
   return (
-    <div className="rounded-2xl p-4 sm:p-6" style={{ background: isDark ? '#1E1F26' : 'white' }}>
-      <div className="flex items-center justify-between gap-3 mb-4 sm:mb-5">
-        {/* A single category needs no filter, so the chips only appear with two or more. */}
-        {groups.length > 1 ? (
-          <div className="flex gap-2 overflow-x-auto min-w-0" role="group" aria-label="Filter courses" style={{ scrollbarWidth: 'none' }}>
-            {chip(null, 'All', courses.length)}
-            {groups.map(([name, items]) => chip(name, name, items.length))}
-          </div>
-        ) : <span />}
-        <span className="hidden sm:block flex-shrink-0" style={{ ...M3.bodyMedium, color: muted }}>
-          {list.length} {list.length === 1 ? 'course' : 'courses'}
-        </span>
-      </div>
+    <div>
+      {/* A single category needs no tabs, so the chips only appear with two or more. */}
+      {groups.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto mb-4 sm:mb-5" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
+          {groups.map(([name]) => {
+            const on = name === current?.[0];
+            return (
+              <button key={name} type="button" role="tab" aria-selected={on} onClick={() => setChosen(name)}
+                className="flex-shrink-0 inline-flex items-center h-9 px-3.5 rounded-full transition-colors"
+                style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, ...(on ? { background: '#3E93FF', color: '#ffffff' } : quiet) }}>
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-6">
-        {visible.map(item => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
+        {(current?.[1] ?? []).map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
-            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} showCategory={groups.length > 1} />
+            <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} framed />
           </div>
         ))}
       </div>
-
-      {remaining > 0 && (
-        <div className="flex justify-center mt-6">
-          <button type="button" onClick={() => setShown(n => n + GRID_PAGE_SIZE)}
-            className="inline-flex items-center gap-2 h-10 px-5 rounded-full transition-transform hover:-translate-y-0.5"
-            style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, ...quiet, color: isDark ? 'white' : LAND_C.text }}>
-            Show more
-            <span style={{ fontWeight: 500, color: muted }}>{remaining}</span>
-          </button>
-        </div>
-      )}
       {portal}
     </div>
   );
@@ -838,7 +823,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} active={ctaInView} />
           </>}
           <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
-            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontWeight: 900, fontFamily: hFont, color: 'white' }}>
+            <h2 className={`mb-4 ${DISPLAY_CLASS}`} style={{ fontWeight: 700, fontFamily: hFont, color: 'white' }}>
               {ctaHeading}
               {ctaHeadingAccent && <><br /><span style={{ color: AMBER }}>{ctaHeadingAccent}</span></>}
             </h2>
