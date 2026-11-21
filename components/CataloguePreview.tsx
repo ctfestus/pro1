@@ -242,7 +242,8 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
           </p>
         )}
 
-        {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
+        {/* Boolean, not the bare chain: with empty lists it ends on a length of 0, which React prints. */}
+        {Boolean(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
           <div className="flex flex-wrap gap-2">
             {/* Tags (topics) first, then the level, then the rest. */}
             {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}

@@ -236,11 +236,9 @@ export interface FormConfig {
   category?: string | null;
   partnerId?: string | null;
   badgeImageUrl?: string | null;
-  // Migration 246. Tags are topics (AI, Automation); tools are software (Excel, Zapier) and show
-  // with the tool's logo. They are separate on purpose.
+  // Migration 246. Tags are topics (AI, Automation). A course's tool is its category.
   difficulty?: CourseDifficulty | null;
   tags?: string[];
-  tools?: string[];
 }
 
 /** A course's level, the same three as virtual experiences and books. */
@@ -497,7 +495,6 @@ export function normalizeFormConfig(raw: any): FormConfig {
     ...(rest.isCourse ? {
       difficulty: COURSE_DIFFICULTIES.includes(rest.difficulty) ? rest.difficulty : null,
       tags: cleanLabels(rest.tags),
-      tools: cleanLabels(rest.tools),
     } : {}),
   } as FormConfig;
 }
