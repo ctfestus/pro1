@@ -437,8 +437,10 @@ function toPreviewItem(item: ProgrammeItem, courseTool: string | null): Catalogu
 const GRID_PAGE_SIZE = 8;
 
 /** The hover preview (Explore's), shared by the courses grid and the paged rows. */
-function useLandingPreview({ typeColor, buttonColor, user, isDark }: {
+function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   typeColor: string; buttonColor: string; user: any; isDark?: boolean;
+  /** The Site settings font, so the preview matches the cards it opens from. */
+  font?: string;
 }) {
   const { hover, open, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
   const toolIcon = useToolIcons();
@@ -462,6 +464,7 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark }: {
             href={landingHref(hover.item, user)}
             onOpen={() => { window.location.href = landingHref(hover.item, user); }}
             viewOnly={!user}
+            font={font}
             C={{ ...(isDark ? DARK_C : LIGHT_C), cta: buttonColor }}
           />
         </HoverPreviewCard>
@@ -610,7 +613,7 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   const [chosen, setChosen] = useState<string | null>(null);
   // Read through the list, so a category that disappears (a course unpublished) falls back to the first.
   const current = groups.find(([name]) => name === chosen) ?? groups[0];
-  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark });
+  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark, font: hFont });
 
   const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
 
@@ -656,7 +659,7 @@ function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont,
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(items.length / GRID_PAGE_SIZE));
   const visible = items.slice(page * GRID_PAGE_SIZE, (page + 1) * GRID_PAGE_SIZE);
-  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor, buttonColor, user, isDark });
+  const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor, buttonColor, user, isDark, font: hFont });
 
   const rowText  = isDark ? 'white' : LAND_C.text;
   const rowMuted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;

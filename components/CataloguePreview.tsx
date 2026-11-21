@@ -67,7 +67,7 @@ function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode
   );
 }
 
-export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false, C }: {
+export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false, font, C }: {
   item: CatalogueItem;
   accent: string;
   /** Where the item's page is. */
@@ -76,8 +76,15 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
   onOpen: (item: CatalogueItem) => void;
   /** For a visitor who is not signed in: every action reads View details and opens the page. */
   viewOnly?: boolean;
+  /**
+   * The page's font for every line of the preview. The landing page passes its Site settings font:
+   * the preview renders outside the page (a portal on body), so it would otherwise fall back to the
+   * app's own fonts. Without it, the app's fonts as Explore uses them.
+   */
+  font?: string;
   C: typeof LIGHT_C;
 }) {
+  const bodyFont = font ?? 'var(--font-lato)';
   // The preview floats over cards of the same colour, so it needs its own edge and a deep shadow
   // to read as a layer above the page; in dark mode it also sits on a lighter surface.
   const isLight = C.page === LIGHT_C.page;
@@ -100,6 +107,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
       <div
         className="rounded-2xl overflow-hidden"
         style={{
+          fontFamily: font,
           width: popupW,
           background: previewSurface,
           border: `1px solid ${previewEdge}`,
@@ -195,6 +203,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
     <div
       className="rounded-2xl overflow-hidden"
       style={{
+        fontFamily: font,
         background: previewSurface,
         border: `1px solid ${previewEdge}`,
         boxShadow: previewShadow,
@@ -229,7 +238,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         <div>
           <h3 className="text-base font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
           {item.byline && (
-            <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>
+            <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint, fontFamily: bodyFont }}>
               {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
               {item.byline}
             </div>
@@ -237,7 +246,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         </div>
 
         {desc && (
-          <p className="text-[14px] leading-relaxed line-clamp-2" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+          <p className="text-[14px] leading-relaxed line-clamp-2" style={{ color: C.muted, fontFamily: bodyFont }}>
             {desc}
           </p>
         )}
@@ -264,7 +273,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
             </p>
             <ul className="flex flex-col gap-2">
               {item.outcomes.map(outcome => (
-                <li key={outcome} className="flex gap-2 text-sm leading-snug" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+                <li key={outcome} className="flex gap-2 text-sm leading-snug" style={{ color: C.muted, fontFamily: bodyFont }}>
                   <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={3} style={{ color: C.successText }} />
                   <span className="line-clamp-2">{outcome}</span>
                 </li>
