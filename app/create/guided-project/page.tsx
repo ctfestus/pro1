@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { LOCKABLE_CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { DARK_C, useC } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
 import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
@@ -10,32 +10,28 @@ import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ImageLibrary } from '@/components/ImageLibrary';
-import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import type { LessonDoc } from '@/lib/lesson-doc';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
-import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
-import {
-  attachDeliverableDescriptionDoc,
-  convertLegacyEmailDeliverable,
-  htmlToPlainText,
-  plainTextToRichHtml,
-  reconcileImprovedDeliverableDescription,
-} from '@/lib/ve-deliverable-content';
-import { useTheme } from '@/components/ThemeProvider';
-import {
-  ArrowLeft, MoreHorizontal, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, Plus, X, Check, Upload, Star, Clock, Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail, CheckCircle2, AlertTriangle,
-} from 'lucide-react';
+import { attachDeliverableDescriptionDoc, htmlToPlainText } from '@/lib/ve-deliverable-content';
+import { Sparkles, Loader2, Trash2, ChevronDown, ChevronUp, ChevronRight, Plus, X, Check, Upload, Link as LinkIcon, Database, PenLine, Table, Video, Eye, Images, Mail, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RichTextEditor } from '@/components/RichTextEditor';
-import { RubricFileImportActions } from '@/components/RubricFileImportActions';
-import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 import { useToolIcons } from '@/lib/use-tool-icons';
-import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
-} from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
+import { AiTextarea } from '@/components/AiTextarea';
+import { loadLessonHtmlToDoc } from '@/components/lesson/loadLessonHtmlToDoc';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { EditorHeader, SwitchRow } from '@/components/create/EditorKit';
+import { MenuSelect } from '@/components/MenuSelect';
+import { Requirement, Lesson, Module, ProjectConfig, INDUSTRIES, VE_SECTIONS, uid, REQ_TYPE_NAMES, VE_TOOL_SUGGESTIONS, normalizeToolList } from '@/components/create/ve/model';
+import { SortableVEShell, RowMenu } from '@/components/create/ve/parts';
+import { TaskEditor } from '@/components/create/ve/TaskEditor';
+import { BunnyPicker } from '@/components/create/ve/BunnyPicker';
+import { PublishStep } from '@/components/create/ve/PublishStep';
 
 const TEXT_DATASET_EXTENSIONS = new Set(['.csv', '.tsv', '.txt']);
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -59,38 +55,6 @@ function isXlsxDatasetFile(file: File): boolean {
   return file.type === XLSX_MIME;
 }
 
-function SortableVEShell({ id, children }: {
-  id: string;
-  children: (bag: { dragHandle: React.ReactNode; isDragging: boolean }) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    ...(isDragging ? {
-      opacity: 0.85,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-      borderRadius: 14,
-      zIndex: 50,
-      position: 'relative',
-      outline: '2px solid rgba(173,238,102,0.7)',
-    } : {}),
-  };
-  const dragHandle = (
-    <button type="button" {...attributes} {...listeners}
-      className="cursor-grab active:cursor-grabbing touch-none flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-      style={{ color: '#888' }}>
-      <GripVertical className="w-3.5 h-3.5" />
-    </button>
-  );
-  return <div ref={setNodeRef} style={style}>{children({ dragHandle, isDragging })}</div>;
-}
-import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
-import { AiTextarea } from '@/components/AiTextarea';
-import { loadLessonHtmlToDoc } from '@/components/lesson/loadLessonHtmlToDoc';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 
 // Convert AI-generated lesson bodies (HTML) into canonical interactive docs so VE
 // lessons stay doc-canonical, matching the course generate_lesson flow. The HTML
@@ -118,423 +82,31 @@ function attachLessonDocs<T extends { modules?: unknown[] }>(cfg: T, lessonHtmlT
   };
 }
 
-// Like attachLessonDocs, but preserves canonical interactive docs through global AI Improve.
-// Mission docs are retained when their HTML fallback is unchanged. Deliverable docs are always
-// retained because the Improve endpoint only receives their lossy HTML fallback; authors use the
-// document-aware AI tools inside the interactive instructions editor to change those safely.
-function preserveLessonDocs<T extends { modules?: unknown[] }>(cfg: T, prior: { modules?: any[] } | null | undefined, lessonHtmlToDoc: (html: string) => LessonDoc): T {
-  if (!cfg?.modules) return cfg;
-  // Compare bodies ignoring whitespace so harmless reformatting by the AI is not
-  // mistaken for a rewrite (which would trigger a lossy doc rebuild).
-  const norm = (s?: string) => (s || '').replace(/\s+/g, ' ').trim();
-  const priorById = new Map<string, { body?: string; doc?: LessonDoc }>();
-  const priorRequirementById = new Map<string, {
-    type?: string;
-    description?: string;
-    descriptionFormat?: 'rich';
-    descriptionDoc?: LessonDoc;
-  }>();
-  (prior?.modules || []).forEach((m: any) => (m?.lessons || []).forEach((l: any) => {
-    if (l?.id) priorById.set(l.id, { body: l.body, doc: l.doc });
-    (l?.requirements || []).forEach((r: any) => {
-      if (r?.id) priorRequirementById.set(r.id, {
-        type: r.type,
-        description: r.description,
-        descriptionFormat: r.descriptionFormat,
-        descriptionDoc: r.descriptionDoc,
-      });
-    });
-  }));
-  return {
-    ...cfg,
-    modules: (cfg.modules as any[]).map((m: any) => ({
-      ...m,
-      lessons: Array.isArray(m?.lessons)
-        ? m.lessons.map((l: any) => {
-            let lesson = l;
-            const prev = l.id ? priorById.get(l.id) : undefined;
-            if (l?.body) {
-              if (prev?.doc && norm(prev.body) === norm(l.body)) lesson = { ...lesson, doc: prev.doc };
-              else {
-                try { lesson = { ...lesson, doc: lessonHtmlToDoc(l.body) }; }
-                catch { /* keep body-only if the HTML cannot be parsed */ }
-              }
-            }
-            if (!Array.isArray(l?.requirements)) return lesson;
-            const requirements = l.requirements.map((r: any) =>
-              reconcileImprovedDeliverableDescription(
-                r,
-                r.id ? priorRequirementById.get(r.id) : undefined,
-                lessonHtmlToDoc,
-              ));
-            return { ...lesson, requirements };
-          })
-        : m?.lessons,
-    })),
-  };
-}
 
-// Design tokens
-const LIGHT_C = {
-  page: '#F2F5FA', card: '#ffffff', cardBorder: 'rgba(0,0,0,0.08)',
-  cardShadow: '0 1px 4px rgba(0,0,0,0.06)', green: '#00bf63', lime: '#00bf63',
-  cta: '#00bf63', ctaText: 'white', text: '#111', muted: '#555', faint: '#888',
-  divider: 'rgba(0,0,0,0.07)', input: '#F8F8F8', pill: '#F2F4F2', field: '#F4F6F9',
-  nav: '#F2F5FA', navBorder: 'rgba(0,0,0,0.07)',
-  modeBorder: 'rgba(0,0,0,0.09)',
-};
-const DARK_C = {
-  page: '#17181E', card: '#1E1F26', cardBorder: 'rgba(255,255,255,0.07)',
-  cardShadow: '0 1px 4px rgba(0,0,0,0.40)', green: '#00bf63', lime: '#00bf63',
-  cta: '#00bf63', ctaText: 'white', text: '#f0f0f0', muted: '#aaa', faint: '#777',
-  divider: 'rgba(255,255,255,0.07)', input: 'rgba(255,255,255,0.05)', pill: '#242630', field: 'rgba(255,255,255,0.055)',
-  nav: '#17181E', navBorder: 'rgba(255,255,255,0.07)',
-  modeBorder: 'rgba(255,255,255,0.09)',
-};
-function useC() { const { theme } = useTheme(); return theme === 'dark' ? DARK_C : LIGHT_C; }
-
-// Types
-interface ReqAttachment { name: string; url: string; mimeType?: string; }
-interface Requirement {
-  id: string;
-  label: string;
-  description: string;
-  descriptionFormat?: 'rich';
-  descriptionDoc?: LessonDoc;
-  type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
-  options?: string[];
-  optionFeedback?: string[];
-  correctAnswer?: string;
-  expectedAnswer?: string;
-  rubric?: string[];
-  schema?: string;
-  reviewLanguage?: string;   // code_review: fixed language; unset = the learner chooses
-  context?: string;
-  reviewSheetNames?: string[];
-  minScore?: number;
-  documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
-  aiReview?: boolean;
-  emailFrame?: boolean;
-  emailBody?: string;
-  attachments?: ReqAttachment[];
-  accentColor?: string;   // task/deliverable: own color; unset follows the experience accent
-  sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
-  // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
-  shareRequired?: boolean;
-  // linkedin_share: bonus XP, clamped server-side to 0..MAX_LINKEDIN_SHARE_POINTS. ABSENT MEANS 0,
-  // not the default amount -- requirements authored before VE shares paid XP must stay at zero
-  // rather than silently start offering a bonus nobody chose. The editor writes the default
-  // explicitly for newly created share requirements.
-  sharePoints?: number;
-}
-interface Lesson {
-  id: string;
-  title: string;
-  body: string;           // sanitized HTML; lossy fallback when `doc` is present
-  doc?: LessonDoc;        // canonical interactive-lesson content (TipTap/ProseMirror JSON)
-  videoUrl?: string;
-  requirements: Requirement[];
-}
-interface Module {
-  id: string;
-  title: string;
-  description: string;
-  lessons: Lesson[];
-  solutionVideo?: string;
-}
-interface ProjectConfig {
-  isVirtualExperience: true;
-  // The experience's accent, as a course has one: a theme colour, or a custom colour that wins.
-  theme?: ThemeColor;
-  customAccent?: string;
-  industry: string;
-  difficulty: string;
-  role: string;
-  company: string;
-  duration: string;
-  tools: string[];
-  /** Topics the experience covers (migration 248), shown on cards and the hover preview. */
-  tags?: string[];
-  // Legacy per-experience logo map. Nothing renders or edits it any more -- logos resolve by
-  // name through the shared tool-icon registry, as a course's category does. It is still loaded
-  // and saved so that saving an experience does not blank a column other tenants may still hold
-  // data in; a later migration can drop it once that is confirmed everywhere.
-  toolLogos?: Record<string, string>;
-  tagline: string;
-  description: string;
-  background: string;
-  coverImage: string;
-  learnOutcomes: string[];
-  modules: Module[];
-  managerName?: string;
-  managerTitle?: string;
-  guideId?: string | null;
-  guideSnapshot?: {
-    fullName: string;
-    professionalTitle?: string;
-    company?: string;
-    profilePhotoUrl?: string;
-    linkedUserId?: string;
-    sourceType?: 'external' | 'instructor';
-    consentStatus?: 'pending' | 'confirmed' | 'not_required';
-    bio?: string;
-    linkedinUrl?: string;
-    expertise?: string[];
-  } | null;
-  badgeImageUrl?: string | null;
-  dataset?: { filename: string; description: string; csvContent?: string; url?: string };
-}
-
-const INDUSTRIES = [
-  { id: 'fintech',    label: 'Fintech',    emoji: '💳', color: '#6366f1' },
-  { id: 'marketing',  label: 'Marketing',  emoji: '📣', color: '#f59e0b' },
-  { id: 'hr',         label: 'HR',         emoji: '👥', color: '#10b981' },
-  { id: 'finance',    label: 'Finance',    emoji: '📊', color: '#3b82f6' },
-  { id: 'edtech',     label: 'EdTech',     emoji: '🎓', color: '#8b5cf6' },
-  { id: 'healthcare', label: 'Healthcare', emoji: '🏥', color: '#ef4444' },
-  { id: 'ecommerce',  label: 'E-commerce', emoji: '🛒', color: '#f97316' },
-  { id: 'consulting', label: 'Consulting', emoji: '🤝', color: '#14b8a6' },
-];
-
-// Carousel sections for the step-2 editor
-const VE_SECTIONS = [
-  // 'overview' is the Details tab: the experience card, then industry, duration and level, then
-  // the cover image and badge. They were three tabs (Overview, Setup, Branding) for one subject.
-  { id: 'overview',   label: 'Details' },
-  { id: 'brief',      label: 'Brief' },
-  { id: 'curriculum', label: 'Curriculum' },
-  { id: 'delivery',   label: 'Publish' },
-] as const;
-
-function uid() { return Math.random().toString(36).slice(2, 10); }
-
-// What each task type is called in the editor, matching the type list.
-const REQ_TYPE_NAMES: Record<string, string> = {
-  mcq: 'Multiple choice', text: 'Short answer', reflection: 'Reflection', upload: 'File upload',
-  task: 'Deliverable', deliverable: 'Deliverable', linkedin_share: 'LinkedIn share',
-  briefing: 'Manager email', debrief: 'Email reply to manager', scenario_update: 'Team chat update',
-  decision: 'Team chat decision', dashboard_critique: 'AI review: dashboard', code_review: 'AI review: code',
-  excel_review: 'AI review: Excel', document_review: 'AI review: document',
-};
-
-type EditorTheme = { card: string; text: string; muted: string; faint: string; field: string; divider: string };
-
-/** The "..." menu on a milestone, mission or task row: Move to (when there is somewhere to go)
- * and Delete. Keeps the row itself to its title and type. */
-function RowMenu({ C, label, onDelete, moveTargets }: {
-  C: EditorTheme;
-  label: string;
-  onDelete: () => void;
-  moveTargets?: { group?: string; label: string; onPick: () => void }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [moving, setMoving] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = () => { setOpen(false); setMoving(false); };
-    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-  const item = 'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors';
-  const groups = Array.from(new Set((moveTargets ?? []).map(t => t.group ?? '')));
-  return (
-    <div ref={ref} className="relative flex-shrink-0">
-      <button type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open}
-        onClick={() => { setOpen(v => !v); setMoving(false); }}
-        className="w-8 h-8 rounded-lg grid place-items-center transition-opacity hover:opacity-70" style={{ color: C.faint }}>
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-9 z-30 min-w-[200px] max-h-72 overflow-auto rounded-xl p-2"
-          style={{ background: C.card, boxShadow: `0 0 0 1px ${C.divider}, 0 12px 28px rgba(15,23,42,0.16)` }}>
-          {!moving ? (
-            <>
-              {!!moveTargets?.length && (
-                <button type="button" role="menuitem" className={item} style={{ color: C.text }}
-                  onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  onClick={() => setMoving(true)}>Move to...</button>
-              )}
-              <button type="button" role="menuitem" className={item} style={{ color: '#dc2626' }}
-                onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                onClick={() => { setOpen(false); onDelete(); }}>Delete</button>
-            </>
-          ) : (
-            groups.map(g => (
-              <div key={g || 'all'}>
-                {g && <p className="px-3 pt-2 pb-1 text-xs font-semibold" style={{ color: C.faint }}>{g}</p>}
-                {(moveTargets ?? []).filter(t => (t.group ?? '') === g).map((t, i) => (
-                  <button key={`${g}-${i}`} type="button" role="menuitem" className={item} style={{ color: C.text }}
-                    onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    onClick={() => { setOpen(false); setMoving(false); t.onPick(); }}>{t.label || 'Untitled'}</button>
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Quick picks under "Skills you will use", mirroring COURSE_CATEGORIES in the course editor.
-// These are only shortcuts: any name can be typed, and its logo resolves through the shared
-// tool-icon registry if one has been uploaded for it.
-const VE_TOOL_SUGGESTIONS = ['Excel', 'Power BI', 'SQL', 'Tableau', 'Python', 'PowerPoint'] as const;
-
-/**
- * Skill names are free text typed inline, so a rename can leave a blank or a duplicate of another
- * row -- `addTool` guards against both, renaming cannot. Harmless in the editor, not on the
- * experience page: a blank renders an empty chip, and two rows sharing a name collide because the
- * chips are keyed by it. Trim, drop blanks, and dedupe case-insensitively, keeping the spelling
- * that appears first. Applied when a field loses focus and again on save, so nothing reaches the
- * database unnormalized even if focus never moved.
- */
-function normalizeToolList(tools: readonly string[] | undefined): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of tools ?? []) {
-    const name = String(raw ?? '').trim();
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
-  }
-  return out;
+// The editor uses the shared dashboard theme with the shared blue on buttons and selection
+// controls. Field fills are the theme's input colour; outlines use inputBorder, which stays
+// visible in dark mode (cardBorder is transparent there).
+function useVeC() {
+  const theme = useC();
+  return useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
 }
 
 
-function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note, sheetNames, grader = 'AI grades each criterion as pass or fail' }: {
-  criteria: string[];
-  // The requirement's worksheets, so a workbook upload is read the same way the review reads it.
-  sheetNames?: string[];
-  onChange: (rubric: string[]) => void;
-  onImport: (criteria: string[]) => void;
-  C: typeof LIGHT_C;
-  inp: React.CSSProperties;
-  sessionToken?: string;
-  // Only the review types whose pass gate reads the rubric pass one, so the copy stays true
-  // for the types still gated on the AI quality score.
-  note?: string;
-  // Who marks the criteria, shown beside the heading.
-  grader?: string;
-}) {
-  const [draft, setDraft] = useState('');
-  const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
-  const [extractError, setExtractError] = useState('');
 
-  const add = () => {
-    const val = draft.trim();
-    if (!val) return;
-    onChange([...criteria, val]);
-    setDraft('');
-  };
 
-  const handleFile = async (label: RubricImportKind, file: File) => {
-    if (!file || !sessionToken) return;
-    setExtracting(label);
-    setExtractError('');
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('label', label);
-      form.append('reviewSheetNames', JSON.stringify(sheetNames ?? []));
-      const res = await fetch('/api/extract-rubric', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${sessionToken}` },
-        body: form,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Rubric import failed.');
-      if (!json.criteria?.length) throw new Error('No rubric criteria were found in this file.');
-      onImport(json.criteria);
-    } catch (error: any) {
-      setExtractError(error?.message || 'Rubric import failed. Please try again.');
-    } finally {
-      setExtracting(null);
-    }
-  };
 
-  return (
-    <div className="space-y-2" style={{ background: 'transparent' }}>
-      <p className="text-xs font-semibold" style={{ color: C.muted }}>
-        Grading rubric
-        <span className="ml-2 font-normal" style={{ color: C.faint }}>
-          (optional) {grader}
-        </span>
-      </p>
-      {note && <p className="text-[11px]" style={{ color: C.faint }}>{note}</p>}
-      {sessionToken && (
-        <div className="space-y-2">
-          <RubricFileImportActions
-            busy={extracting}
-            background={C.card}
-            color={C.muted}
-            border={`1px solid ${C.cardBorder}`}
-            onSelect={handleFile}
-          />
-          <p className="text-[11px]" style={{ color: C.faint }}>
-            Upload completed work or your own rubric file to set the criteria.
-          </p>
-          {extractError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{extractError}</p>}
-        </div>
-      )}
-      {criteria.map((crit, ci) => (
-        <div key={ci} className="flex items-center gap-2 rounded-lg px-3 py-2"
-          style={{ background: C.pill }}>
-          <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: C.card }}>
-            <span className="text-[11px] font-black" style={{ color: C.muted }}>{ci + 1}</span>
-          </div>
-          <input
-            className="flex-1 bg-transparent text-[12px] outline-none"
-            style={{ color: C.text }}
-            value={crit}
-            onChange={e => { const next = [...criteria]; next[ci] = e.target.value; onChange(next); }}
-          />
-          <button onClick={() => onChange(criteria.filter((_, j) => j !== ci))}
-            className="hover:text-red-400 flex-shrink-0 transition-colors" style={{ color: C.faint }}>
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      ))}
-      <div className="flex gap-2">
-        <input
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-          style={{ ...inp, background: C.card, fontSize: 12, padding: '6px 10px' }}
-          placeholder="e.g. Must include a KPI row with at least 3 metrics"
-        />
-        <button onClick={add} disabled={!draft.trim()}
-          className="flex items-center gap-1 px-3 rounded-xl text-[12px] font-semibold flex-shrink-0 transition-all hover:opacity-80 disabled:opacity-40"
-          style={{ background: C.cta, color: C.ctaText }}>
-          <Plus className="w-3 h-3" /> Add
-        </button>
-      </div>
-      {criteria.length === 0 && (
-        <p className="text-[11px]" style={{ color: C.faint }}>
-          No criteria yet. AI will use its default standards. Add criteria to grade against your specific assignment requirements.
-        </p>
-      )}
-    </div>
-  );
-}
+
 
 // Page
 function VirtualExperienceCreatePageInner() {
-  const C = useC();
+  const C = useVeC();
   const toolIcon = useToolIcons();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('id');
 
   // Step 1 state
-  const [creationMode, setCreationMode] = useState<'ai' | 'data' | 'manual' | null>(null);
+  const [creationMode, setCreationMode] = useState<'ai' | 'manual' | null>(null);
   const [industry,    setIndustry]    = useState('fintech');
   const [customIndustry, setCustomIndustry] = useState('');
   const effectiveIndustry = industry === 'other' ? (customIndustry.trim() || 'other') : industry;
@@ -615,12 +187,7 @@ function VirtualExperienceCreatePageInner() {
   const [saveError,   setSaveError]   = useState('');
   const [saveWarning, setSaveWarning] = useState('');
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  const [editingField, setEditingField] = useState<string | null>(null);
 
-  // AI improve state
-  const [improveInstruction, setImproveInstruction] = useState('');
-  const [improving,   setImproving]   = useState(false);
-  const [showImprove, setShowImprove] = useState(false);
 
   const coverRef = useRef<HTMLInputElement>(null);
 
@@ -630,15 +197,8 @@ function VirtualExperienceCreatePageInner() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Bunny video picker
-  const [bunnyPickerOpen,    setBunnyPickerOpen]    = useState(false);
-  const [bunnyPickerTarget,  setBunnyPickerTarget]  = useState<string | null>(null); // "modId::lesId"
-  const [bunnyVideos,        setBunnyVideos]        = useState<any[]>([]);
-  const [bunnyCollections,   setBunnyCollections]   = useState<any[]>([]);
-  const [bunnyCollection,    setBunnyCollection]    = useState('');
-  const [bunnyLoading,       setBunnyLoading]       = useState(false);
-  const [bunnySearch,        setBunnySearch]        = useState('');
-  const [bunnyError,         setBunnyError]         = useState('');
+  // The mission whose video the Bunny picker fills, as "moduleId::lessonId"; null when closed.
+  const [bunnyTarget, setBunnyTarget] = useState<string | null>(null);
   const [sessionToken,       setSessionToken]       = useState('');
   const [experienceGuides, setExperienceGuides] = useState<any[]>([]);
   const [guidesLoading, setGuidesLoading] = useState(false);
@@ -1144,46 +704,6 @@ function VirtualExperienceCreatePageInner() {
     setExpandedModules(prev => new Set([...prev, `${toModuleId}-${toLessonId}`]));
   };
 
-  // Bunny picker helpers
-  const openBunnyPicker = async (target: string, search = '', collection = '') => {
-    setBunnyPickerTarget(target);
-    setBunnyPickerOpen(true);
-    setBunnyLoading(true);
-    setBunnyError('');
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? '';
-      const qs = new URLSearchParams({ ...(search ? { search } : {}), ...(collection ? { collection } : {}) });
-      const [videosRes, collectionsRes] = await Promise.all([
-        fetch(`/api/bunny?${qs}`, { headers: { Authorization: `Bearer ${token}` } }),
-        bunnyCollections.length === 0
-          ? fetch('/api/bunny?collections=1', { headers: { Authorization: `Bearer ${token}` } })
-          : Promise.resolve(null),
-      ]);
-      const videosJson = await videosRes.json();
-      if (!videosRes.ok) { setBunnyError(videosJson.error || 'Failed to load videos'); return; }
-      setBunnyVideos(videosJson.videos ?? []);
-      if (collectionsRes) {
-        const colJson = await collectionsRes.json();
-        setBunnyCollections(colJson.collections ?? []);
-      }
-    } catch {
-      setBunnyError('Network error. Please try again.');
-    } finally {
-      setBunnyLoading(false);
-    }
-  };
-
-  const selectBunnyVideo = (embedUrl: string) => {
-    if (!bunnyPickerTarget) return;
-    const [modId, lesId] = bunnyPickerTarget.split('::');
-    updateLesson(modId, lesId, { videoUrl: embedUrl });
-    setBunnyPickerOpen(false);
-    setBunnyPickerTarget(null);
-    setBunnySearch('');
-    setBunnyCollection('');
-  };
-
   const uploadedDatasetUrl = datasetFileUrl.trim();
   const pastedDatasetUrl = datasetUrl.trim();
   const preferredDatasetUrl = uploadedDatasetUrl || pastedDatasetUrl;
@@ -1266,31 +786,6 @@ function VirtualExperienceCreatePageInner() {
   };
 
   // Generate from uploaded dataset
-  const handleGenerateFromData = async () => {
-    if (!datasetCsv.trim()) { setGenError('Please paste or upload a dataset first.'); return; }
-    setGenerating(true); setGenError('');
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/ai-guided-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ action: 'generate-from-data', industry: effectiveIndustry, difficulty, role: roleHint, focusTopic, tools: toolsInput, companyName, scenario, customPrompt, emailStyle: emailStyle ? 'frame' : undefined, csvContent: datasetCsv, filename: datasetFilename || 'dataset.csv' }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Generation failed');
-      mergeDraftDatasetIntoGeneratedConfig(json.config);
-      setConfig(attachLessonDocs(json.config, await loadLessonHtmlToDoc()));
-      setBackgroundDraft(htmlToPlainText(json.config.background || ''));
-      setTitle(json.config.company ? `${json.config.company} - ${effectiveIndustry.charAt(0).toUpperCase()+effectiveIndustry.slice(1)} Project` : 'Virtual Experience');
-      setCoverImage(json.config.coverImage || '');
-      setExpandedModules(new Set((json.config.modules || []).map((m: Module) => m.id)));
-      setStep(2);
-    } catch (e: any) {
-      setGenError(e.message);
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   // Manual scaffold
   const handleManual = () => {
@@ -1431,29 +926,6 @@ function VirtualExperienceCreatePageInner() {
   };
 
   // AI Improve
-  const handleImprove = async () => {
-    if (!improveInstruction.trim() || !config) return;
-    setImproving(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/ai-guided-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ action: 'improve', instruction: improveInstruction, currentConfig: config }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed');
-      if (json.config) {
-        setConfig(preserveLessonDocs(json.config, config, await loadLessonHtmlToDoc()) as ProjectConfig);
-        setImproveInstruction('');
-        setShowImprove(false);
-      }
-    } catch (e: any) {
-      alert('AI error: ' + e.message);
-    } finally {
-      setImproving(false);
-    }
-  };
 
   // Cover image upload
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1495,22 +967,6 @@ function VirtualExperienceCreatePageInner() {
   };
 
   // Dataset download
-  const downloadDataset = () => {
-    const dataset = (config as any)?.dataset;
-    if (!dataset) return;
-    if (dataset.url) {
-      window.open(dataset.url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    const content = dataset.csvContent || '';
-    if (content) {
-      const blob = new Blob([content], { type: 'text/csv' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = dataset.filename || 'dataset.csv'; a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
 
   // Save
   const effectiveId = editId ?? savedId;
@@ -1526,7 +982,7 @@ function VirtualExperienceCreatePageInner() {
       }
     }
     if (status === 'published' && config.guideSnapshot?.sourceType === 'external' && config.guideSnapshot.consentStatus !== 'confirmed') {
-      setSaveError('Confirm permission to use the selected professional’s name and photo before publishing.');
+      setSaveError('Confirm permission to use the selected professional\'s name and photo before publishing.');
       setActiveSection('brief');
       return;
     }
@@ -1597,7 +1053,7 @@ function VirtualExperienceCreatePageInner() {
   // One field style everywhere in the editor: a soft fill, no border, green on focus (globals.css).
   const inp = {
     width: '100%', padding: '9px 12px', borderRadius: 10,
-    border: '1.5px solid transparent', background: C.field, boxShadow: 'none',
+    border: '1.5px solid transparent', background: C.input, boxShadow: 'none',
     color: C.text, fontSize: 14, outline: 'none', transition: 'background 160ms ease',
   } as React.CSSProperties;
 
@@ -1607,92 +1063,76 @@ function VirtualExperienceCreatePageInner() {
     borderRadius: 0, boxShadow: 'none', paddingLeft: 0, paddingRight: 0, paddingTop: 20, paddingBottom: 20,
   } as React.CSSProperties;
 
+  const P = palette(C);
+  const leaveEditor = () => {
+    if (hasUnsavedChanges() && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    router.push('/dashboard#virtual_experiences');
+  };
+
   return (
-    <div className="min-h-screen" style={{ background: C.page, color: C.text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
-      {/* The first section on a tab has no line above it (the tab bar draws one). Editors in this
-                    page show the common tools and Add interactive; the rest sit under More, which the
-                    shared lesson editor already offers on narrow screens. */}
-                <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
+    <div className="min-h-screen pb-12" style={{ background: C.page, color: C.text }}>
+      {/* The first section on a tab has no line above it. Editors in this page show the common
+          tools and Add interactive; the rest sit under More, which the shared lesson editor
+          already offers on narrow screens. */}
+      <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
 .ve-tab .lesson-editor-toolbar__secondary, .ve-tab .lesson-editor-toolbar__media { display: none !important; }
 .ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }
 .ve-tab input:focus-visible, .ve-tab textarea:focus-visible, .ve-tab select:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px ${C.cta} !important; }
 .ve-tab .ve-shell > input:focus-visible, .ve-tab [contenteditable="true"]:focus-visible { outline: none !important; box-shadow: none !important; }
 .ve-tab .ve-shell:focus-within, .ve-tab .lesson-editor-shell:focus-within { outline: 2px solid ${C.cta}; outline-offset: -2px; }`}</style>
-      {/* Experience Studio header */}
-      <header className="px-4 sm:px-6 pt-6" style={{ background: C.page }}>
-        <div className={`${step === 2 ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 pt-5 pb-3 rounded-t-2xl`}
-          style={{ background: C.card }}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <Link href="/dashboard" aria-label="Back to dashboard"
-                onClick={e => { if (hasUnsavedChanges() && !window.confirm('You have unsaved changes. Leave without saving?')) e.preventDefault(); }}
-                className="flex items-center justify-center w-9 h-9 rounded-xl transition-all hover:opacity-70 flex-shrink-0"
-                style={{ color: C.muted, background: C.pill }}>
-                <ArrowLeft className="w-4 h-4" />
-              </Link>
-              <div className="min-w-0">
-                <p className="text-[12px] mb-0.5" style={{ color: C.faint }}>Virtual experience</p>
-                <h1 className="text-base sm:text-[18px] font-bold leading-tight truncate" style={{ color: C.text }}>
-                  {step === 2 ? (title || 'Untitled experience') : (effectiveId ? 'Edit Virtual Experience' : 'New Virtual Experience')}
-                </h1>
-              </div>
-            </div>
-            {step === 2 ? (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {veSlug ? (
-                  <a href={`/${veSlug}`} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all hover:opacity-70"
-                    style={{ color: C.muted, background: C.pill, textDecoration: 'none' }}>
-                    <Eye className="w-3.5 h-3.5" /> Preview
-                  </a>
-                ) : (
-                  <span title="Save the experience first to preview it"
-                    className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold cursor-not-allowed opacity-40"
-                    style={{ color: C.muted, background: C.pill }}>
-                    <Eye className="w-3.5 h-3.5" /> Preview
-                  </span>
-                )}
-                <button disabled={saving}
-                  onClick={() => { if (savedStatus !== 'published' || window.confirm('Unpublish this experience? Learners lose access until you publish it again.')) handleSave('draft'); }}
-                  title={savedStatus === 'published' ? 'Takes it away from learners and their cohorts until you publish it again' : undefined}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
-                  style={{ color: C.muted, background: 'transparent' }}>
-                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                  {savedStatus === 'published' ? 'Unpublish' : 'Save draft'}
-                </button>
-                <button onClick={() => handleSave('published')} disabled={saving}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-bold transition-all hover:opacity-85"
-                  style={{ background: saveSuccess ? '#16a34a' : C.cta, color: C.ctaText }}>
-                  {saveSuccess ? <Check className="w-3.5 h-3.5"/> : <CheckCircle2 className="w-3.5 h-3.5"/>}
-                  {saveSuccess ? 'Saved' : savedStatus === 'published' ? 'Publish changes' : 'Publish'}
-                </button>
-              </div>
+      <div className={`${step === 2 ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 pt-6 sm:pt-8`}>
+        <EditorHeader C={C} back="All virtual experiences" onBack={leaveEditor}
+          title={step === 2 ? (title.trim() || 'Untitled experience') : (effectiveId ? 'Edit virtual experience' : 'New virtual experience')}
+          pill={step === 2 ? (savedStatus === 'published' ? <Pill tone="good" dot C={C}>Published</Pill> : <Pill tone="warn" C={C}>Draft</Pill>) : undefined}
+          error={step === 2 ? saveError : undefined} onDismissError={() => setSaveError('')}
+          actions={step === 2 ? <>
+            {veSlug ? (
+              <a href={`/${veSlug}`} target="_blank" rel="noreferrer" className={btnClass} style={btnStyle('sec', C)}>
+                <Eye className="w-4 h-4" /> Preview
+              </a>
             ) : (
-              null
+              <span title="Save the experience first to preview it" className={`${btnClass} opacity-50 cursor-not-allowed`} style={btnStyle('sec', C)}>
+                <Eye className="w-4 h-4" /> Preview
+              </span>
             )}
-          </div>
-        </div>
-      </header>
-
-      <div className="px-4 sm:px-6 pb-4 pt-0">
-        {step === 2 && (saveError || saveWarning) && (
-          <div className="max-w-6xl mx-auto pt-3">
-            <div className="px-4 py-3 rounded-xl text-sm flex items-start gap-2"
-              role="status"
-              style={saveError
-                ? { background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }
-                : { background: 'rgba(245,158,11,0.09)', color: '#d97706', border: '1px solid rgba(245,158,11,0.22)' }}>
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <span>{saveError || saveWarning}</span>
+            <button type="button" disabled={saving}
+              onClick={() => { if (savedStatus !== 'published' || window.confirm('Unpublish this experience? Learners lose access until you publish it again.')) handleSave('draft'); }}
+              title={savedStatus === 'published' ? 'Takes it away from learners and their cohorts until you publish it again' : undefined}
+              className={btnClass} style={btnStyle('sec', C)}>
+              {savedStatus === 'published' ? 'Unpublish' : <><Check className="w-4 h-4" /> Save draft</>}
+            </button>
+            <button type="button" onClick={() => handleSave('published')} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saveSuccess ? 'Saved' : savedStatus === 'published' ? 'Publish changes' : 'Publish'}
+            </button>
+          </> : null}>
+          {step === 2 && (
+            <div role="tablist" aria-label="Virtual experience steps" className="inline-flex max-w-full gap-1 p-1 mt-5 rounded-[14px] overflow-x-auto" style={{ background: C.card }}>
+              {VE_SECTIONS.map(section => {
+                const active = activeSection === section.id;
+                const count = section.id === 'curriculum' ? (config?.modules ?? []).reduce((n, m) => n + (m.lessons?.length ?? 0), 0) : null;
+                return (
+                  <button key={section.id} type="button" role="tab" aria-selected={active} onClick={() => goToSection(section.id)}
+                    className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+                    style={active ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+                    {section.label}{count !== null && <span className="ml-1 text-xs" style={{ opacity: 0.7 }}>{count}</span>}
+                  </button>
+                );
+              })}
             </div>
+          )}
+        </EditorHeader>
+        {step === 2 && saveWarning && (
+          <div role="status" className="mt-4 rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: P.warnSoft, color: P.warn }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" /><span className="flex-1">{saveWarning}</span>
           </div>
         )}
 
         {/* STEP 1: Configure */}
         {step === 1 && (
-          <div className="max-w-4xl mx-auto pb-6">
-          <div className="rounded-b-2xl" style={{ background: C.card, boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
-            <div className="px-6 sm:px-8 pt-2 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <div className="mt-4">
+          <Card C={C}>
+            <div className="px-6 sm:px-8 pt-6 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
               <h2 className="text-base font-semibold leading-tight" style={{ color: C.text }}>How do you want to build it?</h2>
               <p className="text-sm mt-1" style={{ color: C.muted }}>Let AI draft the whole experience, or start from a blank outline.</p>
             </div>
@@ -1754,7 +1194,7 @@ function VirtualExperienceCreatePageInner() {
                         return (
                           <button key={ind.id} type="button" aria-pressed={selected} onClick={() => setIndustry(ind.id)}
                             className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
-                            style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+                            style={selected ? { background: P.sel, color: P.onSel } : { background: C.input, color: C.text }}>
                             {ind.label}
                           </button>
                         );
@@ -1776,13 +1216,13 @@ function VirtualExperienceCreatePageInner() {
                   {/* Experience Level */}
                   <div className="pb-5 pt-5 space-y-3 border-t" style={{ borderColor: C.divider }}>
                     <p className="text-xs font-semibold" style={{ color: C.muted }}>Level</p>
-                    <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
+                    <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.input }}>
                       {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
                         const selected = difficulty === id;
                         return (
                           <button key={id} type="button" aria-pressed={selected} onClick={() => setDifficulty(id)}
                             className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                            style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
+                            style={selected ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
                             {label}
                           </button>
                         );
@@ -1848,20 +1288,10 @@ function VirtualExperienceCreatePageInner() {
                           placeholder="e.g. Make questions harder than usual. Use a conversational tone in lesson bodies."
                         />
                       </div>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 0 2px' }}>
-                        <input
-                          type="checkbox"
-                          checked={emailStyle}
-                          onChange={e => setEmailStyle(e.target.checked)}
-                          style={{ marginTop: 2, accentColor: C.cta, flexShrink: 0 }}
-                        />
-                        <div>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Present tasks as workplace emails</span>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-                            Wraps every task, upload, and AI review in an email thread from the manager. The AI will also write the email body for each one.
-                          </p>
-                        </div>
-                      </label>
+                      <div className="pt-2">
+                        <SwitchRow C={C} title="Present tasks as workplace emails" on={emailStyle} onChange={setEmailStyle}
+                          sub="Wraps every task, upload, and AI review in an email thread from the manager. The AI will also write the email body for each one." />
+                      </div>
                     </div>
                   )}
 
@@ -1878,7 +1308,7 @@ function VirtualExperienceCreatePageInner() {
                           </p>
                         )}
                       </div>
-                      <div className="flex rounded-[10px] overflow-hidden text-[12px] p-[3px]" style={{ background: C.field }}>
+                      <div className="flex rounded-[10px] overflow-hidden text-[12px] p-[3px]" style={{ background: C.input }}>
                         {(['upload', 'link'] as const).map(tab => (
                           <button key={tab} onClick={() => setDatasetInputTab(tab)}
                             className="px-3 py-2 font-medium transition-all"
@@ -1900,7 +1330,7 @@ function VirtualExperienceCreatePageInner() {
                           <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetFileUpload}/>
                           <button onClick={() => datasetRef.current?.click()}
                             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border transition-all hover:opacity-70"
-                            style={{ border: 'none', color: C.text, background: C.field }}>
+                            style={{ border: 'none', color: C.text, background: C.input }}>
                             {uploadingDataset ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                             {datasetFilename ? datasetFilename : 'Upload CSV or Excel file'}
                           </button>
@@ -1916,13 +1346,13 @@ function VirtualExperienceCreatePageInner() {
                           onChange={e => setDatasetCsv(e.target.value)}
                           rows={8}
                           style={{ ...inp, fontFamily: 'monospace', fontSize: 14, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
-                          placeholder={"Paste CSV data here, or upload a file above…\n\ndate,region,amount,status\n2024-01-01,Lagos,45000,Completed\n2024-01-02,Abuja,32000,Pending"}
+                          placeholder={"Paste CSV data here, or upload a file above\n\ndate,region,amount,status\n2024-01-01,Lagos,45000,Completed\n2024-01-02,Abuja,32000,Pending"}
                         />
                         {datasetCsv.trim() && (
                           <div className="flex items-center gap-2 text-sm" style={{ color: C.faint }}>
                             <Table className="w-3.5 h-3.5"/>
                             {datasetCsv.trim().split('\n').length} rows detected
-                            {creationMode === 'ai' && ' · AI will generate questions from these exact values'}
+                            {creationMode === 'ai' && ', AI will generate questions from these exact values'}
                           </div>
                         )}
                         {datasetUploadNote && (
@@ -1939,7 +1369,7 @@ function VirtualExperienceCreatePageInner() {
                           value={datasetUrl}
                           onChange={e => setDatasetUrl(e.target.value)}
                           style={inp}
-                          placeholder="https://docs.google.com/spreadsheets/… or any public CSV/sheet URL"
+                          placeholder="https://docs.google.com/spreadsheets/ or any public CSV/sheet URL"
                         />
                         <p className="text-[12px]" style={{ color: C.faint }}>
                           The link will be shown to students as the dataset source.
@@ -1961,7 +1391,7 @@ function VirtualExperienceCreatePageInner() {
                           onChange={e => setDatasetDescription(e.target.value)}
                           rows={2}
                           style={{ ...inp, fontSize: 14, resize: 'vertical', lineHeight: 1.5 } as React.CSSProperties}
-                          placeholder={creationMode === 'ai' ? 'Leave blank to let AI write one, or describe the dataset yourself…' : 'e.g. Q3 regional sales transactions with status and amount columns.'}
+                          placeholder={creationMode === 'ai' ? 'Leave blank to let AI write one, or describe the dataset yourself' : 'e.g. Q3 regional sales transactions with status and amount columns.'}
                         />
                       </div>
                     )}
@@ -1981,7 +1411,7 @@ function VirtualExperienceCreatePageInner() {
                     className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-base transition-all hover:opacity-90 hover:scale-[1.005] disabled:opacity-60"
                     style={{ background: C.cta, color: C.ctaText, boxShadow: `0 6px 20px ${C.cta}38` }}>
                     {generating
-                      ? <><Loader2 className="w-5 h-5 animate-spin"/> Generating…</>
+                      ? <><Loader2 className="w-5 h-5 animate-spin"/> Generating</>
                       : datasetCsv.trim()
                         ? <><Database className="w-5 h-5"/> Generate from My Dataset</>
                         : <><Sparkles className="w-5 h-5"/> Generate with AI</>}
@@ -1999,7 +1429,7 @@ function VirtualExperienceCreatePageInner() {
                 {generating && (
                   <div className="text-center space-y-3">
                     <p className="text-sm font-medium" style={{ color: C.muted }}>
-                      {datasetCsv.trim() ? 'Analysing your data and generating questions…' : 'Creating company scenario, milestones, missions and dataset…'}
+                      {datasetCsv.trim() ? 'Analysing your data and generating questions' : 'Creating company scenario, milestones, missions and dataset'}
                     </p>
                     <div className="flex items-center justify-center gap-2 flex-wrap">
                       {['Company brief', 'Dataset', 'Milestones', 'Missions', 'Questions'].map((s, i) => (
@@ -2012,13 +1442,12 @@ function VirtualExperienceCreatePageInner() {
               </div>
             )}
             </div>
-          </div>
+          </Card>
           </div>
         )}
 
         {/* STEP 2: Review & Edit */}
         {step === 2 && config && (() => {
-          const indInfo = INDUSTRIES.find(i => i.id === config.industry) || INDUSTRIES[0];
           const managerName  = config.guideSnapshot?.fullName || config.managerName  || 'Your Manager';
           const managerTitle = config.guideSnapshot?.professionalTitle || config.managerTitle || 'Head of Analytics';
           const managerPhoto = config.guideSnapshot?.profilePhotoUrl;
@@ -2027,26 +1456,8 @@ function VirtualExperienceCreatePageInner() {
           const experienceAccent = accentColorFor(config.customAccent, config.theme) ?? DEFAULT_VE_ACCENT;
 
           return (
-          <div className="max-w-6xl mx-auto py-0">
-            {/* Carousel: navigable sections */}
-            {(() => {
-              const ids = VE_SECTIONS.map(s => s.id) as readonly string[];
-              const si = ids.indexOf(activeSection);
-              return (
-              <div className="rounded-b-2xl overflow-hidden" style={{ background: C.card, border: 'none', boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
-                <nav className="flex items-center gap-6 overflow-x-auto px-6 sm:px-8" aria-label="Virtual experience editor sections"
-                  style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${C.divider}` }}>
-                  {VE_SECTIONS.map(section => {
-                    const active = activeSection === section.id;
-                    return (
-                      <button key={section.id} type="button" onClick={() => goToSection(section.id)} aria-current={active ? 'page' : undefined}
-                        className="flex-shrink-0 pt-3 pb-3 text-[14px] font-semibold transition-colors"
-                        style={{ color: active ? C.text : C.faint, borderBottom: `2px solid ${active ? C.cta : 'transparent'}`, marginBottom: -1 }}>
-                        {section.label}
-                      </button>
-                    );
-                  })}
-                </nav>
+          <div className="mt-4">
+              <Card C={C} className="overflow-hidden">
                 <AnimatePresence mode="wait" custom={secDir}>
                 <motion.div key={activeSection} custom={secDir}
                   initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
@@ -2089,7 +1500,7 @@ function VirtualExperienceCreatePageInner() {
                           const logo = toolIcon(t);
                           const initial = t.trim().charAt(0).toUpperCase();
                           return (
-                            <div key={i} className="ve-shell flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.field }}>
+                            <div key={i} className="ve-shell flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.input }}>
                               {logo
                                 ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
                                 : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[11px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
@@ -2122,10 +1533,8 @@ function VirtualExperienceCreatePageInner() {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTool(); } }}
                             placeholder="Add a skill or tool"
                             style={{ ...inp, fontSize: 12, flex: 1 }} />
-                          <button type="button" onClick={() => addTool()} disabled={!newToolDraft.trim()}
-                            className="flex items-center gap-1 px-3 py-2 rounded-lg text-[12px] font-semibold flex-shrink-0 disabled:opacity-35"
-                            style={{ background: C.cta, color: C.ctaText }}>
-                            <Plus className="w-3 h-3" /> Add
+                          <button type="button" onClick={() => addTool()} disabled={!newToolDraft.trim()} className={btnClass} style={btnStyle('sec', C)}>
+                            <Plus className="w-4 h-4" /> Add
                           </button>
                         </div>
                       </div>
@@ -2181,30 +1590,26 @@ function VirtualExperienceCreatePageInner() {
                     {/* Dataset - replace/attach/remove works here even for an already-saved VE */}
                     <div>
                     <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Dataset</label>
-                    <div className="p-4 rounded-xl" style={{ background: C.field, border: `1.5px dashed ${C.cardBorder}` }}>
+                    <div className="p-4 rounded-xl" style={{ background: C.page }}>
                       <input ref={datasetReplaceRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetReplace} />
                       {dataset ? (
                         <div className="flex items-start gap-2">
-                          <span className="text-base flex-shrink-0 mt-0.5">📊</span>
+                          <Table className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: C.muted }} />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[12px] font-bold flex-1 min-w-0 truncate" style={{ color: C.text }}>{dataset.filename || 'Linked Dataset'}</p>
-                              <button onClick={() => datasetReplaceRef.current?.click()} disabled={uploadingDatasetReplace}
-                                className="flex items-center gap-1 text-[11px] font-semibold flex-shrink-0 hover:opacity-70 transition-opacity" style={{ color: C.cta }}>
-                                {uploadingDatasetReplace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-[12px] font-bold flex-1 min-w-[120px] truncate" style={{ color: C.text }}>{dataset.filename || 'Linked dataset'}</p>
+                              <button type="button" onClick={() => datasetReplaceRef.current?.click()} disabled={uploadingDatasetReplace} className={btnSmClass} style={btnStyle('sec', C)}>
+                                {uploadingDatasetReplace ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                                 {uploadingDatasetReplace ? 'Uploading...' : 'Replace file'}
                               </button>
-                              <button onClick={removeDataset} title="Remove dataset"
-                                className="flex-shrink-0 hover:text-red-400 transition-colors" style={{ color: C.faint }}>
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                              <button type="button" onClick={removeDataset} className={btnSmClass} style={btnStyle('danger', C)}>Remove</button>
                             </div>
                             <input
                               value={dataset.description || ''}
                               onChange={e => setConfig(c => c && c.dataset ? { ...c, dataset: { ...c.dataset, description: e.target.value } } : c)}
                               className="w-full bg-transparent outline-none text-[11px] mt-0.5"
                               style={{ color: C.muted }}
-                              placeholder="Describe this dataset for students…"
+                              placeholder="Describe this dataset for students"
                             />
                             <div className="flex items-center gap-2 mt-2">
                               <LinkIcon className="w-3 h-3 flex-shrink-0" style={{ color: C.faint }} />
@@ -2213,7 +1618,7 @@ function VirtualExperienceCreatePageInner() {
                                 onChange={e => setConfig(c => c && c.dataset ? { ...c, dataset: { ...c.dataset, url: e.target.value || undefined } } : c)}
                                 className="flex-1 min-w-0 bg-transparent outline-none text-[11px]"
                                 style={{ color: C.muted }}
-                                placeholder="Optional link shown to students instead of/alongside the file…"
+                                placeholder="Optional link shown to students instead of/alongside the file"
                               />
                             </div>
                           </div>
@@ -2233,15 +1638,16 @@ function VirtualExperienceCreatePageInner() {
                 <div className="space-y-4">
 
                 {/* Manager brief card */}
-                <div style={card}>
+                <div style={card} className="space-y-3">
+                  <h3 className="text-base font-semibold" style={{ color: C.text }}>Manager</h3>
                   {/* Header strip */}
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.field }}>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.input }}>
                     <div style={{ width: 32, height: 32, borderRadius: 999, overflow: 'hidden', background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: C.text, flexShrink: 0 }}>
                       {managerPhoto ? <img src={managerPhoto} alt={managerName} className="w-full h-full object-cover" /> : managerInitials}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold" style={{ color: C.text }}>{managerName} <span className="font-normal" style={{ color: C.muted }}>| {managerTitle}</span></p>
-                      <p className="text-[11px]" style={{ color: C.faint }}>To: New {config.role} · Your Brief</p>
+                      <p className="text-[11px]" style={{ color: C.faint }}>To: New {config.role}, Your Brief</p>
                     </div>
                     <span className="text-[11px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: C.pill, color: C.muted }}>Onboarding</span>
                   </div>
@@ -2256,23 +1662,23 @@ function VirtualExperienceCreatePageInner() {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button type="button" onClick={() => setShowGuideManager(v => !v)}
-                            className="text-[12px] font-semibold px-3 py-2 rounded-xl" style={{ color: C.muted, background: C.pill }}>Manage profiles</button>
+                            className={btnSmClass} style={btnStyle('sec', C)}>Manage profiles</button>
                           <button type="button" onClick={() => { setEditingGuideId(null); setGuideDraft(emptyGuideDraft); setShowGuideForm(true); setGuideError(''); }}
-                            className="text-[12px] font-bold flex items-center gap-2 px-3 py-2 rounded-xl"
-                            style={{ color: C.cta, background: `${C.cta}12` }}>
+                            className={btnSmClass} style={btnStyle('sec', C)}>
                             <Plus className="w-3.5 h-3.5" /> Add professional
                           </button>
                         </div>
                       </div>
-                      <select disabled={guidesLoading} value={config.guideId || ''} onChange={e => selectExperienceGuide(e.target.value)} style={{ ...inp, fontSize: 14, opacity: guidesLoading ? 0.7 : 1 }}>
-                        <option value="">{guidesLoading ? 'Loading profiles...' : 'Default generated manager'}</option>
-                        {experienceGuides.some(g => g.source_type === 'external' && (g.status !== 'archived' || g.id === config.guideId)) && <optgroup label="External professionals">
-                          {experienceGuides.filter(g => g.source_type === 'external' && (g.status !== 'archived' || g.id === config.guideId)).map(g => <option key={g.id} value={g.id}>{g.full_name}{g.professional_title ? ` — ${g.professional_title}` : ''}{g.status === 'archived' ? ' (Archived)' : ''}</option>)}
-                        </optgroup>}
-                        {experienceGuides.some(g => g.source_type === 'instructor') && <optgroup label="Instructors">
-                          {experienceGuides.filter(g => g.source_type === 'instructor').map(g => <option key={g.id} value={g.id}>{g.full_name}</option>)}
-                        </optgroup>}
-                      </select>
+                      {(() => {
+                        // External professionals (archived ones only while still chosen), then instructors.
+                        const shown = experienceGuides.filter(g => g.source_type === 'instructor' || g.status !== 'archived' || g.id === config.guideId);
+                        const options = [
+                          { value: '', label: guidesLoading ? 'Loading profiles...' : 'Default generated manager' },
+                          ...shown.filter(g => g.source_type === 'external').map(g => ({ value: g.id as string, label: `${g.full_name}${g.professional_title ? `, ${g.professional_title}` : ''}${g.status === 'archived' ? ' (Archived)' : ''}` })),
+                          ...shown.filter(g => g.source_type === 'instructor').map(g => ({ value: g.id as string, label: `${g.full_name} (Instructor)` })),
+                        ];
+                        return <MenuSelect field label="Experience guide" value={config.guideId || ''} C={C} options={options} disabled={guidesLoading} onChange={selectExperienceGuide} />;
+                      })()}
                       {guideError && !showGuideForm && <div role="alert" className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px]" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
                         <span>{guideError}</span>
                         <button type="button" disabled={guidesLoading || !sessionToken} onClick={() => loadExperienceGuides(sessionToken)} className="font-bold underline underline-offset-2">Retry</button>
@@ -2288,14 +1694,14 @@ function VirtualExperienceCreatePageInner() {
                         <button type="button" onClick={() => setShowGuideManager(false)} style={{ color: C.faint }}><X className="w-4 h-4" /></button>
                       </div>
                       <div>
-                        {experienceGuides.filter(g => g.source_type === 'external').length === 0 && <p className="px-4 py-5 text-[12px]" style={{ color: C.muted }}>No external professionals yet. Use “Add professional” to create one.</p>}
+                        {experienceGuides.filter(g => g.source_type === 'external').length === 0 && <p className="px-4 py-5 text-[12px]" style={{ color: C.muted }}>No external professionals yet. Use Add professional to create one.</p>}
                         {experienceGuides.filter(g => g.source_type === 'external').map(g => <div key={g.id} className="px-4 py-3 flex items-center gap-3" style={{ borderTop: `1px solid ${C.divider}`, opacity: g.status === 'archived' ? 0.6 : 1 }}>
                           <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
                             {g.profile_photo_url ? <img src={g.profile_photo_url} alt={g.full_name} className="w-full h-full object-cover" /> : g.full_name.split(/\s+/).map((x: string) => x[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold truncate" style={{ color: C.text }}>{g.full_name}</p>
-                            <p className="text-[11px] truncate" style={{ color: C.muted }}>{[g.professional_title, g.company].filter(Boolean).join(' · ') || 'Professional profile'}</p>
+                            <p className="text-[11px] truncate" style={{ color: C.muted }}>{[g.professional_title, g.company].filter(Boolean).join(', ') || 'Professional profile'}</p>
                           </div>
                           {g.status === 'archived' && <span className="text-xs font-semibold" style={{ color: C.muted }}>Archived</span>}
                           <button type="button" onClick={() => beginEditGuide(g)} className="text-[11px] font-bold px-3 py-2 rounded-lg" style={{ color: C.cta, background: `${C.cta}10` }}>Edit</button>
@@ -2327,12 +1733,12 @@ function VirtualExperienceCreatePageInner() {
                       <input value={guideDraft.expertise} onChange={e => setGuideDraft(d => ({ ...d, expertise: e.target.value }))} className="sm:col-start-2 sm:col-span-2" style={{ ...inp, fontSize: 14 }} placeholder="Areas of expertise, separated by commas" />
                       <div className="flex items-center justify-end gap-2">
                         <button type="button" onClick={() => { setShowGuideForm(false); setEditingGuideId(null); setGuideDraft(emptyGuideDraft); }} className="px-3 py-2 rounded-xl text-[12px] font-semibold" style={{ color: C.muted }}>Cancel</button>
-                        <button type="button" disabled={savingGuide} onClick={editingGuideId ? updateExperienceGuide : createExperienceGuide} className="px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50" style={{ background: C.cta }}>{savingGuide ? 'Saving…' : editingGuideId ? 'Update profile' : 'Save profile'}</button>
+                        <button type="button" disabled={savingGuide} onClick={editingGuideId ? updateExperienceGuide : createExperienceGuide} className="px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50" style={{ background: C.cta }}>{savingGuide ? 'Saving' : editingGuideId ? 'Update profile' : 'Save profile'}</button>
                       </div>
                       {guideError && <p className="sm:col-start-2 sm:col-span-2 text-[11px] text-red-500">{guideError}</p>}
                       <label className="sm:col-start-2 sm:col-span-2 flex items-start gap-2 text-[11px] cursor-pointer" style={{ color: C.muted }}>
                         <input type="checkbox" checked={guideDraft.consent_confirmed} onChange={e => setGuideDraft(d => ({ ...d, consent_confirmed: e.target.checked }))} className="mt-0.5 accent-emerald-500" />
-                        <span>I confirm I have permission to use this person’s name and profile photo in learner-facing experiences.</span>
+                        <span>I confirm I have permission to use this person&apos;s name and profile photo in learner-facing experiences.</span>
                       </label>
                     </div>}
                     <div>
@@ -2347,9 +1753,12 @@ function VirtualExperienceCreatePageInner() {
                     </div>
                   </div>
 
-                  {/* Scenario / background */}
+                </div>
+
+                {/* Scenario / background */}
+                <div style={card} className="space-y-3">
                   <div className="pb-1">
-                    <label className="text-xs font-semibold block mb-1" style={{ color: C.muted }}>Scenario</label>
+                    <label className="text-base font-semibold block mb-3" style={{ color: C.text }}>Scenario</label>
                     <AiTextarea
                       value={backgroundDraft}
                       onValueChange={text => {
@@ -2362,36 +1771,32 @@ function VirtualExperienceCreatePageInner() {
                       }}
                       rows={5}
                       style={{ ...inp, fontSize: 14, resize: 'vertical', lineHeight: 1.6 } as React.CSSProperties}
-                      placeholder="Describe the company scenario and the problem the student needs to solve…"
+                      placeholder="Describe the company scenario and the problem the student needs to solve"
                     />
                   </div>
                 </div>
 
                 {/* Learning outcomes card */}
                 <div style={card} className="p-5 space-y-3">
-                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
+                    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-semibold" style={{ color: C.text }}>Learning outcomes</h3><span className="text-xs" style={{ color: C.muted }}>{(config.learnOutcomes || []).length} outcomes</span></div>
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-3" style={{ background: C.field }}>
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                            style={{ background: `${C.cta}18` }}>
-                            <Check className="w-3 h-3" style={{ color: C.cta }} />
-                          </div>
+                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-3" style={{ background: C.input }}>
                           <input value={o} onChange={e => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.map((x, j) => j === i ? e.target.value : x) } : c)}
                             ref={el => { if (el && focusOutcome === i) { el.focus(); setFocusOutcome(null); } }}
                             aria-label={`Learning outcome ${i + 1}`} placeholder="Describe what the learner will be able to do (empty rows are not saved)"
                             className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.text }} />
-                          <button onClick={() => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.filter((_, j) => j !== i) } : c)}
-                            style={{ color: C.faint }} className="hover:text-red-400 transition-colors flex-shrink-0">
-                            <X className="w-3.5 h-3.5" />
+                          <button type="button" onClick={() => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.filter((_, j) => j !== i) } : c)}
+                            aria-label={`Remove learning outcome ${i + 1}`} className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: P.badSoft, color: P.bad }}>
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => { setFocusOutcome((config.learnOutcomes || []).length); setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c); }}
-                      className="text-sm font-semibold flex items-center gap-2 px-2 py-2 hover:opacity-70" style={{ color: C.muted }}>
+                    <div><button type="button" onClick={() => { setFocusOutcome((config.learnOutcomes || []).length); setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c); }}
+                      className={btnSmClass} style={btnStyle('sec', C)}>
                       <Plus className="w-3.5 h-3.5" /> Add outcome
-                    </button>
+                    </button></div>
                 </div>
                 </div>)}
                 {activeSection === 'curriculum' && (
@@ -2433,7 +1838,7 @@ function VirtualExperienceCreatePageInner() {
                               return (
                               <SortableVEShell key={les.id} id={les.id}>
                                 {({ dragHandle: lessonDragHandle }) => (
-                                <div className="rounded-xl group" style={{ background: expandedModules.has(expandKey) ? C.field : 'transparent' }}>
+                                <div className="rounded-xl group" style={{ background: expandedModules.has(expandKey) ? C.page : 'transparent' }}>
 
                                   {/* Mission row: open it to edit the content and tasks */}
                                   <div className="flex items-center gap-2 px-2 py-2">
@@ -2443,7 +1848,7 @@ function VirtualExperienceCreatePageInner() {
                                       className="flex items-center gap-2 flex-shrink-0" style={{ color: C.muted }}>
                                       {expandedModules.has(expandKey) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                                       <span className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold"
-                                        style={{ background: expandedModules.has(expandKey) ? C.card : C.field, color: C.muted }}>{li + 1}</span>
+                                        style={{ background: P.sel, color: P.onSel }}>{li + 1}</span>
                                     </button>
                                     <input
                                       value={les.title}
@@ -2471,17 +1876,16 @@ function VirtualExperienceCreatePageInner() {
                                           bodyFallback={les.body}
                                           onChange={({ doc, body }) => updateLesson(mod.id, les.id, { doc, body })}
                                           placeholder="Write the mission content here. What should the student read, understand, or do?"
-                                          isDark={C === DARK_C}
+                                          isDark={C.page === DARK_C.page}
                                           accentColor={experienceAccent}
                                         />
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <input style={{ ...inp, fontSize: 14, flex: 1, background: C.card }} value={les.videoUrl || ''} placeholder="Video link (YouTube, Vimeo, Bunny or Canva)"
                                           aria-label="Video link" onChange={e => updateLesson(mod.id, les.id, { videoUrl: e.target.value })} />
-                                        <button type="button" onClick={() => openBunnyPicker(`${mod.id}::${les.id}`)}
+                                        <button type="button" onClick={() => setBunnyTarget(`${mod.id}::${les.id}`)}
                                           title="Choose a video from the Bunny library"
-                                          className="flex items-center gap-2 px-1 py-2 text-sm font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
-                                          style={{ color: '#FF6B35' }}>
+                                          className={btnSmClass} style={btnStyle('sec', C)}>
                                           <Video className="w-3.5 h-3.5"/> Bunny
                                         </button>
                                         {/* Interactive HTML embed: uploads to the public form-assets bucket; the
@@ -2497,16 +1901,15 @@ function VirtualExperienceCreatePageInner() {
                                               updateLesson(mod.id, les.id, { videoUrl: url });
                                             } catch (err: any) { alert('Upload failed: ' + (err?.message || 'Please try again.')); }
                                           }} />
-                                          <div className="flex items-center gap-2 px-1 py-2 text-sm font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
-                                            style={{ color: C.muted }}>
-                                            <FileCode className="w-3.5 h-3.5"/> HTML
+                                          <div className={btnSmClass} style={btnStyle('sec', C)}>
+                                            <Upload className="w-3.5 h-3.5"/> HTML
                                           </div>
                                         </label>
                                       </div>
                                       {(() => {
                                         const embedUrl = safeEmbedUrl(les.videoUrl || '');
                                         return embedUrl ? (
-                                          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.cardBorder}` }}>
+                                          <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.inputBorder}` }}>
                                             <iframe src={embedUrl} className={isHtmlEmbedUrl(embedUrl) ? 'w-full' : 'w-full aspect-video'} style={isHtmlEmbedUrl(embedUrl) ? { height: 480 } : undefined} sandbox={isHtmlEmbedUrl(embedUrl) ? HTML_EMBED_SANDBOX : undefined} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                                           </div>
                                         ) : null;
@@ -2521,9 +1924,6 @@ function VirtualExperienceCreatePageInner() {
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd(mod.id, les.id)}>
                                         <SortableContext items={les.requirements.map(r => r.id)} strategy={verticalListSortingStrategy}>
                                         {les.requirements.map((req, qi) => {
-                                          const opts = req.options?.length ? req.options : ['', '', '', ''];
-                                          // One neutral style for the notes that say what a task type does.
-                                          const tc = { bg: C.pill, color: C.muted };
                                           return (
                                             <SortableVEShell key={req.id} id={req.id}>
                                             {({ dragHandle: reqDragHandle }) => (
@@ -2536,7 +1936,7 @@ function VirtualExperienceCreatePageInner() {
                                                   title={openReqs.has(req.id) ? 'Close this task' : 'Open this task to edit it'}
                                                   className="flex flex-1 min-w-0 items-center gap-2 py-2 text-left">
                                                   {openReqs.has(req.id) ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />}
-                                                  <span className="flex-shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-semibold" style={{ background: C.field, color: C.muted }}>
+                                                  <span className="flex-shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-semibold" style={{ background: C.input, color: C.muted }}>
                                                     {REQ_TYPE_NAMES[req.type] || 'Task'}
                                                   </span>
                                                   {req.label.trim()
@@ -2553,632 +1953,11 @@ function VirtualExperienceCreatePageInner() {
                                                     .filter(l => !(m.id === mod.id && l.id === les.id))
                                                     .map(l => ({ group: m.title, label: l.title, onPick: () => moveReqToLesson(mod.id, les.id, req.id, m.id, l.id) })))} />
                                               </div>
-                                              {openReqs.has(req.id) && (<>
-                                              <div className="flex flex-wrap items-center gap-2">
-                                                <select value={req.type}
-                                                  onChange={e => {
-                                                    const type = e.target.value as Requirement['type'];
-                                                    const wasDeliverable = req.type === 'task' || req.type === 'deliverable';
-                                                    const isDeliverable = type === 'task' || type === 'deliverable';
-                                                    updateReq(mod.id, les.id, req.id, {
-                                                      type,
-                                                      description: wasDeliverable && !isDeliverable && req.descriptionFormat === 'rich'
-                                                        ? htmlToPlainText(req.description)
-                                                        : req.description,
-                                                      descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
-                                                      descriptionDoc: isDeliverable && wasDeliverable ? req.descriptionDoc : undefined,
-                                                      accentColor: undefined,
-                                                      options: type === 'mcq'
-                                                        ? ['', '', '', '']
-                                                        : type === 'decision'
-                                                          ? ['', '', '']
-                                                          : undefined,
-                                                      optionFeedback: type === 'decision' ? ['', '', ''] : undefined,
-                                                      correctAnswer: type === 'mcq' || type === 'decision' ? '' : undefined,
-                                                      expectedAnswer: undefined,
-                                                      aiReview: type === 'text' ? req.aiReview : undefined,
-                                                      sharePrompt: type === 'linkedin_share' ? req.sharePrompt : undefined,
-                                                      shareRequired: type === 'linkedin_share' ? (req.shareRequired ?? false) : undefined,
-                                                      // Written explicitly so NEW share requirements offer the default bonus,
-                                                      // while ones authored before VE shares paid XP keep an absent field and
-                                                      // stay at 0 until an instructor sets an amount.
-                                                      sharePoints: type === 'linkedin_share' ? (req.sharePoints ?? DEFAULT_LINKEDIN_SHARE_POINTS) : undefined,
-                                                      emailFrame: isDeliverable ? false : req.emailFrame,
-                                                      // Grading settings belong to the old type: a pass mark or rubric
-                                                      // carried over would grade the new one without showing it.
-                                                      ...(type !== req.type ? {
-                                                        rubric: undefined, context: undefined, schema: undefined, minScore: undefined,
-                                                        reviewSheetNames: undefined, documentReviewMode: undefined, reviewLanguage: undefined,
-                                                      } : {}),
-                                                    });
-                                                  }}
-                                                  style={{ padding: '6px 9px', borderRadius: 9, border: '1px solid transparent', background: C.input, color: C.text, fontSize: 11, fontWeight: 700 }}>
-                                                  <option value="mcq">Multiple choice</option>
-                                                  <option value="text">Short answer</option>
-                                                  <option value="reflection">Reflection</option>
-                                                  <option value="upload">File upload</option>
-                                                  <option value="task">Deliverable</option>
-                                                  {/* The older deliverable type: listed only where a task still has it, so it shows correctly. */}
-                                                  {req.type === 'deliverable' && <option value="deliverable">Deliverable (older)</option>}
-                                                  <option value="linkedin_share">LinkedIn share</option>
-                                                  <option value="briefing">Manager email</option>
-                                                  <option value="debrief">Email reply to manager</option>
-                                                  <option value="scenario_update">Team chat update</option>
-                                                  <option value="decision">Team chat decision</option>
-                                                  <option value="dashboard_critique">AI review: dashboard</option>
-                                                  <option value="code_review">AI review: code</option>
-                                                  <option value="excel_review">AI review: Excel</option>
-                                                  <option value="document_review">AI review: document</option>
-                                                </select>
-                                                {!['briefing','scenario_update','decision','debrief','task','deliverable'].includes(req.type) && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => updateReq(mod.id, les.id, req.id, { emailFrame: !req.emailFrame })}
-                                                    role="switch" aria-checked={!!req.emailFrame}
-                                                    title={req.emailFrame ? 'This task arrives as an email from the manager. Click to show it as a plain card.' : 'Click to send this task as an email from the manager.'}
-                                                    className="flex-shrink-0 flex items-center gap-2 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all"
-                                                    style={{ background: req.emailFrame ? `${C.cta}1f` : C.card, color: req.emailFrame ? C.cta : C.muted, border: `1px solid ${req.emailFrame ? C.cta : C.cardBorder}` }}>
-                                                    <Mail className="w-3 h-3" /> {req.emailFrame ? 'Sent as email' : 'Send as email'}
-                                                  </button>
-                                                )}
-                                                {(req.type === 'task' || req.type === 'deliverable') && req.emailFrame && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      updateReq(mod.id, les.id, req.id, convertLegacyEmailDeliverable(req));
-                                                    }}
-                                                    title="Convert the email into the deliverable brief and checkbox presentation"
-                                                    className="flex flex-shrink-0 items-center gap-2 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-all"
-                                                    style={{ background: 'rgba(245,158,11,0.12)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
-                                                    <Mail className="h-3 w-3" /> Convert from email
-                                                  </button>
-                                                )}
-                                              </div>
-                                              <div>
-                                                <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>
-                                                  Title <span className="font-normal" style={{ color: C.faint }}>(the heading learners see)</span>
-                                                </label>
-                                                <input value={req.label}
-                                                  onChange={e => updateReq(mod.id, les.id, req.id, { label: e.target.value })}
-                                                  autoFocus={!req.label.trim()}
-                                                  style={{ ...inp, fontWeight: 600, boxShadow: req.label.trim() ? 'none' : 'inset 0 0 0 1.5px #f59e0b' }}
-                                                  placeholder={['mcq', 'text', 'decision'].includes(req.type) ? 'e.g. What is the churn rate for March?' : 'e.g. Send the cleaned customer file'} />
-                                              </div>
-                                              {(req.type === 'briefing' || req.type === 'debrief') ? (
-                                                <>
-                                                  <RichTextEditor
-                                                    className="ve-shell"
-                                                    value={req.description}
-                                                    onChange={html => updateReq(mod.id, les.id, req.id, { description: html })}
-                                                    placeholder={req.type === 'briefing' ? 'Write the email body - formatting, bullet points, and images are all supported...' : 'Describe what students should write in their debrief update...'}
-                                                    onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
-                                                    onRequestImage={requestRichTextImage}
-                                                    enableAiAssist
-                                                    enableNameTag
-                                                  />
-                                                  <p className="text-[11px]" style={{ color: C.faint }}>
-                                                    {'Tip: insert {{first_name}} (or type {{name}} for the full name) to greet each student by name.'}
-                                                  </p>
-                                                  {req.type === 'briefing' && (
-                                                    <div className="space-y-2">
-                                                      {(req.attachments || []).map((att, ai) => (
-                                                        <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.field }}>
-                                                          <Paperclip className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.muted }} />
-                                                          <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
-                                                          <button onClick={() => updateReq(mod.id, les.id, req.id, { attachments: req.attachments?.filter((_, i) => i !== ai) })} style={{ color: C.faint }} className="hover:text-red-400 flex-shrink-0">
-                                                            <X className="w-3.5 h-3.5" />
-                                                          </button>
-                                                        </div>
-                                                      ))}
-                                                      <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] cursor-pointer hover:opacity-80 transition-opacity" style={{ background: C.card, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
-                                                        <Paperclip className="w-3.5 h-3.5" /> Attach file
-                                                        <input type="file" className="hidden" onChange={async e => {
-                                                          const file = e.target.files?.[0];
-                                                          if (!file) return;
-                                                          try {
-                                                            const { url } = await uploadToGithub(file, 've-email-attachments');
-                                                            updateReq(mod.id, les.id, req.id, r => ({ attachments: [...(r.attachments || []), { name: file.name, url, mimeType: file.type }] }));
-                                                          } catch { alert('Upload failed'); }
-                                                          e.target.value = '';
-                                                        }} />
-                                                      </label>
-                                                    </div>
-                                                  )}
-                                                </>
-                                              ) : (
-                                                <>
-                                                  {req.emailFrame && (
-                                                    <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.cardBorder}` }}>
-                                                      <div style={{ padding: '6px 12px', background: C.card, borderBottom: `1px solid ${C.cardBorder}`, fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: 0.4 }}>
-                                                        EMAIL BODY
-                                                      </div>
-                                                      <RichTextEditor
-                                                    className="ve-shell"
-                                                        value={req.emailBody || ''}
-                                                        onChange={html => updateReq(mod.id, les.id, req.id, { emailBody: html })}
-                                                        placeholder="Write the email the manager sends to the student..."
-                                                        onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
-                                                        onRequestImage={requestRichTextImage}
-                                                        enableAiAssist
-                                                        enableNameTag
-                                                      />
-                                                    </div>
-                                                  )}
-                                                  {req.emailFrame && (
-                                                    <p className="text-[11px]" style={{ color: C.faint }}>
-                                                      {'Tip: insert {{first_name}} (or type {{name}} for the full name) to greet each student by name.'}
-                                                    </p>
-                                                  )}
-                                                  {req.type === 'task' || req.type === 'deliverable' ? req.emailFrame ? (
-                                                    <p className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(245,158,11,0.10)', color: '#b45309' }}>
-                                                      This legacy deliverable still uses its email body and attachments. Convert it from email to edit the new deliverable brief without losing the instructions learners currently see.
-                                                    </p>
-                                                  ) : (
-                                                    <div className="space-y-3">
-                                                      <div>
-                                                        <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>
-                                                          Deliverable instructions
-                                                        </p>
-                                                        <LessonEditor
-                                                          key={`${req.id}-instructions`}
-                                                          doc={req.descriptionDoc}
-                                                          bodyFallback={req.descriptionFormat === 'rich' ? req.description : plainTextToRichHtml(req.description)}
-                                                          onChange={({ doc, body }) => updateReq(mod.id, les.id, req.id, {
-                                                            descriptionDoc: doc,
-                                                            description: body,
-                                                            descriptionFormat: 'rich',
-                                                          })}
-                                                          placeholder="Explain the work clearly. Add interactive prompts, steps, tables, images, code, or examples..."
-                                                          isDark={C === DARK_C}
-                                                          accentColor={experienceAccent}
-                                                        />
-                                                      </div>
-                                                      <div className="space-y-2">
-                                                        <p className="text-xs font-semibold" style={{ color: C.muted }}>
-                                                          Resources
-                                                        </p>
-                                                        {(req.attachments || []).map((att, ai) => (
-                                                          <div key={`${att.url}-${ai}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]" style={{ background: C.field }}>
-                                                            <Paperclip className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />
-                                                            <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
-                                                            <button
-                                                              type="button"
-                                                              aria-label={`Remove resource ${att.name}`}
-                                                              title={`Remove resource ${att.name}`}
-                                                              onClick={() => updateReq(mod.id, les.id, req.id, { attachments: req.attachments?.filter((_, i) => i !== ai) })}
-                                                              className="flex-shrink-0 hover:text-red-400"
-                                                              style={{ color: C.faint }}>
-                                                              <X className="h-3.5 w-3.5" />
-                                                            </button>
-                                                          </div>
-                                                        ))}
-                                                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition-opacity hover:opacity-80" style={{ background: C.card, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
-                                                          <Paperclip className="h-3.5 w-3.5" /> Attach resource
-                                                          <input type="file" className="hidden" onChange={async e => {
-                                                            const file = e.target.files?.[0];
-                                                            if (!file) return;
-                                                            try {
-                                                              const { url } = await uploadToGithub(file, 've-email-attachments');
-                                                              updateReq(mod.id, les.id, req.id, r => ({ attachments: [...(r.attachments || []), { name: file.name, url, mimeType: file.type }] }));
-                                                            } catch { alert('Upload failed'); }
-                                                            e.target.value = '';
-                                                          }} />
-                                                        </label>
-                                                      </div>
-                                                      <p className="text-[11px]" style={{ color: C.faint }}>
-                                                        Students see these instructions and resources, then use one checkbox to confirm the whole deliverable is complete.
-                                                      </p>
-                                                    </div>
-                                                  ) : (
-                                                    <input value={req.description}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { description: e.target.value })}
-                                                      style={{ ...inp, background: C.field, fontSize: 12 }}
-                                                      placeholder="Instructions (shown to the learner)" aria-label="Instructions shown to the learner" />
-                                                  )}
-                                                  {req.type === 'linkedin_share' && (
-                                                    <>
-                                                      <textarea value={req.sharePrompt || ''}
-                                                        onChange={e => updateReq(mod.id, les.id, req.id, { sharePrompt: e.target.value })}
-                                                        rows={4}
-                                                        style={{ ...inp, background: C.field, fontSize: 12, resize: 'vertical' }}
-                                                        placeholder="Optional suggested post text the student can copy…" />
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => updateReq(mod.id, les.id, req.id, { shareRequired: req.shareRequired !== true })}
-                                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all self-start"
-                                                        style={req.shareRequired !== true
-                                                          ? { background: C.card, border: `1px solid ${C.cardBorder}`, color: C.muted }
-                                                          : { background: C.cta, color: 'white' }}>
-                                                        {req.shareRequired !== true ? 'Optional' : 'Required to finish the lesson'}
-                                                      </button>
-                                                      {/* Independent of the toggle: an optional share can still pay a bonus. */}
-                                                      <label className="flex items-center gap-2 text-[11px] font-semibold" style={{ color: C.muted }}>
-                                                        Bonus XP
-                                                        <input
-                                                          type="number" min={0} max={MAX_LINKEDIN_SHARE_POINTS}
-                                                          value={req.sharePoints ?? 0}
-                                                          onChange={e => updateReq(mod.id, les.id, req.id, {
-                                                            sharePoints: clampLinkedInSharePoints(e.target.value),
-                                                          })}
-                                                          style={{ ...inp, background: C.field, fontSize: 12, width: 90, padding: '4px 8px' }} />
-                                                        <span style={{ color: C.faint, fontWeight: 500 }}>0 to {MAX_LINKEDIN_SHARE_POINTS}; 0 awards nothing</span>
-                                                      </label>
-                                                      <p className="text-[11px]" style={{ color: C.faint }}>
-                                                        The student pastes the link to their own LinkedIn post. It is checked as a real post
-                                                        written by them, and a post someone else already submitted is rejected.
-                                                        {req.shareRequired !== true
-                                                          ? ' Optional: the lesson completes whether or not they share.'
-                                                          : ' Required: the lesson will not complete until they share. A student with no LinkedIn account cannot finish, and there is no way to exempt one.'}
-                                                      </p>
-                                                    </>
-                                                  )}
-                                                </>
+                                              {openReqs.has(req.id) && (
+                                                <TaskEditor req={req} C={C} inp={inp} sessionToken={sessionToken} accent={experienceAccent}
+                                                  requestRichTextImage={requestRichTextImage}
+                                                  update={updates => updateReq(mod.id, les.id, req.id, updates)} />
                                               )}
-                                              {req.type === 'mcq' && (
-                                                <div className="space-y-1">
-                                                  {opts.map((opt, oi) => {
-                                                    const letter = String.fromCharCode(65 + oi);
-                                                    const isCorrect = req.correctAnswer === opt && opt !== '';
-                                                    return (
-                                                      <div key={oi} className="flex items-center gap-2">
-                                                        <button
-                                                          onClick={() => opt && updateReq(mod.id, les.id, req.id, { correctAnswer: opt })}
-                                                          title={opt ? `Mark "${letter}" as correct answer` : 'Fill in this option first'}
-                                                          className="w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 transition-all"
-                                                          style={{ background: isCorrect ? C.cta : C.field, border: `1.5px solid ${isCorrect ? C.cta : 'transparent'}`, color: isCorrect ? 'white' : C.muted }}>
-                                                          {letter}
-                                                        </button>
-                                                        <input value={opt}
-                                                          onChange={e => {
-                                                            const newOpts = [...opts]; newOpts[oi] = e.target.value;
-                                                            // The answer follows its option when that option is renamed. An empty option is never
-                                                            // the answer, so typing into one cannot pick it by accident.
-                                                            updateReq(mod.id, les.id, req.id, { options: newOpts, correctAnswer: opt && req.correctAnswer === opt ? e.target.value : req.correctAnswer });
-                                                          }}
-                                                          className="flex-1 bg-transparent text-sm outline-none"
-                                                          style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, borderColor: isCorrect ? C.cta : 'transparent', color: isCorrect ? C.cta : C.text, fontWeight: isCorrect ? 600 : 400 }}
-                                                          placeholder={`Option ${letter}…`} />
-                                                      </div>
-                                                    );
-                                                  })}
-                                                  {req.correctAnswer && <p className="text-[12px] pt-1" style={{ color: C.muted }}>✓ Correct: {req.correctAnswer}</p>}
-                                                </div>
-                                              )}
-                                              {req.type === 'scenario_update' && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: tc.bg, color: C.muted }}>
-                                                  <Clock className="w-3 h-3 flex-shrink-0" style={{ color: tc.color }} />
-                                                  <span>Renders as a Slack/Teams-style project-room message. Use it for client changes, new constraints, or stakeholder requests.</span>
-                                                </div>
-                                              )}
-                                              {req.type === 'decision' && (() => {
-                                                const decisionOptions = req.options?.length ? req.options : ['', '', ''];
-                                                const decisionFeedback = decisionOptions.map((_, i) => req.optionFeedback?.[i] ?? '');
-                                                const updateDecisionOption = (index: number, value: string) => {
-                                                  const nextOptions = [...decisionOptions];
-                                                  nextOptions[index] = value;
-                                                  updateReq(mod.id, les.id, req.id, {
-                                                    options: nextOptions,
-                                                    optionFeedback: decisionFeedback,
-                                                    correctAnswer: decisionOptions[index] && req.correctAnswer === decisionOptions[index] ? value : req.correctAnswer,
-                                                  });
-                                                };
-                                                const updateDecisionFeedback = (index: number, value: string) => {
-                                                  const nextFeedback = [...decisionFeedback];
-                                                  nextFeedback[index] = value;
-                                                  updateReq(mod.id, les.id, req.id, { optionFeedback: nextFeedback });
-                                                };
-                                                const addDecisionOption = () => {
-                                                  updateReq(mod.id, les.id, req.id, {
-                                                    options: [...decisionOptions, ''],
-                                                    optionFeedback: [...decisionFeedback, ''],
-                                                  });
-                                                };
-                                                const removeDecisionOption = (index: number) => {
-                                                  const removed = decisionOptions[index];
-                                                  updateReq(mod.id, les.id, req.id, {
-                                                    options: decisionOptions.filter((_, i) => i !== index),
-                                                    optionFeedback: decisionFeedback.filter((_, i) => i !== index),
-                                                    correctAnswer: req.correctAnswer === removed ? '' : req.correctAnswer,
-                                                  });
-                                                };
-
-                                                return (
-                                                  <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: tc.bg, color: C.muted }}>
-                                                      <PenLine className="w-3 h-3 flex-shrink-0" style={{ color: tc.color }} />
-                                                      Renders as a team-chat thread. Students reply with one option and see scripted stakeholder feedback.
-                                                    </div>
-                                                    {decisionOptions.map((opt, oi) => {
-                                                      const letter = String.fromCharCode(65 + oi);
-                                                      const recommended = req.correctAnswer === opt && opt !== '';
-                                                      return (
-                                                        <div key={oi} className="rounded-lg p-2 space-y-2" style={{ background: C.card, border: `1px solid ${recommended ? tc.color : C.cardBorder}` }}>
-                                                          <div className="flex items-center gap-2">
-                                                            <button
-                                                              type="button"
-                                                              onClick={() => opt && updateReq(mod.id, les.id, req.id, { correctAnswer: opt })}
-                                                              title={opt ? `Mark option ${letter} as the recommended path` : 'Fill in this option first'}
-                                                              className="w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 transition-all"
-                                                              style={{ background: recommended ? C.cta : C.field, border: `1.5px solid ${recommended ? C.cta : 'transparent'}`, color: recommended ? 'white' : C.muted }}>
-                                                              {letter}
-                                                            </button>
-                                                            <input
-                                                              value={opt}
-                                                              onChange={e => updateDecisionOption(oi, e.target.value)}
-                                                              className="flex-1 bg-transparent text-sm outline-none"
-                                                              style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, color: C.text }}
-                                                              placeholder={`Decision option ${letter}...`}
-                                                            />
-                                                            {decisionOptions.length > 2 && (
-                                                              <button type="button" onClick={() => removeDecisionOption(oi)} className="hover:text-red-400 flex-shrink-0" style={{ color: C.faint }}>
-                                                                <X className="w-3.5 h-3.5" />
-                                                              </button>
-                                                            )}
-                                                          </div>
-                                                          <input
-                                                            value={decisionFeedback[oi] || ''}
-                                                            onChange={e => updateDecisionFeedback(oi, e.target.value)}
-                                                            style={{ ...inp, background: C.field, fontSize: 12 }}
-                                                            placeholder="Scripted feedback shown after this choice..."
-                                                          />
-                                                        </div>
-                                                      );
-                                                    })}
-                                                    <div className="flex items-center justify-between gap-2">
-                                                      {req.correctAnswer && <p className="text-[12px]" style={{ color: C.muted }}>Recommended path: {req.correctAnswer}</p>}
-                                                      {decisionOptions.length < 5 && (
-                                                        <button type="button" onClick={addDecisionOption}
-                                                          className="ml-auto text-[12px] flex items-center gap-1 hover:opacity-70 font-medium" style={{ color: C.muted }}>
-                                                          <Plus className="w-3 h-3" /> Add option
-                                                        </button>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                );
-                                              })()}
-                                              {req.type === 'debrief' && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: tc.bg, color: C.muted }}>
-                                                  <FileText className="w-3 h-3 flex-shrink-0" style={{ color: tc.color }} />
-                                                  Renders as an email composer addressed to the manager. Students send their update or recommendation.
-                                                </div>
-                                              )}
-                                              {req.type === 'upload' && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
-                                                    <LinkIcon className="w-3 h-3 flex-shrink-0" />Students will upload a file or paste a link
-                                                  </div>
-                                                  {/* Read by the AI draft of the instructor report when the student uploads an Excel workbook. */}
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
-                                                    <textarea
-                                                      value={(req.reviewSheetNames ?? []).join('\n')}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
-                                                      rows={3}
-                                                      spellCheck={false}
-                                                      placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
-                                                    />
-                                                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>When you draft a report with AI, only these worksheets are read. Leave blank to read the first 5.</p>
-                                                  </div>
-                                                  <RubricBuilder
-                                                    criteria={req.rubric ?? []}
-                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                    C={C}
-                                                    inp={inp}
-                                                    sessionToken={sessionToken}
-                                                    sheetNames={req.reviewSheetNames}
-                                                    grader="you mark each criterion as met or not met"
-                                                    note="With criteria set, your file report is graded on them: the AI draft gives each one a verdict, and the score is the share of criteria met."
-                                                  />
-                                                </div>
-                                              )}
-                                              {req.type === 'text' && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
-                                                    <FileText className="w-3 h-3 flex-shrink-0" />Students will type a written response
-                                                  </div>
-                                                  {/* AI Review toggle */}
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => updateReq(mod.id, les.id, req.id, { aiReview: !req.aiReview, expectedAnswer: undefined })}
-                                                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
-                                                    style={{
-                                                      background: req.aiReview ? 'rgba(0,185,92,0.12)' : 'rgba(0,0,0,0.04)',
-                                                      color: req.aiReview ? '#00b95c' : C.muted,
-                                                      border: `1px solid ${req.aiReview ? '#00b95c40' : 'transparent'}`,
-                                                    }}>
-                                                    <span style={{ width: 26, height: 14, borderRadius: 7, background: req.aiReview ? '#00b95c' : '#ccc', display: 'inline-flex', alignItems: 'center', padding: '0 2px', transition: 'background 0.2s', flexShrink: 0 }}>
-                                                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff', marginLeft: req.aiReview ? 'auto' : 0, transition: 'margin 0.2s', display: 'block' }} />
-                                                    </span>
-                                                    AI Review {req.aiReview ? 'on -- AI will grade student answers' : 'off -- using exact match'}
-                                                  </button>
-                                                  {req.aiReview ? (<>
-                                                    <input value={req.context || ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
-                                                      style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Rubric / grading guidance for AI (e.g. 'Award points for mentioning X and Y...')..." />
-                                                    <div className="flex items-center gap-3">
-                                                      <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
-                                                      <input
-                                                        type="number" min={0} max={100} step={5}
-                                                        value={req.minScore ?? ''}
-                                                        onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                                                        placeholder="60"
-                                                        className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
-                                                        style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
-                                                      />
-                                                      <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for 60</p>
-                                                    </div>
-                                                    <RubricBuilder
-                                                      criteria={req.rubric ?? []}
-                                                      onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                      onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                      C={C}
-                                                      inp={inp}
-                                                      sessionToken={sessionToken}
-                                                      note="With criteria set, the answer is marked met or not met on each one, and the score is the share of criteria met."
-                                                    />
-                                                  </>) : (
-                                                    <input value={req.expectedAnswer || ''} onChange={e => updateReq(mod.id, les.id, req.id, { expectedAnswer: e.target.value })}
-                                                      style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Expected answer for exact match (optional -- leave blank to accept any response)..." />
-                                                  )}
-                                                </div>
-                                              )}
-                                              {req.type === 'task' && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, color: C.muted }}>
-                                                  <Check className="w-3 h-3 flex-shrink-0" />Students tick a checkbox to confirm completion
-                                                </div>
-                                              )}
-                                              {req.type === 'dashboard_critique' && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, color: C.muted }}>
-                                                    <Star className="w-3 h-3 flex-shrink-0" style={{ color: C.muted }} />
-                                                    Students upload a dashboard screenshot. AI critiques every element and delivers a full audit report
-                                                  </div>
-                                                  <RubricBuilder
-                                                    criteria={req.rubric ?? []}
-                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                    C={C}
-                                                    inp={inp}
-                                                    sessionToken={sessionToken}
-                                                  />
-                                                </div>
-                                              )}
-                                              {req.type === 'code_review' && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, color: C.muted }}>
-                                                    <Star className="w-3 h-3 flex-shrink-0" style={{ color: C.muted }} />
-                                                    Students paste their code. AI reviews correctness, quality, efficiency, and best practices with line-level feedback
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Language</p>
-                                                    <select
-                                                      value={req.reviewLanguage ?? ''}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { reviewLanguage: e.target.value || undefined })}
-                                                      aria-label="Language for this code task"
-                                                      className="outline-none text-[12px] px-3 py-2 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}>
-                                                      <option value="">Learner chooses</option>
-                                                      {LOCKABLE_CODE_REVIEW_LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                                                    </select>
-                                                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will not be able to switch.</p>
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Table schema or data context (optional)</p>
-                                                    <textarea
-                                                      value={req.schema ?? ''}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { schema: e.target.value })}
-                                                      rows={4}
-                                                      spellCheck={false}
-                                                      placeholder="Paste CREATE TABLE statements or describe the DataFrame columns. The AI uses this to validate student code against the actual schema."
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
-                                                    />
-                                                  </div>
-                                                  <div className="flex items-center gap-3">
-                                                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
-                                                    <input
-                                                      type="number" min={0} max={100} step={5}
-                                                      value={req.minScore ?? ''}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                                                      placeholder="70"
-                                                      className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
-                                                    />
-                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
-                                                  </div>
-                                                  <RubricBuilder
-                                                    criteria={req.rubric ?? []}
-                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                    C={C}
-                                                    inp={inp}
-                                                    sessionToken={sessionToken}
-                                                  />
-                                                </div>
-                                              )}
-                                              {req.type === 'excel_review' && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, color: C.muted }}>
-                                                    <Star className="w-3 h-3 flex-shrink-0" style={{ color: C.muted }} />
-                                                    Students upload their .xlsx file. AI reviews formula correctness, formula choice, and value accuracy.
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Spreadsheet context (optional)</p>
-                                                    <textarea
-                                                      value={req.context ?? ''}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
-                                                      rows={4}
-                                                      spellCheck={false}
-                                                      placeholder="Include the domain so the AI applies the right expertise. e.g. This is a financial model for a retail business. B5 should calculate total revenue using SUMIF on column D, C10 should show profit margin as a percentage. Or: This is an HR payroll sheet. Column F should calculate net pay after tax deductions. Or: This is a BI sales dashboard for a fintech company. D12 should show month-on-month growth using XLOOKUP."
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
-                                                    />
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
-                                                    <textarea
-                                                      value={(req.reviewSheetNames ?? []).join('\n')}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
-                                                      rows={3}
-                                                      spellCheck={false}
-                                                      placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
-                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-3 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
-                                                    />
-                                                  </div>
-                                                  <div className="flex items-center gap-3">
-                                                    <p className="text-xs font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
-                                                    <input
-                                                      type="number" min={0} max={100} step={5}
-                                                      value={req.minScore ?? ''}
-                                                      onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                                                      placeholder="70"
-                                                      className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
-                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
-                                                    />
-                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
-                                                  </div>
-                                                  <RubricBuilder
-                                                    criteria={req.rubric ?? []}
-                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                    C={C}
-                                                    inp={inp}
-                                                    sessionToken={sessionToken}
-                                                    sheetNames={req.reviewSheetNames}
-                                                    note="With criteria set, the pass mark measures the share of criteria the workbook meets, not the general quality score."
-                                                  />
-                                                </div>
-                                              )}
-                                              {req.type === 'document_review' && (
-                                                <div className="space-y-3">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, color: C.muted }}>
-                                                    <FileText className="w-3 h-3 flex-shrink-0" />Students upload a PDF, Word document, or text file for rubric-based review.
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Document context</p>
-                                                    <textarea value={req.context ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })} rows={3}
-                                                      placeholder="Describe the intended audience, purpose, and any important requirements."
-                                                      className="w-full resize-none outline-none text-[12px] px-3 py-3 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
-                                                  </div>
-                                                  <div className="flex flex-wrap items-center gap-3">
-                                                    <select value={req.documentReviewMode ?? 'ai_only'} onChange={e => updateReq(mod.id, les.id, req.id, { documentReviewMode: e.target.value as Requirement['documentReviewMode'] })} style={{ ...inp, width: 'auto', fontSize: 12 }}>
-                                                      <option value="ai_only">AI review</option><option value="manual">Instructor review</option><option value="hybrid">AI + instructor review</option>
-                                                    </select>
-                                                    <label className="text-xs font-semibold" style={{ color: C.muted }}>Pass score</label>
-                                                    <input type="number" min={0} max={100} value={req.minScore ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : Number(e.target.value) })}
-                                                      placeholder="70" className="w-20 outline-none text-[12px] px-2 py-2 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
-                                                    <span className="text-[11px]" style={{ color: C.muted }}>out of 100</span>
-                                                  </div>
-                                                  <RubricBuilder criteria={req.rubric ?? []}
-                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
-                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
-                                                    C={C} inp={inp} sessionToken={sessionToken} />
-                                                </div>
-                                              )}
-                                              </>)}
                                             </div>
                                             )}
                                             </SortableVEShell>
@@ -3186,10 +1965,9 @@ function VirtualExperienceCreatePageInner() {
                                         })}
                                         </SortableContext>
                                         </DndContext>
-                                        <button onClick={() => addReq(mod.id, les.id)}
-                                          className="text-[12px] flex items-center gap-1 hover:opacity-70 font-medium" style={{ color: C.muted }}>
-                                          <Plus className="w-3 h-3" /> Add task
-                                        </button>
+                                        <div><button type="button" onClick={() => addReq(mod.id, les.id)} className={btnSmClass} style={btnStyle('sec', C)}>
+                                          <Plus className="w-3.5 h-3.5" /> Add task
+                                        </button></div>
                                       </div>
                                     </div>
                                   )}
@@ -3203,12 +1981,10 @@ function VirtualExperienceCreatePageInner() {
 
                             {/* Add mission, then the milestone's optional solution link */}
                             <div className="space-y-2 pt-1">
-                              <button onClick={() => addLesson(mod.id)}
-                                className="flex items-center gap-2 text-sm font-semibold px-2 py-2 transition-opacity hover:opacity-70"
-                                style={{ color: C.muted }}>
+                              <div><button type="button" onClick={() => addLesson(mod.id)} className={btnSmClass} style={btnStyle('sec', C)}>
                                 <Plus className="w-3.5 h-3.5" /> Add mission
-                              </button>
-                              <div className="ve-shell flex items-center gap-2 px-3 rounded-[10px]" style={{ background: C.field }}>
+                              </button></div>
+                              <div className="ve-shell flex items-center gap-2 px-3 rounded-[10px]" style={{ background: C.input }}>
                                 <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }} />
                                 <input
                                   value={mod.solutionVideo || ''}
@@ -3228,11 +2004,9 @@ function VirtualExperienceCreatePageInner() {
                     </SortableContext>
                     </DndContext>
                   </div>
-                  <button onClick={addModule}
-                    className="flex items-center gap-2 text-sm font-semibold px-2 py-2 mt-1 transition-opacity hover:opacity-70"
-                    style={{ color: C.muted }}>
+                  <div className="pt-4" style={{ borderTop: `1px solid ${C.divider}` }}><button type="button" onClick={addModule} className={btnSmClass} style={btnStyle('sec', C)}>
                     <Plus className="w-3.5 h-3.5" /> Add milestone
-                  </button>
+                  </button></div>
                 </div>
                 </div>)}
                 {activeSection === 'overview' && (
@@ -3250,7 +2024,7 @@ function VirtualExperienceCreatePageInner() {
                           <button key={ind.id} type="button" aria-pressed={selected}
                             onClick={() => { setIndustry(ind.id); setConfig(c => c ? { ...c, industry: ind.id === 'other' ? (customIndustry.trim() || 'other') : ind.id } : c); }}
                             className="rounded-full px-3 py-2 text-sm font-semibold transition-colors"
-                            style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+                            style={selected ? { background: P.sel, color: P.onSel } : { background: C.input, color: C.text }}>
                             {ind.label}
                           </button>
                         );
@@ -3266,13 +2040,13 @@ function VirtualExperienceCreatePageInner() {
                   <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-2" style={{ color: C.muted }}>Level</label>
-                      <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
+                      <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.input }}>
                         {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
                           const selected = (config.difficulty || 'intermediate') === id;
                           return (
                             <button key={id} type="button" aria-pressed={selected} onClick={() => setConfig(c => c ? { ...c, difficulty: id } : c)}
                               className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-                              style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
+                              style={selected ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
                               {label}
                             </button>
                           );
@@ -3338,22 +2112,20 @@ function VirtualExperienceCreatePageInner() {
                   {!coverImage && (
                     <button type="button" onClick={() => coverRef.current?.click()}
                       className="w-full min-h-28 rounded-xl flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
-                      style={{ background: C.field, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
+                      style={{ background: C.input, border: `1px dashed ${C.inputBorder}`, color: C.muted }}>
                       <Images className="w-6 h-6" />
                       <span className="text-sm font-semibold">Upload or choose a cover image</span>
                       <span className="text-[11px]" style={{ color: C.faint }}>Recommended 16:9 landscape image</span>
                     </button>
                   )}
                   <div className="flex gap-2">
-                    <input style={{ ...inp, fontSize: 14 }} value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Paste image URL..." />
-                    <button onClick={() => coverRef.current?.click()} disabled={uploadingCover}
-                      className="flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
-                      style={{ color: C.muted, background: C.field }}>
+                    <input style={{ ...inp, fontSize: 14 }} value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Or paste an image link" aria-label="Cover image link" />
+                    <button type="button" onClick={() => coverRef.current?.click()} disabled={uploadingCover} title="Upload a cover image" aria-label="Upload a cover image"
+                      className={`${btnClass} flex-shrink-0`} style={btnStyle('sec', C)}>
                       {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     </button>
-                    <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
-                      className="flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
-                      style={{ color: C.muted, background: C.field }}>
+                    <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library" aria-label="Select from library"
+                      className={`${btnClass} flex-shrink-0`} style={btnStyle('sec', C)}>
                       <Images className="w-4 h-4" />
                     </button>
                   </div>
@@ -3374,18 +2146,16 @@ function VirtualExperienceCreatePageInner() {
                   <p className="text-xs font-semibold" style={{ color: C.muted }}>Completion badge</p>
                   <p className="text-[12px] leading-relaxed" style={{ color: C.faint }}>Earned on completing the experience, alongside the certificate.</p>
                   {config?.badgeImageUrl && (
-                    <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.field }}>
+                    <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.input }}>
                       <img src={config.badgeImageUrl} alt="Badge" className="w-16 h-16 rounded-xl object-contain flex-shrink-0"
-                        style={{ border: `1px solid ${C.cardBorder}`, background: C.input }}/>
+                        style={{ border: `1px solid ${C.inputBorder}`, background: C.input }}/>
                       <button onClick={() => setConfig(c => c ? { ...c, badgeImageUrl: null } : c)}
                         className="text-xs px-3 py-2 rounded-lg transition-opacity hover:opacity-70"
                         style={{ color: '#ef4444', background: '#ef444412' }}>Remove</button>
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <button onClick={() => badgeInputRef.current?.click()} disabled={uploadingBadge}
-                      className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-70 disabled:opacity-50"
-                      style={{ color: C.muted, background: C.field }}>
+                    <button type="button" onClick={() => badgeInputRef.current?.click()} disabled={uploadingBadge} className={btnClass} style={btnStyle('sec', C)}>
                       {uploadingBadge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                       {uploadingBadge ? 'Uploading...' : config?.badgeImageUrl ? 'Change badge' : 'Upload badge'}
                     </button>
@@ -3395,111 +2165,20 @@ function VirtualExperienceCreatePageInner() {
                 </div>
                 </div>)}
                 {activeSection === 'delivery' && (
-                <div className="space-y-4">
-
-                {/* Target Audience card */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Target audience</p>
-
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={availableToEveryone}
-                    onClick={() => setAvailableToEveryone(v => !v)}
-                    className="w-full flex items-start justify-between gap-4 px-3 py-3 rounded-xl text-left transition-all"
-                    style={{ background: availableToEveryone ? `${C.cta}14` : C.card, boxShadow: availableToEveryone ? `0 0 0 2px ${C.cta}` : 'none' }}
-                  >
-                    <span className="space-y-1">
-                      <span className="block text-sm font-semibold" style={{ color: availableToEveryone ? C.cta : C.text }}>
-                        Available to everyone
-                      </span>
-                      <span className="block text-[11px] leading-relaxed" style={{ color: C.faint }}>
-                        Anyone with an account can open this, including learners who are not in a cohort.
-                        Cohort targeting is replaced while this is on.
-                      </span>
-                    </span>
-                    <span className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
-                      style={{ background: availableToEveryone ? C.cta : C.pill }}>
-                      <span className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
-                        style={{ left: availableToEveryone ? 23 : 3, background: '#ffffff' }} />
-                    </span>
-                  </button>
-
-                  {availableToEveryone
-                    ? <p className="text-sm" style={{ color: C.faint }}>Open to every account, so no cohort is selected.</p>
-                    : cohorts.length === 0
-                    ? <p className="text-sm" style={{ color: C.faint }}>No cohorts available.</p>
-                    : <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {cohorts.map(c => {
-                          const sel = selectedCohorts.includes(c.id);
-                          return (
-                            <button key={c.id}
-                              onClick={() => setSelectedCohorts(prev => sel ? prev.filter(x => x !== c.id) : [...prev, c.id])}
-                              className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold text-left transition-all"
-                              style={{ border: '1px solid transparent', background: sel ? `${C.cta}14` : C.card, color: sel ? C.cta : C.muted, boxShadow: sel ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                              <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: sel ? C.cta : C.pill, color: sel ? C.ctaText : C.faint }}>
-                                {sel && <Check className="w-3 h-3" />}
-                              </span>
-                              {c.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                  }
-                </div>
-
-                {/* Subscription plans card */}
-                <div style={card} className="p-5">
-                  <PlanAccessPicker
-                    contentTable="virtual_experiences"
-                    contentId={effectiveId}
-                    availableToEveryone={availableToEveryone}
-                    onPublicAccessClosed={() => setAvailableToEveryone(false)}
-                  />
-                </div>
-
-                {/* Deadline card */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-xs font-semibold" style={{ color: C.muted }}>Deadline</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['', '7', '14', '30'].map(days => {
-                      const selected = deadlineDays === days;
-                      return (
-                        <button key={days || 'none'} type="button" onClick={() => setDeadlineDays(days)}
-                          className="rounded-xl px-3 py-2 text-[12px] font-semibold transition-all"
-                          style={{ background: selected ? `${C.cta}14` : C.card, color: selected ? C.cta : C.muted, boxShadow: selected ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                          {days ? `${days} days` : 'No deadline'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      style={{ ...inp, width: 80, textAlign: 'center' }}
-                      type="number"
-                      min={1}
-                      max={365}
-                      placeholder=""
-                      value={deadlineDays}
-                      onChange={e => setDeadlineDays(e.target.value.replace(/\D/g, ''))}
-                    />
-                    <span className="text-sm" style={{ color: C.muted }}>days from assignment</span>
-                  </div>
-                  <p className="text-[11px]" style={{ color: C.faint }}>Students have this many days from when their cohort is assigned to complete the experience. Leave blank for no deadline.</p>
-                </div>
-
-                </div>)}
+                  <PublishStep C={C} card={card} inp={inp} experienceId={effectiveId}
+                    availableToEveryone={availableToEveryone} setAvailableToEveryone={setAvailableToEveryone}
+                    cohorts={cohorts} selectedCohorts={selectedCohorts} setSelectedCohorts={setSelectedCohorts}
+                    deadlineDays={deadlineDays} setDeadlineDays={setDeadlineDays} />
+                )}
 
                 </motion.div>
                 </AnimatePresence>
-              </div>
-              );
-            })()}
+              </Card>
           </div>
           );
         })()}
 
-      {/* Bunny Video Picker Modal */}
+      {/* Image library for rich text, and the Bunny video picker */}
       <AnimatePresence>
         {richTextImageLibraryOpen && (
           <ImageLibrary
@@ -3509,109 +2188,13 @@ function VirtualExperienceCreatePageInner() {
             onClose={() => resolveRichTextImage(null)}
           />
         )}
-        {bunnyPickerOpen && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-            onClick={() => setBunnyPickerOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              onClick={e => e.stopPropagation()}
-              className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
-              style={{ background: C.card, border: `1px solid ${C.cardBorder}`, maxHeight: '82vh' }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-                style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: '#FF6B35' }}>
-                    <Video className="w-3.5 h-3.5 text-white"/>
-                  </div>
-                  <span className="text-sm font-semibold" style={{ color: C.text }}>Pick from Bunny Library</span>
-                </div>
-                <button onClick={() => setBunnyPickerOpen(false)} style={{ color: C.faint }}><X className="w-4 h-4"/></button>
-              </div>
-              {/* Search */}
-              <div className="px-5 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: C.input, border: `1px solid ${C.cardBorder}` }}>
-                    <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }}/>
-                    <input type="text" value={bunnySearch}
-                      onChange={e => setBunnySearch(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && openBunnyPicker(bunnyPickerTarget!, bunnySearch, bunnyCollection)}
-                      placeholder="Search videos..."
-                      className="flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }}/>
-                  </div>
-                  <button onClick={() => openBunnyPicker(bunnyPickerTarget!, bunnySearch, bunnyCollection)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: '#FF6B35', color: 'white' }}>Search</button>
-                </div>
-              </div>
-              {/* Body */}
-              <div className="flex flex-1 overflow-hidden">
-                {bunnyCollections.length > 0 && (
-                  <div className="w-44 flex-shrink-0 overflow-y-auto py-2" style={{ borderRight: `1px solid ${C.cardBorder}` }}>
-                    <button onClick={() => { setBunnyCollection(''); openBunnyPicker(bunnyPickerTarget!, bunnySearch, ''); }}
-                      className="w-full text-left px-4 py-2 text-xs font-medium"
-                      style={{ background: bunnyCollection === '' ? `${C.cta}18` : 'transparent', color: bunnyCollection === '' ? C.cta : C.muted }}>
-                      All videos
-                    </button>
-                    {bunnyCollections.map(col => (
-                      <button key={col.guid}
-                        onClick={() => { setBunnyCollection(col.guid); openBunnyPicker(bunnyPickerTarget!, bunnySearch, col.guid); }}
-                        className="w-full text-left px-4 py-2 text-xs"
-                        style={{ background: bunnyCollection === col.guid ? `${C.cta}18` : 'transparent', color: bunnyCollection === col.guid ? C.cta : C.muted }}>
-                        <span className="block font-medium truncate">{col.name}</span>
-                        <span className="text-[11px]" style={{ color: C.faint }}>{col.videoCount} videos</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex-1 overflow-y-auto p-4">
-                  {bunnyLoading && <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>}
-                  {bunnyError && !bunnyLoading && <div className="text-center py-10 text-sm" style={{ color: '#ef4444' }}>{bunnyError}</div>}
-                  {!bunnyLoading && !bunnyError && bunnyVideos.length === 0 && <div className="text-center py-10 text-sm" style={{ color: C.faint }}>No videos found.</div>}
-                  {!bunnyLoading && !bunnyError && bunnyVideos.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {bunnyVideos.map(v => (
-                        <button key={v.guid} onClick={() => selectBunnyVideo(v.embedUrl)}
-                          className="text-left rounded-xl overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg group"
-                          style={{ border: `1px solid ${C.cardBorder}`, background: C.input }}>
-                          <div className="relative aspect-video bg-black overflow-hidden">
-                            {v.thumbnail
-                              ? <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement).style.display = 'flex'; }}/>
-                              : null}
-                            <div className="w-full h-full items-center justify-center" style={{ display: v.thumbnail ? 'none' : 'flex' }}>
-                              <Video className="w-6 h-6 opacity-30" style={{ color: C.faint }}/>
-                            </div>
-                            {v.status !== 4 && (
-                              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
-                                <span className="text-xs text-white font-medium">Processing...</span>
-                              </div>
-                            )}
-                            {v.duration > 0 && (
-                              <span className="absolute bottom-1.5 right-1.5 text-[11px] font-semibold px-2 py-0.5 rounded"
-                                style={{ background: 'rgba(0,0,0,0.75)', color: 'white' }}>
-                                {Math.floor(v.duration / 60)}:{String(v.duration % 60).padStart(2, '0')}
-                              </span>
-                            )}
-                          </div>
-                          <div className="px-3 py-2">
-                            <p className="text-xs font-medium line-clamp-2 leading-snug" style={{ color: C.text }}>{v.title}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+        {bunnyTarget && (
+          <BunnyPicker key="bunny" C={C} onClose={() => setBunnyTarget(null)}
+            onPick={embedUrl => {
+              const [modId, lesId] = bunnyTarget.split('::');
+              updateLesson(modId, lesId, { videoUrl: embedUrl });
+              setBunnyTarget(null);
+            }} />
         )}
       </AnimatePresence>
 
