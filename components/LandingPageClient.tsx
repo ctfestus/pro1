@@ -10,6 +10,7 @@ import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templa
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, LevelBars, type CatalogueItem } from '@/components/CataloguePreview';
+import { MenuSelect } from '@/components/MenuSelect';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
@@ -560,7 +561,8 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
       </div>
       <div className={framed ? 'flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
         {/* Two lines kept for the title on a course card, so the details line up across a row. */}
-        <p className={`line-clamp-2 text-[13px] leading-[18px] sm:text-[15px] sm:leading-5 ${framed ? 'min-h-[36px] sm:min-h-[40px]' : ''}`} style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
+        {/* A course card is full width on a phone, so it keeps the 15px title there too. */}
+        <p className={`line-clamp-2 ${framed ? 'text-[15px] leading-5 min-h-[40px]' : 'text-[13px] leading-[18px] sm:text-[15px] sm:leading-5'}`} style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
         {item.partnerName && (
           <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
             {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}
@@ -601,24 +603,49 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
 /**
  * Courses: a chip per category, used as tabs, over a grid of cards on the page itself. The first
  * category is chosen from the start and the grid shows all of the chosen category's courses, each
- * its own white card, four across on a wide screen, three on a tablet and two on a phone.
+ * its own white card, four across on a wide screen, three on a tablet and one on a phone.
  */
+/** The level filter's choices, in order; each option shows the course card's level bars. */
+const LEVEL_FILTER = ['all', 'Beginner', 'Intermediate', 'Advanced'] as const;
+type LevelFilter = typeof LEVEL_FILTER[number];
+
+/** The bars as a menu icon: MenuSelect sizes it with className and colours it with style.color. */
+function levelIcon(level: string) {
+  const filled = { Beginner: 1, Intermediate: 2, Advanced: 3 }[level] ?? 3;
+  function LevelIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+    return (
+      <span aria-hidden="true" className={`${className ?? ''} inline-flex items-end justify-center gap-[2px] pb-[2px]`} style={style}>
+        {[5, 8, 11].map((h, i) => (
+          <i key={h} className="block w-[3px] rounded-[1px]" style={{ height: h, background: 'currentColor', opacity: i < filled ? 1 : 0.3 }} />
+        ))}
+      </span>
+    );
+  }
+  return LevelIcon;
+}
+
 function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   courses: ProgrammeItem[]; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
 }) {
   const groups = groupByField(courses, 'category');
   const [chosen, setChosen] = useState<string | null>(null);
+  const [level, setLevel] = useState<LevelFilter>('all');
   // Read through the list, so a category that disappears (a course unpublished) falls back to the first.
   const current = groups.find(([name]) => name === chosen) ?? groups[0];
+  // The filter only appears once some course has a level; with none set it would only empty the grid.
+  const hasLevels = courses.some(c => c.level);
+  const shown = (current?.[1] ?? []).filter(c => level === 'all' || c.level === level);
   const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark, font: hFont });
 
   const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
 
   return (
     <div>
+      {(groups.length > 1 || hasLevels) && (
+      <div className="flex items-center gap-3 mb-4 sm:mb-5">
       {/* A single category needs no tabs, so the chips only appear with two or more. */}
-      {groups.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto mb-4 sm:mb-5" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
+      {groups.length > 1 ? (
+        <div className="flex flex-1 gap-2 overflow-x-auto min-w-0" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
           {groups.map(([name]) => {
             const on = name === current?.[0];
             return (
@@ -630,10 +657,24 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
             );
           })}
         </div>
+      ) : <div className="flex-1" />}
+      {hasLevels && (
+        <div className="flex-shrink-0">
+          <MenuSelect label="Filter by level" value={level} C={isDark ? DARK_C : LIGHT_C}
+            options={LEVEL_FILTER.map(v => ({ value: v, label: v === 'all' ? 'All levels' : v, icon: levelIcon(v) }))}
+            onChange={setLevel} />
+        </div>
+      )}
+      </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
-        {(current?.[1] ?? []).map(item => (
+      {shown.length === 0 && (
+        <p className="py-10 text-center" style={{ ...M3.bodyMedium, color: isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted }}>
+          No {level.toLowerCase()} courses in {current?.[0]} yet.
+        </p>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6" role={groups.length > 1 ? 'tabpanel' : undefined}>
+        {shown.map(item => (
           <div key={item.id} className="min-w-0" onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
             <ProgrammeCard item={item} user={user} isDark={isDark} hFont={hFont} framed />
           </div>

@@ -39,6 +39,10 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [query, setQuery] = useState('');
+  // The list opens toward the room: leftward from a button in the right half of the screen, and
+  // above the button when there is not space for it below.
+  const [alignRight, setAlignRight] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const term = query.trim().toLowerCase();
   const shown = term ? options.filter(o => o.label.toLowerCase().includes(term)) : options;
   const listId = useId();
@@ -52,6 +56,14 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
     if (disabled || !options.length) return;
     setQuery('');
     setActive(Math.max(0, options.findIndex(o => o.value === value)));
+    const box = buttonRef.current?.getBoundingClientRect();
+    if (box) {
+      setAlignRight(box.left + box.width / 2 > window.innerWidth / 2);
+      // Rows are about 54px with 12px of padding, and the list caps at 288px (max-h-72).
+      const listHeight = Math.min(288, options.length * 54 + 12 + (searchable ? 52 : 0)) + 8;
+      const below = window.innerHeight - box.bottom, above = box.top;
+      setOpenUp(below < listHeight && above > below);
+    }
     setOpen(true);
     // Safari does not focus a clicked button, and closing on outside click relies on blur.
     buttonRef.current?.focus();
@@ -113,11 +125,11 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
             id={listId}
             role="listbox"
             aria-label={label}
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUp ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUp ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute left-0 top-[calc(100%+8px)] z-40 max-h-72 origin-top-left overflow-y-auto rounded-2xl p-1.5 ${field || fixed ? 'right-0' : 'min-w-[230px]'}`}
+            className={`absolute ${openUp ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'} z-40 max-h-72 overflow-y-auto rounded-2xl p-1.5 ${field || fixed ? 'left-0 right-0' : alignRight ? 'right-0 min-w-[230px]' : 'left-0 min-w-[230px]'} ${openUp ? (alignRight ? 'origin-bottom-right' : 'origin-bottom-left') : (alignRight ? 'origin-top-right' : 'origin-top-left')}`}
             style={{
               background: C.card,
               border: `1px solid ${C.cardBorder}`,
