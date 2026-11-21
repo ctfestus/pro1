@@ -88,15 +88,16 @@ export function FitTags({ tags, isDark, lines = 1, onTint }: { tags: string[]; i
 
 /**
  * Each tool's stored logo, no frame (some logos carry the tool's name themselves, so the width
- * follows the image); a tool the library has no logo for shows its name.
+ * follows the image); a tool the library has no logo for shows its name. `large` is the detail
+ * pages' size, wrapping onto more lines when there are many.
  */
-export function ToolLogos({ tools, muted }: { tools: string[]; muted: string }) {
+export function ToolLogos({ tools, muted, large }: { tools: string[]; muted: string; large?: boolean }) {
   const toolIcon = useToolIcons();
   return (
-    <span className="flex flex-shrink-0 items-center gap-1.5">
+    <span className={`flex items-center ${large ? 'flex-wrap gap-3' : 'flex-shrink-0 gap-1.5'}`}>
       {tools.map(tool => toolIcon(tool)
-        ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
-        : <span key={tool} className="text-[12px] font-semibold" style={{ color: muted }}>{tool}</span>)}
+        ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className={`${large ? 'h-6 max-w-[96px]' : 'h-4 max-w-[60px]'} w-auto object-contain`} />
+        : <span key={tool} className={`${large ? 'text-[14px]' : 'text-[12px]'} font-semibold`} style={{ color: muted }}>{tool}</span>)}
     </span>
   );
 }

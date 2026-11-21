@@ -34,6 +34,7 @@ export interface VePreviewFields {
   difficulty: string | null;
   duration: string | null;
   tools: string[];
+  tags: string[];
   toolLogos: Record<string, string>;
   learnOutcomes: string[];
   managerName: string | null;
@@ -52,7 +53,7 @@ export interface VePreviewFields {
 
 /** The columns a preview needs. Pinned here so both routes select exactly the same set. */
 export const VE_PREVIEW_COLUMNS =
-  'modules, industry, role, company, tagline, difficulty, duration, tools, tool_logos, '
+  'modules, industry, role, company, tagline, difficulty, duration, tools, tags, tool_logos, '
   + 'learn_outcomes, manager_name, manager_title, guide_id, guide_snapshot, '
   + 'mode, theme, font, custom_accent, '
   // Two short strings, never the dataset column: an inline CSV lives inside it, and a preview only
@@ -69,6 +70,7 @@ export function vePreviewFields(row: any): VePreviewFields {
     difficulty:    row?.difficulty    ?? null,
     duration:      row?.duration      ?? null,
     tools:         Array.isArray(row?.tools) ? row.tools : [],
+    tags:          Array.isArray(row?.tags) ? row.tags : [],
     toolLogos:     row?.tool_logos    ?? {},
     learnOutcomes: Array.isArray(row?.learn_outcomes) ? row.learn_outcomes : [],
     managerName:   row?.manager_name  ?? null,
