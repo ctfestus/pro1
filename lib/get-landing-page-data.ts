@@ -139,6 +139,7 @@ const getProgrammes = unstable_cache(
       courseIds.length ? db.from('courses').select('id,difficulty,tags,tools').in('id', courseIds) : empty,
       experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools,tags').in('id', experienceIds) : empty,
       certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
+      offeredPathIds.length ? db.from('learning_paths').select('id,skills,tools').in('id', offeredPathIds) : empty,
     ]);
     const extras = new Map<string, any>();
     for (const result of extraResults) {
@@ -229,6 +230,9 @@ const getProgrammes = unstable_cache(
       slug: '',
       category: '',
       pathCourses: pathCourseMap[row.id] ?? [],
+      // A path's skills are its tags; its tools show as logos, as on the other cards.
+      tags: cleanList(extras.get(row.id)?.skills),
+      tools: cleanList(extras.get(row.id)?.tools),
     }));
 
     return [...courses, ...experiences, ...certifications, ...paths];

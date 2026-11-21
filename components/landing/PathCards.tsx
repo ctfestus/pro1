@@ -15,6 +15,7 @@ import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { toPlainText } from '@/lib/plain-text';
 import { M3 } from '@/components/landing/type';
+import { FitTags, ToolLogos } from '@/components/CardMeta';
 
 // The notch is the section's own ground showing through: the panel stops above it, the foot stops
 // to its left, and the fillet rounds the inside corner where the two meet.
@@ -26,12 +27,13 @@ const CARD_CSS = `
   background: radial-gradient(circle at 100% 100%, transparent calc(var(--r) - 0.5px), var(--tint) var(--r)); }
 .path-card .pc-cover { position: absolute; inset: 0 0 auto 0; height: 44%; background: #0b0b0d center / cover no-repeat; transition: opacity 0.45s ease; }
 .path-card .pc-layer { position: absolute; left: 0; right: 0; top: 44%; height: 100%; padding: 24px 24px 0; background: var(--tint); transition: transform 0.45s cubic-bezier(0.2, 0, 0, 1); }
-.path-card .pc-desc { margin-top: 16px; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
-  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+/* The description and the skills fade in together under the title on hover. */
+.path-card .pc-more { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; opacity: 0; transform: translateY(8px); transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s; }
+.path-card .pc-desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .path-card:hover .pc-layer, .path-card:focus-visible .pc-layer { transform: translateY(-44%); }
 /* Faded as the body covers it, so no edge of the photo shows at the rounded corners. */
 .path-card:hover .pc-cover, .path-card:focus-visible .pc-cover { opacity: 0; }
-.path-card:hover .pc-desc, .path-card:focus-visible .pc-desc { opacity: 1; transform: none; }
+.path-card:hover .pc-more, .path-card:focus-visible .pc-more { opacity: 1; transform: none; }
 .path-card .pc-btn { position: absolute; right: 0; bottom: 0; height: 52px; display: inline-flex; align-items: center; gap: 10px; padding: 0 24px;
   border-radius: 999px; background: var(--deep); color: #ffffff; white-space: nowrap; transition: background-color 0.25s ease; }
 /* The platform's accent colour on hover, so the button answers the pointer. */
@@ -42,10 +44,11 @@ const CARD_CSS = `
 @media (hover: none) {
   .path-card .pc-layer { transform: none; }
   .path-card .pc-cover { opacity: 1; }
-  .path-card .pc-desc { opacity: 1; transform: none; -webkit-line-clamp: 2; }
+  .path-card .pc-more { opacity: 1; transform: none; }
+  .path-card .pc-desc { -webkit-line-clamp: 2; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .path-card .pc-layer, .path-card .pc-desc, .path-card .pc-cover, .path-card .pc-btn, .path-card .pc-btn svg { transition: none; }
+  .path-card .pc-layer, .path-card .pc-more, .path-card .pc-cover, .path-card .pc-btn, .path-card .pc-btn svg { transition: none; }
 }
 `;
 
@@ -77,12 +80,22 @@ export function PathCards({ paths, color, hoverColor, user, hFont, bFont }: {
                 <div className="pc-cover" style={{ backgroundImage: path.imageUrl ? `url(${path.imageUrl})` : undefined }} />
                 <div className="pc-layer">
                   <p className="line-clamp-3" style={{ ...M3.titleLarge, fontWeight: 500, fontFamily: hFont }}>{path.title}</p>
-                  {count > 0 && (
-                    <p className="mt-2" style={{ ...M3.bodyMedium, color: '#4b5160', fontFamily: bFont }}>
-                      {count} learning item{count === 1 ? '' : 's'}
-                    </p>
+                  {/* The item count, with the path's tool logos on the right, as on the other cards. */}
+                  {(count > 0 || (path.tools?.length ?? 0) > 0) && (
+                    <div className="mt-2 flex items-center justify-between gap-2 min-h-[22px]">
+                      <span className="whitespace-nowrap" style={{ ...M3.bodyMedium, color: '#4b5160', fontFamily: bFont }}>
+                        {count > 0 ? `${count} learning item${count === 1 ? '' : 's'}` : ''}
+                      </span>
+                      {(path.tools?.length ?? 0) > 0 && <ToolLogos tools={path.tools!} muted="#4b5160" />}
+                    </div>
                   )}
-                  {desc && <p className="pc-desc" style={{ ...M3.bodyLarge, color: '#4b5160', fontFamily: bFont }}>{desc}</p>}
+                  {(desc || (path.tags?.length ?? 0) > 0) && (
+                    <div className="pc-more">
+                      {desc && <p className="pc-desc" style={{ ...M3.bodyLarge, color: '#4b5160', fontFamily: bFont }}>{desc}</p>}
+                      {/* The skills, wrapping onto up to three lines, then "+N". */}
+                      {(path.tags?.length ?? 0) > 0 && <FitTags tags={path.tags!} lines={3} onTint />}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="pc-foot" />

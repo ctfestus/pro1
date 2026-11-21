@@ -146,9 +146,8 @@ export function ExploreSection({ C }: {
     window.location.href = directHref(item);
   };
 
-  // Path previews widen with the path's contents so their thumbnails lay out in rows.
   const openHover = (item: CatalogueItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 340,
+    width: 340,
     height: 560,
   });
 
@@ -323,7 +322,9 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                     {item.locked && item.prices?.length ? (
                       <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
                     ) : null}
-                    <CardMeta tags={item.topics} level={item.level} tools={item.tools}
+                    {/* A path shows its skills as tags and its item count where the level goes. */}
+                    <CardMeta tags={item.type === 'learning_path' ? item.skills : item.topics} level={item.level} tools={item.tools}
+                      note={item.type === 'learning_path' && item.pathItems?.length ? `${item.pathItems.length} learning item${item.pathItems.length === 1 ? '' : 's'}` : undefined}
                       isDark={C.page !== LIGHT_C.page} text={C.text} muted={C.muted} />
                   </div>
                 </>
