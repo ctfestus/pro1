@@ -45,8 +45,8 @@ a feature so it lands in the right place and follows the patterns the codebase a
 - **Theme:** use `useC()` + tokens from `lib/theme` (`C.card`, `C.text`, `C.cta`, …).
   The course and event editor (`components/FormEditor.tsx`) maps its own `FE` tokens onto
   `lib/theme`, with the shared blue for controls.
-  *Exception:* the AI course starters (`app/create/page.tsx`) and the book editor still use the
-  **local** theme in `components/create/theme.ts` (different token shape). Inside those use the local one; don't cross them. Moving them over is a deliberate PR.
+  Every editor is on `lib/theme` now. `components/create/theme.ts` (different token shape) only
+  backs the older helpers in `components/create/shared.tsx`; don't use it in new code.
 
 ## Cross-cutting rules
 
