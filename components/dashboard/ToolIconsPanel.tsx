@@ -12,18 +12,20 @@
 // once the list is scrolled, filling it in read as nothing having happened at all. The field at
 // the top now does one job: naming a tool that is not in the list yet.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, Loader2, Trash2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadCoverImage } from '@/lib/uploadToCloudinary';
 import { DEFAULT_TOOL_ICONS, normalizeToolName, resolveToolIcon } from '@/lib/tool-icons';
 import { refreshToolIcons } from '@/lib/use-tool-icons';
-import { LIGHT_C } from '@/lib/theme';
+import type { ThemeColors } from '@/lib/theme';
+import { FIELD, Hint, Label, Sect, inputStyle } from '@/components/create/EditorKit';
+import { Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 
 type Row = { name: string; image: string };
 type LoadState = 'ok' | 'network' | 'server';
 
-export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
+export function ToolIconsPanel({ C }: { C: ThemeColors }) {
   const [rows, setRows]       = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadState | null>(null);
@@ -144,33 +146,30 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
 
   /** Per-row upload control. Opens the picker already knowing which tool it is for. */
   const rowUploadButton = (key: string, label: string) => (
-    <button onClick={() => pickFor(key)} disabled={busy}
-      aria-label={`${label} logo for ${key}`}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold disabled:opacity-50 transition-opacity hover:opacity-70"
-      style={{ background: C.card, color: C.muted, border: `1px solid ${C.cardBorder}` }}>
+    <button type="button" onClick={() => pickFor(key)} disabled={busy}
+      aria-label={`${label} logo for ${key}`} className={btnSmClass} style={btnStyle('sec', C)}>
       {busyFor === key
-        ? <Loader2 className="w-3 h-3 animate-spin"/>
-        : <Upload className="w-3 h-3"/>}
+        ? <Loader2 className="w-3.5 h-3.5 animate-spin"/>
+        : <Upload className="w-3.5 h-3.5"/>}
       {busyFor === key ? 'Uploading' : label}
     </button>
   );
+  const row = (key: string, image: string | undefined, children: ReactNode) => (
+    <div key={key} className="flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-xl" style={{ background: C.pill }}>
+      {preview(key, image)}
+      <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{key}</span>
+      {children}
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold" style={{ color: C.text }}>Tool logos</h3>
-        <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
-          The logo shown beside a tool name on course cards, dashboard rows and learner skills.
-          Use Replace on any row below, or add a tool that is not listed yet. The name has to
-          match what is typed on the course, ignoring capitals and extra spaces.
-        </p>
-        {/* A Save button sits above this panel and covers only the fields above it. Without
-            saying so, an upload here looks unsaved until someone clicks that button. */}
-        <p className="text-[11px] mt-2 font-semibold" style={{ color: C.muted }}>
-          Each upload saves straight away. The Save button above applies only to the settings
-          above it, not to these logos.
-        </p>
-      </div>
+    <Sect C={C} title="Tool logos" first>
+      <p className="-mt-2 text-xs" style={{ color: C.muted }}>
+        The logo shown beside a tool name on course cards, dashboard rows and learner skills.
+        Use Replace on any row below, or add a tool that is not listed yet. The name has to
+        match what is typed on the course, ignoring capitals and extra spaces. Each upload saves
+        straight away.
+      </p>
 
       {/* One hidden picker, shared by the field and every row. */}
       <input
@@ -183,30 +182,26 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
 
       {/* Add a tool that is not in the list yet */}
       <div className="flex flex-wrap items-end gap-2">
-        <div className="space-y-1 flex-1 min-w-[180px]">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Add a tool that is not listed</label>
+        <div className="flex-1 min-w-[180px]">
+          <Label C={C}>Add a tool that is not listed</Label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Looker Studio"
-            className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-            style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
+            className={FIELD}
+            style={inputStyle(C)}
           />
         </div>
-        <button
-          onClick={() => pickFor(null)}
-          disabled={busy}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
-          style={{ background: C.cta, color: C.ctaText }}>
+        <button type="button" onClick={() => pickFor(null)} disabled={busy} className={`${btnClass} h-[46px]`} style={btnStyle('pri', C)}>
           {busy && !targetRef.current ? <Loader2 className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4"/>}
           {busy && !targetRef.current ? 'Uploading' : 'Upload logo'}
         </button>
       </div>
 
       {msg && (
-        <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
-          style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
+        <div role={msg.ok ? 'status' : 'alert'} className="flex items-start gap-2 text-xs px-3 py-3 rounded-xl"
+          style={msg.ok ? { background: C.successBg, color: C.successText } : { background: C.errorBg, color: C.errorText }}>
           {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
           {msg.text}
         </div>
@@ -222,42 +217,28 @@ export function ToolIconsPanel({ C }: { C: typeof LIGHT_C }) {
               ? 'Could not load the tool logos. Check your connection and try again.'
               : 'Could not load the tool logos right now. Try again.'}
           </p>
-          <button onClick={load}
-            className="px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
-            style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+          <button type="button" onClick={load} className={btnSmClass} style={btnStyle('sec', C)}>Retry</button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {rows.map(row => (
-            <div key={row.name} className="flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-xl"
-              style={{ background: C.pill }}>
-              {preview(row.name, row.image)}
-              <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{row.name}</span>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
-                style={{ background: '#10b981', color: '#ffffff' }}>UPLOADED</span>
-              {rowUploadButton(row.name, 'Replace')}
-              <button onClick={() => remove(row.name)} disabled={removing === row.name || busy}
-                aria-label={`Remove ${row.name} logo`}
-                className="p-2 rounded-lg disabled:opacity-50 transition-opacity hover:opacity-70">
-                {removing === row.name
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: C.faint }}/>
-                  : <Trash2 className="w-3.5 h-3.5 text-red-500"/>}
-              </button>
-            </div>
-          ))}
+        <div className="grid gap-2">
+          {rows.map(r => row(r.name, r.image, <>
+            <span className="hidden sm:inline"><Pill tone="good" dot C={C}>Uploaded</Pill></span>
+            {rowUploadButton(r.name, 'Replace')}
+            <button type="button" onClick={() => remove(r.name)} disabled={removing === r.name || busy}
+              aria-label={`Remove ${r.name} logo`}
+              className="w-8 h-8 rounded-[10px] grid place-items-center disabled:opacity-50 transition-opacity hover:opacity-70">
+              {removing === r.name
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: C.faint }}/>
+                : <Trash2 className="w-3.5 h-3.5" style={{ color: palette(C).bad }}/>}
+            </button>
+          </>))}
 
-          {builtInOnly.map(key => (
-            <div key={key} className="flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-xl"
-              style={{ background: C.pill }}>
-              {preview(key)}
-              <span className="text-sm flex-1 truncate" style={{ color: C.text }}>{key}</span>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full hidden sm:inline"
-                style={{ background: C.cardBorder, color: C.muted }}>BUILT IN</span>
-              {rowUploadButton(key, 'Replace')}
-            </div>
-          ))}
+          {builtInOnly.map(key => row(key, undefined, <>
+            <span className="hidden sm:inline"><Pill tone="mute" C={C}>Built in</Pill></span>
+            {rowUploadButton(key, 'Replace')}
+          </>))}
         </div>
       )}
-    </div>
+    </Sect>
   );
 }

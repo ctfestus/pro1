@@ -10,13 +10,16 @@
 // single POST -- tabs are how it is read, not how it is stored. Tool logos and AI limits each own
 // their own save, so the shared button is hidden on those.
 
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import { CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
 import { AiFeaturesTab } from '@/components/dashboard/AiFeaturesTab';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { ToolIconsPanel } from '@/components/dashboard/ToolIconsPanel';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { Card, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { FIELD, Hint, Label, Sect, SwitchRow, inputStyle } from '@/components/create/EditorKit';
 
 type TabId = 'identity' | 'email' | 'access' | 'analytics' | 'ai' | 'tools';
 
@@ -43,7 +46,9 @@ const EMAIL_FIELDS    = ['senderName', 'teamName', 'supportEmail', 'emailBannerU
 const ACCESS_FIELDS   = ['publicSignupEnabled'] as const;
 const ANALYTICS_FIELDS = ['googleAnalyticsId'] as const;
 
-export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
+export function BrandingSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const [form, setForm] = useState({
     appName:         '',
     orgName:         '',
@@ -213,17 +218,45 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   type TextKey = { [K in keyof typeof form]: (typeof form)[K] extends string ? K : never }[keyof typeof form];
 
   const field = (key: TextKey, label: string, placeholder: string, hint?: string, type = 'text') => (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
+    <div>
+      <Label C={C}>{label}</Label>
       <input
         type={type}
         value={form[key]}
         onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-        style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
+        className={FIELD}
+        style={inputStyle(C)}
       />
-      {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
+      {hint && <Hint C={C}>{hint}</Hint>}
+    </div>
+  );
+
+  // One image setting: its preview, Upload or Replace, an optional Remove, and a line of help.
+  const imageField = ({ label, url, uploading, inputRef, onFile, onRemove, preview, hint }: {
+    label: string; url: string; uploading: boolean; inputRef: RefObject<HTMLInputElement | null>;
+    onFile: (file: File) => void; onRemove?: () => void; preview: ReactNode; hint: string;
+  }) => (
+    <div>
+      <Label C={C}>{label}</Label>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+      <div className="flex flex-wrap items-center gap-2">
+        {preview}
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className={btnSmClass} style={btnStyle('sec', C)}>
+          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
+          {uploading ? 'Uploading' : url ? 'Replace' : 'Upload'}
+        </button>
+        {url && onRemove && (
+          <button type="button" onClick={onRemove} className={btnSmClass} style={btnStyle('danger', C)}>Remove</button>
+        )}
+      </div>
+      <Hint C={C}>{hint}</Hint>
+    </div>
+  );
+  const empty = (text: string, className: string) => (
+    <div className={`rounded-[10px] flex items-center justify-center ${className}`} style={{ background: C.pill }}>
+      <span className="text-[11px]" style={{ color: C.faint }}>{text}</span>
     </div>
   );
 
@@ -240,304 +273,171 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           ? 'Your session has expired. Sign in again to change platform settings.'
           : 'Could not load platform settings. Check your connection and try again.'}
       </p>
-      <button onClick={load}
-        className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+      <button type="button" onClick={load} className={btnClass} style={btnStyle('pri', C)}>Retry</button>
     </div>
   );
 
+  const saveFields = SAVE_TABS[tab];
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="grid gap-4">
+      <PageHeader C={C} title="Platform" sub="How this deployment is named, looks and emails people."
+        actions={saveFields && (
+          <button type="button" onClick={() => handleSave(saveFields)} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+            {saving && <Loader2 className="w-4 h-4 animate-spin"/>}Save changes
+          </button>
+        )} />
+
       {/* One row of tabs rather than one long page. Scrolls sideways on a phone instead of
           wrapping into a block that pushes the settings themselves below the fold. */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {TABS.map(t => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
-              style={{
-                // C.card, not C.pill: white in light mode and the dark surface in dark, so an
-                // unselected tab reads as a raised control rather than a sunken grey chip.
-                background: active ? C.cta : C.card,
-                color: active ? C.ctaText : C.muted,
-                border: `1px solid ${active ? C.cta : C.cardBorder}`,
-              }}
-            >
-              {t.label}
-            </button>
-          );
-        })}
+      <div role="tablist" aria-label="Platform sections" className="inline-flex w-fit max-w-full overflow-x-auto gap-1 p-1 rounded-[14px]" style={{ background: C.card }}>
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className="inline-flex items-center h-9 px-4 rounded-[10px] text-sm font-semibold whitespace-nowrap"
+            style={tab === t.id ? { background: P.sel, color: P.onSel } : { color: C.muted }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {saveFields && msg && (
+        <div role={msg.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={msg.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+          {msg.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0"/> : <XCircle className="w-4 h-4 flex-shrink-0"/>}
+          <span className="flex-1">{msg.text}</span>
+        </div>
+      )}
 
       {tab === 'identity' && (
-      <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Identity</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            What this deployment is called and how it looks. Stored in the database and applied across the platform.
-          </p>
-        </div>
+        <Card C={C}>
+          <Sect C={C} title="Identity" first>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>What this deployment is called and how it looks. Stored in the database and applied across the platform.</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {field('appName', 'Platform name', 'Your platform name', 'Used in page titles and emails.')}
+              {field('orgName', 'Organisation name', 'Your organisation', 'Used in certificates and formal text.')}
+              {field('appUrl', 'App address', 'https://yourapp.com', 'Base address used in email links.')}
+            </div>
+            {field('appDescription', 'Description', 'One line about the platform', 'Used in the search engine description tag.')}
+          </Sect>
 
-        <div className="grid grid-cols-2 gap-4">
-          {field('appName',     'App / Platform Name',  'e.g. Your Platform Name',  'Used in page titles and emails.')}
-          {field('orgName',     'Organisation Name',    'e.g. Your Organisation',   'Used in certificates and formal text.')}
-          {field('appUrl',      'App URL',              'https://yourapp.com', 'Base URL used in email links.')}
-        </div>
+          <Sect C={C} title="Logos">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {imageField({
+                label: 'Logo', url: form.logoUrl, uploading: logoUploading, inputRef: logoInputRef, onFile: handleLogoUpload,
+                preview: form.logoUrl
+                  ? <img src={form.logoUrl} alt="Logo preview" className="h-10 w-auto max-w-[120px] rounded-[10px] object-contain" style={{ background: C.pill, padding: 4 }} />
+                  : empty('No logo', 'h-10 w-16'),
+                hint: 'Uploaded to Cloudinary. PNG, SVG or JPG recommended.',
+              })}
+              {imageField({
+                label: 'Logo in dark mode', url: form.logoDarkUrl, uploading: logoDarkUploading, inputRef: logoDarkInputRef, onFile: handleLogoDarkUpload,
+                onRemove: () => setForm(prev => ({ ...prev, logoDarkUrl: '' })),
+                preview: form.logoDarkUrl
+                  ? <img src={form.logoDarkUrl} alt="Dark logo preview" className="h-10 w-auto max-w-[120px] rounded-[10px] object-contain" style={{ background: '#1E1F26', padding: 4 }} />
+                  : empty('No logo', 'h-10 w-16'),
+                hint: 'Optional. Used in place of the main logo when dark mode is on. If not set, the main logo is used.',
+              })}
+              {imageField({
+                label: 'Favicon', url: form.faviconUrl, uploading: faviconUploading, inputRef: faviconInputRef, onFile: handleFaviconUpload,
+                preview: form.faviconUrl
+                  ? <img src={form.faviconUrl} alt="Favicon preview" className="h-8 w-8 rounded object-contain" style={{ background: C.pill, padding: 4 }} />
+                  : empty('None', 'h-8 w-8'),
+                hint: 'Shown in browser tabs. PNG or ICO, 32 by 32 or 64 by 64 recommended.',
+              })}
+            </div>
+          </Sect>
 
-        {field('appDescription', 'App Description', 'Empowering Africans with practical AI skills...', 'Used in SEO meta description tag.')}
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Logo</label>
-          <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = ''; }} />
-          <div className="flex items-center gap-3">
-            {form.logoUrl ? (
-              <img src={form.logoUrl} alt="Logo preview" className="h-10 w-auto max-w-[120px] rounded-lg object-contain"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, padding: 4 }} />
-            ) : (
-              <div className="h-10 w-16 rounded-lg flex items-center justify-center"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[11px]" style={{ color: C.faint }}>No logo</span>
+          <Sect C={C} title="Brand colour">
+            <div>
+              <div className="flex items-center gap-3 max-w-sm">
+                <input
+                  type="color"
+                  aria-label="Pick brand colour"
+                  value={form.brandColor || '#00bf63'}
+                  onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
+                  className="w-11 h-11 rounded-[10px] cursor-pointer p-0.5 flex-shrink-0"
+                  style={inputStyle(C)}
+                />
+                <input
+                  type="text"
+                  aria-label="Brand colour"
+                  value={form.brandColor}
+                  onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
+                  placeholder="#00bf63"
+                  className={`${FIELD} font-mono`}
+                  style={inputStyle(C)}
+                />
               </div>
-            )}
-            <button type="button" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
-              {logoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-              {logoUploading ? 'Uploading…' : form.logoUrl ? 'Replace' : 'Upload Logo'}
-            </button>
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Uploaded to Cloudinary. PNG, SVG or JPG recommended.</p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Logo (Dark Mode)</label>
-          <input ref={logoDarkInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoDarkUpload(f); e.target.value = ''; }} />
-          <div className="flex items-center gap-3">
-            {form.logoDarkUrl ? (
-              <img src={form.logoDarkUrl} alt="Dark logo preview" className="h-10 w-auto max-w-[120px] rounded-lg object-contain"
-                style={{ background: '#1E1F26', border: `1px solid ${C.cardBorder}`, padding: 4 }} />
-            ) : (
-              <div className="h-10 w-16 rounded-lg flex items-center justify-center"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[11px]" style={{ color: C.faint }}>No logo</span>
-              </div>
-            )}
-            <button type="button" onClick={() => logoDarkInputRef.current?.click()} disabled={logoDarkUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
-              {logoDarkUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-              {logoDarkUploading ? 'Uploading…' : form.logoDarkUrl ? 'Replace' : 'Upload Dark Logo'}
-            </button>
-            {form.logoDarkUrl && (
-              <button type="button" onClick={() => setForm(prev => ({ ...prev, logoDarkUrl: '' }))}
-                className="px-3 py-2 rounded-xl text-xs transition-opacity hover:opacity-80"
-                style={{ background: C.deleteBg, color: C.deleteText, border: 'none' }}>
-                Remove
-              </button>
-            )}
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Optional. Used in place of the main logo when dark mode is active. If not set, the main logo is used.</p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Favicon</label>
-          <input ref={faviconInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFaviconUpload(f); e.target.value = ''; }} />
-          <div className="flex items-center gap-3">
-            {form.faviconUrl ? (
-              <img src={form.faviconUrl} alt="Favicon preview" className="h-8 w-8 rounded object-contain"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, padding: 4 }} />
-            ) : (
-              <div className="h-8 w-8 rounded flex items-center justify-center"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[11px]" style={{ color: C.faint }}>None</span>
-              </div>
-            )}
-            <button type="button" onClick={() => faviconInputRef.current?.click()} disabled={faviconUploading}
-              className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
-              {faviconUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-              {faviconUploading ? 'Uploading…' : form.faviconUrl ? 'Replace' : 'Upload Favicon'}
-            </button>
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Shown in browser tabs. PNG or ICO, 32×32 or 64×64 recommended.</p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Brand Colour</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={form.brandColor || '#00bf63'}
-              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
-              className="w-10 h-9 rounded-lg cursor-pointer border-0 p-0.5"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}
-            />
-            <input
-              type="text"
-              value={form.brandColor}
-              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
-              placeholder="#00bf63"
-              className="flex-1 px-3 py-2 rounded-xl text-sm outline-none font-mono"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
-            />
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Used for buttons and accents on certificate defaults.</p>
-        </div>
-
-      </div>
+              <Hint C={C}>Used for buttons and accents on certificate defaults.</Hint>
+            </div>
+          </Sect>
+        </Card>
       )}
 
       {tab === 'email' && (
-      <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Email</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            How messages from this platform are signed and where replies go.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {field('senderName', 'Email Sender Name', 'e.g. Your Team - Learning Experience', 'Shown as sender label in emails.')}
-          {field('teamName',   'Team Sign-off Name', 'e.g. The Team',                        'Used in email footers.')}
-        </div>
-
-        {field('supportEmail','Support Email',        'support@yourapp.com',      'Shown in footer of emails.')}
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Email Banner</label>
-          <input ref={emailBannerInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleEmailBannerUpload(f); e.target.value = ''; }} />
-          <div className="flex items-start gap-3">
-            {form.emailBannerUrl ? (
-              <img src={form.emailBannerUrl} alt="Email banner preview"
-                className="rounded-lg object-cover"
-                style={{ width: 160, height: 48, border: `1px solid ${C.cardBorder}` }} />
-            ) : (
-              <div className="rounded-lg flex items-center justify-center"
-                style={{ width: 160, height: 48, background: C.pill, border: `1px solid ${C.cardBorder}` }}>
-                <span className="text-[11px]" style={{ color: C.faint }}>No banner</span>
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              <button type="button" onClick={() => emailBannerInputRef.current?.click()} disabled={emailBannerUploading}
-                className="px-3 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 flex items-center gap-2"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}>
-                {emailBannerUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-                {emailBannerUploading ? 'Uploading…' : form.emailBannerUrl ? 'Replace' : 'Upload Banner'}
-              </button>
-              {form.emailBannerUrl && (
-                <button type="button" onClick={() => setForm(prev => ({ ...prev, emailBannerUrl: '' }))}
-                  className="px-3 py-2 rounded-xl text-xs transition-opacity hover:opacity-80"
-                  style={{ background: C.deleteBg, color: C.deleteText, border: 'none' }}>
-                  Remove
-                </button>
-              )}
+        <Card C={C}>
+          <Sect C={C} title="Sender" first>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>How messages from this platform are signed and where replies go.</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {field('senderName', 'Email sender name', 'Your team name', 'Shown as the sender label in emails.')}
+              {field('teamName', 'Team sign-off name', 'The team', 'Used in email footers.')}
             </div>
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Full-width header image for emails. 600px wide recommended. If not set, the logo is used.</p>
-        </div>
+            {field('supportEmail', 'Support email', 'support@yourapp.com', 'Shown in the footer of emails.')}
+          </Sect>
 
-      </div>
+          <Sect C={C} title="Email banner">
+            {imageField({
+              label: 'Banner image', url: form.emailBannerUrl, uploading: emailBannerUploading, inputRef: emailBannerInputRef, onFile: handleEmailBannerUpload,
+              onRemove: () => setForm(prev => ({ ...prev, emailBannerUrl: '' })),
+              preview: form.emailBannerUrl
+                ? <img src={form.emailBannerUrl} alt="Email banner preview" className="rounded-[10px] object-cover" style={{ width: 160, height: 48 }} />
+                : empty('No banner', 'w-40 h-12'),
+              hint: 'Full-width header image for emails. 600px wide recommended. If not set, the logo is used.',
+            })}
+          </Sect>
+        </Card>
       )}
 
       {tab === 'access' && (
-      <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Access</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            Controls who can create an account on this deployment.
-          </p>
-        </div>
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" style={{ color: C.muted }}>Public signups</label>
-            <p className="text-[11px] leading-relaxed" style={{ color: C.faint }}>
-              Off means only people an admin has admitted can create an account. On means anyone can
-              sign up and gets a free account with no cohort, which sees only content marked
-              available to everyone. Turning this off takes effect immediately.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.publicSignupEnabled}
-            aria-label="Public signups"
-            onClick={() => setForm(prev => ({ ...prev, publicSignupEnabled: !prev.publicSignupEnabled }))}
-            className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
-            style={{
-              background: form.publicSignupEnabled ? '#10b981' : C.pill,
-              border: `1px solid ${form.publicSignupEnabled ? '#10b981' : C.cardBorder}`,
-            }}
-          >
-            <span
-              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
-              style={{ left: form.publicSignupEnabled ? 23 : 3, background: '#ffffff' }}
-            />
-          </button>
-        </div>
-
-        {form.publicSignupEnabled && (
-          <div className="text-[11px] leading-relaxed px-3 py-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', color: '#047857' }}>
-            Signups are open once you save. New accounts must confirm their email address before
-            they can sign in.
-          </div>
-        )}
-      </div>
-
+        <Card C={C}>
+          <Sect C={C} title="Access" first>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>Controls who can create an account on this deployment.</p>
+            <SwitchRow C={C} title="Public signups" on={form.publicSignupEnabled}
+              onChange={on => setForm(prev => ({ ...prev, publicSignupEnabled: on }))}
+              sub="Off means only people an admin has admitted can create an account. On means anyone can sign up and gets a free account with no cohort, which sees only content marked available to everyone. Turning this off takes effect immediately." />
+            {form.publicSignupEnabled && (
+              <div className="text-xs leading-relaxed px-3 py-3 rounded-xl" style={{ background: C.successBg, color: C.successText }}>
+                Signups are open once you save. New accounts must confirm their email address before
+                they can sign in.
+              </div>
+            )}
+          </Sect>
+        </Card>
       )}
 
       {tab === 'analytics' && (
-      <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Analytics</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            Connect Google Analytics 4 to see visitors, sessions and which pages they use. Leave
-            it blank and no analytics script is loaded at all.
-          </p>
-        </div>
-
-        {field('googleAnalyticsId', 'GA4 Measurement ID', 'G-XXXXXXXXXX',
-          'Find it in Google Analytics under Admin, Data streams, your web stream. Covers every page, signed in or out.')}
-      </div>
+        <Card C={C}>
+          <Sect C={C} title="Analytics" first>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>
+              Connect Google Analytics 4 to see visitors, sessions and which pages they use. Leave
+              it blank and no analytics script is loaded at all.
+            </p>
+            {field('googleAnalyticsId', 'GA4 measurement ID', 'G-XXXXXXXXXX',
+              'Find it in Google Analytics under Admin, Data streams, your web stream. Covers every page, signed in or out.')}
+          </Sect>
+        </Card>
       )}
 
-      {tab === 'ai' && <AiFeaturesTab C={C} />}
+      {tab === 'ai' && <Card C={C}><AiFeaturesTab C={C} /></Card>}
 
       {/* Tool logos live in their own table with their own save, so they are never caught up
           in the platform-settings form above. */}
-      {tab === 'tools' && (
-        <div className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
-          <ToolIconsPanel C={C}/>
-        </div>
-      )}
-
-      {SAVE_TABS[tab] && (
-        <div className="space-y-3">
-          {msg && (
-            <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
-              style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
-              {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
-              {msg.text}
-            </div>
-          )}
-
-          <button
-            onClick={() => handleSave(SAVE_TABS[tab]!)}
-            disabled={saving}
-            className="w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
-            style={{ background: C.cta, color: C.ctaText }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save changes'}
-          </button>
-        </div>
-      )}
+      {tab === 'tools' && <Card C={C}><ToolIconsPanel C={C}/></Card>}
     </div>
   );
 }

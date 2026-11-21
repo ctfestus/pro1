@@ -1,10 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, History, Loader2, Mail, RotateCcw, Search, Send } from 'lucide-react';
+import { Check, CheckCircle2, Loader2, Mail, RotateCcw, Search, Send, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { FIELD, Hint, Label, Sect, inputStyle } from '@/components/create/EditorKit';
 
 type Definition = {
   key: string; label: string; category: string; description: string; schedule: string;
@@ -19,7 +22,9 @@ async function authHeaders(json = false) {
   return { ...(json ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${session.access_token}` };
 }
 
-export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
+export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -146,67 +151,96 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
     } finally { setBusy(null); }
   }
 
-  if (loading && !definitions.length) return <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.cta }}/></div>;
+  if (loading && !definitions.length) return <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.muted }}/></div>;
 
   const selectedHistory = history.filter(item => item.template_key === selectedKey).slice(0, 8);
+  const sampleBtn = (action: 'preview' | 'test', Icon: typeof Mail, label: string) => (
+    <button type="button" onClick={() => request(action)} disabled={busy !== null} className={btnSmClass} style={btnStyle('sec', C)}>
+      {busy === action ? <Loader2 className="w-4 h-4 animate-spin"/> : <Icon className="w-4 h-4"/>}{label}
+    </button>
+  );
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-2"><Mail className="w-5 h-5" style={{ color: C.cta }}/><h1 className="text-[22px] font-bold leading-7" style={{ color: C.text }}>Email Templates</h1></div>
-        <p className="mt-1 text-sm" style={{ color: C.faint }}>Add a shared subject or message to learner emails without replacing their system-generated content, details, or action buttons.</p>
-      </div>
+    <div className="grid gap-4">
+      <PageHeader C={C} title="Email templates" sub="Add your own subject or message to the emails learners get. The system content, details and buttons stay."
+        actions={selected && (
+          <button type="button" onClick={save} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className={btnClass} style={btnStyle('pri', C)}>
+            {busy === 'save' && <Loader2 className="w-4 h-4 animate-spin"/>}Save changes
+          </button>
+        )} />
 
-      {message && <div role="status" className="rounded-xl px-4 py-3 text-sm" style={{ background: message.ok ? C.lime : C.errorBg, color: message.ok ? C.green : C.errorText }}>{message.text}</div>}
+      {message && (
+        <div role={message.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={message.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+          {message.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0"/> : <XCircle className="w-4 h-4 flex-shrink-0"/>}
+          <span className="flex-1">{message.text}</span>
+        </div>
+      )}
 
-      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="rounded-2xl p-3 lg:max-h-[calc(100vh-150px)] lg:overflow-y-auto" style={cardStyle(C)}>
-          <label className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: C.input }}>
-            <Search className="w-4 h-4" style={{ color: C.faint }}/>
-            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search templates" className="w-full bg-transparent text-sm outline-none" style={{ color: C.text }}/>
-          </label>
-          <div className="mt-3 space-y-4">
+      <div className="grid gap-4 items-start lg:grid-cols-[260px_minmax(0,1fr)]">
+        <Card C={C} className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-32px)] lg:overflow-y-auto">
+          <Sect C={C} title="Templates" first>
+            <label className="field-shell flex items-center gap-2 h-10 px-3 rounded-xl" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.faint }}>
+              <Search className="w-4 h-4 flex-shrink-0"/>
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search templates" className="w-full bg-transparent text-sm outline-none" style={{ color: C.text }}/>
+            </label>
+            {categories.length === 0 && <p className="text-xs" style={{ color: C.muted }}>No templates match this search.</p>}
             {categories.map(category => <div key={category}>
-              <p className="px-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>{category}</p>
-              <div className="mt-1 space-y-1">{filtered.filter(item => item.category === category).map(item => {
+              <p className="px-3 mb-1 text-xs font-semibold" style={{ color: C.faint }}>{category}</p>
+              <div className="grid gap-0.5">{filtered.filter(item => item.category === category).map(item => {
                 const active = item.key === selectedKey;
                 const customized = overrides.some(row => row.template_key === item.key);
-                return <button key={item.key} onClick={() => choose(item.key)} className="w-full rounded-xl px-3 py-3 text-left" style={{ background: active ? C.pill : 'transparent' }}>
-                  <span className="flex items-center justify-between gap-2"><span className="text-sm font-semibold" style={{ color: active ? C.cta : C.text }}>{item.label}</span>{customized && <Check className="w-3.5 h-3.5" style={{ color: C.green }}/>}</span>
-                  <span className="mt-0.5 block text-[11px]" style={{ color: C.faint }}>{item.schedule}</span>
+                return <button key={item.key} type="button" aria-pressed={active} onClick={() => choose(item.key)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={active ? { background: P.sel, color: P.onSel } : { color: C.text }}>
+                  <span className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{item.label}</span>{customized && <Check className="w-3.5 h-3.5 flex-shrink-0" aria-label="Customised" style={{ color: active ? P.onSel : P.good }}/>}</span>
+                  <span className="mt-0.5 block text-xs" style={{ color: active ? 'rgba(255,255,255,0.85)' : C.muted }}>{item.schedule}</span>
                 </button>;
               })}</div>
             </div>)}
-          </div>
-        </aside>
+          </Sect>
+        </Card>
 
-        {selected && <main className="space-y-5">
-          <section className="rounded-2xl p-5" style={cardStyle(C)}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h2 className="text-base font-bold" style={{ color: C.text }}>{selected.label}</h2><p className="mt-1 text-xs" style={{ color: C.faint }}>{selected.description}</p></div>
-              <span className="rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: selectedOverride ? C.lime : C.pill, color: selectedOverride ? C.green : C.muted }}>{selectedOverride ? 'Customization active' : 'System email active'}</span>
+        {selected && <Card C={C} className="min-w-0">
+          <Sect C={C} title={selected.label} first
+            action={<Pill tone={selectedOverride ? 'good' : 'mute'} dot={Boolean(selectedOverride)} C={C}>{selectedOverride ? 'Customisation active' : 'System email active'}</Pill>}>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>{selected.description}</p>
+            <p className="rounded-xl px-3 py-3 text-xs" style={{ background: C.pill, color: C.muted }}>The complete system email always remains in place, including course lists, results, dates, payment details, certificates and real action buttons. A custom message appears above it. Leave the subject blank to keep the system subject.</p>
+            {selectedOverride?.composition_mode === 'legacy_replace' && <p className="rounded-xl px-3 py-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>This customisation was saved before protected composition was introduced. Its subject remains active, but its body is paused to prevent duplicated or missing content. Review it and save again to activate it as an added message.</p>}
+            <div>
+              <Label C={C}>Custom subject (optional)</Label>
+              <input value={subject} maxLength={200} onChange={event => setSubject(event.target.value)} placeholder="Leave blank to keep the system subject" className={FIELD} style={inputStyle(C)}/>
             </div>
-            <p className="mt-4 rounded-xl px-3 py-3 text-xs" style={{ background: C.pill, color: C.muted }}>The complete system email always remains in place, including course lists, results, dates, payment details, certificates, and real action buttons. A custom message appears above it. Leave the subject blank to keep the system subject.</p>
-            {selectedOverride?.composition_mode === 'legacy_replace' && <p className="mt-3 rounded-xl px-3 py-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>This customization was saved before protected composition was introduced. Its subject remains active, but its body is paused to prevent duplicated or missing content. Review it and save again to activate it as an added message.</p>}
-            <div className="mt-5 space-y-4">
-              <label className="block"><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Custom subject (optional)</span><input value={subject} maxLength={200} onChange={event => setSubject(event.target.value)} placeholder="Leave blank to keep the system subject" className="w-full rounded-xl px-3 py-3 text-sm outline-none" style={{ background: C.input, color: C.text }}/></label>
-              <div><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Custom message (optional)</span><RichTextEditor value={body} onChange={setBody} placeholder="Add a message above the system email..." bgOverride={C.input}/></div>
-              <div><p className="text-xs font-semibold" style={{ color: C.muted }}>Available merge tags</p><div className="mt-2 flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onClick={() => setBody(value => `${value}<p>{{${tag}}}</p>`)} className="rounded-lg px-2 py-1 font-mono text-[11px]" style={{ background: C.pill, color: C.muted }}>{`{{${tag}}}`}</button>)}</div><p className="mt-2 text-[11px]" style={{ color: C.faint }}>Merge tags are optional in your message because essential learner information stays in the protected system email. Custom links are blocked.</p></div>
+            <div>
+              <Label C={C}>Custom message (optional)</Label>
+              <RichTextEditor value={body} onChange={setBody} placeholder="Add a message above the system email" bgOverride={C.input}/>
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button onClick={save} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save customization</button>
-              <button onClick={() => request('preview')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'preview' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>}Preview full sample</button>
-              <button onClick={() => request('test')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}Send full sample</button>
-              {selectedOverride && <button onClick={reset} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>{busy === 'reset' ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>}Restore system email</button>}
+            <div>
+              <Label C={C}>Merge tags</Label>
+              <div className="flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onClick={() => setBody(value => `${value}<p>{{${tag}}}</p>`)} className="rounded-lg px-2 py-1 font-mono text-xs" style={{ background: C.pill, color: C.text }}>{`{{${tag}}}`}</button>)}</div>
+              <Hint C={C}>Merge tags are optional in your message because essential learner information stays in the protected system email. Custom links are blocked.</Hint>
             </div>
-          </section>
+            {selectedOverride && (
+              <div>
+                <button type="button" onClick={reset} disabled={busy !== null} className={btnSmClass} style={btnStyle('sec', C)}>
+                  {busy === 'reset' ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>}Restore system email
+                </button>
+              </div>
+            )}
+          </Sect>
 
-          {preview && <section className="rounded-2xl p-5" style={cardStyle(C)}><p className="text-xs font-semibold" style={{ color: C.muted }}>Preview subject</p><p className="mt-1 text-sm font-bold" style={{ color: C.text }}>{preview.subject}</p><p className="mt-3 text-xs" style={{ color: C.faint }}>This is the complete email layout with representative learner data. Buttons look the same but are disabled in previews and samples.</p><iframe title="Email preview" srcDoc={preview.html} sandbox="" className="mt-4 h-[520px] w-full rounded-xl bg-white"/></section>}
+          <Sect C={C} title="Preview" action={<div className="flex flex-wrap gap-2">{sampleBtn('preview', Mail, 'Preview full sample')}{sampleBtn('test', Send, 'Send full sample')}</div>}>
+            {preview ? <>
+              <div className="rounded-xl px-3 py-3" style={{ background: C.pill }}>
+                <p className="text-xs" style={{ color: C.muted }}>Subject</p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: C.text }}>{preview.subject}</p>
+              </div>
+              <p className="text-xs" style={{ color: C.muted }}>This is the complete email layout with representative learner data. Buttons look the same but are disabled in previews and samples.</p>
+              <iframe title="Email preview" srcDoc={preview.html} sandbox="" className="h-[520px] w-full rounded-xl bg-white"/>
+            </> : <p className="text-xs" style={{ color: C.muted }}>Preview the full email with sample learner data, or send it as a test email.</p>}
+          </Sect>
 
-          <section className="rounded-2xl p-5" style={cardStyle(C)}>
-            <div className="flex items-center gap-2"><History className="w-4 h-4" style={{ color: C.faint }}/><h3 className="text-sm font-bold" style={{ color: C.text }}>Recent changes</h3></div>
-            {selectedHistory.length ? <div className="mt-3 divide-y" style={{ borderColor: C.divider }}>{selectedHistory.map(row => <div key={row.id} className="flex items-center justify-between gap-4 py-3 text-xs"><span style={{ color: C.muted }}>{row.action === 'reset' ? 'Reset to default' : row.action === 'created' ? 'Customized' : 'Updated'} by {row.students?.full_name || row.students?.email || 'a platform user'}</span><time style={{ color: C.faint }}>{new Date(row.changed_at).toLocaleString()}</time></div>)}</div> : <p className="mt-3 text-xs" style={{ color: C.faint }}>No saved changes for this template.</p>}
-          </section>
-        </main>}
+          <Sect C={C} title="Recent changes">
+            {selectedHistory.length ? <div>{selectedHistory.map((row, i) => <div key={row.id} className="flex items-center justify-between gap-4 py-3 text-xs" style={i ? { borderTop: `1px solid ${C.divider}` } : undefined}><span style={{ color: C.text }}>{row.action === 'reset' ? 'Reset to default' : row.action === 'created' ? 'Customised' : 'Updated'} by {row.students?.full_name || row.students?.email || 'a platform user'}</span><time style={{ color: C.muted }}>{new Date(row.changed_at).toLocaleString()}</time></div>)}</div> : <p className="text-xs" style={{ color: C.muted }}>No saved changes for this template.</p>}
+          </Sect>
+        </Card>}
       </div>
     </div>
   );
