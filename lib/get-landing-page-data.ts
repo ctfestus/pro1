@@ -137,7 +137,7 @@ const getProgrammes = unstable_cache(
     const db = adminClient();
     const extraResults = await Promise.all([
       courseIds.length ? db.from('courses').select('id,difficulty,tags,tools').in('id', courseIds) : empty,
-      experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools').in('id', experienceIds) : empty,
+      experienceIds.length ? db.from('virtual_experiences').select('id,role,company,duration,tools,tags').in('id', experienceIds) : empty,
       certificationIds.length ? db.from('certifications').select('id,learn_outcomes,time_limit,passmark').in('id', certificationIds) : empty,
     ]);
     const extras = new Map<string, any>();
@@ -179,6 +179,7 @@ const getProgrammes = unstable_cache(
         : '',
       byline: [extras.get(row.id)?.role, extras.get(row.id)?.company].filter(Boolean).join(', ') || undefined,
       ...previewFacts({ ...extras.get(row.id), difficulty: row.difficulty }),
+      tags: cleanList(extras.get(row.id)?.tags),
     }));
 
     const certifications: ProgrammeItem[] = (certificationsResult.error ? [] : certificationsResult.data ?? []).map((row) => ({

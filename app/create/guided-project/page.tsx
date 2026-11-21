@@ -253,6 +253,8 @@ interface ProjectConfig {
   company: string;
   duration: string;
   tools: string[];
+  /** Topics the experience covers (migration 248), shown on cards and the hover preview. */
+  tags?: string[];
   // Legacy per-experience logo map. Nothing renders or edits it any more -- logos resolve by
   // name through the shared tool-icon registry, as a course's category does. It is still loaded
   // and saved so that saving an experience does not blank a column other tenants may still hold
@@ -544,6 +546,7 @@ function VirtualExperienceCreatePageInner() {
   const [toolsInput,   setToolsInput]   = useState('');
   // Draft for the "add a skill" box under Skills you will use.
   const [newToolDraft, setNewToolDraft] = useState('');
+  const [tagDraft, setTagDraft] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [emailStyle,   setEmailStyle]   = useState(false);
   // Plain-text draft for the Scenario/Background textarea. Deriving the textarea's
@@ -687,7 +690,7 @@ function VirtualExperienceCreatePageInner() {
           const cfg: any = {
             isVirtualExperience: true, modules: ve.modules ?? [], industry: ve.industry,
             difficulty: ve.difficulty, role: ve.role, company: ve.company, duration: ve.duration,
-            tools: ve.tools, toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
+            tools: ve.tools, tags: ve.tags ?? [], toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
             learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
             guideId: ve.guide_id || (ve.guide_snapshot?.linkedUserId ? `instructor:${ve.guide_snapshot.linkedUserId}` : null), guideSnapshot: ve.guide_snapshot,
             dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
@@ -2114,6 +2117,38 @@ function VirtualExperienceCreatePageInner() {
                       </div>
                       <p className="text-[11px] mt-2" style={{ color: C.faint }}>
                         Shown on the experience page. Logos come from the shared tool icons in dashboard Branding.
+                      </p>
+                    </div>
+
+                    {/* Tags: topics the experience covers, typed one at a time, as on courses. */}
+                    <div>
+                      <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Tags</p>
+                      {(config.tags ?? []).length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {(config.tags ?? []).map(tag => (
+                            <span key={tag} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg pl-3 pr-1.5 text-[12px] font-semibold" style={{ background: C.pill, color: C.text }}>
+                              {tag}
+                              <button type="button" aria-label={`Remove ${tag}`}
+                                onClick={() => setConfig(c => c ? { ...c, tags: (c.tags ?? []).filter(t => t !== tag) } : c)}
+                                className="grid h-5 w-5 place-items-center rounded-full hover:text-red-400" style={{ color: C.faint }}>
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <input value={tagDraft} onChange={e => setTagDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter' && e.key !== ',') return;
+                          e.preventDefault();
+                          const tag = tagDraft.trim();
+                          if (tag) setConfig(c => c && !(c.tags ?? []).some(t => t.toLowerCase() === tag.toLowerCase()) ? { ...c, tags: [...(c.tags ?? []), tag] } : c);
+                          setTagDraft('');
+                        }}
+                        placeholder="Type a tag and press Enter, e.g. Financial analysis"
+                        style={{ ...inp, fontSize: 12 }} />
+                      <p className="text-[11px] mt-2" style={{ color: C.faint }}>
+                        Topics the experience covers. The card shows as many as fit; the pop-up shows them all.
                       </p>
                     </div>
 

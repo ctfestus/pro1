@@ -89,7 +89,7 @@ type Row = {
   time_limit?: number | null;
   passmark?: number | null;
   topics?: string[] | null;
-  /** A course's tags (migration 246); the card and preview show them as its topics. */
+  /** A course's or experience's tags (migrations 246, 248); cards and the preview show them as topics. */
   tags?: string[] | null;
   skills?: string[] | null;
   authors?: string[] | null;
@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
         .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, industry, role, company, difficulty, duration, tools, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, industry, role, company, difficulty, duration, tools, tags, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
         .select('id, title, slug, cover_image, description, learn_outcomes, time_limit, passmark, cohort_ids, available_to_everyone', { count: 'exact' })
@@ -215,8 +215,8 @@ export async function GET(req: NextRequest) {
         bylineLogo: partnerOf(r)?.logo_url ?? null,
         // A path has its own overview fields (pathOverviewFields below).
         ...(type === 'learning_path' ? {} : previewFacts(r)),
-        // A course's tags, every one of them (previewFacts keeps four topics, for books).
-        ...(type === 'course' && cleanList(r.tags).length ? { topics: cleanList(r.tags) } : {}),
+        // A course's or experience's tags, every one of them (previewFacts keeps four topics, for books).
+        ...((type === 'course' || type === 'virtual_experience') && cleanList(r.tags).length ? { topics: cleanList(r.tags) } : {}),
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)
