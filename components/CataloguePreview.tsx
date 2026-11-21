@@ -9,12 +9,13 @@
  * a visitor and a signed-in learner see the same preview.
  */
 import type { ElementType, ReactNode } from 'react';
-import { ArrowRight, Award, BookOpen, Briefcase, Check, Clock, Film, GraduationCap, Layers, Lock, Package, Play, Tag, Target } from 'lucide-react';
+import { ArrowRight, Award, Briefcase, Check, Clock, Film, GraduationCap, Layers, Lock, Package, Play, Tag, Target } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
 import { formatMoney } from '@/lib/books/format';
+import { ToolLogos } from '@/components/CardMeta';
 
 export type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification' | 'book';
 
@@ -36,6 +37,8 @@ export interface CatalogueItem {
   examMinutes?: number;
   passmark?: number;
   topics?: string[];
+  /** A learning path's skills (path editor), shown as its tags. */
+  skills?: string[];
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
@@ -120,94 +123,68 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
     .trim();
 
   if (item.type === 'learning_path') {
+    // A path's preview, the width of the others: cover, title, description, skills (six,
+    // then "+N"), the item count with the tools, the first four items as a numbered list, action.
     const pathItems = item.pathItems ?? [];
-    const popupW = Math.min(640, Math.max(360, pathItems.length * 120 + 32));
+    const skills = item.skills ?? [];
+    const coverUrl = resolvedCover(item.coverImage);
+    const chip = (key: string, label: string) => (
+      <span key={key} className="inline-flex items-center h-[22px] px-2 rounded-md text-[12px] font-medium" style={{ background: C.pill, color: C.muted }}>{label}</span>
+    );
     return (
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          fontFamily: font,
-          width: popupW,
-          background: previewSurface,
-          border: `1px solid ${previewEdge}`,
-          boxShadow: previewShadow,
-        }}
-      >
-        <div className="p-4 pb-0">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
-              Learning Path
-            </span>
-            {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: C.muted }} />}
+      <div className="rounded-xl overflow-hidden" style={{ fontFamily: font, background: previewSurface, border: `1px solid ${previewEdge}`, boxShadow: previewShadow }}>
+        <div className="p-3 pb-0">
+          <div className="relative w-full aspect-video overflow-hidden rounded-lg" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
+            {coverUrl
+              ? <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center"><Layers className="w-9 h-9" style={{ color: C.faint }} /></div>}
+            <span className="absolute left-0 top-3 px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>Learning path</span>
+            {item.locked && (
+              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: '#ffffff', color: '#111111' }}>
+                <Lock className="h-3 w-3" /> Locked
+              </span>
+            )}
           </div>
-          <h3 className="text-base leading-6 font-bold line-clamp-2 mb-2" style={{ color: C.text }}>
-            {item.title}
-          </h3>
-          {desc && (
-            <p className="text-sm leading-relaxed line-clamp-2 mb-0" style={{ color: C.muted }}>
-              {desc}
-            </p>
-          )}
         </div>
-
-        <div className="p-4">
-          {pathItems.length > 0 ? (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: C.faint }}>
-                {pathItems.length} item{pathItems.length !== 1 ? 's' : ''} in this path
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {pathItems.map(pathItem => (
-                  <div key={pathItem.id} className="flex-shrink-0" style={{ width: 110 }}>
-                    {(() => {
-                      const coverUrl = resolvedCover(pathItem.coverImage);
-                      return (
-                        <>
-                          <div
-                            className="rounded-lg overflow-hidden mb-2"
-                            style={{ aspectRatio: '16/9', background: coverUrl ? '#0b0b0d' : C.pill }}
-                          >
-                            {coverUrl ? (
-                              <img src={coverUrl} alt={pathItem.title} loading="lazy" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <BookOpen className="w-5 h-5" style={{ color: C.faint }} />
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[11px] font-medium leading-snug line-clamp-2" style={{ color: C.text }}>
-                            {pathItem.title}
-                          </p>
-                        </>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            desc && <p className="text-sm leading-relaxed line-clamp-3 mb-1" style={{ color: C.muted }}>{desc}</p>
+        <div className="flex flex-col gap-3 p-5">
+          <h3 className="text-[15px] leading-5 font-bold line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+          {desc && <p className="text-[13px] leading-5 line-clamp-2" style={{ color: C.muted, fontFamily: bodyFont }}>{desc}</p>}
+          {skills.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {skills.slice(0, 6).map(skill => chip(skill, skill))}
+              {skills.length > 6 && chip('more', `+${skills.length - 6}`)}
+            </div>
           )}
-
-          {item.locked || viewOnly ? (
-            <button
-              type="button"
-              onClick={() => onOpen(item)}
-              className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 mt-4"
-              style={{ background: C.cta, color: C.ctaText }}
-            >
-              <ArrowRight className="w-3.5 h-3.5" />
-              View details
+          {(pathItems.length > 0 || (item.tools?.length ?? 0) > 0) && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[13px] leading-[18px]" style={{ color: C.muted }}>
+                {pathItems.length > 0 ? `${pathItems.length} learning item${pathItems.length === 1 ? '' : 's'}` : ''}
+              </span>
+              {(item.tools?.length ?? 0) > 0 && <ToolLogos tools={item.tools!} muted={C.muted} />}
+            </div>
+          )}
+          {pathItems.length > 0 && (
+            <ol className="flex flex-col gap-1.5 text-[13px] leading-[18px]" style={{ color: C.text }}>
+              {pathItems.slice(0, 4).map((pathItem, i) => (
+                <li key={pathItem.id} className="flex gap-2">
+                  <span className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full text-[11px] font-bold" style={{ background: C.pill, color: C.muted }}>{i + 1}</span>
+                  <span className="line-clamp-1">{pathItem.title}</span>
+                </li>
+              ))}
+              {pathItems.length > 4 && <li className="pl-[26px]" style={{ color: C.muted }}>and {pathItems.length - 4} more</li>}
+            </ol>
+          )}
+          {item.locked ? (
+            <button type="button" onClick={() => onOpen(item)}
+              className="flex w-full items-center justify-center gap-2 text-[13px] font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90"
+              style={{ background: C.cta, color: C.ctaText }}>
+              <ArrowRight className="w-3.5 h-3.5" /> View details
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => onOpen(item)}
-              className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-opacity hover:opacity-90 mt-4"
-              style={{ background: '#00bf63', color: 'white' }}
-            >
-              <Play className="w-3.5 h-3.5" />
-              Start path
+            <button type="button" onClick={() => onOpen(item)}
+              className="flex w-full items-center justify-center gap-2 text-[13px] font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90"
+              style={{ background: '#00bf63', color: 'white' }}>
+              <Play className="w-3.5 h-3.5" /> Start path
             </button>
           )}
         </div>
