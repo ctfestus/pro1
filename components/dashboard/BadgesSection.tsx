@@ -4,7 +4,7 @@
 // course, path and experience badges get their image from that item's editor.
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { CheckCircle2, Trash2, Upload, XCircle } from 'lucide-react';
+import { Award, CheckCircle2, Trash2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { DARK_C, type ThemeColors } from '@/lib/theme';
 import { PageHeader } from '@/components/dashboard/content/kit';
@@ -46,9 +46,9 @@ export function BadgesSection({ C: theme }: { C: ThemeColors }) {
         .filter((b: any) => !/^(crs_|lp_|ve_)/.test(b.id))
         .map((b: any) => ({ ...b, managed: null as Managed }));
       const content = [
-        ...(courses ?? []).map((c: any) => ({ id: `crs_${c.id}`, name: `${c.title} Badge`, description: `Awarded for completing ${c.title}`, icon: 'graduated', image_url: c.badge_image_url, category: 'course', managed: 'course' as const })),
-        ...(paths ?? []).map((p: any) => ({ id: `lp_${p.id}`, name: `${p.title} Badge`, description: `Awarded for completing ${p.title}`, icon: 'map', image_url: p.badge_image_url, category: 'learning_path', managed: 'learning_path' as const })),
-        ...(ves ?? []).map((v: any) => ({ id: `ve_${v.id}`, name: `${v.title} Badge`, description: `Awarded for completing ${v.title}`, icon: 'briefcase', image_url: v.badge_image_url, category: 'virtual_experience', managed: 'virtual_experience' as const })),
+        ...(courses ?? []).map((c: any) => ({ id: `crs_${c.id}`, name: `${c.title} Badge`, description: `Awarded for completing ${c.title}`, icon: '', image_url: c.badge_image_url, category: 'course', managed: 'course' as const })),
+        ...(paths ?? []).map((p: any) => ({ id: `lp_${p.id}`, name: `${p.title} Badge`, description: `Awarded for completing ${p.title}`, icon: '', image_url: p.badge_image_url, category: 'learning_path', managed: 'learning_path' as const })),
+        ...(ves ?? []).map((v: any) => ({ id: `ve_${v.id}`, name: `${v.title} Badge`, description: `Awarded for completing ${v.title}`, icon: '', image_url: v.badge_image_url, category: 'virtual_experience', managed: 'virtual_experience' as const })),
       ];
       setBadges([...achievement, ...content]);
     })();
@@ -145,7 +145,7 @@ export function BadgesSection({ C: theme }: { C: ThemeColors }) {
                           <div className="flex-shrink-0 w-11 h-11 rounded-xl grid place-items-center overflow-hidden" style={{ background: badge.image_url ? 'transparent' : C.pill }}>
                             {badge.image_url
                               ? <img src={badge.image_url} alt={badge.name} className="w-full h-full object-cover" />
-                              : <span className="text-xl">{badge.icon}</span>}
+                              : badge.icon ? <span className="text-xl">{badge.icon}</span> : <Award className="w-5 h-5" style={{ color: C.muted }} />}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold truncate" style={{ color: C.text }}>{badge.name}</p>
