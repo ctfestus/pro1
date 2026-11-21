@@ -58,6 +58,20 @@ export const resolvedCover = (coverImage: string | null) => resolveCoverUrl(cove
 const bookPrice = (item: CatalogueItem) =>
   (item.prices ?? []).map(p => formatMoney(p.amount, p.currency)).join(' / ');
 
+/** A level as three bars filled up to it, as the landing page's course cards show it. */
+const LEVEL_BARS: Record<string, number> = { Beginner: 1, Intermediate: 2, Advanced: 3 };
+
+export function LevelBars({ level, color, track }: { level: string; color: string; track: string }) {
+  const filled = LEVEL_BARS[level] ?? 0;
+  return (
+    <span aria-hidden="true" className="inline-flex items-end gap-[2px] h-[11px]">
+      {[5, 8, 11].map((h, i) => (
+        <i key={h} className="block w-[3px] rounded-[1px]" style={{ height: h, background: i < filled ? color : track }} />
+      ))}
+    </span>
+  );
+}
+
 function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
@@ -67,7 +81,7 @@ function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode
   );
 }
 
-export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false, font, C }: {
+export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false, font, compact = false, C }: {
   item: CatalogueItem;
   accent: string;
   /** Where the item's page is. */
@@ -82,6 +96,11 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
    * app's own fonts. Without it, the app's fonts as Explore uses them.
    */
   font?: string;
+  /**
+   * The landing page's preview: smaller type and padding, plain tags, and the level with the
+   * card's bars on its own line with the tool on the right, matching the course card.
+   */
+  compact?: boolean;
   C: typeof LIGHT_C;
 }) {
   const bodyFont = font ?? 'var(--font-lato)';
@@ -201,7 +220,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
   // then a full-width action.
   return (
     <div
-      className="rounded-2xl overflow-hidden"
+      className={`${compact ? 'rounded-xl' : 'rounded-2xl'} overflow-hidden`}
       style={{
         fontFamily: font,
         background: previewSurface,
@@ -210,7 +229,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
       }}
     >
       <div className="p-3 pb-0">
-      <div className="relative w-full aspect-video overflow-hidden rounded-xl" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
+      <div className={`relative w-full aspect-video overflow-hidden ${compact ? 'rounded-lg' : 'rounded-xl'}`} style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
         {coverUrl ? (
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
@@ -234,9 +253,9 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
       </div>
       </div>
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className={compact ? 'flex flex-col gap-3 p-5' : 'flex flex-col gap-4 p-6'}>
         <div>
-          <h3 className="text-base font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+          <h3 className={`${compact ? 'text-[15px] leading-5' : 'text-base leading-snug'} font-bold line-clamp-2`} style={{ color: C.text }}>{item.title}</h3>
           {item.byline && (
             <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: C.faint, fontFamily: bodyFont }}>
               {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
@@ -246,13 +265,53 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
         </div>
 
         {desc && (
-          <p className="text-[14px] leading-relaxed line-clamp-2" style={{ color: C.muted, fontFamily: bodyFont }}>
+          <p className={`${compact ? 'text-[13px] leading-5' : 'text-[14px] leading-relaxed'} line-clamp-2`} style={{ color: C.muted, fontFamily: bodyFont }}>
             {desc}
           </p>
         )}
 
+        {compact ? (
+          <>
+            {/* Every tag, plain, as on the card. */}
+            {item.topics?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {item.topics.map(topic => (
+                  <span key={topic} className="inline-flex items-center h-[22px] px-2 rounded-md text-[12px] font-medium" style={{ background: C.pill, color: C.muted }}>{topic}</span>
+                ))}
+              </div>
+            ) : null}
+            {/* The level with the card's bars on the left, the tool on the right, as on the card. */}
+            {(item.level || item.tools?.length) ? (
+              <div className="flex items-center justify-between gap-2">
+                {item.level ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: C.muted }}>
+                    <LevelBars level={item.level} color={C.text} track={C.cardBorder === 'transparent' ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
+                    {item.level}
+                  </span>
+                ) : <span />}
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {item.tools?.map(tool => (
+                    <span key={tool} className="inline-flex items-center gap-1.5 h-[22px] px-2 rounded-md text-[12px] font-semibold" style={{ color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                      {toolIcon(tool) && <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" />}
+                      {tool}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ) : null}
+            {/* Experiences and certifications keep their other facts. */}
+            {Boolean(item.duration || item.examMinutes || item.passmark) && (
+              <div className="flex flex-wrap gap-2">
+                {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
+                {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
+                {item.passmark && <PreviewFact C={C} icon={<Target className="h-3.5 w-3.5" />}>Pass mark {item.passmark}%</PreviewFact>}
+              </div>
+            )}
+          </>
+        ) : null}
+
         {/* Boolean, not the bare chain: with empty lists it ends on a length of 0, which React prints. */}
-        {Boolean(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
+        {!compact && Boolean(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
           <div className="flex flex-wrap gap-2">
             {/* Tags (topics) first, then the level, then the rest. */}
             {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}
@@ -284,7 +343,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
 
         {viewOnly && !item.locked ? (
           <a href={href}
-            className="flex w-full items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-opacity hover:opacity-90"
+            className={`flex w-full items-center justify-center gap-2 font-bold rounded-xl transition-opacity hover:opacity-90 ${compact ? 'text-[13px] py-2.5' : 'text-sm py-3'}`}
             style={{ background: C.cta, color: C.ctaText, textDecoration: 'none' }}>
             <ArrowRight className="w-3.5 h-3.5" />
             View details
@@ -293,7 +352,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
           <button
             type="button"
             onClick={() => onOpen(item)}
-            className="flex w-full items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-opacity hover:opacity-90"
+            className={`flex w-full items-center justify-center gap-2 font-bold rounded-xl transition-opacity hover:opacity-90 ${compact ? 'text-[13px] py-2.5' : 'text-sm py-3'}`}
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -311,7 +370,7 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
               {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
             </>
           );
-          const cta = 'flex w-full items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-opacity hover:opacity-90';
+          const cta = `flex w-full items-center justify-center gap-2 font-bold rounded-xl transition-opacity hover:opacity-90 ${compact ? 'text-[13px] py-2.5' : 'text-sm py-3'}`;
           const ctaStyle = { background: '#00bf63', color: 'white' };
           // A link where one exists, for the same reason the card is one: middle-click, open in a
           // new tab, copy link address, and a screen reader announcing it as a link.

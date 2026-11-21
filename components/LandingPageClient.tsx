@@ -9,7 +9,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
-import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
+import { CataloguePreview, LevelBars, type CatalogueItem } from '@/components/CataloguePreview';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
@@ -464,6 +464,7 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
             href={landingHref(hover.item, user)}
             onOpen={() => { window.location.href = landingHref(hover.item, user); }}
             viewOnly={!user}
+            compact
             font={font}
             C={{ ...(isDark ? DARK_C : LIGHT_C), cta: buttonColor }}
           />
@@ -474,9 +475,6 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   );
   return { openHover, scheduleClose, portal };
 }
-
-/** How many of a level's three bars are filled. */
-const LEVEL_BARS: Record<string, number> = { Beginner: 1, Intermediate: 2, Advanced: 3 };
 
 /** The course card's small grey labels (tags and the "+N" after them). */
 function TagChip({ children, isDark }: { children: React.ReactNode; isDark?: boolean }) {
@@ -542,11 +540,11 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
   // right. A course's tool is its category, shown when the tool icon list has a logo for it.
   const tags = framed ? item.tags ?? [] : [];
   const toolLogo = framed && item.category ? toolIcon(item.category) : null;
-  const bars = framed && item.level ? LEVEL_BARS[item.level] ?? 0 : 0;
+  const level = framed ? item.level : undefined;
   return (
     <Link href={landingHref(item, user)}
       className={framed
-        ? 'flex flex-col h-full group cursor-pointer rounded-2xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
+        ? 'flex flex-col h-full group cursor-pointer rounded-xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
         : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
       style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
       <div className={framed
@@ -572,19 +570,15 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
           </div>
         )}
         {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
-        {(tags.length > 0 || bars > 0 || toolLogo) && (
+        {(tags.length > 0 || level || toolLogo) && (
           <div className="mt-auto pt-2.5 flex flex-col gap-2">
             {tags.length > 0 && <FitTags tags={tags} isDark={isDark} />}
-            {(bars > 0 || toolLogo) && (
+            {(level || toolLogo) && (
               <div className="flex items-center justify-between gap-2 min-h-[22px]">
-                {bars > 0 ? (
+                {level ? (
                   <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: muted }}>
-                    <span aria-hidden="true" className="inline-flex items-end gap-[2px] h-[11px]">
-                      {[5, 8, 11].map((h, i) => (
-                        <i key={h} className="block w-[3px] rounded-[1px]" style={{ height: h, background: i < bars ? text : (isDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1') }} />
-                      ))}
-                    </span>
-                    {item.level}
+                    <LevelBars level={level} color={text} track={isDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
+                    {level}
                   </span>
                 ) : <span />}
                 {toolLogo && (
