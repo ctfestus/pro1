@@ -10,6 +10,7 @@ import { ArrowRight, Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { M3, GUTTER, SECTION_Y } from '@/components/landing/type';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 
 export type LandingProduct = {
   id: string;
@@ -18,6 +19,10 @@ export type LandingProduct = {
   coverImage: string | null;
   free: boolean;
   prices: { currency: string; amount: number; original?: number }[];
+  /** Shown as tags on the card, as many as fit. */
+  topics: string[];
+  /** beginner, intermediate or advanced, as stored. */
+  difficulty: string | null;
 };
 
 export function ProductsShowcase({ products, dark, hFont, bFont }: {
@@ -29,8 +34,6 @@ export function ProductsShowcase({ products, dark, hFont, bFont }: {
   if (!products.length) return null;
   const title = dark ? '#ffffff' : '#1C1D1F';
   const muted = dark ? 'rgba(255,255,255,0.6)' : '#6E7383';
-  const card = dark ? 'rgba(255,255,255,0.06)' : '#ffffff';
-  const shadow = dark ? 'none' : '0 1px 2px rgba(15,23,42,0.05), 0 10px 30px -14px rgba(15,23,42,0.16)';
 
   return (
     <section id="section-products" className={SECTION_Y}>
@@ -48,16 +51,20 @@ export function ProductsShowcase({ products, dark, hFont, bFont }: {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {products.slice(0, 4).map(p => (
-            <Link key={p.id} href={`/products/${p.slug}`} className="group rounded-3xl p-3 md:p-4 flex flex-col transition-transform hover:-translate-y-0.5"
-              style={{ background: card, boxShadow: shadow }}>
-              <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ aspectRatio: '3 / 4', background: dark ? 'rgba(255,255,255,0.04)' : '#E8EEF0' }}>
+            // The course card's style: a white card, the cover edge to edge, then title, price, tags and level.
+            <Link key={p.id} href={`/products/${p.slug}`} className={FRAMED_CARD} style={{ background: dark ? '#1E1F26' : '#ffffff' }}>
+              <div className="overflow-hidden flex items-center justify-center" style={{ aspectRatio: '3 / 4', background: dark ? 'rgba(255,255,255,0.04)' : '#E8EEF0' }}>
                 {p.coverImage
                   ? <img src={resolveCoverUrl(p.coverImage)} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                   : <Package className="w-10 h-10" style={{ color: muted }} />}
               </div>
-              <p className="mt-3 line-clamp-2" style={{ ...M3.titleMedium, fontWeight: 600, color: title, fontFamily: hFont }}>{p.title}</p>
-              <div className="mt-auto pt-2 text-sm font-bold" style={{ fontFamily: bFont }}>
-                {p.free ? <span style={{ color: '#16a34a' }}>Free</span> : <PriceTag prices={p.prices} style={{ color: title }} />}
+              <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+                <p className="line-clamp-2 text-[15px] leading-5 min-h-[40px]" style={{ fontWeight: 700, color: title, fontFamily: hFont }}>{p.title}</p>
+                <div className="mt-1 text-sm font-bold" style={{ fontFamily: bFont }}>
+                  {p.free ? <span style={{ color: '#16a34a' }}>Free</span> : <PriceTag prices={p.prices} style={{ color: title }} />}
+                </div>
+                <CardMeta tags={p.topics} level={p.difficulty ? p.difficulty.charAt(0).toUpperCase() + p.difficulty.slice(1) : undefined}
+                  isDark={dark} text={title} muted={muted} />
               </div>
             </Link>
           ))}

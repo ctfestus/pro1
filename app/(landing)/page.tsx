@@ -65,7 +65,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
   ]);
   const navBooks = storeBooks.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));
   // The newest few for the home page's Digital Products section (display fields only).
-  const storeProducts = storeBooks.slice(0, 4).map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage, free: b.free, prices: b.prices }));
+  const storeProducts = storeBooks.slice(0, 4).map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage, free: b.free, prices: b.prices, topics: b.topics, difficulty: b.difficulty }));
 
   return (
     <LandingPageClient
