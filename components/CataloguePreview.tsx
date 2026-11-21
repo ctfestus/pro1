@@ -290,12 +290,10 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
                   </span>
                 ) : <span />}
                 <span className="flex flex-wrap justify-end gap-1.5">
-                  {item.tools?.map(tool => (
-                    <span key={tool} className="inline-flex items-center gap-1.5 h-[22px] px-2 rounded-md text-[12px] font-semibold" style={{ color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
-                      {toolIcon(tool) && <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" />}
-                      {tool}
-                    </span>
-                  ))}
+                  {/* The logo alone, as on the card; the name only when the tool has no logo. */}
+                  {item.tools?.map(tool => toolIcon(tool)
+                    ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
+                    : <span key={tool} className="text-[12px] font-semibold" style={{ color: C.text }}>{tool}</span>)}
                 </span>
               </div>
             ) : null}

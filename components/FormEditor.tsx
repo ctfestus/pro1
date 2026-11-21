@@ -30,6 +30,7 @@ import type {
 import { questionNumbers, itemIssues, courseIssues } from '@/lib/course-validation';
 import { groupOutline, moveModule, moduleIds } from '@/lib/course-outline';
 import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS, COURSE_DIFFICULTIES } from '@/lib/course-schema';
+import { useToolIconMap } from '@/lib/use-tool-icons';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -562,8 +563,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
   const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string; kind: 'Course' | 'Event' }[]>([]);
   const [cohorts, setCohorts]               = useState<{ id: string; name: string }[]>([]);
   const [partners, setPartners]               = useState<{ id: string; name: string; is_active: boolean }[]>([]);
-  // Course tags are typed one at a time.
+  // Course tags are typed one at a time; tools are picked from the tool icon library.
   const [tagDraft, setTagDraft]               = useState('');
+  const toolIconMap = useToolIconMap();
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [courseAvailableToEveryone, setCourseAvailableToEveryone] = useState(false);
 
@@ -643,7 +645,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     setIsLoading(true);
     (async () => {
       if (contentType === 'course') {
-        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags').eq('id', formId).maybeSingle();
+        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
         if (course) {
           setFormConfig({
             isCourse: true,
@@ -671,6 +673,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
             partnerId: course.partner_id ?? null,
             difficulty: course.difficulty ?? null,
             tags: course.tags ?? [],
+            tools: course.tools ?? [],
           });
           setCustomSlug(course.slug || '');
           const loadedCohorts = course.cohort_ids ?? [];
@@ -2394,6 +2397,29 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                     />
                     <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
                       Topics the course covers. The card shows as many as fit; the pop-up shows them all.
+                    </p>
+                  </div>
+
+                  {/* Tools: the software the course uses, picked from the tool icon library so each has
+                      a logo. Separate from Category, which groups courses into the home page's tabs. */}
+                  <div>
+                    <label className={labelCls} style={labelStyle}>Tools</label>
+                    <div className="flex max-w-full flex-wrap gap-2">
+                      {Object.keys(toolIconMap).sort((a, b) => a.localeCompare(b)).map(name => {
+                        const on = (formConfig.tools ?? []).includes(name);
+                        return (
+                          <button key={name} type="button" aria-pressed={on}
+                            onClick={() => updateConfig({ tools: on ? (formConfig.tools ?? []).filter(t => t !== name) : [...(formConfig.tools ?? []), name] })}
+                            className="inline-flex min-h-8 items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition-all"
+                            style={{ background: on ? accentColor : FE.card, color: on ? '#fff' : FE.muted, boxShadow: on ? 'none' : `inset 0 0 0 1px ${FE.divider}` }}>
+                            <img src={toolIconMap[name]} alt="" className="h-4 w-4 object-contain" />
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] mt-2 leading-relaxed" style={{ color: FE.faint }}>
+                      Software the course uses, such as Claude or Excel. Pick as many as apply; their logos show on the course card and pop-up.
                     </p>
                   </div>
 

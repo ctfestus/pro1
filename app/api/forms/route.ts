@@ -182,6 +182,7 @@ export async function POST(req: NextRequest) {
           ai_tutor_enabled: config.enableAiTutor  ?? false,
           difficulty:     config.difficulty      ?? null,
           tags:           config.tags            ?? [],
+          tools:          config.tools           ?? [],
         })
         .select('id, slug, status')
         .single());
@@ -328,6 +329,7 @@ export async function PUT(req: NextRequest) {
       ai_tutor_enabled: config.enableAiTutor  ?? false,
       difficulty:     config.difficulty      ?? null,
       tags:           config.tags            ?? [],
+      tools:          config.tools           ?? [],
     };
   } else if (found.table === 'events') {
     updatePayload = {
