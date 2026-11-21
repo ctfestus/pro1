@@ -373,7 +373,9 @@ export function OverviewSection({ user, name, C, onNavigate }: {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      {/* Side by side only from 1280px: with the menu open, a 1024px screen left In progress too
+          narrow for its cards, so below that Upcoming goes underneath. */}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* In progress: each item its own white card, picture on the left, the most recent first. */}
         <section>
           <div className="flex items-center justify-between gap-4">
