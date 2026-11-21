@@ -582,11 +582,11 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
                 {tools.length > 0 && (
                   <span className="flex flex-shrink-0 items-center gap-1.5">
                     {/* Each tool's logo; a tool the library has no logo for shows its name. */}
+                    {/* The stored logo, no frame; some logos carry the tool's name themselves, so the
+                        width follows the image. */}
                     {tools.map(tool => toolIcon(tool)
-                      ? <span key={tool} title={tool} className="grid place-items-center w-[22px] h-[22px] rounded-md" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>
-                          <img src={toolIcon(tool)!} alt={tool} className="w-3.5 h-3.5 object-contain" />
-                        </span>
-                      : <span key={tool} className="inline-flex items-center h-[22px] px-[7px] rounded-md text-[11px] font-semibold" style={{ color: muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.12)' : '#E8EBEF'}` }}>{tool}</span>)}
+                      ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-5 w-auto max-w-[72px] object-contain" />
+                      : <span key={tool} className="text-[12px] font-semibold" style={{ color: muted }}>{tool}</span>)}
                   </span>
                 )}
               </div>
