@@ -9,11 +9,11 @@ import { useTenant } from '@/components/TenantProvider';
 import { resolveConfig, SITE_DEFAULTS, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
-import { CataloguePreview, LevelBars, type CatalogueItem } from '@/components/CataloguePreview';
+import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
 import { MenuSelect } from '@/components/MenuSelect';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
-import { useToolIcons } from '@/lib/use-tool-icons';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -475,55 +475,6 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   return { openHover, scheduleClose, portal };
 }
 
-/** The course card's small grey labels (tags and the "+N" after them). */
-function TagChip({ children, isDark }: { children: React.ReactNode; isDark?: boolean }) {
-  return (
-    <span className="inline-flex flex-shrink-0 items-center h-[22px] px-2 rounded-md text-[12px] font-medium whitespace-nowrap"
-      style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#F1F3F5', color: isDark ? 'rgba(255,255,255,0.75)' : '#4b5160' }}>
-      {children}
-    </span>
-  );
-}
-
-/**
- * As many tags as fit on one line; when some do not, "+N" counts them. Measured from the card's
- * own width, so a phone shows fewer than a desktop, and measured again when the card resizes.
- */
-function FitTags({ tags, isDark }: { tags: string[]; isDark?: boolean }) {
-  const rowRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(tags.length);
-  useEffect(() => {
-    const row = rowRef.current, measure = measureRef.current;
-    if (!row || !measure) return;
-    const GAP = 6, MORE = 34; // the space between chips, and room for the "+N" chip
-    const fit = () => {
-      const widths = [...measure.children].map(el => (el as HTMLElement).offsetWidth);
-      const span = (n: number) => widths.slice(0, n).reduce((sum, w) => sum + w, 0) + GAP * Math.max(0, n - 1);
-      if (span(widths.length) <= row.clientWidth) { setShown(widths.length); return; }
-      let n = widths.length - 1;
-      while (n > 1 && span(n) + GAP + MORE > row.clientWidth) n--;
-      setShown(n);
-    };
-    // The card resizing changes the room; the hidden row resizing (the web font arriving after the
-    // first measure) changes the tags' own widths. Either one re-fits.
-    const obs = new ResizeObserver(fit);
-    obs.observe(row);
-    obs.observe(measure);
-    return () => obs.disconnect();
-  }, [tags]);
-  return (
-    <div ref={rowRef} className="relative flex gap-1.5 overflow-hidden">
-      {tags.slice(0, shown).map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
-      {shown < tags.length && <TagChip isDark={isDark}>+{tags.length - shown}</TagChip>}
-      {/* Every tag, invisible, so their widths can be read whatever is showing. */}
-      <div ref={measureRef} aria-hidden="true" className="absolute left-0 top-0 invisible flex gap-1.5">
-        {tags.map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
-      </div>
-    </div>
-  );
-}
-
 /**
  * One card: cover, title, partner and level. Framed, it is its own white card with a soft shadow
  * and the cover edge to edge across its top (the courses grid); otherwise the cover and text sit
@@ -534,16 +485,10 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
   const muted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
-  const toolIcon = useToolIcons();
-  // The framed course card's details: tags, then the level on the left and the course's tools on the
-  // right (picked in the course editor; separate from the category, which sets the tab).
-  const tags = framed ? item.tags ?? [] : [];
-  const tools = framed ? item.tools ?? [] : [];
-  const level = framed ? item.level : undefined;
   return (
     <Link href={landingHref(item, user)}
       className={framed
-        ? 'flex flex-col h-full group cursor-pointer rounded-xl overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-1 shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] hover:shadow-[0_2px_4px_rgba(16,24,40,0.06),0_18px_36px_-14px_rgba(16,24,40,0.28)]'
+        ? FRAMED_CARD
         : 'block group cursor-pointer transition-transform duration-300 hover:-translate-y-1'}
       style={framed ? { background: isDark ? '#1E1F26' : '#ffffff' } : undefined}>
       <div className={framed
@@ -570,31 +515,9 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
           </div>
         )}
         {item.difficulty && <p className="mt-1" style={{ ...M3.bodyMedium, color: muted }}>{item.difficulty}</p>}
-        {(tags.length > 0 || level || tools.length > 0) && (
-          <div className="mt-auto pt-2.5 flex flex-col gap-2">
-            {tags.length > 0 && <FitTags tags={tags} isDark={isDark} />}
-            {(level || tools.length > 0) && (
-              <div className="flex items-center justify-between gap-2 min-h-[22px]">
-                {level ? (
-                  <span className="inline-flex items-center gap-1.5 text-[13px] leading-[18px]" style={{ color: muted }}>
-                    <LevelBars level={level} color={text} track={isDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
-                    {level}
-                  </span>
-                ) : <span />}
-                {tools.length > 0 && (
-                  <span className="flex flex-shrink-0 items-center gap-1.5">
-                    {/* Each tool's logo; a tool the library has no logo for shows its name. */}
-                    {/* The stored logo, no frame; some logos carry the tool's name themselves, so the
-                        width follows the image. */}
-                    {tools.map(tool => toolIcon(tool)
-                      ? <img key={tool} src={toolIcon(tool)!} alt={tool} title={tool} className="h-4 w-auto max-w-[60px] object-contain" />
-                      : <span key={tool} className="text-[12px] font-semibold" style={{ color: muted }}>{tool}</span>)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Tags, then the level and the tools (picked in the course editor; separate from the
+            category, which sets the tab). */}
+        {framed && <CardMeta tags={item.tags} level={item.level} tools={item.tools} isDark={isDark} text={text} muted={muted} />}
       </div>
     </Link>
   );

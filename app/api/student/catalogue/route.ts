@@ -89,6 +89,8 @@ type Row = {
   time_limit?: number | null;
   passmark?: number | null;
   topics?: string[] | null;
+  /** A course's tags (migration 246); the card and preview show them as its topics. */
+  tags?: string[] | null;
   skills?: string[] | null;
   authors?: string[] | null;
   // One partner per course; the untyped client infers a to-one join as a list.
@@ -146,7 +148,7 @@ export async function GET(req: NextRequest) {
   try {
     const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
-        .select('id, title, slug, cover_image, description, category, learn_outcomes, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, learn_outcomes, difficulty, tags, tools, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
         .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
@@ -213,6 +215,8 @@ export async function GET(req: NextRequest) {
         bylineLogo: partnerOf(r)?.logo_url ?? null,
         // A path has its own overview fields (pathOverviewFields below).
         ...(type === 'learning_path' ? {} : previewFacts(r)),
+        // A course's tags, every one of them (previewFacts keeps four topics, for books).
+        ...(type === 'course' && cleanList(r.tags).length ? { topics: cleanList(r.tags) } : {}),
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)
