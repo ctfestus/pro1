@@ -2,8 +2,8 @@
 
 /**
  * The hover preview for a catalogue item: an inset cover with its category, title and byline,
- * description, facts (topics, level, duration, exam time, pass mark, tools), what you will learn,
- * and one full-width action. A learning path shows its contents instead.
+ * description, facts (topics, level, duration, exam time, pass mark, tools), what a certification
+ * covers or a book gives, and one full-width action. A learning path shows its contents instead.
  *
  * Explore on the student dashboard and the public landing page both render this one component, so
  * a visitor and a signed-in learner see the same preview.
@@ -300,10 +300,11 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
           </div>
         )}
 
-        {item.outcomes?.length ? (
+        {/* Only a certification and a book list theirs; a course's or experience's outcomes are left out. */}
+        {item.outcomes?.length && (item.type === 'certification' || item.type === 'book') ? (
           <div>
             <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
-              {item.type === 'certification' ? 'What it covers' : item.type === 'book' ? 'What you will get' : 'What you will learn'}
+              {item.type === 'certification' ? 'What it covers' : 'What you will get'}
             </p>
             <ul className="flex flex-col gap-2">
               {item.outcomes.map(outcome => (
