@@ -6,7 +6,7 @@
 // that need a person (wrong amount, double payment, deleted account) are listed above the books, and
 // sales, free claims and downloads come from /api/books/stats (summary cards, and People per product).
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Eye, Megaphone, Package, Pencil, Plus, Trash2, Users, X, XCircle } from 'lucide-react';
@@ -20,7 +20,8 @@ import { ProductAnnounce } from '@/components/dashboard/books/ProductAnnounce';
 import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import { CARD_GRID, ContentCard, Kpis, PageHeader } from '@/components/dashboard/content/kit';
-import { Card, DISPLAY_FONT, btnClass, btnSmClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+import { SidePanel } from '@/components/dashboard/subscriptions/Modal';
+import { Card, btnClass, btnSmClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
 
 type BookListItem = {
   id: string;
@@ -79,25 +80,6 @@ function audienceLabel(b: BookListItem): string {
 const STATUS_CHIPS: [StatusFilter, string][] = [['all', 'All'], ['published', 'Published'], ['draft', 'Draft'], ['archived', 'Archived']];
 
 /** A product's People or Announce, in a panel from the right. */
-function SidePanel({ title, sub, onClose, children, C }: { title: string; sub: string; onClose: () => void; children: ReactNode; C: typeof LIGHT_C }) {
-  return (
-    <div className="fixed inset-0 z-[80] flex justify-end" style={{ background: 'rgba(4,8,20,0.45)' }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-xl h-full overflow-y-auto" style={{ background: C.card }}>
-        <div className="flex items-start gap-3 px-6 py-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[22px] leading-7 font-semibold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h3>
-            <p className="text-sm" style={{ color: C.muted }}>{sub}</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full grid place-items-center flex-shrink-0" style={{ background: C.pill, color: C.muted }}>
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 export function BooksManageSection({ C: theme }: { C: typeof LIGHT_C }) {
   // As on the other admin pages: the dark-mode blue for buttons and selection controls.
   const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);

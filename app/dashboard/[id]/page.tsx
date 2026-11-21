@@ -15,6 +15,7 @@ import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { Bar as SharedBar, Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, type Tone } from '@/components/dashboard/subscriptions/ui';
 import { Kpis } from '@/components/dashboard/content/kit';
 import { MenuSelect } from '@/components/MenuSelect';
+import { SidePanel } from '@/components/dashboard/subscriptions/Modal';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -179,13 +180,12 @@ function ResponsesTab({
       return normalizedKey === 'email' || normalizedKey.includes('email') || label === 'email' || label.includes('email');
     }) || '--';
 
-  const formatFieldLabel = (key: string) =>
-    key
-      .replace(/_/g, ' ')
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .replace(/\b\w/g, char => char.toUpperCase());
+  const formatFieldLabel = (key: string) => {
+    const own = configuredFields.find((f: any) => f?.name === key || f?.id === key)?.label;
+    if (own) return String(own);
+    const words = key.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ').trim().toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  };
 
   if (isCourse) {
     const questions = form.config?.questions || [];
@@ -415,307 +415,137 @@ function ResponsesTab({
     const capacity = Number(form.config?.eventDetails?.capacity) || 0;
     const isPublicEvent = form.public_registration === true;
     const seatsTaken = totalCount + (isPublicEvent ? publicCount : 0);
-    const fillPercent = capacity > 0 ? Math.min(100, Math.round((seatsTaken / capacity) * 100)) : 100;
-    const progressWidth = seatsTaken > 0 ? Math.max(fillPercent, 8) : 0;
-    const participantRows = responses.map((r: any) => ({
-      ...r,
-      participantName: getResponseName(r),
-      participantEmail: getResponseEmail(r),
-      submittedDate: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      submittedDateFull: new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
-    }));
-    const responseEntries = selectedResponse
-      ? Object.entries(selectedResponse.data || {}).filter(([key, value]) => key !== 'email' && value !== null && value !== undefined && value !== '')
-      : [];
     const spotsLeft = capacity > 0 ? Math.max(capacity - seatsTaken, 0) : null;
+    const PC = isDark ? DARK_C : { ...LIGHT_C, cta: DARK_C.cta };
+    const P = palette(PC);
+    const dayMonth = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     const attendedCount = new Set(eventAttendance.map((a: any) => String(a.student_id))).size;
+    const byDate = new Map<string, any[]>();
+    for (const row of eventAttendance) {
+      if (!byDate.has(row.session_date)) byDate.set(row.session_date, []);
+      byDate.get(row.session_date)!.push(row);
+    }
+    const sessionDates = [...byDate.keys()].sort().reverse();
+    const participantRows = responses.map((r: any) => ({ ...r, participantName: getResponseName(r), participantEmail: getResponseEmail(r) }));
+    // A stored date-time answer (such as "Registered at") reads as a date, not as its raw value.
+    const showValue = (value: unknown) => {
+      if (typeof value === 'object') return JSON.stringify(value);
+      const text = String(value);
+      return /^\d{4}-\d{2}-\d{2}T/.test(text) && !Number.isNaN(Date.parse(text))
+        ? new Date(text).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : text;
+    };
 
     return (
-      <>
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className={`text-sm ${textSub}`}>{capacity > 0 ? `${seatsTaken} registered of ${capacity} places` : `${seatsTaken} registered`}</p>
-            <button onClick={onExport} className={`inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-70 ${textPrim}`}
-              style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
-              <Download className="w-3.5 h-3.5" /> Export participants
-            </button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Registered', value: seatsTaken },
-              { label: 'Capacity',   value: capacity > 0 ? capacity : 'No limit' },
-              { label: 'Remaining',  value: spotsLeft !== null ? spotsLeft : '--' },
-              { label: 'Attended',   value: attendedCount },
-            ].map(t => (
-              <div key={t.label} className="rounded-xl p-4" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
-                <p className={`text-xs font-medium ${textMut}`}>{t.label}</p>
-                <p className={`mt-2 text-2xl font-bold tabular-nums ${textPrim}`}>{t.value}</p>
-              </div>
-            ))}
-          </div>
-          {capacity > 0 && (
-            <div className="h-2 overflow-hidden rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ebe7de' }}>
-              <div className="h-full rounded-full" style={{ width: `${progressWidth}%`, background: 'linear-gradient(90deg, #10b981 0%, #34d399 45%, #6ee7b7 100%)' }} />
-            </div>
-          )}
+      <div className="space-y-4">
+        <Kpis C={PC} items={[
+          { label: 'Registered', n: seatsTaken, color: PC.text, sub: capacity > 0 ? `of ${capacity} places` : 'No place limit' },
+          { label: 'Places left', n: spotsLeft ?? 'Open', color: PC.text, sub: capacity > 0 ? `Out of ${capacity}` : 'Anyone can register' },
+          { label: 'Attended', n: attendedCount, color: PC.text, sub: 'Joined at least one session' },
+          { label: 'Sessions', n: sessionDates.length, color: PC.text, sub: sessionDates.length ? `Latest ${dayMonth(`${sessionDates[0]}T12:00:00`)}` : 'None held yet' },
+        ]} />
 
-          <div className={`rounded-[28px] border ${card}`}>
-            <div className={`flex items-center justify-between gap-3 border-b px-6 py-5 ${cardHeader}`}>
-              <div>
-                <h3 className={`text-base font-semibold ${textPrim}`}>{isPublicEvent ? 'Cohort participants' : 'Participants'}</h3>
-                <p className={`mt-1 text-sm ${textMut}`}>{isPublicEvent ? 'Students registered through their cohort.' : 'Who registered and when. Open a row for their full registration.'}</p>
-              </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
-                {totalCount} total
-              </span>
-            </div>
-            <div className={`transition-opacity ${pageLoading ? 'opacity-40' : ''}`}>
-              {participantRows.length > 0 ? (
-                <div className="divide-y divide-black/5 dark:divide-white/5">
-                  {participantRows.map((r: any) => (
-                    <button
-                      key={r.id}
-                      onClick={() => setSelectedResponse(r)}
-                      className={`flex w-full items-center gap-3 px-4 sm:px-6 py-4 text-left transition-colors ${tableRow}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className={`truncate text-sm font-semibold ${textPrim}`}>{r.participantName}</p>
-                        <p className={`mt-0.5 text-xs truncate ${textMut}`}>{r.participantEmail}</p>
-                      </div>
-                      <p className={`text-right text-xs font-medium flex-shrink-0 ${textMut}`}>{r.submittedDate}</p>
-                      <ChevronRight className={`h-4 w-4 flex-shrink-0 ${textMut}`} aria-hidden="true" />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className={`px-6 py-16 text-center ${textMut}`}>No participants yet. Share your event to start collecting registrations.</div>
-              )}
-            </div>
-            <Pagination totalCount={totalCount} page={page} pageLoading={pageLoading} onPageChange={onPageChange} isDark={isDark} />
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <h3 className="text-base font-semibold" style={{ color: PC.text }}>{isPublicEvent ? 'Cohort participants' : 'Participants'}</h3>
+          <button type="button" onClick={onExport} className={btnSmClass} style={btnStyle('sec', PC)}>
+            <Download className="w-3.5 h-3.5" /> Export participants
+          </button>
+        </div>
+        <Card C={PC} className="overflow-hidden">
+          <div className={`transition-opacity ${pageLoading ? 'opacity-40' : ''}`}>
+            {participantRows.length > 0 ? participantRows.map((r: any, i: number) => (
+              <button key={r.id} type="button" onClick={() => setSelectedResponse(r)}
+                className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors" style={i ? { borderTop: `1px solid ${PC.divider}` } : undefined}>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold" style={{ color: PC.text }}>{r.participantName}</span>
+                  <span className="block truncate text-xs" style={{ color: PC.muted }}>{r.participantEmail}</span>
+                </span>
+                <span className="flex-shrink-0 text-xs" style={{ color: PC.muted }}>Registered <b style={{ color: PC.text }}>{dayMonth(r.created_at)}</b></span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: PC.muted }} aria-hidden="true" />
+              </button>
+            )) : (
+              <p className="px-5 py-12 text-center text-sm" style={{ color: PC.muted }}>No participants yet. Share your event to start collecting registrations.</p>
+            )}
           </div>
+          <Pagination totalCount={totalCount} page={page} pageLoading={pageLoading} onPageChange={onPageChange} isDark={isDark} />
+        </Card>
 
-          {isPublicEvent && (
-            <PublicRegistrationsCard eventId={form.id} slug={form.slug} title={form.title ?? form.config?.title ?? ''} isDark={isDark} onCount={setPublicCount} />
-          )}
+        {isPublicEvent && (
+          <PublicRegistrationsCard eventId={form.id} slug={form.slug} title={form.title ?? form.config?.title ?? ''} isDark={isDark} onCount={setPublicCount} />
+        )}
 
-          {/* Session Attendance */}
-          {(() => {
-            const byDate = new Map<string, any[]>();
-            for (const row of eventAttendance) {
-              if (!byDate.has(row.session_date)) byDate.set(row.session_date, []);
-              byDate.get(row.session_date)!.push(row);
-            }
-            const sessionDates = [...byDate.keys()].sort().reverse();
+        <div className="flex flex-wrap items-baseline justify-between gap-3 pt-2">
+          <h3 className="text-base font-semibold" style={{ color: PC.text }}>Session attendance</h3>
+          <span className="text-xs" style={{ color: PC.muted }}>Recorded when someone clicks Join</span>
+        </div>
+        <Card C={PC} className="overflow-hidden">
+          {sessionDates.length === 0 ? (
+            <p className="px-5 py-12 text-center text-sm" style={{ color: PC.muted }}>No attendance recorded yet. People are counted when they click Join.</p>
+          ) : sessionDates.map((date, i) => {
+            const attendees = byDate.get(date) ?? [];
+            const pct = totalCount > 0 ? Math.round((attendees.length / totalCount) * 100) : 0;
+            const isOpen = expandedSession === date;
             return (
-              <div className={`rounded-[28px] border ${card}`}>
-                <div className={`flex items-center justify-between gap-3 border-b px-6 py-5 ${cardHeader}`}>
-                  <div>
-                    <h3 className={`text-base font-semibold ${textPrim}`}>Session attendance</h3>
-                    <p className={`mt-1 text-sm ${textMut}`}>Recorded each time a student clicks the Join button.</p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
-                    {sessionDates.length} {sessionDates.length === 1 ? 'session' : 'sessions'}
+              <div key={date} style={i ? { borderTop: `1px solid ${PC.divider}` } : undefined}>
+                <button type="button" onClick={() => setExpandedSession(isOpen ? null : date)} aria-expanded={isOpen}
+                  className="flex w-full items-center gap-3 px-5 py-3 text-left">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold" style={{ color: PC.text }}>
+                      {(() => { const d = new Date(`${date}T12:00:00`); return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`; })()}
+                    </span>
+                    <span className="block text-xs" style={{ color: PC.muted }}>{attendees.length} of {totalCount} registered joined</span>
                   </span>
-                </div>
-                {sessionDates.length === 0 ? (
-                  <div className={`px-6 py-16 text-center text-sm ${textMut}`}>
-                    No attendance recorded yet. Students are tracked automatically when they click Join.
-                  </div>
-                ) : (
-                  <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                    {sessionDates.map(date => {
-                      const attendees = byDate.get(date) ?? [];
-                      const attended = attendees.length;
-                      const pct = totalCount > 0 ? Math.round((attended / totalCount) * 100) : 0;
-                      const isOpen = expandedSession === date;
-                      const label = (() => {
-                        const d = new Date(date + 'T12:00:00');
-                        return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-                      })();
-                      return (
-                        <div key={date}>
-                          <button
-                            onClick={() => setExpandedSession(isOpen ? null : date)}
-                            className={`w-full flex items-center justify-between px-6 py-4 text-left transition-colors ${tableRow}`}
-                          >
-                            <div>
-                              <p className={`text-sm font-semibold ${textPrim}`}>{label}</p>
-                              <p className={`mt-0.5 text-xs ${textMut}`}>{attended} of {totalCount} registered students joined</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${pct >= 75 ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700') : (isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-[#f1f2f3] text-[#666]')}`}>
-                                {pct}%
-                              </span>
-                              <ChevronDown className={`w-4 h-4 transition-transform ${textMut} ${isOpen ? 'rotate-180' : ''}`} />
-                            </div>
-                          </button>
-                          {isOpen && (
-                            <div className={`px-6 pb-4 ${isDark ? 'bg-zinc-900/30' : 'bg-[#fafafa]'}`}>
-                              {attendees.length === 0 ? (
-                                <p className={`text-sm py-4 ${textMut}`}>No joins recorded for this session.</p>
-                              ) : (
-                                <div className="divide-y" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
-                                  {attendees.map((a: any) => (
-                                    <div key={a.student_id} className="flex items-center justify-between py-3">
-                                      <div>
-                                        <p className={`text-sm font-medium ${textPrim}`}>{(a.student as any)?.full_name || 'Unknown'}</p>
-                                        <p className={`text-xs ${textMut}`}>{(a.student as any)?.email || ''}</p>
-                                      </div>
-                                      <span className={`text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                                        Joined {new Date(a.joined_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <span className="hidden sm:block w-[120px] flex-shrink-0"><SharedBar parts={[{ pct, color: P.good }]} C={PC} /></span>
+                  <span className="w-11 flex-shrink-0 text-right text-xs font-semibold tabular-nums" style={{ color: PC.text }}>{pct}%</span>
+                  <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} style={{ color: PC.muted }} />
+                </button>
+                {isOpen && (
+                  <div className="px-5 pb-2" style={{ background: PC.page }}>
+                    {attendees.length === 0 ? (
+                      <p className="py-4 text-sm" style={{ color: PC.muted }}>No joins recorded for this session.</p>
+                    ) : attendees.map((a: any, j: number) => (
+                      <div key={a.student_id} className="flex items-center gap-3 py-2.5" style={j ? { borderTop: `1px solid ${PC.divider}` } : undefined}>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold" style={{ color: PC.text }}>{a.student?.full_name || 'Unknown'}</span>
+                          <span className="block truncate text-xs" style={{ color: PC.muted }}>{a.student?.email || ''}</span>
+                        </span>
+                        <span className="flex-shrink-0 text-xs" style={{ color: PC.muted }}>
+                          Joined <b style={{ color: PC.text }}>{new Date(a.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</b>
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             );
-          })()}
-        </div>
+          })}
+        </Card>
 
-        <AnimatePresence>
-          {selectedResponse && (() => {
-            const pName = getResponseName(selectedResponse);
-            const pEmail = getResponseEmail(selectedResponse);
-            const initials = (() => {
-              const parts = pName.trim().split(/\s+/).filter(Boolean);
-              if (parts.length === 0) return '?';
-              if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-              return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-            })();
-            const AVATAR_GRADIENTS = [
-              'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              'linear-gradient(135deg,#ec4899,#f43f5e)',
-              'linear-gradient(135deg,#f59e0b,#ef4444)',
-              'linear-gradient(135deg,#10b981,#059669)',
-              'linear-gradient(135deg,#3b82f6,#6366f1)',
-              'linear-gradient(135deg,#14b8a6,#3b82f6)',
-              'linear-gradient(135deg,#f97316,#f59e0b)',
-              'linear-gradient(135deg,#8b5cf6,#ec4899)',
-            ];
-            const avatarGradient = AVATAR_GRADIENTS[(pName.charCodeAt(0) || 0) % AVATAR_GRADIENTS.length];
-            return (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center sm:p-4"
-              >
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setSelectedResponse(null)} />
-                <motion.div
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 30 }}
-                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                  className="relative z-[91] w-full max-w-md overflow-hidden rounded-t-[32px] sm:rounded-[28px] shadow-2xl"
-                  style={{ background: isDark ? '#111113' : '#ffffff' }}
-                >
-                  {/* Header */}
-                  <div
-                    className="relative overflow-hidden px-6 pt-6 pb-5"
-                    style={{ background: isDark ? 'linear-gradient(160deg,#1c1c1f 0%,#111113 100%)' : 'linear-gradient(160deg,#f5f5f7 0%,#ffffff 100%)' }}
-                  >
-                    {/* Glow blob behind avatar */}
-                    <div
-                      className="pointer-events-none absolute -top-8 -right-8 h-40 w-40 rounded-full opacity-20 blur-3xl"
-                      style={{ background: avatarGradient }}
-                    />
-
-                    {/* Close button */}
-                    <button
-                      onClick={() => setSelectedResponse(null)}
-                      className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-                      style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
-                    >
-                      <X className="h-4 w-4" style={{ color: isDark ? '#a1a1aa' : '#71717a' }} />
-                    </button>
-
-                    {/* Avatar + identity */}
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="relative flex h-11 w-11 flex-shrink-0 items-end justify-center overflow-hidden rounded-full shadow-lg"
-                        style={{ background: avatarGradient }}
-                      >
-                        <img
-                          src={`https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(pName)}&backgroundColor=transparent`}
-                          alt={pName}
-                          className="h-[90%] w-[90%] object-contain object-bottom"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            (e.currentTarget.previousSibling as HTMLElement | null)?.removeAttribute('style');
-                          }}
-                        />
-                        <span
-                          className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white"
-                          style={{ display: 'none' }}
-                        >
-                          {initials}
-                        </span>
-                      </div>
-                      <div className="min-w-0 pr-8">
-                        <h3 className={`truncate text-[22px] font-bold leading-tight ${textPrim}`}>{pName}</h3>
-                        <p className={`mt-0.5 truncate text-sm ${textMut}`}>{pEmail === '--' ? 'No email provided' : pEmail}</p>
-                        <span
-                          className="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-[11px] font-semibold"
-                          style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
-                        >
-                          <CheckCircle2 className="h-3 w-3" /> Registered
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Stat pills */}
-                    <div className="mt-5 grid grid-cols-3 gap-2">
-                      {[
-                        { label: 'Registered', value: selectedResponse.submittedDateFull },
-                        { label: 'Response ID', value: selectedResponse.id.slice(0, 8).toUpperCase() },
-                        { label: 'Fields', value: String(responseEntries.length) },
-                      ].map(({ label, value }) => (
-                        <div
-                          key={label}
-                          className="rounded-2xl px-3 py-3 text-center"
-                          style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-                        >
-                          <p className={`text-[11px] font-semibold uppercase tracking-widest ${textMut}`}>{label}</p>
-                          <p className={`mt-1 text-xs font-bold leading-tight ${textPrim}`}>{value}</p>
-                        </div>
-                      ))}
-                    </div>
+        {selectedResponse && (() => {
+          const entries = Object.entries(selectedResponse.data || {})
+            .filter(([key, value]) => !['email', 'name', 'registered_at'].includes(key) && value !== null && value !== undefined && value !== '');
+          const sid = String(selectedResponse.student?.id ?? '');
+          const joined = sid ? sessionDates.filter(d => (byDate.get(d) ?? []).some((a: any) => String(a.student_id) === sid)).length : 0;
+          const email = getResponseEmail(selectedResponse);
+          return (
+            <SidePanel title={getResponseName(selectedResponse)} sub={email === '--' ? 'No email given' : email} onClose={() => setSelectedResponse(null)} C={PC}>
+              <Pill tone="good" dot C={PC}>Registered</Pill>
+              <div className="mt-3">
+                {[
+                  ['Registered', new Date(selectedResponse.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })],
+                  ...entries.map(([key, value]) => [formatFieldLabel(String(key)), showValue(value)]),
+                  ...(sessionDates.length ? [['Attended', `${joined} of ${sessionDates.length} session${sessionDates.length === 1 ? '' : 's'}`]] : []),
+                ].map(([label, value]) => (
+                  <div key={label} className="py-3" style={{ borderTop: `1px solid ${PC.divider}` }}>
+                    <p className="text-xs" style={{ color: PC.muted }}>{label}</p>
+                    <p className="text-sm font-semibold break-words" style={{ color: PC.text }}>{value}</p>
                   </div>
-
-                  {/* Divider */}
-                  <div style={{ height: 1, background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
-
-                  {/* Fields */}
-                  <div className="max-h-[52vh] overflow-y-auto p-5 space-y-2">
-                    {responseEntries.length > 0 ? responseEntries.map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="rounded-2xl px-4 py-4"
-                        style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}
-                      >
-                        <p className={`text-[11px] font-semibold uppercase tracking-widest ${textMut}`}>{formatFieldLabel(String(key))}</p>
-                        <p className={`mt-2 text-sm font-medium leading-relaxed break-words ${textPrim}`}>
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                        </p>
-                      </div>
-                    )) : (
-                      <p className={`py-6 text-center text-sm ${textMut}`}>No additional fields for this participant.</p>
-                    )}
-                  </div>
-                </motion.div>
-              </motion.div>
-            );
-          })()}
-        </AnimatePresence>
-      </>
+                ))}
+              </div>
+            </SidePanel>
+          );
+        })()}
+      </div>
     );
   }
 
@@ -2035,97 +1865,81 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
     URL.revokeObjectURL(url);
   };
 
+  const PC = isDark ? DARK_C : { ...LIGHT_C, cta: DARK_C.cta };
+  const P = palette(PC);
+  const waiting = attempts.filter(a => !a.review && hasWorkToReview(a)).length;
+  const reviewed = attempts.filter(a => !!a.review).length;
+  const cohortCount = new Set(attempts.map(a => a.cohort_id).filter(Boolean)).size;
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-                    <h2 className={`text-[18px] font-semibold ${textPrim}`}>Learner progress</h2>
-          <p className={`mt-1 text-sm ${textMut}`}>Follow progress and review submitted work.</p>
-        </div>
-        <button onClick={exportCSV}
-          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-opacity hover:opacity-80 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f3f5f4] text-[#44504a]'}`}>
-          Export CSV
+    <div className="space-y-4">
+      <Kpis C={PC} items={[
+        { label: 'Learners', n: attempts.length, color: PC.text, sub: cohortCount ? `In ${cohortCount} cohort${cohortCount === 1 ? '' : 's'}` : 'Assigned or active' },
+        { label: 'Not started', n: notStarted, color: PC.text, sub: 'Not opened yet' },
+        { label: 'In progress', n: inProgress, color: PC.text, sub: needsReview ? `${waiting} waiting for review` : 'Working through it' },
+        { label: 'Completed', n: completed, color: completed ? P.good : PC.text, sub: needsReview ? `${reviewed} reviewed` : 'Finished every task' },
+      ]} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <h3 className="text-base font-semibold" style={{ color: PC.text }}>Learners</h3>
+        <button type="button" onClick={exportCSV} className={btnSmClass} style={btnStyle('sec', PC)}>
+          <Download className="h-3.5 w-3.5" /> Export CSV
         </button>
       </div>
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[
-          { label: 'Learners',    value: attempts.length },
-          { label: 'Not started', value: notStarted },
-          { label: 'In progress', value: inProgress },
-          { label: 'Completed',   value: completed },
-        ].map(s => (
-          <div key={s.label} className="rounded-xl px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
-            <p className={`text-xs font-semibold ${textMut}`}>{s.label}</p>
-            <p className={`text-[24px] font-semibold tabular-nums ${textPrim}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div>
+      <Card C={PC} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className={`border-b ${isDark ? 'border-zinc-800' : 'border-[rgba(15,23,42,0.08)]'}`}>
-              <tr className={`text-xs ${textMut}`}>
-                <th className="px-3 py-2 font-semibold">Learner</th>
-                <th className="px-3 py-2 font-semibold">Status</th>
-                <th className="hidden sm:table-cell px-3 py-2 font-semibold">Tasks</th>
-                {needsReview && <th className="hidden sm:table-cell px-3 py-2 font-semibold">Score</th>}
-                <th className="hidden sm:table-cell px-3 py-2 font-semibold">Last active</th>
-                {needsReview && <th className="px-3 py-2 font-semibold">Review</th>}
+          <table className="w-full min-w-[680px] text-left text-sm">
+            <thead>
+              <tr className="text-xs" style={{ color: PC.faint }}>
+                <th className="px-4 py-3 font-semibold">Learner</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Tasks</th>
+                {needsReview && <th className="px-4 py-3 font-semibold">Score</th>}
+                <th className="px-4 py-3 font-semibold">Last active</th>
+                {needsReview && <th className="px-4 py-3 font-semibold">Review</th>}
               </tr>
             </thead>
-            <tbody className={`divide-y ${divider}`}>
+            <tbody>
               {attempts.map((a, i) => {
                 // Shared rule, so a skipped optional LinkedIn share is not reported as outstanding work.
                 const counts      = veCompletionCounts(modules, a.progress ?? {});
-                const doneReqs    = counts.doneReqs;
                 const pct         = veProgressPct(modules, a.progress ?? {});
                 const isCompleted = !!a.completed_at;
                 const isStarted   = !!a.started_at;
                 return (
-                  <tr key={a.id ?? `unenrolled-${i}`} className={`transition-colors ${tableRow}`}>
-                    <td className="px-3 py-3">
-                      <p className={`font-semibold ${textPrim}`}>{a.student_name || a.student_email || 'Unnamed learner'}</p>
-                      {a.student_name && a.student_email && <p className={`text-xs ${textMut}`}>{a.student_email}</p>}
+                  <tr key={a.id ?? `unenrolled-${i}`} style={{ borderTop: `1px solid ${PC.divider}` }}>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold" style={{ color: PC.text }}>{a.student_name || a.student_email || 'Unnamed learner'}</p>
+                      {a.student_name && a.student_email && <p className="text-xs" style={{ color: PC.muted }}>{a.student_email}</p>}
                     </td>
-                    <td className="px-3 py-3">
-                      {isCompleted
-                        ? <span className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-emerald-300 ring-1 ring-emerald-400/60' : 'bg-white text-emerald-700 ring-1 ring-emerald-500'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
-                        : isStarted
-                        ? <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-zinc-300 ring-1 ring-zinc-600' : 'bg-white text-zinc-600 ring-1 ring-zinc-300'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> In progress</span>
-                        : <span className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-0.5 rounded-full ${isDark ? 'text-zinc-400 ring-1 ring-zinc-700' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> Not started</span>}
+                    <td className="px-4 py-3">
+                      {isCompleted ? <Pill tone="good" dot C={PC}>Completed</Pill>
+                        : isStarted ? <Pill tone="warn" dot C={PC}>In progress</Pill>
+                        : <Pill tone="mute" C={PC}>Not started</Pill>}
                     </td>
-                    <td className="hidden sm:table-cell px-3 py-3">
+                    <td className="px-4 py-3">
                       {isStarted ? (
-                        <div className="flex items-center gap-2">
-                          <div className={`h-1.5 w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#00bf63' }} />
-                          </div>
-                          <span className={`whitespace-nowrap text-xs tabular-nums ${textMut}`}>{doneReqs} of {counts.totalReqs}</span>
+                        <div className="w-36">
+                          <p className="mb-1.5 text-xs" style={{ color: PC.text }}>{counts.doneReqs} of {counts.totalReqs} done</p>
+                          <SharedBar parts={[{ pct, color: P.good }]} C={PC} />
                         </div>
-                      ) : (
-                        <span className={`text-xs ${textMut}`}>--</span>
-                      )}
+                      ) : <span className="text-xs" style={{ color: PC.muted }}>--</span>}
                     </td>
                     {needsReview && (
-                      <td className={`hidden sm:table-cell px-3 py-3 ${textMut}`}>
-                        {a.review?.score !== undefined ? <span className="font-bold" style={{ color: '#00873f' }}>{a.review.score}</span> : '-'}
+                      <td className="px-4 py-3 text-sm font-semibold" style={{ color: a.review?.score !== undefined ? PC.text : PC.muted }}>
+                        {a.review?.score !== undefined ? `${a.review.score}%` : '--'}
                       </td>
                     )}
-                    <td className={`hidden sm:table-cell px-3 py-3 text-sm ${textMut}`}>
-                      {a.updated_at ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+                    <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: PC.muted }}>
+                      {a.updated_at ? new Date(a.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '--'}
                     </td>
                     {needsReview && (
-                      <td className="px-3 py-3">
+                      <td className="px-4 py-3">
                         {hasWorkToReview(a) ? (
-                          <button onClick={() => openReview(a)}
-                            className={`text-sm font-bold transition-opacity hover:opacity-70 ${isDark ? 'text-emerald-300' : 'text-[#00873f]'}`}>
+                          <button type="button" onClick={() => openReview(a)} className={btnSmClass} style={btnStyle('sec', PC)}>
                             {a.review ? 'Edit review' : 'Review'}
                           </button>
                         ) : (
-                          <span className={`text-sm ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
+                          <span className="text-xs" style={{ color: PC.muted }}>{isStarted ? 'Nothing to review yet' : '--'}</span>
                         )}
                       </td>
                     )}
@@ -2133,12 +1947,12 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                 );
               })}
               {attempts.length === 0 && (
-                <tr><td colSpan={needsReview ? 6 : 4} className={`px-6 py-12 text-center ${textMut}`}>No assigned students or learner activity yet.</td></tr>
+                <tr><td colSpan={needsReview ? 6 : 4} className="px-6 py-12 text-center text-sm" style={{ color: PC.muted }}>No assigned students or learner activity yet.</td></tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* Review modal */}
       {reviewing && (() => {
@@ -2682,8 +2496,8 @@ export default function FormDetailPage() {
                         publishFooter: <DuplicateRow kind={type} onClone={handleClone} />,
                       } : {})} />
                   ) : (
-                    <div className={(shownTab === 'responses' && type === 'course') || shownTab === 'leaderboard' ? 'mt-4 w-full' : 'mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full'}
-                      style={(shownTab === 'responses' && type === 'course') || shownTab === 'leaderboard' ? undefined : { background: isLight ? '#ffffff' : '#1E1F26' }}>
+                    <div className={(shownTab === 'responses' && type !== 'form') || shownTab === 'leaderboard' ? 'mt-4 w-full' : 'mt-4 rounded-2xl px-4 sm:px-6 py-6 sm:py-8 w-full'}
+                      style={(shownTab === 'responses' && type !== 'form') || shownTab === 'leaderboard' ? undefined : { background: isLight ? '#ffffff' : '#1E1F26' }}>
                       {shownTab === 'responses' && type !== 'virtual_experience' && (
                         <ResponsesTab
                           form={form}
