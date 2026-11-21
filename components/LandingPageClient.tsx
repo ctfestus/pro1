@@ -297,12 +297,12 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                     </motion.span>
                   )}
                   <motion.h3 variants={bannerItem} className="font-bold leading-tight mb-2"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(17px,4.6vw,22px)' : 'clamp(20px,2vw,30px)', maxWidth: isSide ? 'none' : 380 }}>
+                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.025em', fontSize: isMobile ? 'clamp(18px,5vw,24px)' : 'clamp(22px,2.2vw,34px)', maxWidth: isSide ? 'none' : 380 }}>
                     {ad.title}
                   </motion.h3>
                   {!isMobile && (
                     <motion.p variants={bannerItem} className="leading-relaxed"
-                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 14, maxWidth: isSide ? 'none' : 380 }}>
+                      style={{ color: 'rgba(255,255,255,0.80)', fontFamily: bFont ?? hFont, fontSize: 15, maxWidth: isSide ? 'none' : 380 }}>
                       {ad.description}
                     </motion.p>
                   )}
@@ -311,7 +311,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
                   <motion.div variants={bannerItem} className="mt-4">
                     <Link href={ad.ctaUrl || '/auth'}
                       className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
-                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: 13, padding: isMobile ? '9px 16px' : '10px 20px' }}>
+                      style={{ background: 'white', color: baseColor, fontFamily: hFont, fontSize: isMobile ? 13 : 14, padding: isMobile ? '10px 18px' : '12px 24px' }}>
                       {ad.ctaText}
                       <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                     </Link>
