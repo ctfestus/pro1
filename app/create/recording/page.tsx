@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
-import { ArrowLeft, Plus, Loader2, Save, X, Upload, Check, ChevronDown, Images, Paperclip, Trash2, Video } from 'lucide-react';
-import Link from 'next/link';
+import type { ThemeColors } from '@/lib/theme';
+import { ArrowLeft, ArrowRight, Plus, Loader2, X, Check, Paperclip, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { sanitizeRichText } from '@/lib/sanitize';
-import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/uploadToCloudinary';
-import { ImageLibrary } from '@/components/ImageLibrary';
+import { deleteFromCloudinary } from '@/lib/uploadToCloudinary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
 import { formatAttachmentSize } from '@/lib/lesson-attachment';
+import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { CoverField, EditorHeader, FIELD, Hint, Label, Sect, TickList, inputStyle, useEditorC } from '@/components/create/EditorKit';
 import {
   isUploadedAttachmentUrl, normalizeRecordingAttachments, recordingAttachmentBadge,
   type RecordingAttachment,
@@ -29,20 +29,8 @@ interface Entry {
   attachments: RecordingAttachment[];
 }
 
-function inp(C: typeof LIGHT_C) {
-  return {
-    width: '100%', padding: '10px 14px', borderRadius: 10,
-    border: `1px solid ${C.cardBorder}`, background: C.input,
-    color: C.text, fontSize: 14, outline: 'none', boxSizing: 'border-box',
-  } as React.CSSProperties;
-}
-function lbl(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
-}
-
 export default function CreateRecordingPage() {
-  const C = useC();
-  const isDark = C === DARK_C;
+  const C = useEditorC();
   const router = useRouter();
 
   const [editId, setEditId]   = useState<string | null>(null);
@@ -53,18 +41,23 @@ export default function CreateRecordingPage() {
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
   const [coverImage, setCoverImage]         = useState('');
-  const [showCoverLibrary, setShowCoverLibrary] = useState(false);
   const [originalCoverImage, setOriginalCoverImage] = useState('');
-  const [coverUploading, setCoverUploading] = useState(false);
-  const coverRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus]             = useState<'draft' | 'published'>('draft');
+  // The status as last saved, for the header pill; each save button sets the status it saves.
+  const [savedStatus, setSavedStatus]   = useState<'draft' | 'published'>('draft');
+  const [tab, setTab]                   = useState<'details' | 'sessions'>('details');
   const [cohorts, setCohorts]           = useState<{ id: string; name: string }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [entries, setEntries]           = useState<Entry[]>([]);
-  // Sessions start collapsed so a long programme stays scannable; a session the author
-  // just added opens on its own, since the next thing they do is type into it.
-  const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(new Set());
+  // One session is open beside the list. A session the author just added opens with the cursor
+  // in Topic, since the next thing they do is type into it.
+  const [selectedId, setSelectedId]     = useState<string | null>(null);
+  const [justAddedId, setJustAddedId]   = useState<string | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [originalWeeks, setOriginalWeeks] = useState<Set<number>>(new Set());
+
+  // Sessions in the order they show and save: by week, then as added.
+  const weeks = [...new Set(entries.map(e => e.week))].sort((a, b) => a - b);
+  const ordered = weeks.flatMap(w => entries.filter(e => e.week === w));
 
   const toggleCohort = (id: string) =>
     setSelectedCohortIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -97,7 +90,7 @@ export default function CreateRecordingPage() {
           setDescription(rec.description ?? '');
           setCoverImage(rec.cover_image ?? '');
           setOriginalCoverImage(rec.cover_image ?? '');
-          setStatus(rec.status ?? 'draft');
+          setSavedStatus(rec.status ?? 'draft');
           if (rec.cohort_ids?.length) setSelectedCohortIds(rec.cohort_ids);
         }
         if (entriesData) {
@@ -107,29 +100,35 @@ export default function CreateRecordingPage() {
             attachments: normalizeRecordingAttachments(e.attachments),
           })));
           setOriginalWeeks(new Set(entriesData.map((e: any) => e.week)));
+          setSelectedId(entriesData[0]?.id ?? null);
         }
       }
     };
     init();
   }, [router]);
 
+  // With no week given the session joins the last week; Add week passes the next one.
   function addEntry(week?: number) {
-    const maxWeek = entries.length ? Math.max(...entries.map(e => e.week)) : 0;
+    const maxWeek = entries.length ? Math.max(...entries.map(e => e.week)) : 1;
     const id = crypto.randomUUID();
     setEntries(prev => [...prev, {
-      id, week: week ?? maxWeek + 1, topic: '', url: '',
+      id, week: week ?? maxWeek, topic: '', url: '',
       description: '', attachments: [],
     }]);
-    setOpenSessionIds(prev => new Set(prev).add(id));
+    openSession(id);
+    setJustAddedId(id);
   }
-  function toggleSession(id: string) {
-    setOpenSessionIds(prev => {
-      const next = new Set(prev);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
+  function openSession(id: string) {
+    setSelectedId(id);
+    // On a phone the open session sits below the list, so bring it into view.
+    if (window.innerWidth < 1024) requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
-  function removeEntry(id: string) { setEntries(prev => prev.filter(e => e.id !== id)); }
+  function removeEntry(id: string) {
+    const i = ordered.findIndex(e => e.id === id);
+    const next = ordered[i + 1] ?? ordered[i - 1];
+    setEntries(prev => prev.filter(e => e.id !== id));
+    setSelectedId(next ? next.id : null);
+  }
   function updateEntry<K extends keyof Entry>(id: string, field: K, value: Entry[K]) {
     setEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
   }
@@ -146,12 +145,13 @@ export default function CreateRecordingPage() {
       : e));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function save(status: 'draft' | 'published') {
     setError('');
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) { setError('Title is required.'); return; }
-    if (entries.some(e => !e.topic.trim() || !e.url.trim())) {
+    if (!trimmedTitle) { setTab('details'); setError('Title is required.'); return; }
+    const unfinished = ordered.find(e => !e.topic.trim() || !e.url.trim());
+    if (unfinished) {
+      setTab('sessions'); setSelectedId(unfinished.id);
       setError('Each session must have a topic and a video link.'); return;
     }
 
@@ -190,7 +190,7 @@ export default function CreateRecordingPage() {
       }
 
       if (entries.length) {
-        const rows = entries.map((en, idx) => ({
+        const rows = ordered.map((en, idx) => ({
           recording_id: recId,
           week: en.week,
           topic: en.topic.trim(),
@@ -227,338 +227,243 @@ export default function CreateRecordingPage() {
     }
   }
 
-  // Group entries by week for display
-  const weeks = [...new Set(entries.map(e => e.week))].sort((a, b) => a - b);
+  const P = palette(C);
+  const field = inputStyle(C);
+  const selectedIndex = ordered.findIndex(e => e.id === selectedId);
+  const selected = selectedIndex >= 0 ? ordered[selectedIndex] : null;
 
   return (
-    <div style={{ minHeight: '100vh', background: C.page }}>
-      {/* Nav */}
-      <nav style={{ background: C.nav, borderBottom: `1px solid ${C.navBorder}`, position: 'sticky', top: 0, zIndex: 40 }}>
-        <div style={{ maxWidth: 880, margin: '0 auto', padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/dashboard?section=recordings" style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.muted, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>
-            <ArrowLeft size={16}/> Dashboard
-          </Link>
-          <span style={{ color: C.faint, fontSize: 14 }}>/</span>
-          <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{editId ? 'Edit Recording' : 'New Recording'}</span>
-        </div>
-      </nav>
+    <div className="min-h-screen pb-12" style={{ background: C.page, color: C.text }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+        <EditorHeader C={C} back="All recordings" onBack={() => router.push('/dashboard?section=recordings')}
+          title={title.trim() || (editId ? 'Edit recording' : 'New recording')}
+          pill={savedStatus === 'published' ? <Pill tone="good" dot C={C}>Published</Pill> : <Pill tone="warn" C={C}>Draft</Pill>}
+          error={error} onDismissError={() => setError('')}
+          actions={<>
+            <button type="button" onClick={() => save('draft')} disabled={saving} className={btnClass} style={btnStyle('sec', C)}>
+              <Check className="w-4 h-4" /> Save draft
+            </button>
+            <button type="button" onClick={() => save('published')} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />} {savedStatus === 'published' ? 'Publish changes' : 'Publish'}
+            </button>
+          </>}>
+          <div role="tablist" aria-label="Recording steps" className="inline-flex max-w-full gap-1 p-1 mt-5 rounded-[14px] overflow-x-auto" style={{ background: C.card }}>
+            {([['details', 'Details'], ['sessions', 'Sessions']] as const).map(([id, label]) => {
+              const active = tab === id;
+              return (
+                <button key={id} type="button" role="tab" aria-selected={active} onClick={() => setTab(id)}
+                  className="h-9 px-3 sm:px-4 rounded-[10px] text-[13px] font-semibold whitespace-nowrap"
+                  style={active ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
+                  {label}{id === 'sessions' && <span className="ml-1 text-xs" style={{ opacity: 0.7 }}>{entries.length}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </EditorHeader>
 
-      <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 16px 80px' }}>
-        <form onSubmit={handleSubmit}>
-
-          {/* -- One wide card, sections separated by hairlines --- */}
-          <div style={{ background: C.card, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, borderRadius: 18, overflow: 'hidden', marginBottom: 16 }}>
-
-            {/* Section: Recording Details */}
-            <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Recording Details</h2>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl(C)}>Course / Programme Title *</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Microsoft Excel Masterclass"
-                  style={inp(C)} required/>
+        {tab === 'details' && (
+          <Card C={C} className="mt-4">
+            <Sect C={C} title="About the recording" first>
+              <div>
+                <Label C={C}>Course or programme title</Label>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="For example Microsoft Excel Masterclass" className={FIELD} style={field} />
               </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl(C)}>Description</label>
-                <RichTextEditor value={description} onChange={setDescription}
-                  placeholder="Brief overview of the programme or course..." enableAiAssist/>
+              <div>
+                <Label C={C}>Description</Label>
+                <RichTextEditor value={description} onChange={setDescription} placeholder="Brief overview of the programme or course" enableAiAssist />
               </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl(C)}>Cover Image</label>
-                <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
-                  const file = e.target.files?.[0]; if (!file) return;
-                  setCoverUploading(true);
-                  try { const url = await uploadToCloudinary(file, 'covers'); setCoverImage(url); }
-                  catch (err: any) { setError(err?.message || 'Image upload failed.'); }
-                  finally { setCoverUploading(false); e.target.value = ''; }
-                }}/>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)}
-                    placeholder="https://example.com/image.jpg" style={{ ...inp(C), flex: 1 }}/>
-                  <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10,
-                      border: 'none', background: C.pill, color: C.muted,
-                      fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <Upload size={14}/>{coverUploading ? 'Uploading...' : 'Upload'}
-                  </button>
-                  <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
-                    style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
-                    <Images style={{ width: 14, height: 14 }}/>
-                  </button>
-                </div>
-                {coverImage.trim() && (
-                  <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.cardBorder}`, position: 'relative' }}>
-                    <img src={coverImage.trim()} alt="Cover" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                      onError={e => ((e.target as HTMLImageElement).style.display = 'none')}/>
-                    <button type="button" onClick={() => setCoverImage('')}
-                      style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none',
-                        borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                      <X size={14} color="white"/>
-                    </button>
-                  </div>
-                )}
-                {showCoverLibrary && (
-                  <ImageLibrary
-                    uploadFolder="covers"
-                    initialFolder="covers"
-                    onSelect={url => setCoverImage(url)}
-                    onClose={() => setShowCoverLibrary(false)}
-                  />
-                )}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={lbl(C)}>Status</label>
-                  <select value={status} onChange={e => setStatus(e.target.value as any)}
-                    style={{ ...inp(C), cursor: 'pointer' }}>
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ height: 1, background: C.divider }} />
-
-            {/* Section: Cohorts */}
-            <div style={{ padding: '26px 30px' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 4 }}>Assign to Cohorts</h2>
-              <p style={{ fontSize: 14, color: C.faint, marginBottom: 16 }}>Only students in selected cohorts will see these recordings.</p>
+            </Sect>
+            <Sect C={C} title="Cover">
+              <CoverField C={C} value={coverImage} onChange={setCoverImage} />
+            </Sect>
+            <Sect C={C} title="Cohorts" aside={`${selectedCohortIds.length} selected`}>
+              <p className="text-xs" style={{ color: C.muted }}>Only students in selected cohorts see these recordings.</p>
               {cohorts.length === 0
-                ? <p style={{ fontSize: 14, color: C.faint }}>No cohorts found.</p>
-                : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {cohorts.map(c => {
-                      const sel = selectedCohortIds.includes(c.id);
+                ? <p className="text-sm" style={{ color: C.muted }}>No bootcamp cohorts yet.</p>
+                : <TickList C={C} items={cohorts} selected={selectedCohortIds} onToggle={toggleCohort} />}
+            </Sect>
+          </Card>
+        )}
+
+        {tab === 'sessions' && (
+          <div className="mt-4 grid gap-4 items-start lg:grid-cols-[300px_minmax(0,1fr)]">
+            <Card C={C} className="lg:sticky lg:top-4">
+              <Sect C={C} title="Sessions" aside={`${entries.length} session${entries.length === 1 ? '' : 's'}`} first>
+                {weeks.length === 0 && <p className="text-xs" style={{ color: C.muted }}>No sessions yet. Each session takes a week number, a topic and a video link.</p>}
+                {weeks.map(week => (
+                  <div key={week}>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs font-semibold" style={{ color: C.muted }}>Week {week}</span>
+                      <button type="button" onClick={() => addEntry(week)} aria-label={`Add a session to week ${week}`} title={`Add a session to week ${week}`}
+                        className="w-7 h-7 rounded-lg grid place-items-center hover:opacity-80" style={{ color: C.muted }}>
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {ordered.filter(e => e.week === week).map(entry => {
+                      const on = entry.id === selectedId;
+                      const ready = !!entry.url.trim() && !!entry.topic.trim();
                       return (
-                        <button type="button" key={c.id} onClick={() => toggleCohort(c.id)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '7px 14px', borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                            border: 'none',
-                            background: sel ? C.cta : C.pill,
-                            color: sel ? C.ctaText : C.muted,
-                            transition: 'all 0.15s',
-                          }}>
-                          {sel && <Check size={13}/>}
-                          {c.name}
+                        <button key={entry.id} type="button" onClick={() => openSession(entry.id)} aria-current={on || undefined}
+                          className="w-full flex items-start gap-2.5 p-2.5 rounded-[10px] text-left"
+                          style={on ? { background: C.page, boxShadow: `inset 3px 0 0 ${P.sel}` } : undefined}>
+                          <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: ready ? P.good : P.warn }} />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold truncate" style={{ color: entry.topic.trim() ? C.text : C.muted }}>{entry.topic.trim() || 'Untitled session'}</span>
+                            <span className="block text-xs" style={{ color: C.muted }}>{sessionSummary(entry)}</span>
+                          </span>
                         </button>
                       );
                     })}
                   </div>
-              }
-            </div>
-
-            <div style={{ height: 1, background: C.divider }} />
-
-            {/* Section: Sessions */}
-            <div style={{ padding: '26px 30px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 2 }}>Sessions</h2>
-                  <p style={{ fontSize: 14, color: C.faint }}>Each session takes a week number, a topic and a video link. Add notes and the files students need for that class.</p>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => addEntry()} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5" /> Add session</button>
+                  {entries.length > 0 && (
+                    <button type="button" onClick={() => addEntry(Math.max(...entries.map(e => e.week)) + 1)} className={btnSmClass} style={btnStyle('sec', C)}><Plus className="w-3.5 h-3.5" /> Add week</button>
+                  )}
                 </div>
-                <button type="button" onClick={() => addEntry()}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10,
-                    background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', flexShrink: 0 }}>
-                  <Plus size={14}/> Add Session
-                </button>
-              </div>
+              </Sect>
+            </Card>
 
-              {entries.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '36px 16px', borderRadius: 14, background: C.pill }}>
-                  <Video size={22} style={{ color: C.faint }}/>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginTop: 10 }}>No sessions yet</p>
-                  <p style={{ fontSize: 14, color: C.faint, marginTop: 4 }}>Add your first session to start building this programme.</p>
-                </div>
-              )}
-
-              {weeks.map(week => {
-                const weekEntries = entries.filter(e => e.week === week);
-                return (
-                  <div key={week} style={{ marginBottom: 22 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                        Week {week} <span style={{ color: C.faint, fontWeight: 600 }}>({weekEntries.length})</span>
+            <div ref={editorRef} className="min-w-0 scroll-mt-4">
+              <Card C={C}>
+                {selected ? (
+                  <SessionEditor key={selected.id} entry={selected} C={C} autoFocus={selected.id === justAddedId}
+                    place={`Week ${selected.week}, session ${ordered.filter(e => e.week === selected.week).indexOf(selected) + 1} of ${ordered.filter(e => e.week === selected.week).length}`}
+                    onUpdate={updateEntry} onRemove={removeEntry}
+                    onAddAttachment={addAttachment} onRemoveAttachment={removeAttachment}
+                    footer={
+                      <div className="p-5 flex flex-wrap items-center justify-between gap-2" style={{ borderTop: `1px solid ${C.divider}` }}>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setSelectedId(ordered[selectedIndex - 1].id)} disabled={selectedIndex === 0}
+                            className={btnSmClass} style={btnStyle('sec', C)}><ArrowLeft className="w-3.5 h-3.5" /> Previous</button>
+                          <button type="button" onClick={() => setSelectedId(ordered[selectedIndex + 1].id)} disabled={selectedIndex === ordered.length - 1}
+                            className={btnSmClass} style={btnStyle('sec', C)}>Next <ArrowRight className="w-3.5 h-3.5" /></button>
+                        </div>
+                        <button type="button" onClick={() => addEntry(selected.week)} className={btnClass} style={btnStyle('sec', C)}>
+                          <Plus className="w-4 h-4" /> Add the next session to week {selected.week}
+                        </button>
                       </div>
-                      <button type="button" onClick={() => addEntry(week)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: 'none',
-                          background: C.pill, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                        <Plus size={12}/> Add to week {week}
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {weekEntries.map((entry, idx) => (
-                        <SessionCard key={entry.id} entry={entry} position={idx + 1} C={C}
-                          open={openSessionIds.has(entry.id)} onToggle={() => toggleSession(entry.id)}
-                          onUpdate={updateEntry} onRemove={removeEntry}
-                          onAddAttachment={addAttachment} onRemoveAttachment={removeAttachment}/>
-                      ))}
-                    </div>
+                    } />
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-sm font-semibold" style={{ color: C.text }}>No sessions yet</p>
+                    <p className="text-sm mt-1" style={{ color: C.muted }}>Add your first session to start building this programme.</p>
+                    <button type="button" onClick={() => addEntry()} className={`${btnClass} mt-4`} style={btnStyle('sec', C)}><Plus className="w-4 h-4" /> Add session</button>
                   </div>
-                );
-              })}
+                )}
+              </Card>
             </div>
-
           </div>
-
-          {/* Error */}
-          {error && (
-            <div style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, borderRadius: 12,
-              padding: '12px 16px', marginBottom: 16, color: C.errorText, fontSize: 14 }}>
-              {error}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <Link href="/dashboard?section=recordings"
-              style={{ padding: '11px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
-                background: C.pill, color: C.muted, textDecoration: 'none' }}>
-              Cancel
-            </Link>
-            <button type="submit" disabled={saving}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 24px', borderRadius: 12,
-                fontSize: 14, fontWeight: 700, background: C.cta, color: C.ctaText,
-                border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? <Loader2 size={15} className="animate-spin"/> : <Save size={15}/>}
-              {saving ? 'Saving…' : editId ? 'Save Changes' : 'Create Recording'}
-            </button>
-          </div>
-
-        </form>
+        )}
       </div>
     </div>
   );
 }
 
-// One session row in the editor. Kept in this file because only this editor renders it;
-// it holds the picker's open/closed state so two cards can never share one dialog.
-function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, onAddAttachment, onRemoveAttachment }: {
+// What a list row has to say for itself: whether this session is finished.
+function sessionSummary(entry: Entry) {
+  const url = entry.url.trim();
+  return [
+    url ? (safeEmbedUrl(url) ? 'Plays in app' : 'Opens in a new tab') : 'No video link yet',
+    entry.attachments.length ? `${entry.attachments.length} file${entry.attachments.length !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(', ');
+}
+
+// The open session. Kept in this file because only this editor renders it; it holds the
+// picker's open/closed state so two sessions can never share one dialog.
+function SessionEditor({ entry, place, C, autoFocus, footer, onUpdate, onRemove, onAddAttachment, onRemoveAttachment }: {
   entry: Entry;
-  position: number;
-  C: typeof LIGHT_C;
-  open: boolean;
-  onToggle: () => void;
+  place: string;
+  C: ThemeColors;
+  autoFocus: boolean;
+  footer: React.ReactNode;
   onUpdate: <K extends keyof Entry>(id: string, field: K, value: Entry[K]) => void;
   onRemove: (id: string) => void;
   onAddAttachment: (id: string, attachment: RecordingAttachment) => void;
   onRemoveAttachment: (id: string, attachmentId: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  const P = palette(C);
+  const field = inputStyle(C);
   // Say it while the link is being pasted, not after a student finds out: only some hosts
   // can be framed, and the rest send the student off the platform.
   const playsInApp = !!safeEmbedUrl(entry.url.trim());
-  // What the collapsed row has to say for itself: whether this session is finished.
-  const summary = [
-    entry.url.trim() ? (playsInApp ? 'Plays in app' : 'Opens in a new tab') : 'No video link yet',
-    entry.attachments.length ? `${entry.attachments.length} resource${entry.attachments.length !== 1 ? 's' : ''}` : '',
-  ].filter(Boolean).join(' - ');
 
   return (
-    <div style={{ background: C.pill, borderRadius: 14, padding: open ? '14px 16px' : '4px 6px 4px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 12 : 0 }}>
-        <button type="button" onClick={onToggle} aria-expanded={open}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: '8px 0',
-            background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-          <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
-            transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 14, fontWeight: 700,
-              color: entry.topic.trim() ? C.text : C.faint }} className="truncate">
-              {entry.topic.trim() || `Session ${position}`}
-            </span>
-            {!open && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{summary}</span>}
-          </span>
-        </button>
-        <button type="button" onClick={() => onRemove(entry.id)} aria-label="Remove session"
-          style={{ padding: 6, borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)',
-            color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <Trash2 size={14}/>
-        </button>
-      </div>
-
-      {open && (<>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-        <div style={{ width: 86, flexShrink: 0 }}>
-          <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Week</label>
-          <input type="number" min={1} value={entry.week}
-            onChange={e => onUpdate(entry.id, 'week', parseInt(e.target.value) || 1)}
-            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
-        </div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Topic</label>
-          <input value={entry.topic} onChange={e => onUpdate(entry.id, 'topic', e.target.value)}
-            placeholder="e.g. Introduction to Pivot Tables"
-            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Video link</label>
-        <input value={entry.url} onChange={e => onUpdate(entry.id, 'url', e.target.value)}
-          placeholder="https://youtu.be/..."
-          style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 14 }}/>
-        <p style={{ fontSize: 11, color: playsInApp ? C.green : C.faint, marginTop: 5 }}>
-          {!entry.url.trim()
-            ? 'YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.'
-            : playsInApp
-              ? 'Plays inside the app.'
-              : 'Students will open this one in a new tab. Paste a YouTube, Vimeo, Canva or Bunny link to have it play here.'}
-        </p>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Session notes</label>
-        <RichTextEditor value={entry.description}
-          onChange={html => onUpdate(entry.id, 'description', html)}
-          bgOverride={C.card}
-          placeholder="What this class covered, homework, timestamps..."
-          enableAiAssist/>
-      </div>
-
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-          <label style={{ ...lbl(C), marginBottom: 0, fontSize: 11 }}>Resources</label>
-          <button type="button" onClick={() => setShowPicker(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: 'none',
-              background: C.card, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-            <Paperclip size={12}/> Add file or link
+    <>
+      <Sect C={C} first title={entry.topic.trim() || 'Untitled session'} aside={place}
+        action={
+          <button type="button" onClick={() => onRemove(entry.id)} aria-label="Delete session" title="Delete session"
+            className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: P.badSoft, color: P.bad }}>
+            <Trash2 className="w-4 h-4" />
           </button>
+        }>
+        <div className="flex flex-wrap gap-3">
+          <div className="w-24 flex-shrink-0">
+            <Label C={C}>Week</Label>
+            <input type="number" min={1} value={entry.week}
+              onChange={e => onUpdate(entry.id, 'week', parseInt(e.target.value) || 1)} className={FIELD} style={field} />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <Label C={C}>Topic</Label>
+            <input value={entry.topic} onChange={e => onUpdate(entry.id, 'topic', e.target.value)} autoFocus={autoFocus}
+              placeholder="For example Introduction to Pivot Tables" className={FIELD} style={field} />
+          </div>
         </div>
-        {entry.attachments.length === 0
-          ? <p style={{ fontSize: 12, color: C.faint }}>No resources yet. Upload the workbook or slides, or paste a link.</p>
-          : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {entry.attachments.map(att => {
-                const size = formatAttachmentSize(att.size);
-                return (
-                  <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                    borderRadius: 10, background: C.card }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
-                      background: C.pill, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
-                      {recordingAttachmentBadge(att)}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text }} className="truncate">{att.name}</p>
-                      <p style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>
-                        {att.kind === 'file' ? (size ? `Uploaded file - ${size}` : 'Uploaded file') : 'External link'}
-                      </p>
+
+        <div>
+          <Label C={C}>Video link</Label>
+          <input value={entry.url} onChange={e => onUpdate(entry.id, 'url', e.target.value)} placeholder="https://youtu.be/" className={FIELD} style={field} />
+          <Hint C={C} tone={playsInApp ? P.good : C.muted}>
+            {!entry.url.trim()
+              ? 'YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.'
+              : playsInApp
+                ? 'Plays inside the app.'
+                : 'Students will open this one in a new tab. Paste a YouTube, Vimeo, Canva or Bunny link to have it play here.'}
+          </Hint>
+        </div>
+
+        <div>
+          <Label C={C}>Session notes</Label>
+          <RichTextEditor value={entry.description} onChange={html => onUpdate(entry.id, 'description', html)}
+            placeholder="What this class covered, homework, timestamps" enableAiAssist />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold" style={{ color: C.muted }}>Resources</span>
+            <button type="button" onClick={() => setShowPicker(true)} className={btnSmClass} style={btnStyle('sec', C)}>
+              <Paperclip className="w-3.5 h-3.5" /> Add file or link
+            </button>
+          </div>
+          {entry.attachments.length === 0
+            ? <p className="text-xs" style={{ color: C.muted }}>No resources yet. Upload the workbook or slides, or paste a link.</p>
+            : (
+              <div className="rounded-xl p-2 grid gap-1" style={{ background: C.page }}>
+                {entry.attachments.map(att => {
+                  const size = formatAttachmentSize(att.size);
+                  return (
+                    <div key={att.id} className="flex items-center gap-3 px-2 py-2">
+                      <Pill tone="mute" C={C}>{recordingAttachmentBadge(att)}</Pill>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{att.name}</p>
+                        <p className="text-xs" style={{ color: C.muted }}>
+                          {att.kind === 'file' ? (size ? `Uploaded file, ${size}` : 'Uploaded file') : 'External link'}
+                        </p>
+                      </div>
+                      <button type="button" onClick={() => onRemoveAttachment(entry.id, att.id)} aria-label={`Remove ${att.name}`}
+                        className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ color: C.muted }}>
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button type="button" onClick={() => onRemoveAttachment(entry.id, att.id)} aria-label={`Remove ${att.name}`}
-                      style={{ padding: 6, borderRadius: 8, border: 'none', background: 'transparent',
-                        color: C.faint, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                      <X size={14}/>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-      </div>
+                  );
+                })}
+              </div>
+            )}
+        </div>
+      </Sect>
+      {footer}
 
       {showPicker && (
         <AttachmentPicker
@@ -576,7 +481,6 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
           onClose={() => setShowPicker(false)}
         />
       )}
-      </>)}
-    </div>
+    </>
   );
 }

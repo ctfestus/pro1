@@ -1,13 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
-import { ImageLibrary } from '@/components/ImageLibrary';
-import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
-import { motion } from 'motion/react';
-import { ArrowLeft, Loader2, Save, Upload, X, Images, Plus, Trash2 } from 'lucide-react';
-import Link from 'next/link';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { sanitizePlainText } from '@/lib/sanitize';
 import {
@@ -16,19 +11,9 @@ import {
 } from '@/lib/promotions';
 import { PromoContent } from '@/components/PromoCard';
 import { DateField, DateTimeField } from '@/components/DatePicker';
-
-// --- Design tokens: standard palette from lib/theme.ts ---
-
-function inputStyle(C: typeof LIGHT_C) {
-  return {
-    width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.cardBorder}`,
-    background: C.input, color: C.text, fontSize: 14, outline: 'none',
-    transition: 'border-color 0.15s', boxSizing: 'border-box',
-  } as React.CSSProperties;
-}
-function labelStyle(C: typeof LIGHT_C) {
-  return { display: 'block', fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 } as React.CSSProperties;
-}
+import { MenuSelect } from '@/components/MenuSelect';
+import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { CoverField, EditorHeader, FIELD, Hint, Label, Sect, SwitchRow, TickList, inputStyle, useEditorC } from '@/components/create/EditorKit';
 
 function toDatetimeLocalValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -40,8 +25,7 @@ type AudienceOption = { id: string; name: string; kind: 'bootcamp' | 'plan' };
 const emptyEventItem = (): PromoEventItem => ({ date: '', format: 'virtual', title: '', note: '', url: '' });
 
 export default function CreatePromotionPage() {
-  const C = useC();
-  const isDark = C === DARK_C;
+  const C = useEditorC();
   const router = useRouter();
 
   const [editId, setEditId]         = useState<string | null>(null);
@@ -53,9 +37,6 @@ export default function CreatePromotionPage() {
   const [title, setTitle]           = useState('');
   const [body, setBody]             = useState('');
   const [imageUrl, setImageUrl]     = useState('');
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [uploading, setUploading]   = useState(false);
-  const imageRef = useRef<HTMLInputElement>(null);
   const [ctaLabel, setCtaLabel]     = useState('');
   const [ctaUrl, setCtaUrl]         = useState('');
   const [placements, setPlacements] = useState<PromoPlacement[]>(['landing', 'student', 'course']);
@@ -124,7 +105,6 @@ export default function CreatePromotionPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (uploading) return;
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) { setError(kind === 'events' ? 'Name is required.' : 'Title is required.'); return; }
@@ -183,271 +163,167 @@ export default function CreatePromotionPage() {
     }
   }
 
+  const P = palette(C);
+  const field = inputStyle(C);
+  const onPanel = { ...field, background: C.card };
+
   return (
-    <div style={{ minHeight: '100vh', background: C.page }}>
-      {/* Sticky header */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: C.nav, borderBottom: `1px solid ${C.navBorder}`,
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-      }}>
-        <div style={{ maxWidth: 880, margin: '0 auto', padding: '0 16px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <Link href="/dashboard#promotions" style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.muted, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>
-            <ArrowLeft style={{ width: 16, height: 16 }}/> Back
-          </Link>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{editId ? 'Edit Promotion' : 'New Promotion'}</h1>
-          <motion.button
-            type="submit" form="promotion-form"
-            disabled={loading || uploading}
-            whileTap={{ scale: 0.96 }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 18px', borderRadius: 10, border: 'none', cursor: loading || uploading ? 'not-allowed' : 'pointer',
-              background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 600,
-              opacity: loading || uploading ? 0.7 : 1, transition: 'opacity 0.15s',
-            }}
-          >
-            {loading ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin"/> : <Save style={{ width: 15, height: 15 }}/>}
-            {loading ? 'Saving...' : 'Save'}
-          </motion.button>
-        </div>
-      </header>
+    <div className="min-h-screen pb-12" style={{ background: C.page, color: C.text }}>
+      <form onSubmit={handleSubmit} noValidate className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+        <EditorHeader C={C} back="All promotions" onBack={() => router.push('/dashboard#promotions')}
+          title={title.trim() || (editId ? 'Edit promotion' : 'New promotion')}
+          pill={isActive ? <Pill tone="good" dot C={C}>Live</Pill> : <Pill tone="mute" C={C}>Paused</Pill>}
+          error={error} onDismissError={() => setError('')}
+          actions={
+            <button type="submit" disabled={loading} className={btnClass} style={btnStyle('pri', C)}>
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          } />
 
-      <main style={{ maxWidth: 880, margin: '0 auto', padding: '32px 16px 80px' }}>
-        <form id="promotion-form" onSubmit={handleSubmit} noValidate>
-
-          {error && (
-            <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}`, fontSize: 14 }}>
-              {error}
-            </div>
-          )}
-
-          {/* Preview: drawn by the same component visitors see */}
-          <div style={{ marginBottom: 20 }}>
-            <p style={labelStyle(C)}>Preview</p>
-            <div style={{ maxWidth: 380 }}>
+        <div className="mt-4 grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* Preview: drawn by the same component visitors see. Beside the form on a wide screen,
+              above it on a phone, so it is in view while typing. */}
+          <Card C={C} className="lg:order-2 lg:sticky lg:top-4">
+            <Sect C={C} title="Preview" first>
               <PromoContent C={C} preview promo={{
                 id: 'preview', kind, updated_at: '',
                 title: title.trim() || 'Your promotion title',
                 body: body.trim() || null, image_url: kind === 'standard' ? imageUrl : null,
                 cta_label: ctaLabel, cta_url: ctaUrl, event_items: eventItems,
-              }}/>
-            </div>
-            {kind === 'events' && (upcomingEventItems(eventItems, MAX_EVENT_ITEMS).length === 0 ? (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: C.faint }}>Events appear here once they have a date (today or later) and a title.</p>
-            ) : !eventsPromoCanShow(eventItems, startsAt) && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: C.errorText }}>Every event is before the start date, so visitors would never see this promo.</p>
-            ))}
-          </div>
+              }} />
+              {kind === 'events' && (upcomingEventItems(eventItems, MAX_EVENT_ITEMS).length === 0 ? (
+                <p className="text-xs" style={{ color: C.muted }}>Events appear here once they have a date (today or later) and a title.</p>
+              ) : !eventsPromoCanShow(eventItems, startsAt) && (
+                <p className="text-xs" style={{ color: C.errorText }}>Every event is before the start date, so visitors would never see this promo.</p>
+              ))}
+              <p className="text-xs" style={{ color: C.muted }}>Drawn by the same card visitors see.</p>
+            </Sect>
+          </Card>
 
-          <section style={{ background: C.card, borderRadius: 18, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, boxShadow: C.cardShadow, overflow: 'hidden' }}>
-
-            {/* Section: Content */}
-            <div style={{ padding: '26px 20px' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
-
-              <div style={{ marginBottom: 18 }}>
-                <label style={labelStyle(C)}>Type</label>
-                <div role="radiogroup" aria-label="Promotion type" style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 10, background: C.pill }}>
+          <Card C={C} className="lg:order-1 min-w-0">
+            <Sect C={C} title="Content" first>
+              <div>
+                <Label C={C}>Type</Label>
+                <div role="radiogroup" aria-label="Promotion type" className="inline-flex gap-1 p-1 rounded-xl" style={{ background: C.page }}>
                   {([['standard', 'Standard'], ['events', 'Events']] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={kind === id} onClick={() => setKind(id)}
-                      style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                        background: kind === id ? C.card : 'transparent', color: kind === id ? C.text : C.muted }}>
+                      className="h-[34px] px-4 rounded-[9px] text-[13px] font-semibold"
+                      style={kind === id ? { background: P.sel, color: P.onSel } : { color: C.muted }}>
                       {label}
                     </button>
                   ))}
                 </div>
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>
-                  {kind === 'events'
-                    ? 'One card per event, with its date, for webinars and events.'
-                    : 'An image with a title, a short text, and a button.'}
-                </p>
+                <Hint C={C}>{kind === 'events' ? 'One card per event, with its date, for webinars and events.' : 'An image with a title, a short text, and a button.'}</Hint>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>
-                  {kind === 'events' ? 'Name' : 'Title'} <span style={{ color: C.errorText }}>*</span>
-                  {kind === 'events' && <span style={{ color: C.faint, fontWeight: 400 }}> (only shown in your dashboard list)</span>}
-                </label>
+              <div>
+                <Label C={C}>{kind === 'events' ? 'Name' : 'Title'}</Label>
                 <input type="text" value={title} onChange={e => setTitle(sanitizePlainText(e.target.value))}
-                  placeholder={kind === 'events' ? 'e.g. October webinars' : 'e.g. Power BI bootcamp starts next month'} style={inputStyle(C)} maxLength={80}/>
+                  placeholder={kind === 'events' ? 'For example October webinars' : 'For example Power BI bootcamp starts next month'} className={FIELD} style={field} maxLength={80} />
+                {kind === 'events' && <Hint C={C}>Only shown in your dashboard list.</Hint>}
               </div>
 
               {kind === 'standard' && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle(C)}>Short text <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                  <textarea value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
-                    placeholder="One or two sentences. Long text is cut off after three lines."
-                    style={{ ...inputStyle(C), minHeight: 80, resize: 'vertical', lineHeight: 1.5 }} maxLength={200}/>
-                </div>
-              )}
-
-              {kind === 'standard' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>Image <span style={{ color: C.faint, fontWeight: 400 }}>(optional, square works best)</span></label>
-                <input ref={imageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
-                  const file = e.target.files?.[0]; if (!file) return;
-                  setUploading(true);
-                  try {
-                    setImageUrl(await uploadToCloudinary(file, 'covers'));
-                  } catch (err: any) { setError(err?.message || 'Image upload failed.'); }
-                  finally { setUploading(false); e.target.value = ''; }
-                }}/>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg" style={{ ...inputStyle(C), flex: 1, minWidth: 0 }}/>
-                  <button type="button" onClick={() => imageRef.current?.click()} disabled={uploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <Upload style={{ width: 14, height: 14 }}/>{uploading ? 'Uploading...' : 'Upload'}
-                  </button>
-                  <button type="button" onClick={() => setShowLibrary(true)} title="Select from library"
-                    style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
-                    <Images style={{ width: 14, height: 14 }}/>
-                  </button>
-                  {imageUrl.trim() && (
-                    <button type="button" onClick={() => setImageUrl('')} title="Remove image" aria-label="Remove image"
-                      style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
-                      <X style={{ width: 14, height: 14 }}/>
-                    </button>
-                  )}
-                </div>
-                {showLibrary && (
-                  <ImageLibrary uploadFolder="covers" initialFolder="covers"
-                    onSelect={url => setImageUrl(url)} onClose={() => setShowLibrary(false)}/>
-                )}
-              </div>
+                <>
+                  <div>
+                    <Label C={C}>Short text</Label>
+                    <textarea value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
+                      placeholder="One or two sentences" className={`${FIELD} resize-y`} style={{ ...field, minHeight: 84 }} maxLength={200} />
+                    <Hint C={C}>Optional. Long text is cut off after three lines.</Hint>
+                  </div>
+                  <CoverField C={C} label="Image" value={imageUrl} onChange={setImageUrl} placeholder="Select or upload an image. Square works best." />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label C={C}>Button text</Label>
+                      <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
+                        placeholder="For example Enrol now" className={FIELD} style={field} maxLength={30} />
+                    </div>
+                    <div>
+                      <Label C={C}>Button link</Label>
+                      <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
+                        placeholder="/pricing or https://" className={FIELD} style={field} />
+                    </div>
+                  </div>
+                </>
               )}
 
               {kind === 'events' && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={labelStyle(C)}>Events <span style={{ color: C.errorText }}>*</span> <span style={{ color: C.faint, fontWeight: 400 }}>(up to {MAX_EVENT_ITEMS}; past dates hide on their own)</span></label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <Label C={C}>Events</Label>
+                  <div className="grid gap-2">
                     {eventItems.map((item, i) => (
-                      <div key={i} style={{ padding: 12, borderRadius: 12, background: C.input, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                          <DateField className="flex-[1_1_160px] min-w-0" label={`Event ${i + 1} date`} value={item.date} onChange={date => updateEventItem(i, { date })} C={C}/>
-                          <select value={item.format} onChange={e => updateEventItem(i, { format: e.target.value as PromoEventItem['format'] })}
-                            aria-label={`Event ${i + 1} format`} style={{ ...inputStyle(C), flex: '1 1 110px', minWidth: 0 }}>
-                            {EVENT_FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                          </select>
+                      <div key={i} className="rounded-xl p-3 grid gap-2" style={{ background: C.page }}>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <DateField className="flex-[1_1_160px] min-w-0" label={`Event ${i + 1} date`} value={item.date} onChange={date => updateEventItem(i, { date })} C={{ ...C, input: C.card }} />
+                          <div className="flex-[1_1_130px] min-w-0">
+                            <MenuSelect field label={`Event ${i + 1} format`} value={item.format} C={{ ...C, input: C.card }}
+                              options={EVENT_FORMATS.map(f => ({ value: f.id, label: f.label }))}
+                              onChange={format => updateEventItem(i, { format })} />
+                          </div>
                           <button type="button" onClick={() => setEventItems(prev => prev.length > 1 ? prev.filter((_, j) => j !== i) : [emptyEventItem()])}
                             aria-label={`Remove event ${i + 1}`} title="Remove event"
-                            style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.deleteBg, color: C.deleteText, cursor: 'pointer', flexShrink: 0 }}>
-                            <Trash2 style={{ width: 14, height: 14 }}/>
+                            className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ background: P.badSoft, color: P.bad }}>
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                         <input type="text" value={item.title} onChange={e => updateEventItem(i, { title: sanitizePlainText(e.target.value) })}
-                          placeholder="Event title, e.g. Women in Leadership" style={inputStyle(C)} maxLength={60}/>
+                          placeholder="Event title, for example Women in Leadership" aria-label={`Event ${i + 1} title`} className={FIELD} style={onPanel} maxLength={60} />
                         <input type="text" value={item.note} onChange={e => updateEventItem(i, { note: sanitizePlainText(e.target.value) })}
-                          placeholder="Note, e.g. Register by October 19" style={inputStyle(C)} maxLength={60}/>
+                          placeholder="Note, for example Register by October 19" aria-label={`Event ${i + 1} note`} className={FIELD} style={onPanel} maxLength={60} />
                         <input type="text" value={item.url} onChange={e => updateEventItem(i, { url: e.target.value })}
-                          placeholder="Registration link (optional): /page or https://..." style={inputStyle(C)}/>
+                          placeholder="Registration link (optional): /page or https://" aria-label={`Event ${i + 1} link`} className={FIELD} style={onPanel} />
                       </div>
                     ))}
                   </div>
+                  <Hint C={C}>Up to {MAX_EVENT_ITEMS}. Past dates hide on their own.</Hint>
                   {eventItems.length < MAX_EVENT_ITEMS && (
-                    <button type="button" onClick={() => setEventItems(prev => [...prev, emptyEventItem()])}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.text, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                      <Plus style={{ width: 14, height: 14 }}/> Add event
+                    <button type="button" onClick={() => setEventItems(prev => [...prev, emptyEventItem()])} className={`${btnSmClass} mt-3`} style={btnStyle('sec', C)}>
+                      <Plus className="w-3.5 h-3.5" /> Add event
                     </button>
                   )}
                 </div>
               )}
+            </Sect>
 
-              {kind === 'standard' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                  <div>
-                    <label style={labelStyle(C)}>Button text</label>
-                    <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
-                      placeholder="e.g. Enrol now" style={inputStyle(C)} maxLength={30}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle(C)}>Button link</label>
-                    <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
-                      placeholder="/pricing or https://..." style={inputStyle(C)}/>
-                  </div>
-                </div>
-              )}
-            </div>
+            <Sect C={C} title="Where it shows">
+              <TickList C={C} items={PROMO_PLACEMENTS.map(p => ({ id: p.id, name: p.label, sub: p.hint }))}
+                selected={placements} onToggle={id => togglePlacement(id as PromoPlacement)} />
+            </Sect>
 
-            <div style={{ height: 1, background: C.divider }} />
-
-            {/* Section: Where and when */}
-            <div style={{ padding: '26px 20px' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 16 }}>Where it shows</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
-                {PROMO_PLACEMENTS.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={placements.includes(p.id)} onChange={() => togglePlacement(p.id)}
-                      style={{ width: 16, height: 16, marginTop: 2, accentColor: C.cta, cursor: 'pointer' }}/>
-                    <span>
-                      <span style={{ display: 'block', fontSize: 14, color: C.text, fontWeight: 600 }}>{p.label}</span>
-                      <span style={{ display: 'block', fontSize: 12, color: C.faint }}>{p.hint}</span>
-                    </span>
-                  </label>
-                ))}
+            <Sect C={C} title="When it shows">
+              <SwitchRow C={C} title="Live" sub="Turn off to pause it without deleting." on={isActive} onChange={setIsActive} />
+              <div>
+                <Label C={C}>Show again after closing</Label>
+                <MenuSelect field label="Show again after closing" value={reshowAfterDays === null ? '' : String(reshowAfterDays)} C={C}
+                  options={PROMO_RESHOW_OPTIONS.map(o => ({ value: o.days === null ? '' : String(o.days), label: o.label }))}
+                  onChange={v => setReshowAfterDays(v ? Number(v) : null)} />
+                <Hint C={C}>When someone closes this promo, how long until they see it again. Never means it stays closed for them.</Hint>
               </div>
-
-              {/* Active toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: C.input }}>
-                <button type="button" onClick={() => setIsActive(a => !a)}
-                  style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: isActive ? C.cta : C.faint, position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}
-                  aria-checked={isActive} role="switch" aria-label="Promotion is live">
-                  <span style={{ position: 'absolute', top: 3, left: isActive ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}/>
-                </button>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>Live</p>
-                  <p style={{ margin: 0, fontSize: 12, color: C.faint }}>Turn off to pause it without deleting</p>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={labelStyle(C)}>Show again after closing</label>
-                <select value={reshowAfterDays ?? ''} onChange={e => setReshowAfterDays(e.target.value ? Number(e.target.value) : null)}
-                  style={inputStyle(C)}>
-                  {PROMO_RESHOW_OPTIONS.map(o => <option key={o.label} value={o.days ?? ''}>{o.label}</option>)}
-                </select>
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>When someone closes this promo, how long until they see it again. Never means it stays closed for them.</p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                <div>
-                  <label style={labelStyle(C)}>Starts</label>
-                  <DateTimeField label="Starts" value={startsAt} onChange={setStartsAt} C={C}/>
+                  <Label C={C}>Starts</Label>
+                  <DateTimeField label="Starts" value={startsAt} onChange={setStartsAt} C={C} />
                 </div>
                 <div>
-                  <label style={labelStyle(C)}>Ends <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                  <DateTimeField label="Ends" placeholder="No end" value={endsAt} onChange={setEndsAt} defaultTime="23:59" C={C}/>
+                  <Label C={C}>Ends</Label>
+                  <DateTimeField label="Ends" placeholder="No end" value={endsAt} onChange={setEndsAt} defaultTime="23:59" C={C} />
                 </div>
               </div>
-            </div>
+            </Sect>
 
-            {/* Section: Audience */}
             {audience.length > 0 && (
-              <>
-                <div style={{ height: 1, background: C.divider }} />
-                <div style={{ padding: '26px 20px' }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 6 }}>Who sees it</h2>
-                  <p style={{ margin: '0 0 16px', fontSize: 12, color: C.faint }}>
-                    Leave all unticked to show it to everyone, including visitors who are not signed in. Ticking any limits it to students in those cohorts or plans, and it then never shows to signed-out visitors.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {audience.map(a => (
-                      <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={selectedCohortIds.includes(a.id)} onChange={() => toggleCohort(a.id)}
-                          style={{ width: 16, height: 16, accentColor: C.cta, cursor: 'pointer' }}/>
-                        <span style={{ fontSize: 14, color: C.text }}>{a.name}</span>
-                        <span style={{ fontSize: 11, color: C.faint }}>{a.kind === 'plan' ? 'Subscription plan' : 'Cohort'}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <Sect C={C} title="Who sees it" aside={selectedCohortIds.length ? `${selectedCohortIds.length} selected` : 'Everyone'}>
+                <p className="text-xs" style={{ color: C.muted }}>
+                  Leave all unticked to show it to everyone, including visitors who are not signed in. Ticking any limits it to students in those cohorts or plans, and it then never shows to signed-out visitors.
+                </p>
+                <TickList C={C} items={audience.map(a => ({ id: a.id, name: a.name, extra: a.kind === 'plan' ? 'Subscription plan' : 'Cohort' }))}
+                  selected={selectedCohortIds} onToggle={toggleCohort} />
+              </Sect>
             )}
-
-          </section>
-        </form>
-      </main>
+          </Card>
+        </div>
+      </form>
     </div>
   );
 }
