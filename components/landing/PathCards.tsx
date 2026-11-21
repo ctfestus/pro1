@@ -76,7 +76,7 @@ export function PathCards({ paths, color, hoverColor, user, hFont, bFont }: {
               <div className="pc-panel">
                 <div className="pc-cover" style={{ backgroundImage: path.imageUrl ? `url(${path.imageUrl})` : undefined }} />
                 <div className="pc-layer">
-                  <p className="line-clamp-3" style={{ ...M3.headlineSmall, fontWeight: 500, fontFamily: hFont }}>{path.title}</p>
+                  <p className="line-clamp-3" style={{ ...M3.titleLarge, fontWeight: 500, fontFamily: hFont }}>{path.title}</p>
                   {count > 0 && (
                     <p className="mt-2" style={{ ...M3.bodyMedium, color: '#4b5160', fontFamily: bFont }}>
                       {count} learning item{count === 1 ? '' : 's'}

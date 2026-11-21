@@ -110,7 +110,7 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
 }) {
   return (
     <div className="mb-6">
-      <h2 style={{ ...M3.headlineMedium, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
+      <h2 style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
@@ -498,7 +498,7 @@ function ProgrammeCard({ item, user, isDark, hFont, framed }: {
           style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
       </div>
       <div className={framed ? 'px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]' : 'mt-3'}>
-        <p className="line-clamp-2 text-sm leading-5 sm:text-base sm:leading-6" style={{ fontWeight: 700, letterSpacing: '0.15px', color: text, fontFamily: hFont }}>{item.title}</p>
+        <p className="line-clamp-2 text-[13px] leading-[18px] sm:text-[15px] sm:leading-5" style={{ fontWeight: 700, color: text, fontFamily: hFont }}>{item.title}</p>
         {item.partnerName && (
           <div className="flex items-center gap-2 mt-1" style={{ ...M3.bodyMedium, color: muted }}>
             {item.partnerLogoUrl && <img src={item.partnerLogoUrl} alt="" className="w-4 h-4 object-contain" />}

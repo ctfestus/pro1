@@ -37,7 +37,7 @@ export function ProductsShowcase({ products, dark, hFont, bFont }: {
       <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
-            <h2 style={{ ...M3.headlineMedium, fontWeight: 700, color: title, fontFamily: hFont }}>Digital products</h2>
+            <h2 style={{ ...M3.headlineSmall, fontWeight: 700, color: title, fontFamily: hFont }}>Digital products</h2>
             <p className="mt-2 max-w-xl" style={{ ...M3.bodyLarge, color: muted, fontFamily: bFont }}>
               Practical guides and resources you can download and keep. Read a free sample first.
             </p>

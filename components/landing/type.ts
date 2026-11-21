@@ -1,7 +1,9 @@
 /**
  * Type and spacing for the public pages, from Material Design 3.
  *
- * Type roles are the M3 type scale: size, line height and tracking. Weights are not taken from M3;
+ * Type roles are the M3 type scale: size and line height. Tracking is normal rather than M3's
+ * wider body tracking, and body text is a little tighter (16/22), which read too large next to
+ * Udemy and Skillshare. Weights are not taken from M3;
  * each element keeps the page's own weight (black section headings, bold titles and buttons). The
  * font itself stays the tenant's heading and body font from Site settings.
  *
@@ -11,15 +13,14 @@
 import type { CSSProperties } from 'react';
 
 export const M3 = {
-  headlineMedium: { fontSize: 28, lineHeight: '36px', letterSpacing: 0 },
   headlineSmall:  { fontSize: 24, lineHeight: '32px', letterSpacing: 0 },
   titleLarge:     { fontSize: 22, lineHeight: '28px', letterSpacing: 0 },
-  titleMedium:    { fontSize: 16, lineHeight: '24px', letterSpacing: '0.15px' },
-  titleSmall:     { fontSize: 14, lineHeight: '20px', letterSpacing: '0.1px' },
-  bodyLarge:      { fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px' },
-  bodyMedium:     { fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px' },
-  labelLarge:     { fontSize: 14, lineHeight: '20px', letterSpacing: '0.1px' },
-  labelMedium:    { fontSize: 12, lineHeight: '16px', letterSpacing: '0.5px' },
+  titleMedium:    { fontSize: 16, lineHeight: '24px', letterSpacing: 0 },
+  titleSmall:     { fontSize: 14, lineHeight: '20px', letterSpacing: 0 },
+  bodyLarge:      { fontSize: 16, lineHeight: '22px', letterSpacing: 0 },
+  bodyMedium:     { fontSize: 14, lineHeight: '20px', letterSpacing: 0 },
+  labelLarge:     { fontSize: 14, lineHeight: '20px', letterSpacing: 0 },
+  labelMedium:    { fontSize: 12, lineHeight: '16px', letterSpacing: 0 },
 } satisfies Record<string, CSSProperties>;
 
 /** Display roles change size at the medium breakpoint, which inline styles cannot, so they are classes. */
