@@ -394,16 +394,17 @@ export function OverviewSection({ user, name, C, onNavigate }: {
                 const tag = deadlineTag(deadlines[form.id], false);
                 return (
                   <a key={form.id} href={`/${form.slug || form.id}`}
-                    className="group flex flex-col gap-4 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:flex-row sm:items-center sm:gap-6"
+                    className="group flex flex-col gap-4 rounded-2xl p-4 transition-shadow hover:shadow-lg sm:flex-row sm:items-stretch sm:gap-6 sm:p-5"
                     style={{ background: C.card, boxShadow: '0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.18)' }}>
-                    {/* The picture inset in the card, its own rounded corners. */}
-                    <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl sm:w-[42%] sm:max-w-[300px]" style={{ background: C.pill }}>
+                    {/* The picture inset in the card, its own rounded corners. Beside the text it fills the
+                        card's height, so the white around it is the same on every side at any width. */}
+                    <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl sm:aspect-auto sm:min-h-[150px] sm:w-[42%] sm:max-w-[300px]" style={{ background: C.pill }}>
                       <div className="absolute inset-0 grid place-items-center">
                         {isProject ? <Briefcase className="h-8 w-8" style={{ color: C.faint }} /> : <Video className="h-8 w-8" style={{ color: C.faint }} />}
                       </div>
                       {cover && <img src={resolveCoverUrl(cover)} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={e => (e.currentTarget.style.display = 'none')} />}
                     </div>
-                    <div className="min-w-0 flex-1 sm:py-2">
+                    <div className="flex min-w-0 flex-1 flex-col justify-center sm:py-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold" style={{ color: C.muted }}>{isProject ? 'Virtual experience' : 'Course'}</span>
                         {tag && <Pill tone={tag.tone === 'red' ? 'bad' : tag.tone === 'amber' ? 'warn' : 'mute'} C={C}>{tag.label}</Pill>}
@@ -415,7 +416,7 @@ export function OverviewSection({ user, name, C, onNavigate }: {
                         </div>
                         <span className="text-sm font-semibold tabular-nums" style={{ color: C.text }}>{pct}% complete</span>
                       </div>
-                      <span className="mt-5 inline-flex h-10 items-center rounded-full px-6 text-sm font-semibold transition-opacity group-hover:opacity-90"
+                      <span className="mt-5 inline-flex h-10 items-center self-start rounded-full px-6 text-sm font-semibold transition-opacity group-hover:opacity-90"
                         style={{ background: BLUE, color: '#ffffff' }}>
                         {isProject ? 'Resume experience' : 'Resume course'}
                       </span>
