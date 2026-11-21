@@ -150,11 +150,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
   const isMobile = containerW > 0 && containerW < 640;
-  // Two whole cards side by side only when each still gets close to 500px; below that (tablets) the
-  // text wrapped line by line and pushed the button out of the card, so it is one card at a time.
-  // Sizing the cards to the track means the last one is never cut off at the edge.
-  const perView = fullWidth || containerW < 1000 ? 1 : 2;
-  const max = Math.max(0, cards.length - perView);
+  const max = Math.max(0, cards.length - 1);
   // Clamped on read: switching off the card on screen shortens the list under a stored index,
   // which would otherwise point past the end and leave the track scrolled onto nothing.
   const idx = Math.min(storedIdx, max);
@@ -174,16 +170,21 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   }, [paused, userPaused, reduced, max, idx]);
 
   const hasSideImage = cards.some(c => c.imageLayout === 'side' && !!c.bgImage);
+  // Each card keeps its own size (646 x 297, smaller only on a narrow screen) and the next one
+  // peeks in from the edge, so the pictures keep their shape instead of being cropped to fit.
   const CARD_W = fullWidth
     ? (containerW > 0 ? containerW : 1280)
-    : (containerW > 0 ? (containerW - GAP * (perView - 1)) / perView : 646);
+    : (containerW > 0 ? Math.min(646, containerW - 40) : 646);
   const CARD_H = fullWidth
     ? (isMobile ? 380 : Math.max(340, Math.min(500, Math.round((containerW || 1280) * 0.34))))
-    : isMobile
-      ? (hasSideImage ? 430 : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646))))
-      // Two to a row makes each card narrower than before, so the height no longer scales with
-      // the width: it holds the badge, a two-line title, the description and the button.
-      : 300;
+    : (isMobile && hasSideImage)
+      ? 430
+      : Math.max(220, Math.round(297 * Math.min(1, CARD_W / 646)));
+
+  // The last card stops flush with the right edge rather than sliding past it.
+  const totalW = cards.length * CARD_W + (cards.length - 1) * GAP;
+  const maxTranslate = containerW > 0 ? Math.max(0, totalW - containerW) : (max * (CARD_W + GAP));
+  const getTranslate = (i: number) => i === max ? maxTranslate : i * (CARD_W + GAP);
 
 
   const goTo = (next: number) => setIdx(Math.max(0, Math.min(next, max)));
@@ -216,7 +217,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
         )}
 
         <div ref={clipRef} style={{ overflow: 'hidden', touchAction: 'pan-y' }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${idx * (CARD_W + GAP)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
+        <div ref={trackRef} style={{ display: 'flex', gap: GAP, transform: `translateX(-${getTranslate(idx)}px)`, transition: 'transform 0.65s cubic-bezier(0.22,1,0.36,1)' }}>
           {cards.map((ad, i) => {
             const active = i === idx;
             const contentKey = active ? `on-${idx}` : `off-${i}`;
