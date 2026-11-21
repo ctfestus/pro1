@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Edit2, Handshake, Loader2, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Edit2, Handshake, Loader2, MoreHorizontal, Plus, Trash2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
-import { LIGHT_C } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { FloatingMenu, menuPosition, type MenuPosition } from '@/components/dashboard/subscriptions/Menus';
+import { Card, Pill, btnClass, btnSmClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
+import { EditorHeader, FIELD, Label, Sect, SwitchRow, inputStyle } from '@/components/create/EditorKit';
 
 type Partner = {
   id: string;
@@ -26,7 +30,8 @@ const EMPTY: PartnerForm = {
   is_active: true,
 };
 
-export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
+export function PartnersSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [editing, setEditing] = useState<Partner | null>(null);
@@ -35,6 +40,7 @@ export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [menu, setMenu] = useState<{ partner: Partner; position: MenuPosition } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function getToken() {
@@ -142,138 +148,135 @@ export function PartnersSection({ C }: { C: typeof LIGHT_C }) {
     }
   }
 
-  const inputStyle = {
-    background: C.input,
-    color: C.text,
-    border: `1px solid ${C.cardBorder}`,
-  };
+  const field = { ...inputStyle(C) };
+  const errorBox = error && (
+    <div role="alert" className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3" style={{ background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+      <XCircle className="w-4 h-4 flex-shrink-0" />
+      <span className="flex-1">{error}</span>
+    </div>
+  );
+  const logo = (url: string | null, size: string) => url
+    ? <img src={url} alt="" className={`${size} object-contain rounded-[10px] flex-shrink-0`} style={{ background: '#fff' }} />
+    : <span className={`${size} rounded-[10px] grid place-items-center flex-shrink-0`} style={{ background: C.pill }}><Handshake className="w-4 h-4" style={{ color: C.faint }} /></span>;
 
   if (loading && view === 'list') {
-    return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} /></div>;
+    return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.muted }} /></div>;
   }
 
   if (view === 'editor') {
     return (
       <div className="max-w-3xl">
-        <button onClick={() => setView('list')} className="flex items-center gap-2 text-sm mb-5" style={{ color: C.muted }}>
-          <ArrowLeft className="w-4 h-4" /> Back to partners
-        </button>
-        <div className="rounded-2xl p-6 space-y-5" style={{ background: C.card, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
-          <div>
-            <h2 className="text-[22px] font-bold leading-7" style={{ color: C.text }}>{editing ? 'Edit partner' : 'New partner'}</h2>
-            <p className="text-sm mt-1" style={{ color: C.faint }}>Manage the organization shown in course attribution.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: C.text }}>Name</label>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-xl px-4 py-3 outline-none" style={inputStyle} placeholder="Organization name" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: C.text }}>Logo</label>
+        <EditorHeader C={C} back="Back to partners" onBack={() => setView('list')} title={editing ? 'Edit partner' : 'New partner'}
+          error={error} onDismissError={() => setError('')}
+          actions={
+            <button type="button" onClick={save} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save partner
+            </button>
+          }>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>The organisation shown in course attribution.</p>
+        </EditorHeader>
+        <Card C={C} className="mt-6">
+          <Sect C={C} title="Details" first>
+            <div>
+              <Label C={C}>Name</Label>
+              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                className={FIELD} style={field} placeholder="Organisation name" />
+            </div>
+            <div>
+              <Label C={C}>Website</Label>
+              <input value={form.website_url ?? ''} onChange={e => setForm({ ...form, website_url: e.target.value })}
+                className={FIELD} style={field} placeholder="https://example.org" />
+            </div>
+            <div>
+              <Label C={C}>Description</Label>
+              <textarea value={form.description ?? ''} onChange={e => setForm({ ...form, description: e.target.value })}
+                rows={4} className={`${FIELD} resize-y`} style={field} />
+            </div>
+          </Sect>
+          <Sect C={C} title="Logo">
             <div className="flex items-center gap-4">
-              {form.logo_url ? (
-                <img src={form.logo_url} alt="" className="w-24 h-16 object-contain rounded-lg" style={{ background: '#fff' }} />
-              ) : (
-                <div className="w-24 h-16 rounded-lg grid place-items-center" style={{ background: C.pill }}>
-                  <Handshake className="w-6 h-6" style={{ color: C.faint }} />
-                </div>
-              )}
+              {logo(form.logo_url, 'w-24 h-16')}
               <input ref={fileRef} type="file" accept="image/*,.svg" className="hidden"
                 onChange={e => { const file = e.target.files?.[0]; if (file) uploadLogo(file); e.target.value = ''; }} />
-              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
-                style={{ background: C.pill, color: C.text }}>
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className={btnSmClass} style={btnStyle('sec', C)}>
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 Upload logo
               </button>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: C.text }}>Website</label>
-            <input value={form.website_url ?? ''} onChange={e => setForm({ ...form, website_url: e.target.value })}
-              className="w-full rounded-xl px-4 py-3 outline-none" style={inputStyle} placeholder="https://example.org" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: C.text }}>Description</label>
-            <textarea value={form.description ?? ''} onChange={e => setForm({ ...form, description: e.target.value })}
-              rows={4} className="w-full rounded-xl px-4 py-3 outline-none resize-y" style={inputStyle} />
-          </div>
-
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })}
-              className="w-4 h-4 accent-green-600" />
-            <span className="text-sm font-semibold" style={{ color: C.text }}>Active</span>
-          </label>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button onClick={save} disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
-            style={{ background: C.green }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save partner
-          </button>
-        </div>
+          </Sect>
+          <Sect C={C} title="Status">
+            <SwitchRow C={C} title="Active" sub="Inactive partners stay on record but are not offered for new courses." on={form.is_active}
+              onChange={v => setForm({ ...form, is_active: v })} />
+          </Sect>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-[22px] font-bold leading-7" style={{ color: C.text }}>Partners</h2>
-          <p className="text-sm mt-1" style={{ color: C.faint }}>Organizations credited on courses and certificates.</p>
-        </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white"
-          style={{ background: C.green }}>
-          <Plus className="w-4 h-4" /> New partner
-        </button>
-      </div>
+    <div className="grid gap-4">
+      <PageHeader C={C} title="Partners" sub="Organisations credited on courses and certificates."
+        actions={
+          <button type="button" onClick={openCreate} className={btnClass} style={btnStyle('pri', C)}>
+            <Plus className="w-4 h-4" /> New partner
+          </button>
+        } />
 
-      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {errorBox}
 
-      {!partners.length ? (
-        <div className="rounded-2xl py-16 text-center" style={{ background: C.card, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-          <Handshake className="w-8 h-8 mx-auto mb-3" style={{ color: C.faint }} />
-          <p className="font-semibold" style={{ color: C.text }}>No partners yet</p>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {partners.map(partner => (
-            <div key={partner.id} className="rounded-2xl p-5" style={{ background: C.card, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-              <div className="flex items-start gap-4">
-                {partner.logo_url ? (
-                  <img src={partner.logo_url} alt="" className="w-14 h-14 object-contain rounded-lg flex-shrink-0" style={{ background: '#fff' }} />
-                ) : (
-                  <div className="w-14 h-14 rounded-lg grid place-items-center flex-shrink-0" style={{ background: C.pill }}>
-                    <Handshake className="w-5 h-5" style={{ color: C.faint }} />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold truncate" style={{ color: C.text }}>{partner.name}</h3>
-                  <span className="inline-flex mt-2 px-2 py-1 rounded-full text-[11px] font-bold"
-                    style={partner.is_active
-                      ? { background: '#fff', color: '#15803d', boxShadow: '0 0 0 1px #bbf7d0' }
-                      : { background: C.pill, color: C.faint }}>
-                    {partner.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              </div>
-              {partner.description && <p className="text-sm mt-4 line-clamp-2" style={{ color: C.muted }}>{partner.description}</p>}
-              <div className="flex justify-end gap-2 mt-5">
-                <button onClick={() => openEdit(partner)} aria-label={`Edit ${partner.name}`}
-                  className="p-2 rounded-lg" style={{ background: C.pill, color: C.text }}><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => remove(partner)} aria-label={`Delete ${partner.name}`}
-                  className="p-2 rounded-lg" style={{ background: '#fef2f2', color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          ))}
-        </div>
+      <Card C={C} className="overflow-hidden">
+        {!partners.length ? (
+          <div className="py-16 text-center">
+            <Handshake className="w-8 h-8 mx-auto mb-3" style={{ color: C.faint }} />
+            <p className="text-sm font-semibold" style={{ color: C.text }}>No partners yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr>{['Partner', 'Website', 'Status', ''].map((h, i) => <th key={i} className="text-left px-4 py-3 text-xs font-semibold whitespace-nowrap" style={{ color: C.faint }}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {partners.map(partner => (
+                  <tr key={partner.id} onClick={() => openEdit(partner)} className="cursor-pointer" style={{ borderTop: `1px solid ${C.divider}` }}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {logo(partner.logo_url, 'w-9 h-9')}
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate" style={{ color: C.text }}>{partner.name}</p>
+                          {partner.description && <p className="text-xs truncate max-w-[360px]" style={{ color: C.muted }}>{partner.description}</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: partner.website_url ? C.text : C.muted }}>
+                      {partner.website_url ? partner.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'None'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={partner.is_active ? 'good' : 'mute'} dot={partner.is_active} C={C}>{partner.is_active ? 'Active' : 'Inactive'}</Pill>
+                    </td>
+                    <td className="pl-2 pr-5 py-3 text-right">
+                      <button type="button" aria-label={`Actions for ${partner.name}`}
+                        onClick={e => { e.stopPropagation(); setMenu(menu?.partner.id === partner.id ? null : { partner, position: menuPosition(e.currentTarget, 150) }); }}
+                        className="w-8 h-8 rounded-[10px] inline-grid place-items-center"
+                        style={menu?.partner.id === partner.id ? { background: C.text, color: C.card } : { color: C.muted }}>
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {menu && (
+        <FloatingMenu position={menu.position} label="partner actions" onClose={() => setMenu(null)} C={C}
+          items={[
+            { label: 'Edit', sub: 'Name, logo, website and status', icon: Edit2, onClick: () => { setMenu(null); openEdit(menu.partner); } },
+            { label: 'Delete', sub: 'Courses keep working without attribution', icon: Trash2, danger: true, onClick: () => { setMenu(null); remove(menu.partner); } },
+          ]} />
       )}
     </div>
   );

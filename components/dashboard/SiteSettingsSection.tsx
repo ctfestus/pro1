@@ -1,13 +1,16 @@
 'use client';
 
-// Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
-
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ExternalLink, Loader2, Upload, X, XCircle } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Loader2, Upload, X, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { DARK_C, type ThemeColors } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
+import { PageHeader } from '@/components/dashboard/content/kit';
+import { Switch } from '@/components/dashboard/subscriptions/PlanForm';
+import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { FIELD, Hint, Label, SwitchRow, inputStyle } from '@/components/create/EditorKit';
 
 function loadFont(family: string) {
   if (!family || family === 'Inter') return;
@@ -29,7 +32,7 @@ const FONT_OPTIONS = [
 ];
 
 // --- Live preview ---
-function SitePreview({ config, C }: { config: Record<string, string>; C: typeof LIGHT_C }) {
+function SitePreview({ config, action, C }: { config: Record<string, string>; action: ReactNode; C: ThemeColors }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef    = useRef<HTMLIFrameElement>(null);
   const [scale, setScale]           = useState(1);
@@ -60,17 +63,20 @@ function SitePreview({ config, C }: { config: Record<string, string>; C: typeof 
   const iframeH = scale > 0 ? Math.ceil(containerH / scale) : containerH;
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden"
-      style={{ border: `1px solid ${C.cardBorder}`, boxShadow: 'none', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)' }}>
-      {/* Clean header */}
-      <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ background: C.card, borderBottom: `1px solid ${C.divider}` }}>
-        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-[11px] font-semibold" style={{ color: C.text }}>Live preview</span>
-        <span className="text-[11px]" style={{ color: C.faint }}>updates as you type</span>
+    <Card C={C} className="w-full overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 32px)' }}>
+      <div className="flex flex-wrap items-center gap-3 px-5 py-4 flex-shrink-0">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: C.text }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: palette(C).good }} />
+            Live preview
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: C.muted }}>Updates as you type.</p>
+        </div>
+        {action}
       </div>
 
       {/* Scaled iframe */}
-      <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', position: 'relative', background: 'white' }}>
+      <div ref={containerRef} className="mx-5 mb-5 rounded-xl" style={{ flex: 1, overflow: 'hidden', position: 'relative', background: 'white', boxShadow: `0 0 0 1px ${C.divider}` }}>
         <iframe
           ref={iframeRef}
           src="/"
@@ -85,19 +91,21 @@ function SitePreview({ config, C }: { config: Record<string, string>; C: typeof 
           }}
         />
       </div>
-    </div>
+    </Card>
   );
 }
 
 // --- Site Settings Section ---
-export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
+export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
+  const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
+  const P = palette(C);
   const [config, setConfig]     = useState<Record<string, string>>({});
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['brand', 'hero']));
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['brand', 'type', 'hero']));
   const toggleSec = (id: string) => setOpenSections(prev => {
     const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s;
   });
@@ -150,45 +158,42 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   };
 
   const tf = (key: string, label: string, placeholder: string, hint?: string) => (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
+    <div>
+      <Label C={C}>{label}</Label>
       <input type="text" value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
-        placeholder={placeholder} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-        style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
-      {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
+        placeholder={placeholder} className={FIELD} style={inputStyle(C)} />
+      {hint && <Hint C={C}>{hint}</Hint>}
     </div>
   );
 
   const cf = (key: string, label: string, fallback: string, hint?: string) => {
     const val = view[key] || fallback;
     return (
-      <div className="space-y-1">
-        <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
+      <div>
+        <Label C={C}>{label}</Label>
         <div className="flex items-center gap-2">
           {/* Swatch -- native picker hidden underneath */}
           <label className="flex-shrink-0 cursor-pointer">
-            <span className="block w-9 h-9 rounded-lg border-2 relative overflow-hidden"
-              style={{ background: val, borderColor: C.cardBorder, boxShadow: '0 1px 4px rgba(0,0,0,0.18)' }}>
-              <input type="color" value={val} onChange={e => set(key, e.target.value)}
+            <span className="block w-10 h-10 rounded-[10px] relative overflow-hidden"
+              style={{ background: val, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+              <input type="color" value={val} onChange={e => set(key, e.target.value)} aria-label={`Pick ${label.toLowerCase()}`}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
             </span>
           </label>
-          <input type="text" value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
-            placeholder={fallback} className="w-24 px-2 py-2 rounded-lg text-xs outline-none font-mono"
-            style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
+          <input type="text" value={view[key] ?? ''} onChange={e => set(key, e.target.value)} aria-label={label}
+            placeholder={fallback} className="field-focus w-28 px-3 py-2.5 rounded-[10px] text-xs outline-none font-mono" style={inputStyle(C)} />
         </div>
-        {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
+        {hint && <Hint C={C}>{hint}</Hint>}
       </div>
     );
   };
 
   const taf = (key: string, label: string, placeholder: string, hint?: string, rows = 3) => (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
+    <div>
+      <Label C={C}>{label}</Label>
       <textarea value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
-        placeholder={placeholder} rows={rows} className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
-        style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
-      {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
+        placeholder={placeholder} rows={rows} className={`${FIELD} resize-none`} style={inputStyle(C)} />
+      {hint && <Hint C={C}>{hint}</Hint>}
     </div>
   );
 
@@ -206,85 +211,52 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
       e.target.value = '';
     };
     return (
-      <div className="space-y-2">
-        <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
+      <div className="grid gap-2">
+        <Label C={C}>{label}</Label>
         {url && (
-          <div className="relative rounded-lg overflow-hidden" style={{ height: 90 }}>
+          <div className="relative rounded-[10px] overflow-hidden" style={{ height: 90 }}>
             <img src={url} alt="" className="w-full h-full object-cover" />
-            <button onClick={() => set(key, '')}
+            <button type="button" onClick={() => set(key, '')} aria-label={`Remove ${label.toLowerCase()}`}
               className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center"
               style={{ background: 'rgba(0,0,0,0.55)' }}>
               <X className="w-3 h-3 text-white" />
             </button>
           </div>
         )}
-        <label className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:opacity-80"
-          style={{ background: C.pill, color: C.text }}>
+        <label className={`${btnSmClass} w-fit cursor-pointer`} style={btnStyle('sec', C)}>
           {uploading === key
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <Upload className="w-3.5 h-3.5" />}
           {url ? 'Replace image' : 'Upload image'}
           <input type="file" accept="image/*" className="sr-only" onChange={handleFile} disabled={!!uploading} />
         </label>
-        {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
+        {hint && <Hint C={C}>{hint}</Hint>}
       </div>
     );
   };
 
   const fontPicker = (key: string, label: string, fallback: string) => (
-    <div className="space-y-2">
-      <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
-      <div className="grid grid-cols-2 gap-2">
-        {FONT_OPTIONS.map(f => {
-          loadFont(f);
-          const active = (view[key] || fallback) === f;
-          return (
-            <button key={f} onClick={() => set(key, f)}
-              className="px-3 py-2 rounded text-sm text-left transition-all"
-              style={{
-                fontFamily: `'${f}', sans-serif`,
-                background:   active ? C.cta   : C.pill,
-                color:        active ? C.ctaText : C.text,
-
-              }}>
-              {f}
-            </button>
-          );
-        })}
-      </div>
+    <div>
+      <Label C={C}>{label}</Label>
+      <MenuSelect field label={label} value={view[key] || fallback} options={FONT_OPTIONS.map(f => ({ value: f, label: f }))}
+        onChange={v => set(key, v)} C={C} />
     </div>
   );
 
   // Visibility toggle -- '1' means hidden
-  const Vis = (key: string) => {
-    const hidden = view[key] === '1';
-    return (
-      <div className="flex items-center justify-between pb-3 mb-1 border-b" style={{ borderColor: C.cardBorder }}>
-        <span className="text-xs font-semibold" style={{ color: C.muted }}>Show this section</span>
-        <button onClick={() => set(key, hidden ? '' : '1')}
-          className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-          style={{ background: hidden ? C.cardBorder : (view.primaryColor || '#0e09dd') }}>
-          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-            style={{ left: hidden ? 2 : 22 }} />
-        </button>
-      </div>
-    );
-  };
+  const Vis = (key: string) => (
+    <SwitchRow C={C} title="Show this section" sub="Hiding it keeps what you entered for later." on={view[key] !== '1'} onChange={on => set(key, on ? '' : '1')} />
+  );
 
   // Ad-card header with its own show switch -- hiding keeps the card's content for later
   const cardHead = (n: string, key: string) => {
     const hidden = view[key] === '1';
     return (
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: C.muted }}>
-          Card {n}{hidden && <span className="ml-2 normal-case tracking-normal font-semibold" style={{ color: C.faint }}>Hidden</span>}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold flex items-center gap-2" style={{ color: C.text }}>
+          Card {n}{hidden && <Pill tone="mute" C={C}>Hidden</Pill>}
         </p>
-        <button onClick={() => set(key, hidden ? '' : '1')} aria-label={hidden ? `Show card ${n}` : `Hide card ${n}`}
-          className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-          style={{ background: hidden ? C.cardBorder : (view.primaryColor || '#0056D2') }}>
-          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-            style={{ left: hidden ? 2 : 22 }} />
-        </button>
+        <Switch on={!hidden} onChange={on => set(key, on ? '' : '1')} label={`Show card ${n}`} C={C} />
       </div>
     );
   };
@@ -292,47 +264,62 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   // Ad-card image layout toggle -- only shown once an image is uploaded
   const imgLayout = (key: string) => {
     return (
-      <div className="space-y-2">
-        <label className="text-xs font-semibold" style={{ color: C.muted }}>Image layout</label>
-        <div className="flex gap-2">
+      <div>
+        <Label C={C}>Image layout</Label>
+        <div className="flex gap-2" role="group" aria-label="Image layout">
           {([['', 'Full background'], ['side', 'Beside text']] as const).map(([val, lbl]) => {
             const active = (view[key] || '') === val;
             return (
-              <button key={val || 'cover'} onClick={() => set(key, val)}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
-                style={{ background: active ? C.cta : C.pill, color: active ? C.ctaText : C.text }}>
+              <button key={val || 'cover'} type="button" aria-pressed={active} onClick={() => set(key, val)}
+                className="flex-1 h-9 px-3 rounded-[10px] text-xs font-semibold"
+                style={active ? { background: P.sel, color: P.onSel } : { background: C.card, color: C.muted, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
                 {lbl}
               </button>
             );
           })}
         </div>
-        <p className="text-[11px]" style={{ color: C.faint }}>Beside text: image sits on the right (desktop) or bottom (mobile) with the background colour showing.</p>
+        <Hint C={C}>Beside text: image sits on the right (desktop) or bottom (mobile) with the background colour showing.</Hint>
       </div>
     );
   };
 
-  // Accordion section wrapper
-  const Sec = (id: string, label: string, preview: React.ReactNode, children: React.ReactNode) => (
-    <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-      <button onClick={() => toggleSec(id)} className="w-full flex items-center gap-3 px-4 py-4 text-left transition-opacity hover:opacity-70">
-        <span className="flex-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: C.text }}>{label}</span>
-        {preview && <span className="flex items-center gap-1">{preview}</span>}
-        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${openSections.has(id) ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
-      </button>
-      {openSections.has(id) && (
-        <div className="px-4 pb-5 pt-3 space-y-4 border-t" style={{ borderColor: C.cardBorder }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
+  // A section of the settings card that folds open and shut.
+  const Sec = (id: string, label: string, preview: ReactNode, children: ReactNode) => {
+    const open = openSections.has(id);
+    return (
+      <div style={id === 'brand' ? undefined : { borderTop: `1px solid ${C.divider}` }}>
+        <button type="button" onClick={() => toggleSec(id)} aria-expanded={open} className="w-full flex items-center gap-3 px-5 py-4 text-left">
+          <span className="flex-1 text-base font-semibold" style={{ color: C.text }}>{label}</span>
+          {preview && <span className="flex items-center gap-1">{preview}</span>}
+          <span className="w-8 h-8 rounded-[10px] grid place-items-center flex-shrink-0" style={{ color: C.muted }}>
+            {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </span>
+        </button>
+        {open && <div className="px-5 pb-5 grid gap-4 min-w-0">{children}</div>}
+      </div>
+    );
+  };
   // Colour swatch dot for section header preview
   const Dot = (k: string, fb: string) => (
-    <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: view[k] || fb, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+    <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: view[k] || fb, boxShadow: `inset 0 0 0 1px ${C.divider}` }} />
   );
-  // Sub-label divider inside a section
+  // A group heading inside a section, with a hairline above it
   const Sub = (t: string) => (
-    <p className="text-[11px] font-bold uppercase tracking-[0.08em] mt-1 pb-1 border-b" style={{ color: C.faint, borderColor: C.cardBorder }}>{t}</p>
+    <p className="text-sm font-semibold pt-4 -mb-1" style={{ color: C.text, borderTop: `1px solid ${C.divider}` }}>{t}</p>
+  );
+  // One ad card's fields, under a hairline
+  const adCard = (prefix: 'ad' | 'midAd', hideKey: string, n: string, label: string) => (
+    <div key={n} className="grid gap-4 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
+      {cardHead(n, hideKey)}
+      {tf(`${prefix}${n}Label`,       'Badge label',       label)}
+      {tf(`${prefix}${n}Title`,       'Headline',          'Start your learning journey today')}
+      {taf(`${prefix}${n}Description`,'Description',       'Short description text', undefined, 2)}
+      {tf(`${prefix}${n}CtaText`,     'Button text',       'Get started free')}
+      {tf(`${prefix}${n}CtaUrl`,      'Button link',       '/auth?mode=signup')}
+      {cf(`${prefix}${n}BgColor`,     'Background colour', '#0056D2')}
+      {imgUpload(`${prefix}${n}BgImage`, 'Image', 'Optional. Choose how it displays below.')}
+      {view[`${prefix}${n}BgImage`] && imgLayout(`${prefix}${n}ImageLayout`)}
+    </div>
   );
 
   const handleOpenPreview = () => {
@@ -347,24 +334,50 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   );
 
   return (
-    <div className="flex gap-4 items-start" style={{ minHeight: 'calc(100vh - 120px)' }}>
+    <div className="grid gap-4">
+      <PageHeader C={C} title="Site" sub="The public landing page: colours, fonts and each section. The preview updates as you type."
+        actions={<>
+          <button type="button" onClick={handleOpenPreview} className={btnClass} style={btnStyle('sec', C)}>
+            <ExternalLink className="w-4 h-4" /> Open in new tab
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving} className={btnClass} style={btnStyle('pri', C)}>
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}Save changes
+          </button>
+        </>} />
+
+      {msg && (
+        <div role={msg.ok ? 'status' : 'alert'} className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
+          style={msg.ok ? { background: C.successBg, color: C.successText, border: `1px solid ${C.successBorder}` } : { background: C.errorBg, color: C.errorText, border: `1px solid ${C.errorBorder}` }}>
+          {msg.ok ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-1">{msg.text}</span>
+        </div>
+      )}
+
+    <div className="flex gap-4 items-start">
 
       {/* ---- Collapsable settings pane ---- */}
-      <div style={{ width: panelOpen ? 400 : 0, overflow: 'hidden', flexShrink: 0, transition: 'width 0.25s ease' }}>
-        <div style={{ width: 400 }} className="space-y-4 pb-6 pr-1">
+      <div style={{ width: panelOpen ? 420 : 0, overflow: 'hidden', flexShrink: 0, transition: 'width 0.25s ease' }}>
+        <Card C={C} className="pb-1" style={{ width: 420 }}>
 
-        {/* Brand & Style */}
-        {Sec('brand', 'Brand & Style',
-          <>{Dot('primaryColor','#0e09dd')}{Dot('accentColor','#ff9933')}</>,
+        {/* Brand and style */}
+        {Sec('brand', 'Brand and style',
+          <>{Dot('primaryColor','#0056D2')}{Dot('accentColor','#ff9933')}</>,
           <>
             <div className="grid grid-cols-2 gap-3">
-              {cf('primaryColor', 'Primary colour', '#0e09dd', 'Nav, hero, buttons.')}
+              {cf('primaryColor', 'Primary colour', '#0056D2', 'Nav, hero, buttons.')}
               {cf('accentColor',  'Accent colour',  '#ff9933', 'Highlights, icons, links.')}
             </div>
             {cf('pathCardColor', 'Learning path cards', '#3E93FF', 'Button colour on every learning path card; the card is a pale tint of it.')}
-            {Sub('Typography')}
-            {fontPicker('headingFont', 'Heading Font', 'Inter')}
-            {fontPicker('bodyFont', 'Body Font', 'Inter')}
+            <SwitchRow C={C} title="Dark mode" sub="Switches the landing page to a dark background." on={view.siteDarkMode === '1'}
+              onChange={on => set('siteDarkMode', on ? '1' : '')} />
+          </>
+        )}
+
+        {Sec('type', 'Typography',
+          <></>,
+          <>
+            {fontPicker('headingFont', 'Heading font', 'Inter')}
+            {fontPicker('bodyFont', 'Body font', 'Inter')}
           </>
         )}
 
@@ -372,95 +385,39 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
         {Sec('hero', 'Headline',
           <></>,
           <>
-            <p className="text-[11px]" style={{ color: C.faint }}>Used for the browser tab, search results and link previews, and read out by screen readers. Leave blank to use the platform name.</p>
+            <p className="-mt-2 text-xs" style={{ color: C.muted }}>Used for the browser tab, search results and link previews, and read out by screen readers. Leave blank to use the platform name.</p>
             {tf('heroTitle',       'Headline',        'Build skills that move your career forward')}
             {tf('heroTitleAccent', 'Headline accent', 'Learn at your own pace.', 'Second line on link previews.')}
           </>
         )}
 
-        {Sec('pricing', 'Pricing Page',
+        {Sec('pricing', 'Pricing page',
           <></>,
           <>
             {imgUpload('heroImageUrl', 'Picture', 'Shown beside the tools list on the pricing page. Leave blank to let the list fill the width.')}
           </>
         )}
 
-        {Sec('c-darkmode', 'Dark Mode',
-          <></>,
-          <>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold" style={{ color: C.text }}>Enable dark mode</p>
-                <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Switches the landing page to a dark background.</p>
-              </div>
-              <button onClick={() => set('siteDarkMode', view.siteDarkMode === '1' ? '' : '1')}
-                className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                style={{ background: view.siteDarkMode === '1' ? (view.primaryColor || '#0056D2') : C.cardBorder }}>
-                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-                  style={{ left: view.siteDarkMode === '1' ? 22 : 2 }} />
-              </button>
-            </div>
-          </>
-        )}
-
-        {Sec('c-ads', 'Ad Banner Cards',
+        {Sec('c-ads', 'Ad banner cards',
           <></>,
           <>
             {Vis('hideAdBanner')}
-            <div className="flex items-center justify-between pb-3 mb-1 border-b" style={{ borderColor: C.cardBorder }}>
-              <div className="pr-3">
-                <p className="text-xs font-semibold" style={{ color: C.text }}>Full-width banner</p>
-                <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Edge-to-edge image banner with a white text panel on the left. Off = contained cards.</p>
-              </div>
-              <button onClick={() => set('adBannerFullWidth', view.adBannerFullWidth === '1' ? '' : '1')}
-                className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                style={{ background: view.adBannerFullWidth === '1' ? (view.primaryColor || '#0056D2') : C.cardBorder }}>
-                <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-                  style={{ left: view.adBannerFullWidth === '1' ? 22 : 2 }} />
-              </button>
-            </div>
-            {(['1','2','3'] as const).map(n => (
-              <div key={n} className="border rounded-lg p-4 space-y-2" style={{ borderColor: C.cardBorder }}>
-                {cardHead(n, `hideAd${n}`)}
-                {tf(`ad${n}Label`,       'Badge label',       n === '1' ? 'New' : n === '2' ? 'Featured' : 'Popular')}
-                {tf(`ad${n}Title`,       'Headline',          'Start your learning journey today')}
-                {taf(`ad${n}Description`,'Description',       'Short description text', undefined, 2)}
-                {tf(`ad${n}CtaText`,     'Button text',       'Get started free')}
-                {tf(`ad${n}CtaUrl`,      'Button URL',        '/auth?mode=signup')}
-                <div className="grid grid-cols-2 gap-2">
-                  {cf(`ad${n}BgColor`,   'Background colour', '#0056D2')}
-                </div>
-                {imgUpload(`ad${n}BgImage`, 'Image', 'Optional. Choose how it displays below.')}
-                {view[`ad${n}BgImage`] && imgLayout(`ad${n}ImageLayout`)}
-              </div>
-            ))}
+            <SwitchRow C={C} title="Full-width banner" sub="Edge-to-edge image banner with a white text panel on the left. Off shows contained cards."
+              on={view.adBannerFullWidth === '1'} onChange={on => set('adBannerFullWidth', on ? '1' : '')} />
+            {(['1','2','3'] as const).map(n => adCard('ad', `hideAd${n}`, n, n === '1' ? 'New' : n === '2' ? 'Featured' : 'Popular'))}
           </>
         )}
 
-        {Sec('c-mid-ads', 'Mid-Page Ad Banner',
+        {Sec('c-mid-ads', 'Mid-page ad banner',
           <></>,
           <>
             {Vis('hideMidAdBanner')}
-            <p className="text-[11px]" style={{ color: C.faint }}>Two cards shown between Learning Paths and Virtual Experiences.</p>
-            {(['1','2'] as const).map(n => (
-              <div key={n} className="border rounded-lg p-4 space-y-2" style={{ borderColor: C.cardBorder }}>
-                {cardHead(n, `hideMidAd${n}`)}
-                {tf(`midAd${n}Label`,       'Badge label',       n === '1' ? 'Trending' : 'Free')}
-                {tf(`midAd${n}Title`,       'Headline',          'Start your learning journey today')}
-                {taf(`midAd${n}Description`,'Description',       'Short description text', undefined, 2)}
-                {tf(`midAd${n}CtaText`,     'Button text',       'Get started free')}
-                {tf(`midAd${n}CtaUrl`,      'Button URL',        '/auth?mode=signup')}
-                <div className="grid grid-cols-2 gap-2">
-                  {cf(`midAd${n}BgColor`,   'Background colour', '#0056D2')}
-                </div>
-                {imgUpload(`midAd${n}BgImage`, 'Image', 'Optional. Choose how it displays below.')}
-                {view[`midAd${n}BgImage`] && imgLayout(`midAd${n}ImageLayout`)}
-              </div>
-            ))}
+            <p className="text-xs" style={{ color: C.muted }}>Two cards shown between Learning paths and Virtual experiences.</p>
+            {(['1','2'] as const).map(n => adCard('midAd', `hideMidAd${n}`, n, n === '1' ? 'Trending' : 'Free'))}
           </>
         )}
 
-        {Sec('c-closing-cta', 'Closing CTA',
+        {Sec('c-closing-cta', 'Closing call to action',
           <></>,
           <>
             {Vis('hideCta')}
@@ -475,64 +432,37 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
           <></>,
           <>
             {tf('footerTagline', 'Tagline', 'One line about your platform')}
-            {Sub('Custom Links Column')}
+            {Sub('Custom links column')}
             {tf('footerLinksHeading', 'Column heading', 'Learn')}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {tf('footerLink1Label', 'Link 1 label', 'Courses')}
-              {tf('footerLink1Url',   'Link 1 URL',   '/#section-courses')}
+              {tf('footerLink1Url',   'Link 1 address', '/#section-courses')}
               {tf('footerLink2Label', 'Link 2 label', 'Learning paths')}
-              {tf('footerLink2Url',   'Link 2 URL',   '/#section-paths')}
+              {tf('footerLink2Url',   'Link 2 address', '/#section-paths')}
               {tf('footerLink3Label', 'Link 3 label', 'Virtual experiences')}
-              {tf('footerLink3Url',   'Link 3 URL',   '/#section-ves')}
+              {tf('footerLink3Url',   'Link 3 address', '/#section-ves')}
               {tf('footerLink4Label', 'Link 4 label', 'Certifications')}
-              {tf('footerLink4Url',   'Link 4 URL',   '/#section-certifications')}
+              {tf('footerLink4Url',   'Link 4 address', '/#section-certifications')}
             </div>
           </>
         )}
 
-        </div>
+        </Card>
       </div>
 
       {/* ---- Preview pane ---- */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3 min-h-0">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-          <button
-            onClick={() => setPanelOpen(v => !v)}
-            className="flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-all hover:opacity-80"
-            style={{ background: C.pill, color: C.text }}
-          >
-            {panelOpen
-              ? <><ArrowLeft className="w-3.5 h-3.5" /> Hide settings</>
-              : <><ArrowRight className="w-3.5 h-3.5" /> Show settings</>
-            }
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={handleOpenPreview}
-            className="flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-all hover:opacity-80"
-            style={{ background: C.pill, color: C.text }}
-          >
-            <ExternalLink className="w-3.5 h-3.5" /> Open in new tab
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 rounded text-xs font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
-            style={{ background: C.cta, color: C.ctaText }}>
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Save</>}
-          </button>
-        </div>
-        {msg && (
-          <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg flex-shrink-0 ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
-            style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
-            {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 flex-shrink-0" />}
-            {msg.text}
-          </div>
-        )}
-        <div className="flex-1 min-h-0">
-          <SitePreview config={config} C={C} />
-        </div>
+      <div className="flex-1 min-w-0 sticky top-4">
+        <SitePreview config={config} C={C}
+          action={
+            <button type="button" onClick={() => setPanelOpen(v => !v)} className={btnSmClass} style={btnStyle('sec', C)}>
+              {panelOpen
+                ? <><ArrowLeft className="w-3.5 h-3.5" /> Hide settings</>
+                : <><ArrowRight className="w-3.5 h-3.5" /> Show settings</>}
+            </button>
+          } />
       </div>
 
+    </div>
     </div>
   );
 }

@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, RotateCcw, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, cardStyle } from '@/lib/theme';
+import type { ThemeColors } from '@/lib/theme';
+import { Sect, inputStyle } from '@/components/create/EditorKit';
+import { btnSmClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
 import {
   AI_FEATURES,
   AI_LIMIT_DEFAULTS,
@@ -40,7 +42,7 @@ const asDraft = (limits: AiLimits): Draft =>
 
 const DEFAULT_DRAFT = asDraft(AI_LIMIT_DEFAULTS);
 
-export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
+export function AiFeaturesTab({ C }: { C: ThemeColors }) {
   const [draft, setDraft]     = useState<Draft>(DEFAULT_DRAFT);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -111,9 +113,7 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
   if (loadError) return (
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
       <p className="text-sm max-w-xs" style={{ color: C.muted }}>Could not load AI limits. Check your connection and try again.</p>
-      <button onClick={load}
-        className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-        style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+      <button type="button" onClick={load} className={btnSmClass} style={btnStyle('sec', C)}>Retry</button>
     </div>
   );
 
@@ -129,89 +129,76 @@ export function AiFeaturesTab({ C }: { C: typeof LIGHT_C }) {
       max={max}
       value={draft[key][tier]}
       onChange={e => setDraft(prev => ({ ...prev, [key]: { ...prev[key], [tier]: e.target.value } }))}
-      className="w-full sm:w-20 px-3 py-2 rounded-xl text-sm outline-none text-right"
-      style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
+      className="field-focus w-full sm:w-20 px-3 py-2 rounded-[10px] text-sm outline-none text-right"
+      style={inputStyle(C)}
     />
   );
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>AI features</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            What each learner on that plan gets, per learner and not shared across your platform.
-            Set a number to 0 to close that feature on that plan. Changing a number does not reset
-            anyone who has already spent: a lower limit applies from their next request, a higher
-            one applies straight away.
-          </p>
-        </div>
-
-        {/* Column headers, on wide screens only. On a phone each row carries its own labels, which
-            reads better than a header scrolled far above the fields it names. */}
-        <div className="hidden sm:grid sm:grid-cols-[1fr_5rem_5rem] sm:gap-4">
-          <span />
-          {TIERS.map(t => (
-            <span key={t.id} className="text-[11px] font-bold uppercase tracking-widest text-right" style={{ color: C.faint }}>
-              {t.label}
-            </span>
-          ))}
-        </div>
-
-        <div className="space-y-4">
-          {AI_FEATURES.map(f => (
-            <div key={f.key} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_5rem_5rem] sm:items-start sm:gap-4">
-              <div className="space-y-1 min-w-0">
-                <p className="text-xs font-semibold" style={{ color: C.muted }}>{f.label}</p>
-                <p className="text-[11px] leading-relaxed" style={{ color: C.faint }}>
-                  {f.hint} Counted {f.window === 'hour' ? 'per hour' : 'per day'}, per learner.
-                  You can set up to {f.max}.
-                </p>
-              </div>
-              {TIERS.map(t => (
-                <div key={t.id} className="flex items-center gap-2 sm:block">
-                  <label htmlFor={`ai-${f.key}-${t.id}`} className="text-[11px] w-10 sm:hidden" style={{ color: C.faint }}>{t.label}</label>
-                  {cell(f.key, t.id, f.max)}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* The one number an admin cannot change here, said plainly rather than left a mystery. */}
-        <div className="text-[11px] leading-relaxed px-3 py-3 rounded-xl" style={{ background: C.pill, color: C.muted }}>
-          The lesson tutor also has platform-wide ceilings shared by everyone, set in environment
-          configuration rather than here. They exist to stop a runaway loop draining the AI account,
-          so they are deliberately not editable from a form.
-        </div>
+    <Sect C={C} title="AI features" first action={
+      <div className="flex gap-2">
+        {changed && (
+          <button type="button" onClick={() => setDraft(DEFAULT_DRAFT)} className={btnSmClass} style={btnStyle('sec', C)}>
+            <RotateCcw className="w-3.5 h-3.5"/> Reset
+          </button>
+        )}
+        <button type="button" onClick={save} disabled={saving} className={btnSmClass} style={btnStyle('pri', C)}>
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin"/>}Save AI limits
+        </button>
       </div>
+    }>
+      <p className="-mt-2 text-xs leading-relaxed" style={{ color: C.muted }}>
+        What each learner on that plan gets, per learner and not shared across your platform.
+        Set a number to 0 to close that feature on that plan. Changing a number does not reset
+        anyone who has already spent: a lower limit applies from their next request, a higher
+        one applies straight away.
+      </p>
 
       {msg && (
-        <div className={`flex items-start gap-2 text-xs px-3 py-3 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
-          style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
+        <div role={msg.ok ? 'status' : 'alert'} className="flex items-start gap-2 text-xs px-3 py-3 rounded-xl"
+          style={msg.ok ? { background: C.successBg, color: C.successText } : { background: C.errorBg, color: C.errorText }}>
           {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
           {msg.text}
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
-          style={{ background: C.cta, color: C.ctaText }}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save AI limits'}
-        </button>
-        {changed && (
-          <button
-            type="button"
-            onClick={() => setDraft(DEFAULT_DRAFT)}
-            className="px-4 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 flex items-center gap-2"
-            style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <RotateCcw className="w-3.5 h-3.5"/> Reset
-          </button>
-        )}
+      {/* Column headers, on wide screens only. On a phone each row carries its own labels, which
+          reads better than a header scrolled far above the fields it names. */}
+      <div className="hidden sm:grid sm:grid-cols-[1fr_5rem_5rem] sm:gap-4">
+        <span />
+        {TIERS.map(t => (
+          <span key={t.id} className="text-xs font-semibold text-right" style={{ color: C.muted }}>
+            {t.label}
+          </span>
+        ))}
       </div>
-    </div>
+
+      <div className="space-y-4">
+        {AI_FEATURES.map(f => (
+          <div key={f.key} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_5rem_5rem] sm:items-start sm:gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: C.text }}>{f.label}</p>
+              <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+                {f.hint} Counted {f.window === 'hour' ? 'per hour' : 'per day'}, per learner.
+                You can set up to {f.max}.
+              </p>
+            </div>
+            {TIERS.map(t => (
+              <div key={t.id} className="flex items-center gap-2 sm:block">
+                <label htmlFor={`ai-${f.key}-${t.id}`} className="text-xs w-10 sm:hidden" style={{ color: C.muted }}>{t.label}</label>
+                {cell(f.key, t.id, f.max)}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* The one number an admin cannot change here, said plainly rather than left a mystery. */}
+      <div className="text-xs leading-relaxed px-3 py-3 rounded-xl" style={{ background: C.pill, color: C.muted }}>
+        The lesson tutor also has platform-wide ceilings shared by everyone, set in environment
+        configuration rather than here. They exist to stop a runaway loop draining the AI account,
+        so they are deliberately not editable from a form.
+      </div>
+    </Sect>
   );
 }
