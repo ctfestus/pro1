@@ -77,6 +77,15 @@ select:focus-visible,
   outline: none !important;
 }
 
+/* Admin pages focus in the shared blue rather than the app-wide green, so a field never shows
+   one colour while the buttons and chosen chips around it show another. */
+.admin-focus input:focus-visible,
+.admin-focus textarea:focus-visible,
+.admin-focus select:focus-visible,
+.admin-focus [contenteditable="true"]:focus-visible {
+  outline-color: #3E93FF !important;
+}
+
 /* Shared lesson audio player styles. Kept global so every player reuses one stylesheet. */
 .lesson-audio-player { --audio-surface: #f4f4f5; --audio-text: #27272a; --audio-muted: #71717a; --audio-track: #d4d4d8; --audio-buffer: #c4c4c8; display: flex; flex-direction: column; gap: 7px; width: 100%; max-width: 560px; color: var(--audio-text); font-family: inherit; }
 .lesson-audio-player[data-theme="dark"], .lesson-content.dark .lesson-audio-player { --audio-surface: rgba(255,255,255,.055); --audio-text: #f4f4f5; --audio-muted: #a1a1aa; --audio-track: #3f3f46; --audio-buffer: #52525b; }

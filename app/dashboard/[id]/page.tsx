@@ -1175,6 +1175,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   const sectionCls = 'space-y-4 border-t pt-5';
   const sectionStyle = { borderColor: PC.divider };
   const sectionTitle = 'text-base font-semibold';
+  const fieldStyle = { background: PC.input, border: `1px solid ${PC.inputBorder}`, color: PC.text };
   const card = isDark ? 'border-t border-white/[0.08] pt-5' : 'border-t border-black/[0.07] pt-5';
 
   const cardHeader = 'flex items-center gap-3 pb-4';
@@ -1187,9 +1188,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     : 'block text-xs font-semibold text-gray-500 mb-2';
 
   // One soft field style, no border, green ring on focus (as the experience editor).
-  const input = isDark
-    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#3E93FF]'
-    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-3 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#3E93FF]';
+  // The shared field look (as the dropdowns): the dashboard's field colour with a hairline border.
+  const input = 'field-focus w-full rounded-[10px] px-3.5 py-3 text-sm outline-none';
   const chipBg = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
   const softBtn = `${btnClass} flex-shrink-0`;
 
@@ -1271,7 +1271,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               </div>
               <div>
                 <label className={label} htmlFor="blast-about">What is it about?</label>
-                <input id="blast-about" type="text" value={blastPrompt} onChange={e => setBlastPrompt(e.target.value)} className={input}
+                <input id="blast-about" type="text" value={blastPrompt} onChange={e => setBlastPrompt(e.target.value)} className={input} style={fieldStyle}
                   placeholder={isEvent ? 'e.g. The venue has changed; doors open at 6pm' : isVE ? 'e.g. Week 2 starts Monday; the board pack is due Friday' : 'e.g. A new module is open; finish it by Friday'} />
               </div>
             </div>
@@ -1293,7 +1293,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             <label className={label} htmlFor="blast-subject">Subject</label>
             <input id="blast-subject" type="text" value={blastSubject} onChange={e => { setBlastSubject(e.target.value); setBlastResult(null); }}
               placeholder={isEvent ? 'e.g. Important update about your registration' : isVE ? 'e.g. Week 2 starts Monday' : 'e.g. A new module is open'}
-              className={input} />
+              className={input} style={fieldStyle} />
           </div>
           <div>
             <span className={label}>Message</span>
@@ -1326,7 +1326,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />} Preview
             </button>
             <input type="email" value={testTo} onChange={e => { setTestTo(e.target.value); setBlastResult(null); }}
-              placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-[160px] flex-1`} />
+              placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-[160px] flex-1`} style={fieldStyle} />
             <button type="button" onClick={handleTestSend} disabled={testSending || !testTo.trim() || !blastSubject.trim() || !blastHasBody}
               className={softBtn} style={btnStyle('sec', PC)}>
               {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send test
@@ -1453,7 +1453,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               value={quickTo}
               onChange={e => { setQuickTo(e.target.value); setQuickResult(null); }}
               placeholder="recipient@example.com"
-              className={input}
+              className={input} style={fieldStyle}
             />
           </div>
           {quickTypes.length > 1 && (
@@ -2583,7 +2583,7 @@ export default function FormDetailPage() {
   const type = getFormType(form.config);
 
   return (
-    <main className="min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
+    <main className="admin-focus min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
       {/* The course editor provides its own focused studio header and actions. */}
 
       {/* -- Top tab navigation with a full-width content workspace -- */}
