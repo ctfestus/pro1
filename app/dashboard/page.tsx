@@ -20,6 +20,8 @@ import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 const OWN_HEADING = new Set<SectionId>([
   'learning_paths', 'subscriptions', 'payments', 'students', 'cohorts', 'courses', 'assignments',
   'virtual_experiences', 'certifications', 'events', 'community', 'announcements', 'promotions', 'schedule', 'products', 'data_center',
+  'tracking', 'attendance', 'leaderboard', 'badges', 'certificates',
+  'partners', 'applications', 'email_templates', 'branding', 'site',
 ]);
 
 // --- Cache ---

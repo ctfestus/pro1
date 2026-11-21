@@ -35,7 +35,18 @@
       "Bash(awk -F: '$1>=8400 && $1<=8650')",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npm test *)",
+      "Bash(export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory \"GIT_CONFIG_VALUE_0=D:/AI Skills Africa App\")",
+      "Bash(npx vitest *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(gh pr *)",
+      "PowerShell(gh auth status)",
+      "PowerShell(gh pr list --head claude/discount-scroll-popup --state all)",
+      "PowerShell(Get-Item \"D:\\\\AI Skills Africa App\\\\app\\\\icon.png\" | Select-Object Mode, Length, LinkType; \\(Get-Volume -DriveLetter D\\).FileSystemType)",
+      "Bash(git checkout *)",
+      "Bash(git cherry-pick *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\DELL\\Documents\\ALL Apps\\Landing pages\\elevate-landing\\lib",
