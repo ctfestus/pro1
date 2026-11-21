@@ -38,6 +38,8 @@ import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
 import { MoreLikeThis } from './MoreLikeThis';
+import { ToolsAndTags } from './ToolsAndTags';
+import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { PriceCard, hasPriceCard } from './PriceCard';
 import { InstructorCard } from './InstructorCard';
 import type { StoreInstructor } from '@/lib/books/store';
@@ -46,7 +48,6 @@ import { useC } from '@/lib/theme';
 import { enrollLabel, pricingHrefFor } from '@/lib/unlock-pricing';
 import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
-import { useToolIcons } from '@/lib/use-tool-icons';
 import { PromoCard } from '@/components/PromoCard';
 import { DiscountScrollPopup } from '@/components/DiscountScrollPopup';
 import { ShareButtons } from '@/components/ShareButtons';
@@ -274,6 +275,9 @@ function lockedCoursePreviewToForm(item: any) {
       category: item.category,
       coverImage: item.coverImage,
       learnOutcomes: Array.isArray(item.learnOutcomes) ? item.learnOutcomes : [],
+      difficulty: item.difficulty ?? undefined,
+      tags: item.tags ?? [],
+      tools: item.tools ?? [],
       isCourse: true,
       // Appearance travels with the preview. Without it a locked sales page rendered in this
       // page's own fallbacks -- dark mode, platform green, the default font -- instead of the
@@ -319,6 +323,7 @@ function vePreviewToForm(item: any) {
       difficulty: item.difficulty ?? undefined,
       duration: item.duration ?? undefined,
       tools: item.tools ?? [],
+      tags: item.tags ?? [],
       toolLogos: item.toolLogos ?? {},
       learnOutcomes: item.learnOutcomes ?? [],
       managerName: item.managerName ?? undefined,
@@ -483,7 +488,7 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
 }
 
-function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null }) {
+function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor, programmes }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null; programmes: ProgrammeItem[] }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   // On a path with specializations no learner takes every item: count the core, and name the
@@ -503,7 +508,6 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
   const href = path.locked ? pricingHrefFor(path.id, 'learning_path') : signedIn ? `/student?path=${encodeURIComponent(path.id)}#learning_paths` : authHref;
   const cta = path.locked ? enrollLabel(path.unlock) : signedIn ? 'Start path' : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
-  const toolIcon = useToolIcons();
   const overview: string = (path.overview ?? '').trim();
   const skills: string[] = path.skills ?? [];
   const whoShouldTake: string[] = path.whoShouldTake ?? [];
@@ -610,19 +614,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
 
         <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ ...card, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {tools.length > 0 && (
-              <div>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>Tools</p>
-                <div className="flex flex-wrap gap-2">
-                  {tools.map((tool: string) => (
-                    <span key={tool} className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
-                      {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-3.5 w-3.5 object-contain" />}
-                      {tool}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ToolsAndTags tools={tools} palette={{ label: C.faint, chip: C.pill, chipText: C.text }} />
             <div>
               <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
               <ul className="flex flex-col gap-3">
@@ -665,20 +657,17 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
         </div>
       </div>
 
-      <MoreLikeThis kind="learning_path" currentId={path.id} palette={{ text: C.text, muted: C.faint, tile: C.pill }} />
+      <MoreLikeThis kind="learning_path" currentId={path.id} programmes={programmes} palette={{ text: C.text, muted: C.faint, tile: C.pill, card: C.card, dark: isDark }} />
     </main>
   );
 }
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, programmes = [] }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; programmes?: ProgrammeItem[] }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
-  // A virtual experience's tools resolve their logo by name through the shared registry, the
-  // same way a course's category does. See the tools block further down.
-  const toolIcon = useToolIcons();
   // Send visitors back to this page after they sign in.
   //
   // catalogueType has to survive the round trip: slugs are not unique across content types, so a
@@ -823,6 +812,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           isCourse: true, questions: stripExerciseSecrets(course.questions ?? []), fields: course.fields ?? [],
           passmark: course.passmark, courseTimer: course.course_timer,
           learnOutcomes: course.learn_outcomes,
+          difficulty: course.difficulty ?? undefined, tags: course.tags ?? [], tools: course.tools ?? [],
           pointsSystem: pointsSystemFromCourseRow(course),
           postSubmission: course.post_submission,
           coverImage: course.cover_image, deadline_days: course.deadline_days,
@@ -849,7 +839,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           title: ve.title, description: ve.description,
           isVirtualExperience: true, modules: ve.modules ?? [],
           industry: ve.industry, difficulty: ve.difficulty, role: ve.role, company: ve.company,
-          duration: ve.duration, tools: ve.tools, toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
+          duration: ve.duration, tools: ve.tools, tags: ve.tags ?? [], toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
           learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
           guideId: ve.guide_id, guideSnapshot: ve.guide_snapshot,
           dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
@@ -1228,7 +1218,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     if (pathPreview) {
       return (
         <>
-          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} />
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} programmes={programmes} />
           <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
         </>
       );
@@ -1543,32 +1533,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Enrollment card. A locked experience with plans on sale has its button in the price
-                card below, so this card stays only for the tools. */}
-            {(!vePriced || config.tools?.length > 0) && (
+                card below, so this card stays only for the tools and tags. */}
+            {(!vePriced || config.tools?.length > 0 || config.tags?.length > 0) && (
             <div style={{ background: gp.card, borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: cardShadow }}>
-              {/* Tools */}
-              {config.tools?.length > 0 && (
-                <div>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tools</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {/* Defensive rather than trusting the stored list: skills also arrive from
-                        AI generation, content import and the MCP, so a blank name must not
-                        render an empty chip and a duplicate must not collide on its key. */}
-                    {config.tools
-                      .map((raw: string) => String(raw ?? '').trim())
-                      .filter(Boolean)
-                      .map((t: string, i: number) => {
-                      const logo = toolIcon(t);
-                      return (
-                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 12px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
-                          {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
-                          {t}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <ToolsAndTags tools={config.tools} tags={config.tags} palette={{ label: gp.muted, chip: gp.subtle, chipText: gp.body }} />
 
               {/* CTA */}
               {form.locked ? (vePriced ? null : (
@@ -1624,7 +1592,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           </div>
         </div>
 
-        <MoreLikeThis kind="virtual_experience" currentId={form.id} category={config.industry ? String(config.industry) : null} palette={{ text: gp.title, muted: gp.muted, tile: gp.card }} />
+        <MoreLikeThis kind="virtual_experience" currentId={form.id} category={config.industry ? String(config.industry) : null} programmes={programmes} palette={{ text: gp.title, muted: gp.muted, tile: gp.subtle, card: gp.card, dark: !isLight }} />
 
         <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />
       </div>
@@ -1809,6 +1777,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   in dark mode, where a light one does not read at all. */}
               <div style={{ background: cp.card, borderRadius: 14, boxShadow: courseCardShadow }}>
                 <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <ToolsAndTags tools={config.tools} tags={config.tags} palette={{ label: cp.muted, chip: cp.divider, chipText: cp.body }} />
                   <div>
                     <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>This course includes</p>
                     <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: 0, padding: 0, listStyle: 'none' }}>
@@ -1861,7 +1830,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           </div>
         )}
         {!courseStarted && (
-          <MoreLikeThis kind="course" currentId={form.id} category={courseCategory || null} palette={{ text: cp.title, muted: cp.muted, tile: cp.card }} />
+          <MoreLikeThis kind="course" currentId={form.id} category={courseCategory || null} programmes={programmes} palette={{ text: cp.title, muted: cp.muted, tile: cp.subtle, card: cp.card, dark }} />
         )}
 
         {/* CourseTaker */}
