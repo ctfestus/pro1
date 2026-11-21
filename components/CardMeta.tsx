@@ -35,13 +35,17 @@ function FitTags({ tags, isDark }: { tags: string[]; isDark?: boolean }) {
   useEffect(() => {
     const row = rowRef.current, measure = measureRef.current;
     if (!row || !measure) return;
-    const GAP = 6, MORE = 34; // the space between chips, and room for the "+N" chip
+    const GAP = 6; // the space between chips
     const fit = () => {
-      const widths = [...measure.children].map(el => (el as HTMLElement).offsetWidth);
+      // The hidden row holds every tag, then "+1", "+2" ... "+(tags - 1)": the room a "+N" chip
+      // needs is read from the very chip that would show, not guessed.
+      const chips = [...measure.children].map(el => (el as HTMLElement).offsetWidth);
+      const widths = chips.slice(0, tags.length);
+      const more = (hidden: number) => chips[tags.length + hidden - 1] ?? 0;
       const span = (n: number) => widths.slice(0, n).reduce((sum, w) => sum + w, 0) + GAP * Math.max(0, n - 1);
       if (span(widths.length) <= row.clientWidth) { setShown(widths.length); return; }
       let n = widths.length - 1;
-      while (n > 1 && span(n) + GAP + MORE > row.clientWidth) n--;
+      while (n > 1 && span(n) + GAP + more(widths.length - n) > row.clientWidth) n--;
       setShown(n);
     };
     // The card resizing changes the room; the hidden row resizing (the web font arriving after the
@@ -55,9 +59,10 @@ function FitTags({ tags, isDark }: { tags: string[]; isDark?: boolean }) {
     <div ref={rowRef} className="relative flex gap-1.5 overflow-hidden">
       {tags.slice(0, shown).map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
       {shown < tags.length && <TagChip isDark={isDark}>+{tags.length - shown}</TagChip>}
-      {/* Every tag, invisible, so their widths can be read whatever is showing. */}
+      {/* Every tag and every possible "+N", invisible, so their widths can be read whatever is showing. */}
       <div ref={measureRef} aria-hidden="true" className="absolute left-0 top-0 invisible flex gap-1.5">
         {tags.map(tag => <TagChip key={tag} isDark={isDark}>{tag}</TagChip>)}
+        {tags.slice(1).map((_, i) => <TagChip key={`+${i + 1}`} isDark={isDark}>+{i + 1}</TagChip>)}
       </div>
     </div>
   );
