@@ -253,11 +253,13 @@ CREATE TABLE public.courses (
   -- migration 182: per-course opt-in for the lesson AI tutor. Off by default --
   -- /api/lesson-tutor refuses every request for a course where this is false.
   ai_tutor_enabled boolean    NOT NULL DEFAULT false,
-  -- migration 246: the course's level and its tags (e.g. Excel, AI).
+  -- migration 246: the course's level, its tags (topics, e.g. AI) and its tools (software,
+  -- e.g. Excel, shown with the tool's logo).
   difficulty      text
     CONSTRAINT courses_difficulty_check
     CHECK (difficulty IS NULL OR difficulty IN ('beginner', 'intermediate', 'advanced')),
   tags            text[]      NOT NULL DEFAULT '{}',
+  tools           text[]      NOT NULL DEFAULT '{}',
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
