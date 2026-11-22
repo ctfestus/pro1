@@ -4041,6 +4041,31 @@ AS
 
 GRANT SELECT ON public.published_courses TO anon, authenticated;
 
+-- Migration 251: each course's slides without their content, for My learning's counts and
+-- progress. security_invoker, so the courses select policy decides the rows.
+CREATE OR REPLACE VIEW public.course_outlines
+WITH (security_invoker = true)
+AS
+  SELECT c.id,
+         COALESCE((
+           SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+                    'id',                    q.value->'id',
+                    'isSection',             q.value->'isSection',
+                    'isLinkedInShare',       q.value->'isLinkedInShare',
+                    'linkedInShareRequired', q.value->'linkedInShareRequired',
+                    'lesson', CASE WHEN jsonb_typeof(q.value->'lesson') = 'object' THEN jsonb_build_object(
+                                'title', q.value->'lesson'->'title',
+                                'body',  COALESCE(q.value->'lesson'->>'body', '') <> '',
+                                'doc',   q.value->'lesson'->'doc' IS NOT NULL AND q.value->'lesson'->'doc' <> 'null'::jsonb)
+                              END
+                  )) ORDER BY q.ordinality)
+           FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.questions) = 'array' THEN c.questions ELSE '[]'::jsonb END)
+                WITH ORDINALITY AS q(value, ordinality)
+         ), '[]'::jsonb) AS outline
+  FROM public.courses c;
+
+GRANT SELECT ON public.course_outlines TO authenticated;
+
 CREATE VIEW public.published_virtual_experiences
 WITH (security_barrier = true)
 AS
