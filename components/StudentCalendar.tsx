@@ -8,7 +8,7 @@ import {
   Clock, MapPin, ClipboardList, ExternalLink, Video,
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
-import { useC as usePlatformC } from '@/lib/theme';
+import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { sessionStartInstant } from '@/lib/event-sessions';
@@ -20,8 +20,7 @@ const LIGHT = {
   cardShadow: 'none',
   text: '#111827', muted: '#4B5563', faint: '#9CA3AF',
   divider: 'rgba(0,0,0,0.07)', pill: '#F4F4F4',
-  todayBg: '#0e09dd', todayText: '#ffffff',
-  hoverCell: 'rgba(14,9,221,0.04)',
+  todayBg: '#3E93FF', todayText: '#ffffff',
 };
 const DARK = {
   isDark: true,
@@ -30,7 +29,6 @@ const DARK = {
   text: '#F0F2F5', muted: '#9CA3AF', faint: '#6B7280',
   divider: 'rgba(255,255,255,0.07)', pill: '#2a2b34',
   todayBg: '#3E93FF', todayText: '#ffffff',
-  hoverCell: 'rgba(62,147,255,0.06)',
 };
 type Colors = typeof LIGHT;
 function useColors(): Colors { const { theme } = useTheme(); return theme === 'dark' ? DARK : LIGHT; }
@@ -72,9 +70,9 @@ interface CalItem {
 
 /* --- kind metadata --- */
 const KIND_META: Record<ItemKind, { bg: string; border: string; text: string; dot: string; label: string }> = {
-  // --cal-live is the platform colour, set on the calendar's root.
-  event:      { bg: 'color-mix(in srgb, var(--cal-live) 11%, transparent)', border: 'var(--cal-live)', text: 'var(--cal-live)', dot: 'var(--cal-live)', label: 'Live Session' },
-  assignment: { bg: 'rgba(245,158,11,0.12)',  border: '#f59e0b', text: '#d97706', dot: '#f59e0b', label: 'Assignment'    },
+  // Neutral chips (--cal-chip and --cal-ink are set on the calendar's root); the dot says what it is.
+  event:      { bg: 'var(--cal-chip)', border: '#3E93FF', text: 'var(--cal-ink)', dot: '#3E93FF', label: 'Live session' },
+  assignment: { bg: 'var(--cal-chip)', border: '#f59e0b', text: 'var(--cal-ink)', dot: '#f59e0b', label: 'Assignment due' },
 };
 
 /* --- date utils --- */
@@ -348,7 +346,7 @@ function ItemModal({ item, onClose, onNavigate }: {
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
               style={{ background: C.pill, color: C.muted }}
             >
-              {item.kind === 'event' ? 'Open in Live Sessions' : 'Open in Assignments'}
+              {item.kind === 'event' ? 'Open in Live sessions' : 'Open in Assignments'}
             </button>
           </div>
         </div>
@@ -390,7 +388,7 @@ function MonthView({ year, month, today, itemsByDay, onSelect, isMobile }: {
       {/* Day headers */}
       <div className="grid grid-cols-7" style={{ borderBottom: `1px solid ${C.divider}` }}>
         {dayLabels.map((d, i) => (
-          <div key={i} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>
+          <div key={i} className="py-2.5 text-center text-xs font-semibold" style={{ color: C.muted }}>
             {d}
           </div>
         ))}
@@ -426,7 +424,7 @@ function MonthView({ year, month, today, itemsByDay, onSelect, isMobile }: {
               <div
                 key={di}
                 className="transition-colors"
-                style={{ minHeight: cellMinH, padding: cellPad, borderLeft, background: isToday ? C.hoverCell : 'transparent' }}
+                style={{ minHeight: cellMinH, padding: cellPad, borderLeft, background: 'transparent' }}
               >
                 {/* Day number */}
                 <div className="flex justify-end mb-1">
@@ -517,8 +515,8 @@ function WeekView({ focusDate, today, itemsByDay, onSelect, isMobile }: {
               style={{ borderLeft: i > 0 ? `1px solid ${C.divider}` : 'none' }}
             >
               <p
-                className="text-[10px] font-semibold uppercase tracking-wide"
-                style={{ color: isToday ? C.todayBg : C.faint }}
+                className="text-[11px] font-semibold"
+                style={{ color: isToday ? C.todayBg : C.muted }}
               >
                 {isMobile
                   ? d.toLocaleDateString('en-US', { weekday: 'short' })
@@ -551,7 +549,7 @@ function WeekView({ focusDate, today, itemsByDay, onSelect, isMobile }: {
               style={{
                 borderLeft: i > 0 ? `1px solid ${C.divider}` : 'none',
                 minHeight: isMobile ? 140 : 200,
-                background: isToday ? C.hoverCell : 'transparent',
+                background: 'transparent',
               }}
             >
               {dayItems.map(item => {
@@ -662,7 +660,7 @@ function ListView({ items, onSelect }: { items: CalItem[]; onSelect: (item: CalI
     <div className="space-y-6">
       {grouped.map(group => (
         <div key={group.key}>
-          <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: C.faint }}>
+          <p className="text-base font-semibold mb-2.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
             {group.label}
           </p>
           <div className="space-y-2">
@@ -683,7 +681,6 @@ export default function CalendarSection({ userId, onNavigate }: {
   userId: string;
   onNavigate: (section: string) => void;
 }) {
-  const platformColor = usePlatformC().cta;
   const C       = useColors();
   const isMobile = useIsMobile();
   const today   = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -858,11 +855,11 @@ export default function CalendarSection({ userId, onNavigate }: {
       if (ws.getMonth() === we.getMonth()) return `${MONTHS[ws.getMonth()]} ${ws.getFullYear()}`;
       return `${MONTHS[ws.getMonth()]} - ${MONTHS[we.getMonth()]} ${we.getFullYear()}`;
     }
-    return 'All Events';
+    return 'All sessions and deadlines';
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", ['--cal-live' as string]: platformColor }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", ['--cal-chip' as string]: C.pill, ['--cal-ink' as string]: C.text }}>
 
       {/* Toolbar -- stacks on mobile */}
       <div className={`flex mb-5 gap-2 ${isMobile ? 'flex-col' : 'items-center justify-between flex-wrap'}`}>
@@ -873,42 +870,44 @@ export default function CalendarSection({ userId, onNavigate }: {
             <>
               <button
                 onClick={navPrev}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-opacity hover:opacity-70"
-                style={{ background: C.pill, color: C.muted }}
+                aria-label="Previous"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-opacity hover:opacity-70"
+                style={{ background: C.card, color: C.text }}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span
-                className="text-sm font-bold text-center"
-                style={{ color: C.text, minWidth: isMobile ? 120 : 148 }}
+                className="text-base font-semibold text-center"
+                style={{ color: C.text, fontFamily: DISPLAY_FONT, minWidth: isMobile ? 120 : 160 }}
               >
                 {navTitle()}
               </span>
               <button
                 onClick={navNext}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-opacity hover:opacity-70"
-                style={{ background: C.pill, color: C.muted }}
+                aria-label="Next"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-opacity hover:opacity-70"
+                style={{ background: C.card, color: C.text }}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setFocusDate(new Date())}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
-                style={{ background: C.pill, color: C.muted }}
+                className="ml-1 h-9 px-3.5 rounded-xl text-[13px] font-semibold transition-opacity hover:opacity-80"
+                style={{ background: C.card, color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}
               >
                 Today
               </button>
             </>
           )}
           {view === 'list' && (
-            <span className="text-sm font-bold" style={{ color: C.text }}>All Events &amp; Deadlines</span>
+            <span className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>All sessions and deadlines</span>
           )}
         </div>
 
         {/* View switcher -- icons-only on mobile */}
         <div
-          className={`flex items-center gap-0.5 p-1 rounded-xl ${isMobile ? 'self-start' : ''}`}
-          style={{ background: C.pill }}
+          className={`flex items-center gap-1 p-1 rounded-[14px] ${isMobile ? 'self-start' : ''}`}
+          style={{ background: C.card }}
         >
           {([
             ['month', 'Month', Calendar],
@@ -918,12 +917,12 @@ export default function CalendarSection({ userId, onNavigate }: {
             <button
               key={v}
               onClick={() => setView(v)}
-              className="flex items-center gap-1.5 rounded-lg text-xs font-semibold transition-all"
+              aria-pressed={view === v} aria-label={label}
+              className="flex h-8 items-center gap-1.5 rounded-[10px] text-[13px] font-semibold transition-colors"
               style={{
-                padding: isMobile ? '6px 10px' : '6px 12px',
-                background: view === v ? C.card : 'transparent',
-                color: view === v ? C.text : C.faint,
-                boxShadow: view === v ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                padding: isMobile ? '0 10px' : '0 12px',
+                background: view === v ? '#3E93FF' : 'transparent',
+                color: view === v ? '#ffffff' : C.muted,
               }}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -938,17 +937,16 @@ export default function CalendarSection({ userId, onNavigate }: {
         {(['event', 'assignment'] as ItemKind[]).map(k => (
           <div key={k} className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full" style={{ background: KIND_META[k].dot }} />
-            <span className="text-xs" style={{ color: C.faint }}>{KIND_META[k].label}</span>
+            <span className="text-xs" style={{ color: C.muted }}>{KIND_META[k].label}</span>
           </div>
         ))}
       </div>
 
       {/* Content */}
       {loading ? (
-        <div className="space-y-3">
-          <Sk h={48} r={12} />
-          <div className="grid grid-cols-7 gap-px">
-            {Array.from({ length: 35 }).map((_, i) => <Sk key={i} h={isMobile ? 64 : 96} r={0} />)}
+        <div className="rounded-2xl p-3" style={{ background: C.card }} aria-busy="true">
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 35 }).map((_, i) => <Sk key={i} h={isMobile ? 56 : 88} r={8} />)}
           </div>
         </div>
       ) : (
