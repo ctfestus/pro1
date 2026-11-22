@@ -36,13 +36,12 @@ export default async function EventsPage() {
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor || primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-10 sm:pt-14 pb-16">
-        <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#475569' }}>Events</p>
-        <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Learn live with us</h1>
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Events</h1>
         <p className="mt-3 max-w-2xl text-base" style={{ color: '#475569' }}>
           Live sessions, workshops and meetups. Register free in a minute and we will email you the details and a reminder.
         </p>
         <div className="mt-8">
-          <EventCatalogue upcoming={events.upcoming} past={events.past} primaryColor={primaryColor} />
+          <EventCatalogue upcoming={events.upcoming} past={events.past} />
         </div>
       </section>
     </StoreChrome>

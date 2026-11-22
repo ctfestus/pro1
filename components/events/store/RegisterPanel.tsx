@@ -227,7 +227,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
         <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your seat' : 'Save my seat'}
         </span>
-        {event.spotsLeft !== null && <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>}
+        {event.spotsLeft !== null && <span className="text-xs font-normal opacity-85">Limited spots available</span>}
       </button>
       <p className="mt-3 text-xs" style={{ color: 'var(--ev-faint,#94a3b8)' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
@@ -266,7 +266,7 @@ function AfterRegistering({ after, primaryColor }: { after: AfterRegistration; p
   if (after.type === 'events') {
     return (
       <div className="mt-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--ev-muted,#64748b)' }}>You might also like</p>
+        <p className="text-sm font-semibold" style={{ color: 'var(--ev-muted,#64748b)' }}>You might also like</p>
         <div className="mt-3 space-y-2">
           {after.items.map(item => (
             <Link key={item.id} href={item.href}
