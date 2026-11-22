@@ -3,16 +3,12 @@
 // Dashboard header pieces: cohort and subscription timelines, the plan-upgrade prompt,
 // and the profile menu. Date helpers remain file-internal.
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
 import { useC } from '@/lib/theme';
 import type { SubscriptionStatus } from '@/lib/db-subscriptions';
-import {
-  ArrowUpRight, ChevronDown, LogOut, Settings, User, Award, GraduationCap, TrendingUp,
-  BarChart3, LayoutDashboard,
-} from 'lucide-react';
+import { ArrowUpRight, Award, TrendingUp } from 'lucide-react';
 
 export type CohortTimeline = {
   id: string;
@@ -296,111 +292,6 @@ function TimelineBadge(props: TimelineBadgeProps) {
                 {/* The track measures classes, so it ends on the last day of classes. */}
                 <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(teachEnd)}</span>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// --- ProfileMenu ---
-export function ProfileMenu({ user, profile, onSignOut }: { user: any; profile: any; onSignOut: () => void }) {
-  const C = useC();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  const [open, setOpen] = useState(false);
-  const name     = profile?.name || profile?.full_name || user?.email?.split('@')[0] || 'User';
-  const username = profile?.username;
-  const initials = name.slice(0, 2).toUpperCase();
-  const avatar   = profile?.avatar_url;
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => { if (!(e.target as Element).closest?.('.profile-menu')) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-
-  const menuItem = (href: string, Icon: React.ElementType, label: string, external?: boolean) => (
-    <Link key={label} href={href} onClick={() => setOpen(false)}
-      {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-      className="profile-menu flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-      style={{ color: C.text, textDecoration: 'none' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.pill; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-      <Icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: C.text }}/>
-      {label}
-    </Link>
-  );
-
-  return (
-    <div className="relative profile-menu" style={{ fontFamily: "'Google Sans Text', sans-serif" }}>
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all hover:shadow-md"
-        style={{ background: C.card, borderColor: C.cardBorder }}>
-        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{ background: C.lime, color: C.green }}>
-          {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <span>{initials}</span>}
-        </div>
-        <span className="hidden sm:inline text-sm font-medium max-w-[120px] truncate" style={{ color: C.text }}>{name}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: C.faint }}/>
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -6 }}
-            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="profile-menu absolute right-0 top-full mt-2 w-64 rounded-2xl overflow-hidden z-50"
-            style={{
-              background: C.card,
-              fontFamily: "'Google Sans Text', sans-serif",
-              boxShadow: isDark
-                ? '0 20px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)'
-                : '0 20px 60px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.06)',
-            }}>
-
-            {/* Header */}
-            <div className="px-4 py-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center text-sm font-bold flex-shrink-0"
-                  style={{ background: C.lime, color: C.green }}>
-                  {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <span>{initials}</span>}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold truncate" style={{ color: C.text }}>{name}</p>
-                  <p className="text-xs truncate mt-0.5" style={{ color: C.faint }}>
-                    {username ? `@${username}` : user?.email}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation items */}
-            <div className="p-2">
-              {(profile?.role === 'instructor' || profile?.role === 'admin') &&
-                menuItem('/dashboard', BarChart3, 'Instructor Dashboard')}
-              {profile?.role === 'staff' &&
-                menuItem('/dashboard#events', LayoutDashboard, 'Staff Dashboard')}
-              {menuItem('/student#courses', GraduationCap, 'My Learning')}
-              {menuItem('/student#certificates', Award, 'My Certificates')}
-              {username && menuItem(`/s/${username}`, User, 'View Profile', true)}
-              {menuItem('/settings', Settings, 'Settings')}
-            </div>
-
-            {/* Sign out */}
-            <div className="p-2" style={{ borderTop: `1px solid ${C.divider}` }}>
-              <button onClick={() => { setOpen(false); onSignOut(); }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={{ color: '#ef4444' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.signOutHover; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                <LogOut className="w-[18px] h-[18px] flex-shrink-0"/>
-                Sign out
-              </button>
             </div>
           </motion.div>
         )}

@@ -28,8 +28,8 @@ import {
   CohortTimelineBadge,
   UpgradePlanButton,
   SubscriptionTimelineBadge,
-  ProfileMenu,
 } from '@/components/student/header';
+import { ProfileMenu } from '@/components/ProfileMenu';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { NextSessionBanner } from '@/components/student/next-session-banner';
 import { PromoCard } from '@/components/PromoCard';

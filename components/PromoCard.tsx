@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { useTenant } from '@/components/TenantProvider';
@@ -114,18 +114,20 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
       <div className="flex flex-col gap-2">
         {items.map((item, i) => {
           const { month, day } = eventDateParts(item.date);
+          const monthLabel = month.charAt(0) + month.slice(1).toLowerCase();
           const url = safePromoUrl(item.url);
           const body = (
             <div className="flex gap-3 items-center">
               <div className="flex flex-col items-center justify-center flex-shrink-0"
-                style={{ width: 96, height: 96, borderRadius: 10, background: tileColor, color: tileText }}>
-                <span className="text-[12px] font-medium" style={{ letterSpacing: '0.18em', paddingLeft: '0.18em' }}>{month}</span>
-                <span className="text-4xl font-normal leading-none mt-1">{day}</span>
+                style={{ width: 80, height: 80, borderRadius: 12, background: tileColor, color: tileText }}>
+                <span className="text-xs font-semibold">{monthLabel}</span>
+                <span className="text-[32px] font-semibold leading-none mt-0.5" style={{ fontFamily: 'var(--font-display), sans-serif' }}>{day}</span>
               </div>
               <div className={`min-w-0 flex-1 ${i === 0 && onClose ? 'pr-6' : ''}`}>
-                <p className="text-[11px] font-semibold uppercase" style={{ color: C.muted, letterSpacing: '0.12em' }}>{eventFormatLabel(item.format)}</p>
-                <p className="text-base font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
-                {item.note && <p className="text-sm leading-snug mt-1" style={{ color: C.muted }}>{item.note}</p>}
+                <p className="text-xs font-semibold" style={{ color: C.muted }}>{eventFormatLabel(item.format)}</p>
+                <p className="text-base font-semibold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
+                {item.note && <p className="text-[13px] leading-snug mt-0.5" style={{ color: C.muted }}>{item.note}</p>}
+                {url && <span className="inline-flex items-center gap-1 mt-1.5 text-[13px] font-semibold" style={{ color: C.cta }}>Register <ArrowRight className="w-3 h-3" /></span>}
               </div>
             </div>
           );
@@ -148,19 +150,19 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
       <div className="flex gap-3 items-start">
         {imageUrl && (
           <img src={imageUrl} alt="" className="flex-shrink-0 object-cover"
-            style={{ width: 96, height: 96, borderRadius: 10 }}
+            style={{ width: 80, height: 80, borderRadius: 12 }}
             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         )}
         <div className="min-w-0 flex-1 pr-6">
-          <p className="text-base font-bold leading-snug" style={{ color: C.text }}>{promo.title}</p>
+          <p className="text-base font-semibold leading-snug" style={{ color: C.text }}>{promo.title}</p>
           {promo.body && (
             <p className="text-sm leading-snug mt-1 line-clamp-3" style={{ color: C.muted }}>{promo.body}</p>
           )}
           {ctaUrl && (
             <PromoLink url={ctaUrl} preview={preview} onAction={onAction}
-              className="inline-block mt-2 text-sm font-semibold hover:underline"
+              className="inline-flex items-center gap-1 mt-2 text-sm font-semibold hover:underline"
               style={{ color: C.cta }}>
-              {ctaLabel}
+              {ctaLabel} <ArrowRight className="w-3.5 h-3.5" />
             </PromoLink>
           )}
         </div>

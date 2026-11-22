@@ -13,10 +13,10 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
-import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import { ChevronDown, ChevronRight, Menu, X, GraduationCap } from 'lucide-react';
 import type { NavSubGroup } from '@/lib/landing-nav';
+import { ProfileMenu } from '@/components/ProfileMenu';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { M3, GUTTER } from '@/components/landing/type';
 
@@ -114,133 +114,6 @@ export interface LandingFooterProps {
   programmes: ProgrammeItem[];
 }
 
-// --- Nav profile menu ---
-function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
-  user: any;
-  profile: any;
-  pageDark?: boolean;
-  fontFamily?: string;
-}) {
-  const { theme } = useTheme();
-  const isDark = pageDark ?? (theme === 'dark');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const card    = isDark ? '#1E1F26' : 'white';
-  const divider = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
-  const text    = isDark ? '#f0f0f0' : '#111';
-  const faint   = isDark ? '#6b7a89' : '#888';
-  const pill    = isDark ? '#2a2b34' : '#F4F4F4';
-
-  const signOutHover = isDark ? 'rgba(239,68,68,0.10)'   : 'rgba(239,68,68,0.08)';
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const name     = profile?.name || profile?.full_name || user?.email?.split('@')[0] || 'User';
-  const username = profile?.username;
-  const avatar   = profile?.avatar_url && /^https?:\/\//.test(profile.avatar_url) ? profile.avatar_url : null;
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/';
-  };
-
-  const menuItem = (href: string, Icon: React.ElementType, label: string, external?: boolean) => (
-    <Link key={label} href={href} onClick={() => setOpen(false)}
-      {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-      className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-      style={{ color: text, textDecoration: 'none' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = pill; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-      <Icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: text }}/>
-      {label}
-    </Link>
-  );
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all hover:shadow-sm"
-        style={{
-          background: isDark ? '#1E1F26' : 'white',
-          borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)',
-        }}
-      >
-        <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-          style={{ background: pill, color: faint }}>
-          {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <User className="w-4 h-4" />}
-        </div>
-        <span className="text-sm font-medium hidden sm:block pr-1" style={{ color: isDark ? 'white' : '#1C1D1F' }}>
-          {name}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform mr-1 ${open ? 'rotate-180' : ''}`} style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.45)' }} />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -6 }}
-            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-full mt-2 w-64 rounded-2xl overflow-hidden z-50"
-            style={{
-              background: card,
-              fontFamily: fontFamily || "'Inter', sans-serif",
-              boxShadow: isDark
-                ? '0 20px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)'
-                : '0 20px 60px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.06)',
-            }}
-          >
-            {/* Header */}
-            <div className="px-4 py-4" style={{ borderBottom: `1px solid ${divider}` }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0"
-                  style={{ background: pill, color: faint }}>
-                  {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover"/> : <User className="w-5 h-5" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold truncate" style={{ color: text }}>{name}</p>
-                  <p className="text-xs truncate mt-0.5" style={{ color: faint }}>
-                    {username ? `@${username}` : user?.email}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation items */}
-            <div className="p-2">
-              {menuItem('/dashboard', LayoutDashboard, 'Dashboard')}
-              {menuItem('/student#courses', GraduationCap, 'My Learning')}
-              {menuItem('/student#certificates', Award, 'My Certificates')}
-              {username && menuItem(`/s/${username}`, User, 'View Profile', true)}
-              {menuItem('/settings', Settings, 'Settings')}
-            </div>
-
-            {/* Sign out */}
-            <div className="p-2" style={{ borderTop: `1px solid ${divider}` }}>
-              <button onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={{ color: '#ef4444' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = signOutHover; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                <LogOut className="w-[18px] h-[18px] flex-shrink-0"/>
-                Sign out
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 /**
  * One "Learn" trigger in place of a link per content type. Four flat links crowded the bar and
@@ -659,7 +532,8 @@ export function LandingNav({
                 Pricing
               </Link>
             )}
-            {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
+            {user ? <ProfileMenu user={user} profile={profile} dark={isPageDark} fontFamily={fontFamily}
+              onSignOut={async () => { await supabase.auth.signOut(); window.location.href = '/'; }} /> : (
               <>
                 <Link href="/auth"
                   className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
