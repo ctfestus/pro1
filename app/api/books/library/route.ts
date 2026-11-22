@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { isLicenseExpired } from '@/lib/books/schema';
 
-// GET /api/books/library -> { books: LibraryBook[], purchases: LibraryPurchase[] }
+// GET /api/books/library -> { books: LibraryBook[] }
 //
 // The buyer's "My Books": every book they can download, and their book payments.
 //   * books they bought or were granted (an active book_entitlements row) -- kept after a book is
@@ -37,17 +37,6 @@ export interface LibraryBook {
   licenseExpiresAt: string | null;
 }
 
-export interface LibraryPurchase {
-  id: string;
-  bookId: string | null;
-  bookTitle: string;
-  amount: number;
-  currency: string;
-  status: string;
-  paidAt: string | null;
-  createdAt: string;
-}
-
 function toBook(row: any, source: LibrarySource, since: string | null, now: Date): LibraryBook {
   return {
     id: row.id,
@@ -73,16 +62,11 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   try {
-    const [studentRes, entitlementRes, purchaseRes] = await Promise.all([
+    const [studentRes, entitlementRes] = await Promise.all([
       db.from('students').select('cohort_id').eq('id', userId).maybeSingle(),
       db.from('book_entitlements').select('book_id, source, granted_at').eq('student_id', userId).is('revoked_at', null),
-      db.from('book_purchases')
-        .select('id, book_id, book_title, amount, currency, status, paid_at, created_at')
-        .eq('student_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(100),
     ]);
-    for (const r of [studentRes, entitlementRes, purchaseRes]) if (r.error) throw r.error;
+    for (const r of [studentRes, entitlementRes]) if (r.error) throw r.error;
     const cohortId: string | null = (studentRes.data as any)?.cohort_id ?? null;
     const entitlements: any[] = (entitlementRes.data as any[]) ?? [];
 
@@ -131,18 +115,8 @@ export async function GET(req: NextRequest) {
     const list = [...books.values()].sort((a, b) =>
       (b.since ?? '').localeCompare(a.since ?? '') || a.title.localeCompare(b.title));
 
-    const purchases: LibraryPurchase[] = ((purchaseRes.data as any[]) ?? []).map(p => ({
-      id: p.id,
-      bookId: p.book_id ?? null,
-      bookTitle: p.book_title,
-      amount: Number(p.amount),
-      currency: p.currency,
-      status: p.status,
-      paidAt: p.paid_at ?? null,
-      createdAt: p.created_at,
-    }));
 
-    return NextResponse.json({ books: list, purchases }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ books: list }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books/library]', e?.message ?? e);
     return NextResponse.json({ error: 'Could not load your products.' }, { status: 500 });
