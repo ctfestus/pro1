@@ -559,7 +559,7 @@ export default function StudentDashboard() {
 
   if (connectionLost) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ background: C.page }}>
-      <h1 className="text-xl font-semibold" style={{ color: C.text }}>Could not connect</h1>
+      <h1 className="text-xl font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Could not connect</h1>
       <p className="text-sm" style={{ color: C.muted }}>You are still signed in. Check your connection and try again.</p>
       <button type="button" onClick={() => window.location.reload()} className="mt-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ background: '#3E93FF' }}>
         Try again
@@ -719,7 +719,7 @@ export default function StudentDashboard() {
                       <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>My learning</h1>
                       <p className="mt-1 text-sm" style={{ color: C.muted }}>Everything you are taking: courses, learning paths and virtual experiences.</p>
                     </>
-                  : <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isLiveSessions ? 'Live sessions' : activeItem.label}</h1>}
+                  : <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{isLiveSessions ? 'Live sessions' : activeItem.label}</h1>}
                 {SECTION_LINES[isLiveSessions ? 'events' : activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[isLiveSessions ? 'events' : activeSection]}</p>}
               </div>
             )}

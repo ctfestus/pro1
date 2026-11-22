@@ -15,6 +15,7 @@ import { NAV_ITEMS, STAFF_SECTION_IDS, type SectionId } from '@/components/dashb
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SectionContent } from '@/components/dashboard/SectionContent';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
 
 // Sections that draw their own page heading, so the dashboard does not add one above them.
 const OWN_HEADING = new Set<SectionId>([
@@ -300,7 +301,7 @@ export default function DashboardPage() {
             {/* Section header: pages in the newer admin style draw their own heading. */}
             {!OWN_HEADING.has(activeSection) && (
               <div className="flex flex-wrap items-start sm:items-center justify-between gap-3 mb-6 sm:mb-8">
-                <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.text }}>{activeItem.label}</h1>
+                <h1 className="text-[28px] leading-9 font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{activeItem.label}</h1>
               </div>
             )}
 

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
 import { AssignmentDetail } from '@/components/student/assignments';
 import { getStudentMode, installStudentModeFetchBridge } from '@/lib/student-mode-client';
+import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
 
 type LearnerContext = {
   id: string;
@@ -127,7 +128,7 @@ export default function StudentAssignmentPage() {
           <span style={{ width: 46, height: 46, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: 14, background: C.pill }}>
             <ClipboardList className="w-5 h-5" style={{ color: C.green }}/>
           </span>
-          <h1 style={{ color: C.text, fontSize: 18, fontWeight: 750, margin: 0 }}>Assignment unavailable</h1>
+          <h1 style={{ color: C.text, fontSize: 20, fontWeight: 700, margin: 0, fontFamily: DISPLAY_FONT }}>Assignment unavailable</h1>
           <p style={{ color: C.faint, fontSize: 13, lineHeight: 1.6, margin: '8px 0 18px' }}>{error || 'This assignment could not be loaded.'}</p>
           <button type="button" onClick={() => router.push('/student#assignments')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 14px', borderRadius: 11, border: 'none', background: C.cta, color: C.ctaText, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             <ArrowLeft className="w-3.5 h-3.5"/> Back to assignments

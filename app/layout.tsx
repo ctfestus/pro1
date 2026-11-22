@@ -31,8 +31,15 @@ const lato = localFont({
   ],
   variable: '--font-lato', display: 'swap', preload: false,
 });
-// Headings in the virtual experience player.
-const spaceGrotesk = localFont({ src: './fonts/space-grotesk-latin-wght-normal.woff2', weight: '300 700', variable: '--font-display', display: 'swap', preload: false });
+// The heading font (--font-display, DISPLAY_FONT): Lato, from the same files as --font-lato, so the
+// browser downloads them once. (It was Space Grotesk until 2026-11-22.)
+const displayFont = localFont({
+  src: [
+    { path: './fonts/lato-latin-700-normal.woff2', weight: '700', style: 'normal' },
+    { path: './fonts/lato-latin-900-normal.woff2', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-display', display: 'swap', preload: false,
+});
 
 function selectedFontFamily(fontName: string): string {
   const safeName = fontName.replace(/[;'"\\]/g, '').trim();
@@ -109,7 +116,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } as CSSProperties;
 
   return (
-    <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
+    <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable} ${displayFont.variable}`} suppressHydrationWarning>
       <head>
         {/* Google Sans Text is not exposed by next/font. The other links load only when selected in Site Settings. */}
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
