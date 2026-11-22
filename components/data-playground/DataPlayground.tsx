@@ -33,6 +33,7 @@ import {
 import { workbookRows, workbookSheetNames } from '@/lib/workbook-rows';
 import { formatAttachmentSize } from '@/lib/lesson-attachment';
 import { useToolIcons } from '@/lib/use-tool-icons';
+import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 
 export type DatasetFile = { name: string; url: string };
 export type AnalystTaskType = 'sql' | 'analytics';
@@ -164,7 +165,7 @@ function analystSectionsFor(d: DCDataset): AnalystSection[] {
       // Keep a phase if it has tasks OR is a briefing-only phase (real title, brief, or embed).
       const hasContent = tasks.length > 0 || !!rawTitle || hasRichContent(brief) || !!videoUrl;
       return {
-        section: { id: sectionKey(section, index), title: rawTitle || `Analysis Phase ${index + 1}`, brief, videoUrl, difficulty, duration, tasks },
+        section: { id: sectionKey(section, index), title: rawTitle || `Phase ${index + 1}`, brief, videoUrl, difficulty, duration, tasks },
         hasContent,
       };
     })
@@ -179,13 +180,13 @@ function analystSectionsFor(d: DCDataset): AnalystSection[] {
   return [
     sqlTasks.length ? {
       id: 'legacy-sql-practice',
-      title: 'SQL Practice',
+      title: 'SQL practice',
       brief: 'Answer these directly in the SQL Workbench.',
       tasks: sqlTasks.map((q, i) => ({ id: `legacy-sql-${i + 1}`, prompt: q.text, type: 'sql' as const })),
     } : null,
     analyticsTasks.length ? {
       id: 'legacy-analytics',
-      title: 'Analytics Questions',
+      title: 'Analytics questions',
       brief: 'Use the dataset to reason through these broader business questions.',
       tasks: analyticsTasks.map((q, i) => ({ id: `legacy-analytics-${i + 1}`, prompt: q.text, type: 'analytics' as const })),
     } : null,
@@ -1115,7 +1116,7 @@ function DatasetDetailPane({
             {sidebarOpen ? (
               <>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  {dataset.category && <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: accent }}>{dataset.category}</p>}
+                  {dataset.category && <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 600, color: C.muted }}>{dataset.category}</p>}
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{dataset.title}</p>
                 </div>
                 <button onClick={() => setSidebarOpen(false)} title="Hide analysis path"
@@ -1138,7 +1139,7 @@ function DatasetDetailPane({
             {datasetFiles.length > 0 && (
               <div>
                 <a href={datasetFiles[0].url} download={datasetFiles[0].name ?? true} target="_blank" rel="noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', borderRadius: 10, background: `${accent}14`, color: accent, fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: font }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', borderRadius: 10, background: C.input, color: C.text, fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: font }}>
                   <Download size={15} style={{ flexShrink: 0 }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{datasetFiles[0].name || 'Download dataset'}{datasetFiles.length > 1 ? ` +${datasetFiles.length - 1}` : ''}</span>
                 </a>
@@ -1147,7 +1148,7 @@ function DatasetDetailPane({
 
             {/* Timeline */}
             <nav>
-              <p style={{ margin: '0 0 12px', color: C.faint, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>Analysis Path</p>
+              <p style={{ margin: '0 0 12px', color: C.faint, fontSize: 13, fontWeight: 600 }}>Analysis path</p>
               {analystSections.length > 0 ? analystSections.map((section, index) => {
                 const isActive = section.id === activeSectionId;
                 const isFirst = index === 0;
@@ -1165,8 +1166,8 @@ function DatasetDetailPane({
                       </span>
                       {index < analystSections.length - 1 && <span style={{ flex: 1, minHeight: 30, width: 0, borderLeft: `2px dashed ${C.divider}`, margin: '4px 0' }} />}
                     </span>
-                    <span style={{ minWidth: 0, paddingTop: 5, paddingBottom: index < analystSections.length - 1 ? 18 : 10, paddingLeft: 8, paddingRight: 8, borderRadius: 8, background: hoveredSectionId === (section.id || section.title) ? (isDark ? C.input : 'rgba(0,0,0,0.07)') : 'transparent', transition: 'background 0.15s' }}>
-                      <span style={{ display: 'block', color: isActive ? accent : C.text, fontSize: 13, fontWeight: isActive ? 700 : 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{section.title}</span>
+                    <span style={{ minWidth: 0, paddingTop: 5, paddingBottom: index < analystSections.length - 1 ? 18 : 10, paddingLeft: 8, paddingRight: 8, borderRadius: 8, background: isActive ? C.input : hoveredSectionId === (section.id || section.title) ? (isDark ? C.input : 'rgba(0,0,0,0.05)') : 'transparent', transition: 'background 0.15s' }}>
+                      <span style={{ display: 'block', color: C.text, fontSize: 13, fontWeight: isActive ? 700 : 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{section.title}</span>
                     </span>
                   </button>
                 );
@@ -1185,9 +1186,9 @@ function DatasetDetailPane({
 
             {/* Active phase (primary content, like a VE lesson) */}
             {activeSection ? (
-              <section style={{ background: C.card, border: `1px solid ${C.divider}`, borderRadius: 16, overflow: 'hidden' }}>
+              <section style={{ background: C.card, borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }}>
                 <div style={{ padding: '22px 24px 18px' }}>
-                  <p style={{ margin: '0 0 7px', color: accent, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>Phase {analystSections.findIndex(section => section.id === activeSection.id) + 1} of {analystSections.length}</p>
+                  <p style={{ margin: '0 0 7px', color: C.muted, fontSize: 13, fontWeight: 600 }}>Phase {analystSections.findIndex(section => section.id === activeSection.id) + 1} of {analystSections.length}</p>
                   <h3 style={{ margin: 0, color: C.text, fontSize: 22, lineHeight: 1.25, fontWeight: 700 }}>{activeSection.title}</h3>
                   {/* Level and time only as the author set them; guessing them from the task count
                       labelled any five-task phase "Advanced, 45-90 mins". */}
@@ -1235,8 +1236,8 @@ function DatasetDetailPane({
 
                 {activeSection.tasks.length > 0 && (
                   <div style={{ padding: '16px 24px 6px' }}>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: C.faint }}>
-                      {activeSection.tasks.every(t => t.type === 'sql') ? 'SQL Tasks' : activeSection.tasks.some(t => t.type === 'sql') ? 'Tasks & Questions' : 'Questions'}
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.faint }}>
+                      {activeSection.tasks.every(t => t.type === 'sql') ? 'SQL tasks' : activeSection.tasks.some(t => t.type === 'sql') ? 'Tasks and questions' : 'Questions'}
                     </span>
                   </div>
                 )}
@@ -1245,14 +1246,14 @@ function DatasetDetailPane({
                     const isSQL = task.type === 'sql';
                     return (
                       <div key={task.id || `${activeSection.id}-${index}`} style={{ display: 'grid', gridTemplateColumns: '32px minmax(0, 1fr) auto', gap: 12, alignItems: 'center', padding: '16px 24px' }}>
-                        <span style={{ width: 28, height: 28, borderRadius: '50%', background: isSQL ? 'rgba(8,145,178,0.13)' : `${accent}1f`, color: isSQL ? '#0891b2' : accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{index + 1}</span>
+                        <span style={{ width: 28, height: 28, borderRadius: '50%', background: C.input, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{index + 1}</span>
                         <span style={{ minWidth: 0 }}>
-                          {isSQL && <span style={{ display: 'inline-block', marginBottom: 4, color: '#0891b2', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>SQL Task</span>}
+                          {isSQL && <span style={{ display: 'inline-block', marginBottom: 4, padding: '1px 8px', borderRadius: 6, background: C.input, color: C.muted, fontSize: 12, fontWeight: 600 }}>SQL</span>}
                           <span style={{ display: 'block', color: C.text, fontSize: 15, fontWeight: 600, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{task.prompt}</span>
                           {task.description && <span style={{ display: 'block', marginTop: 3, color: C.muted, fontSize: 13.5, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{task.description}</span>}
                         </span>
                         {isSQL && canOpenSQLWorkbench && (
-                          <button onClick={openWorkbench} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 11px', borderRadius: 9, border: 'none', background: 'rgba(8,145,178,0.12)', color: '#0891b2', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: font }}>
+                          <button onClick={openWorkbench} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 11px', borderRadius: 9, border: 'none', background: C.input, color: C.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: font }}>
                             <Database size={13} /> Workbench
                           </button>
                         )}
@@ -1264,7 +1265,7 @@ function DatasetDetailPane({
                 {/* Work with AI & tools -- merged into the same card */}
                 <div style={{ margin: '0 24px', height: 1, background: C.divider }} />
                 <div style={{ padding: '14px 18px 18px' }}>
-                  <p style={{ margin: '0 0 12px', color: C.faint, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>Work with AI &amp; Tools</p>
+                  <p style={{ margin: '0 0 12px', color: C.faint, fontSize: 13, fontWeight: 600 }}>Work with AI and tools</p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
                     <a href={`https://chatgpt.com/?q=${encodeURIComponent(prompt)}`} target="_blank" rel="noreferrer"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 10px', borderRadius: 10, background: C.input, color: C.text, fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: font }}>
@@ -1272,12 +1273,12 @@ function DatasetDetailPane({
                     </a>
                     <button onClick={copyPrompt}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 10px', borderRadius: 10, border: 'none', background: C.input, color: C.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: font }}>
-                      {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy Prompt'}
+                      {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy prompt'}
                     </button>
                     {datasetFiles.length > 0 && (
                       <button onClick={openPreview}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 10px', borderRadius: 10, border: 'none', background: C.input, color: C.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: font }}>
-                        <Table2 size={14} /> Preview Data
+                        <Table2 size={14} /> Preview data
                       </button>
                     )}
                   </div>
@@ -1304,7 +1305,7 @@ function DatasetDetailPane({
                   <p style={{ fontWeight: 700, fontSize: 14, color: C.text, margin: '0 0 3px' }}>Go deeper with guided projects</p>
                   <p style={{ fontSize: 12.5, color: C.muted, margin: 0, lineHeight: 1.45 }}>Access structured courses, cohorts, and expert-led project experiences.</p>
                 </div>
-                <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 18px', borderRadius: 10, background: accent, color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>Learn More</Link>
+                <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 18px', borderRadius: 10, background: accent, color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>Learn more</Link>
               </div>
             )}
 
@@ -1347,7 +1348,7 @@ function DatasetDetailPane({
             <div style={{ padding: '14px 16px 0', borderBottom: `1px solid ${C.divider}`, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: zipTables.length > 1 ? 12 : 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Table2 size={18} style={{ color: C.cta }} />
+                  <Table2 size={18} style={{ color: C.muted }} />
                   <div>
                     <p style={{ margin: 0, fontWeight: 800, fontSize: 16, color: C.text }}>{dataset.title}</p>
                     <p style={{ margin: 0, fontSize: 14, color: C.faint }}>{zipTables.length > 1 ? `${zipTables.length} files available` : (activePdfUrl ? 'PDF preview' : 'First 10 rows preview')}</p>
@@ -1393,7 +1394,7 @@ function DatasetDetailPane({
           <div style={{ background: C.card, borderRadius: 16, width: 'min(96vw, 1480px)', height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.35)', fontFamily: font }}>
             <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <Database size={18} style={{ color: C.cta, flexShrink: 0 }} />
+                <Database size={18} style={{ color: C.muted, flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontWeight: 800, fontSize: 16, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dataset.title}</p>
                   <p style={{ margin: 0, fontSize: 12, color: C.faint }}>Browser-only SQL Workbench</p>
@@ -1421,8 +1422,8 @@ function DatasetDetailPane({
               <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
                 <aside style={{ width: workbenchSideWidth, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', padding: 12, background: C.input, minWidth: 0 }}>
                   <button onClick={() => setQuestionsCollapsed(v => !v)}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, border: 'none', background: 'transparent', color: C.faint, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6, cursor: 'pointer', padding: 0, fontFamily: font }}>
-                    <span>SQL Tasks</span>
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, border: 'none', background: 'transparent', color: C.faint, fontSize: 11, fontWeight: 800, cursor: 'pointer', padding: 0, fontFamily: font }}>
+                    <span>SQL tasks</span>
                     {questionsCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                   </button>
                   {!questionsCollapsed && (
@@ -1430,7 +1431,7 @@ function DatasetDetailPane({
                       {sqlTaskSections.length > 0 ? sqlTaskSections.map((section, sectionIndex) => (
                         <div key={section.id || section.title} style={{ display: 'grid', gridTemplateColumns: '22px minmax(0, 1fr)', gap: 8, minWidth: 0 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, background: 'rgba(8,145,178,0.14)', color: '#0891b2', fontSize: 10.5, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sectionIndex + 1}</span>
+                            <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, background: C.card, color: C.text, fontSize: 10.5, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sectionIndex + 1}</span>
                             {sectionIndex < sqlTaskSections.length - 1 && <span style={{ flex: 1, minHeight: 12, width: 0, borderLeft: `2px dashed ${C.divider}`, margin: '4px 0' }} />}
                           </div>
                           <div style={{ minWidth: 0, paddingBottom: sectionIndex < sqlTaskSections.length - 1 ? 10 : 0 }}>
@@ -1453,7 +1454,7 @@ function DatasetDetailPane({
 
                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.divider}` }}>
                     <button onClick={() => setGuidelinesCollapsed(v => !v)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, border: 'none', background: 'transparent', color: C.faint, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6, cursor: 'pointer', padding: 0, fontFamily: font }}>
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, border: 'none', background: 'transparent', color: C.faint, fontSize: 11, fontWeight: 800, cursor: 'pointer', padding: 0, fontFamily: font }}>
                       <span>Guidelines</span>
                       {guidelinesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                     </button>
@@ -1474,7 +1475,7 @@ function DatasetDetailPane({
                 <main ref={workbenchMainRef} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <section style={{ flex: `0 0 ${queryPanePercent}%`, minHeight: 150, padding: 14, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                      <p style={{ margin: 0, color: C.faint, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6 }}>Query</p>
+                      <p style={{ margin: 0, color: C.faint, fontSize: 11, fontWeight: 800 }}>Query</p>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <button onClick={() => runWorkbenchQuery()} disabled={queryRunning || !runtime}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 800, fontSize: 13, cursor: queryRunning || !runtime ? 'default' : 'pointer', opacity: queryRunning ? 0.7 : 1, fontFamily: font }}>
@@ -1651,7 +1652,7 @@ function DatasetHoverCard({ left, top, width, originX, originY, onEnter, onLeave
 }
 
 export function DataPlaygroundGrid({
-  C,
+  C: pageC,
   isDark,
   fetchHeaders,
   searchMaxWidth,
@@ -1660,6 +1661,9 @@ export function DataPlaygroundGrid({
   emptyNoDatasetsMessage = 'No datasets available yet.',
   emptyNoMatchMessage = 'Try a different search term.',
 }: DataPlaygroundGridProps) {
+  // Buttons and selected controls in the primary blue in both themes (the light theme's own
+  // blue is the tenant's deeper one); the dataset view below gets the same colours.
+  const C = useMemo(() => ({ ...pageC, cta: '#3E93FF', ctaText: '#ffffff' }), [pageC]);
   const [datasets, setDatasets] = useState<DCDataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -1668,11 +1672,8 @@ export function DataPlaygroundGrid({
   const [search, setSearch] = useState('');
   const [hover, setHover] = useState<{ d: DCDataset; left: number; top: number; originX: number; originY: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const catScrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const scrollCategory = (cat: string, dir: number) => {
-    const el = catScrollRefs.current[cat];
-    if (el) el.scrollBy({ left: dir * 260, behavior: 'smooth' });
-  };
+  // The chosen category chip; 'all' shows every dataset.
+  const [category, setCategory] = useState('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -1701,97 +1702,63 @@ export function DataPlaygroundGrid({
     [datasets],
   );
 
-  const grouped = useMemo(() => {
-    const m: Record<string, DCDataset[]> = {};
-    for (const d of datasets) {
-      const cat = d.category || '__uncategorized__';
-      m[cat] = m[cat] || [];
-      m[cat].push(d);
-    }
-    return m;
-  }, [datasets]);
-
+  const hasUncategorized = datasets.some(d => !d.category);
   const searchQuery = search.trim().toLowerCase();
-  const filtered = useMemo(() => {
-    if (!searchQuery) return [];
-    return datasets.filter(d =>
-      d.title.toLowerCase().includes(searchQuery)
+  const filtered = useMemo(() => datasets.filter(d =>
+    (category === 'all' || (category === 'other' ? !d.category : d.category === category))
+    && (!searchQuery
+      || d.title.toLowerCase().includes(searchQuery)
       || d.description?.toLowerCase().includes(searchQuery)
-      || tagsFor(d).some(t => t.toLowerCase().includes(searchQuery)),
-    );
-  }, [datasets, searchQuery]);
+      || tagsFor(d).some(t => t.toLowerCase().includes(searchQuery))),
+  ), [datasets, category, searchQuery]);
 
-  const renderCard = (d: DCDataset, carousel: boolean) => (
-    <div key={d.id}
-      onMouseEnter={e => {
-        if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-        if (hoverTimer.current) clearTimeout(hoverTimer.current);
-        const r = e.currentTarget.getBoundingClientRect();
-        const W = 320, H = 360;
-        const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-        const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-        const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-        const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-        setHover({ d, left, top, originX, originY });
-      }}
-      onMouseLeave={() => { hoverTimer.current = setTimeout(() => setHover(null), 120); }}
-      onClick={() => setSelected(d)}
-      role="button" tabIndex={0} aria-label={`Open ${d.title}`}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(d); } }}
-      style={{ ...(carousel ? { flexShrink: 0, width: 230, scrollSnapAlign: 'start' } : {}), background: 'transparent', cursor: 'pointer', fontFamily: font, display: 'flex', flexDirection: 'column' }}>
-      {d.cover_image_url ? (
-        <img src={d.cover_image_url} alt={d.cover_image_alt ?? ''} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block', borderRadius: 12 }} />
-      ) : (
-        <div style={{ width: '100%', aspectRatio: '16/9', background: C.lime, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}>
-          <Database size={32} style={{ color: C.green }} />
-        </div>
-      )}
-      <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', fontWeight: 600 }}>Dataset</p>
-      <p style={{ fontWeight: 700, fontSize: 15, color: C.text, margin: '2px 0 0', lineHeight: 1.35 }}>{d.title}</p>
-    </div>
-  );
-
-  const renderCategoryRow = (cat: string, label: string) => {
-    const items = grouped[cat] || [];
-    if (!items.length) return null;
+  // The content card used across the dashboard: cover edge to edge with the category on it, then
+  // the title, the tags, and the size of the data.
+  const renderCard = (d: DCDataset) => {
+    const tags = tagsFor(d);
+    const facts = [d.row_count ? `${d.row_count.toLocaleString('en-GB')} rows` : '', d.table_type === 'multiple' ? 'several tables' : d.table_type === 'single' ? 'one table' : ''].filter(Boolean).join(', ');
     return (
-      <section key={cat} style={{ background: C.card, borderRadius: 18, padding: '28px 22px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-          <h3 style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: 0, fontFamily: font }}>{label}</h3>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button onClick={() => scrollCategory(cat, -1)} aria-label="Scroll left"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.divider}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <ChevronLeft size={14} />
-            </button>
-            <button onClick={() => scrollCategory(cat, 1)} aria-label="Scroll right"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.divider}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <ChevronRight size={14} />
-            </button>
-          </div>
+      <div key={d.id}
+        onMouseEnter={e => {
+          if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
+          if (hoverTimer.current) clearTimeout(hoverTimer.current);
+          const r = e.currentTarget.getBoundingClientRect();
+          const W = 320, H = 360;
+          const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
+          const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
+          const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
+          const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
+          setHover({ d, left, top, originX, originY });
+        }}
+        onMouseLeave={() => { hoverTimer.current = setTimeout(() => setHover(null), 120); }}
+        // Opening a dataset closes its hover preview, which would otherwise sit over it.
+        onClick={() => { setHover(null); setSelected(d); }}
+        role="button" tabIndex={0} aria-label={`Open ${d.title}`}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHover(null); setSelected(d); } }}
+        className={FRAMED_CARD} style={{ background: C.card, fontFamily: font }}>
+        <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', overflow: 'hidden', background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {d.cover_image_url
+            ? <img src={d.cover_image_url} alt={d.cover_image_alt ?? ''} className="transition-transform duration-500 group-hover:scale-[1.07]" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            : <Database size={30} style={{ color: C.faint }} />}
+          {d.category && category === 'all' && (
+            <span style={{ position: 'absolute', left: 0, top: 12, maxWidth: '75%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 12px', fontSize: 11, fontWeight: 700, background: '#F5D77A', color: '#3d2e00' }}>{d.category}</span>
+          )}
         </div>
-        <div ref={el => { catScrollRefs.current[cat] = el; }}
-          style={{ display: 'flex', gap: 18, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-          {items.map(d => renderCard(d, true))}
+        <div style={{ display: 'flex', flex: 1, flexDirection: 'column', padding: '14px 16px 18px' }}>
+          <p style={{ margin: 0, minHeight: 40, fontSize: 15, lineHeight: '20px', fontWeight: 700, color: C.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.title}</p>
+          <CardMeta tags={tags} note={facts || undefined} isDark={isDark} text={C.text} muted={C.muted} />
         </div>
-      </section>
+      </div>
     );
   };
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-        {Array.from({ length: 2 }, (_, i) => (
-          <div key={i}>
-            <Sk C={C} h={16} w={160} />
-            <div style={{ display: 'flex', gap: 18, marginTop: 16, overflow: 'hidden' }}>
-              {Array.from({ length: 4 }, (_, j) => (
-                <div key={j} style={{ flexShrink: 0, width: 230 }}>
-                  <Sk C={C} h={130} r={12} />
-                  <div style={{ marginTop: 10 }}><Sk C={C} h={12} w="50%" /></div>
-                  <div style={{ marginTop: 6 }}><Sk C={C} h={15} /></div>
-                </div>
-              ))}
-            </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} style={{ background: C.card, borderRadius: 12, overflow: 'hidden' }}>
+            <Sk C={C} h={150} r={0} />
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}><Sk C={C} h={15} /><Sk C={C} h={12} w="60%" /></div>
           </div>
         ))}
       </div>
@@ -1847,36 +1814,41 @@ export function DataPlaygroundGrid({
         )}
       </div>
 
-      {/* Search results: flat grid */}
-      {searchQuery ? (
-        datasets.length === 0 ? (
-          noDatasetsBlock
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: C.faint, fontFamily: font }}>
-            <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>No datasets match your search</p>
-            <p style={{ fontSize: 13, color: C.faint }}>{emptyNoMatchMessage}</p>
-          </div>
-        ) : (
-          <>
-            <p style={{ fontSize: 13, color: C.faint, margin: '0 0 16px', fontFamily: font, fontWeight: 600 }}>
+      {/* Category chips: the chosen one blue. */}
+      {datasets.length > 0 && orderedCategories.length > 0 && (
+        <div role="tablist" aria-label="Categories" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '-16px 0 24px' }}>
+          {[['all', 'All'], ...orderedCategories.map(c => [c, c]), ...(hasUncategorized ? [['other', 'Other']] : [])].map(([id, label]) => {
+            const on = category === id;
+            return (
+              <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setCategory(id)}
+                style={{ height: 36, padding: '0 14px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: font, fontSize: 14, fontWeight: 600,
+                  background: on ? '#3E93FF' : C.card, color: on ? '#ffffff' : C.text, boxShadow: on ? 'none' : `inset 0 0 0 1px ${C.divider}` }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {datasets.length === 0 ? (
+        noDatasetsBlock
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: C.faint, fontFamily: font }}>
+          <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
+          <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>No datasets match your search</p>
+          <p style={{ fontSize: 13, color: C.faint }}>{emptyNoMatchMessage}</p>
+        </div>
+      ) : (
+        <>
+          {searchQuery && (
+            <p style={{ fontSize: 13, color: C.muted, margin: '0 0 16px', fontFamily: font }}>
               {filtered.length} result{filtered.length !== 1 ? 's' : ''} for {`"${search}"`}
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 18 }}>
-              {filtered.map(d => renderCard(d, false))}
-            </div>
-          </>
-        )
-      ) : (
-        /* No search: one carousel row per category */
-        datasets.length === 0 ? (
-          noDatasetsBlock
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-            {orderedCategories.map(cat => renderCategoryRow(cat, cat))}
-            {renderCategoryRow('__uncategorized__', 'More Datasets')}
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {filtered.map(d => renderCard(d))}
           </div>
-        )
+        </>
       )}
 
       {/* Hover preview -- full data card (portal so the scroll container doesn't clip it) */}
@@ -1893,8 +1865,8 @@ export function DataPlaygroundGrid({
                 {d.cover_image_url ? (
                   <img src={d.cover_image_url} alt={d.cover_image_alt ?? ''} style={{ width: '100%', aspectRatio: '16/7', objectFit: 'cover', display: 'block' }} />
                 ) : (
-                  <div style={{ width: '100%', aspectRatio: '16/7', background: C.lime, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Database size={36} style={{ color: C.green }} />
+                  <div style={{ width: '100%', aspectRatio: '16/7', background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Database size={36} style={{ color: C.faint }} />
                   </div>
                 )}
                 <div style={{ padding: '20px 20px 0', flex: 1 }}>
@@ -1903,14 +1875,14 @@ export function DataPlaygroundGrid({
                   {d.table_type && (
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 14, padding: '5px 11px', borderRadius: 20, background: C.pill }}>
                       <Database size={12} style={{ color: C.muted }} />
-                      <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{d.table_type === 'single' ? 'Single Table' : 'Multiple Tables'}</span>
+                      <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{d.table_type === 'single' ? 'One table' : 'Several tables'}</span>
                     </div>
                   )}
                 </div>
                 <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 8, borderTop: `1px solid ${C.divider}`, marginTop: 18 }}>
                   <button onClick={() => { setSelected(d); setHover(null); }}
                     style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: C.cta, color: C.ctaText, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    View Details
+                    View details
                   </button>
                   {files.length > 0 && (
                     <a href={files[0].url} download={files[0].name ?? true} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
