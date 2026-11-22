@@ -193,6 +193,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
     }
 
+    // The same payment sent again (the connection dropped after it saved, or the student was not
+    // sure it went through) must not become a second confirmation: approving both would count the
+    // payment twice. An exact repeat of one still waiting for review is acknowledged, not saved.
+    const ref = typeof reference === 'string' && reference.trim() ? reference.trim() : null;
+    const repeatQuery = db
+      .from('student_payment_confirmations')
+      .select('id')
+      .eq('enrollment_id', enrollmentId)
+      .eq('student_id', student.id)
+      .eq('status', 'pending')
+      .eq('amount', Math.round(Number(amount) * 100) / 100)
+      .eq('paid_at', paidAt);
+    const { data: repeat, error: repeatErr } = await (ref ? repeatQuery.eq('reference', ref) : repeatQuery.is('reference', null))
+      .limit(1).maybeSingle();
+    if (repeatErr) throw repeatErr;
+    if (repeat) return NextResponse.json({ ok: true, alreadySent: true });
+
     const { error: insertErr } = await db
       .from('student_payment_confirmations')
       .insert({
@@ -202,7 +219,7 @@ export async function POST(req: NextRequest) {
         amount:        Number(amount),
         paid_at:       paidAt,
         method:        method ?? null,
-        reference:     reference ?? null,
+        reference:     ref,
         notes:         notes ?? null,
         receipt_url:   receiptUrl ?? null,
         status:        'pending',
