@@ -108,6 +108,8 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
   const [notes, setNotes]       = useState('');
   const [receiptUrl, setReceipt] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // The server found this exact payment already waiting for review and did not save it again.
+  const [alreadySent, setAlreadySent] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
@@ -165,6 +167,7 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
         }),
       }).then(r => r.json());
       if (res.error) { setSubmitError(res.error); return; }
+      setAlreadySent(!!res.alreadySent);
       setSubmitSuccess(true);
       setAmount(''); setMethod(''); setRef(''); setNotes(''); setReceipt('');
       await load();
@@ -453,7 +456,7 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
               </label>
             </div>
             {submitError && <p className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(217,45,32,0.08)', color: '#D92D20' }}>{submitError}</p>}
-            {submitSuccess && <p className="mt-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: 'rgba(18,161,80,0.10)', color: '#12A150' }}>Sent. An admin will confirm it, and you can follow it in History.</p>}
+            {submitSuccess && <p className="mt-4 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: 'rgba(18,161,80,0.10)', color: '#12A150' }}>{alreadySent ? 'You already sent this payment. It is waiting for an admin to confirm it.' : 'Sent. An admin will confirm it, and you can follow it in History.'}</p>}
             <button type="button" onClick={handleSubmit} disabled={submitting}
               className="mt-5 inline-flex h-10 items-center rounded-xl px-5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
               style={{ background: '#3E93FF', color: '#ffffff' }}>
