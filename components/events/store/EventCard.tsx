@@ -8,7 +8,7 @@ import { dateParts, displayDate, displayTime, recurrenceLabel, type PublicEvent 
 /** Seats left as a short badge, or null when there is no limit worth mentioning. */
 export function seatsBadge(ev: Pick<PublicEvent, 'spotsLeft' | 'isPast'>): { label: string; tone: 'full' | 'low' } | null {
   if (ev.isPast || ev.spotsLeft === null) return null;
-  if (ev.spotsLeft <= 0) return { label: 'Sold out', tone: 'full' };
+  if (ev.spotsLeft <= 0) return { label: 'Full', tone: 'full' };
   if (ev.spotsLeft <= 10) return { label: `${ev.spotsLeft} spot${ev.spotsLeft === 1 ? '' : 's'} left`, tone: 'low' };
   return null;
 }

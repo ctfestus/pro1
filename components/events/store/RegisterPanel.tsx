@@ -40,7 +40,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<string | null>(null);
-  const [cohortToken, setCohortToken] = useState<string | null>(null);
+  const [joinToken, setJoinToken] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,14 +48,14 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user || cancelled) return;
-      // A cohort member is registered already (their cohort's row, read under its own RLS): they
-      // get their tracked Join link here instead of the form.
-      const [{ data: student }, { data: cohortReg }] = await Promise.all([
+      // Already registered under this account (through their cohort, or by registering here before):
+      // they get their tracked Join link instead of the form.
+      const [{ data: student }, { data: ownReg }] = await Promise.all([
         supabase.from('students').select('full_name').eq('id', user.id).maybeSingle(),
         supabase.from('event_registrations').select('join_token').eq('event_id', event.id).eq('student_id', user.id).maybeSingle(),
       ]);
       if (cancelled) return;
-      if (cohortReg?.join_token) setCohortToken(cohortReg.join_token);
+      if (ownReg?.join_token) setJoinToken(ownReg.join_token);
       // The server registers the sign-in address, so that is the one shown.
       setAccountEmail(user.email || null);
       // Names go into emails, so the server takes letters, spaces, apostrophes and hyphens only.
@@ -76,15 +76,15 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
 
   const full = event.spotsLeft !== null && event.spotsLeft <= 0;
 
-  if (cohortToken && !event.isPast) {
+  if (joinToken && !event.isPast) {
     return (
       <div className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
         {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
         <CheckCircle2 className="w-8 h-8" style={{ color: '#16a34a' }} />
         <p className="mt-3 text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>You are registered</p>
-        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>Your cohort is registered for this event, so there is nothing to fill in.</p>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>You are already registered for this event, so there is nothing to fill in.</p>
         {event.format === 'virtual' && (
-          <a href={`/api/join?token=${encodeURIComponent(cohortToken)}`} target="_blank" rel="noopener noreferrer"
+          <a href={`/api/join?token=${encodeURIComponent(joinToken)}`} target="_blank" rel="noopener noreferrer"
             className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-bold"
             style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>
             Join meeting <ExternalLink className="w-4 h-4" />
@@ -222,12 +222,12 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
       {error && <p className="mt-3 text-sm font-medium" style={{ color: '#b91c1c' }} role="alert">{error}</p>}
 
       <button type="submit" disabled={submitting}
-        className="mt-5 w-full min-h-[68px] rounded-2xl px-4 py-3.5 inline-flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-95 disabled:opacity-60"
+        className={`mt-5 w-full ${event.spotsLeft !== null ? 'min-h-[68px]' : 'min-h-[56px]'} rounded-2xl px-4 py-3.5 inline-flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-95 disabled:opacity-60`}
         style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>
         <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your seat' : 'Save my seat'}
         </span>
-        <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>
+        {event.spotsLeft !== null && <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>}
       </button>
       <p className="mt-3 text-xs" style={{ color: 'var(--ev-faint,#94a3b8)' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
