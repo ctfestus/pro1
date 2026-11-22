@@ -100,10 +100,10 @@ function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCoh
 }
 
 // The line under each section's title. My Learning (its own line, beside its title), overview,
-// my program, certifications and the
-// AI toolkit open with their own introduction instead.
+// my program and the AI toolkit open with their own introduction instead.
 const SECTION_LINES: Partial<Record<SectionId, string>> = {
   explore:       'Explore the full catalogue. Purchase access or enroll to unlock more learning.',
+  certifications: 'Take an exam, pass it, and earn a credential you can share.',
   products:      'Digital products you have bought, or that your program gives you. Open or download them any time.',
   data_center:   'Explore real-world datasets and sharpen your skills in data analysis, visualization, and storytelling. Each dataset comes with business questions designed to challenge how you think with data.',
   events:        'Upcoming sessions for your cohort, and recordings of past ones.',
@@ -672,12 +672,12 @@ export default function StudentDashboard() {
         </AnimatePresence>
 
         {/* -- Main content -- */}
-        <main className="flex-1 min-w-0 overflow-y-auto px-5 py-7 md:px-8 lg:px-12" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
+        <main className="flex-1 min-w-0 overflow-y-auto px-5 py-7 md:px-8 lg:px-12">
           {hasBootcampCohort && effectiveId && <NextSessionBanner userId={effectiveId} C={C}/>}
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {/* Section header: the menu name and one line. Hidden on overview (its own greeting), my
-                program (titled by the cohort) and certifications (its own landing). */}
-            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'certifications' && (
+            {/* Section header: the menu name and one line. Hidden on overview (its own greeting) and
+                my program (its own header). */}
+            {activeSection !== 'overview' && activeSection !== 'my_program' && (
               <div className="mb-6">
                 {isMyLearning
                   ? <>
