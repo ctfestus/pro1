@@ -798,7 +798,7 @@ export default function StudentDashboard() {
                   })}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex min-w-0 flex-[1_1_240px] items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:max-w-sm"
+                  <label className="flex min-w-0 flex-[1_1_240px] items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)]"
                     style={{ background: C.card, ['--search-line' as string]: C.divider, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
                     {/* Focus shows as the same 1px border turning a darker neutral grey. */}
                     <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
