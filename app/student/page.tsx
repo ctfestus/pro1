@@ -84,7 +84,6 @@ const ScheduleSection           = dynamic(() => import('@/components/student/sch
 const StudentBadgesSection      = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.StudentBadgesSection), { ssr: false, loading: sectionLoading });
 const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), { ssr: false, loading: sectionLoading });
 const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), { ssr: false, loading: sectionLoading });
-const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
 const MyProgramSection          = dynamic(() => import('@/components/student/my-program').then(m => m.MyProgramSection), { ssr: false, loading: sectionLoading });
 const ExploreSection            = dynamic(() => import('@/components/student/explore').then(m => m.ExploreSection), { ssr: false, loading: sectionLoading });
 const BooksSection              = dynamic(() => import('@/components/student/books').then(m => m.BooksSection), { ssr: false, loading: sectionLoading });
@@ -906,9 +905,6 @@ export default function StudentDashboard() {
             )}
             {activeSection === 'certificates' && user && (
               <CertificatesSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
-            )}
-            {activeSection === 'ai_toolkit' && user && (
-              <AiCareerToolkitSection C={C}/>
             )}
             {activeSection === 'payments' && user && (
               <StudentPaymentsSection userId={effectiveId} C={C} readOnly={!!viewingAs}/>

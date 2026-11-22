@@ -7,7 +7,7 @@
 import {
   SquaresFour, PlayCircle, Stack, Briefcase, Database, CalendarDots, ClipboardText,
   CalendarCheck, UsersThree, Megaphone, Calendar, VideoCamera, Trophy, Certificate, Medal, CreditCard,
-  Sparkle, SealCheck, Compass, RocketLaunch, Package,
+  SealCheck, Compass, RocketLaunch, Package,
 } from '@phosphor-icons/react';
 
 export const NAV_ITEMS = [
@@ -30,7 +30,6 @@ export const NAV_ITEMS = [
   { id: 'leaderboard',       label: 'Leaderboard',         Icon: Trophy          },
   { id: 'certificates',      label: 'My Certificates',     Icon: Certificate           },
   { id: 'badges',            label: 'Badges',              Icon: Medal           },
-  { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkle        },
   { id: 'payments',          label: 'My Plan',             Icon: CreditCard      },
 ] as const;
 export type SectionId = typeof NAV_ITEMS[number]['id'];
@@ -47,6 +46,6 @@ export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
   // because the recording emails link to /student#recordings (app/api/recording-notify).
   { label: 'Activities',  items: ['events', 'assignments', 'calendar', 'schedule'] },
   { label: 'Community',   items: ['community', 'announcements'] },
-  { label: 'Achievements', items: ['leaderboard', 'certificates', 'badges', 'ai_toolkit'] },
+  { label: 'Achievements', items: ['leaderboard', 'certificates', 'badges'] },
   { label: 'Account',     items: ['payments'] },
 ];
