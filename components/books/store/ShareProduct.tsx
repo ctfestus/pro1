@@ -22,6 +22,6 @@ export function ShareProduct({ url, title, free, prices, blurb }: {
   const price = productPriceLabel({ free, prices: current });
   return (
     <ShareButtons url={url} title={price ? `${title} - ${price}` : title} blurb={blurb}
-      className="mt-6 flex flex-wrap items-center justify-center sm:justify-start gap-2" />
+      className="flex flex-wrap items-center gap-2" />
   );
 }

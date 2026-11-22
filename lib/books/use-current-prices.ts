@@ -6,6 +6,9 @@ import { endEndedSales, msUntilNextSaleEnd, type ClientPrice } from '@/lib/books
 /** Fired by the buy card when checkout reports a different price, so every price on the page follows. */
 export const PRICE_CHANGED_EVENT = 'product-price-changed';
 
+/** Fired by the buy card when the buyer picks a currency, so the phone price bar shows the same one. */
+export const CURRENCY_CHANGED_EVENT = 'product-currency-changed';
+
 /**
  * A product's prices as they stand now, for everything on the page that shows one (the buy card and
  * the phone price bar). A sale that ends while the page is open drops back to the regular price at

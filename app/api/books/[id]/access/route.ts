@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
+import { claimGuestPurchases } from '@/lib/books/guest-purchase';
 
 // GET /api/books/[id]/access -> { owned }
 //
 // For the store's book page: whether the signed-in visitor can already download this book (they
 // bought it, were given it, have it through their cohort, or own/administer it), so the page
-// offers Download instead of Buy. The same decision the download route makes (canReadBook).
+// offers Download instead of Buy. Products bought as a guest with this account's email count too. The same decision the download route makes (canReadBook).
 export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: book, error } = await db.from('books').select(BOOK_ACCESS_COLUMNS).eq('id', id).maybeSingle();
     if (error) throw error;
     if (!book) return NextResponse.json({ owned: false }, { headers: { 'Cache-Control': 'no-store' } });
+    await claimGuestPurchases(db, auth.user.id);
     const access = await canReadBook(db, auth.user.id, book as unknown as BookAccessRow);
     return NextResponse.json({ owned: access.level === 'full' }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {

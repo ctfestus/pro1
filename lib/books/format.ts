@@ -40,3 +40,11 @@ export function opensInBrowser(format: string | null | undefined): boolean {
 export function formatLabel(format: string | null | undefined): string {
   return (format && FORMAT_LABEL[format]) || (format ? format.toUpperCase() : '');
 }
+
+/** "28 Nov 2026", the store's date format (sale ends, download link ends). */
+export function longDate(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+}
+
+/** A plausible email address, for the buyer forms (the server checks it again). */
+export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v.trim());

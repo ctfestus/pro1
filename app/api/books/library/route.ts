@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { isLicenseExpired } from '@/lib/books/schema';
+import { claimGuestPurchases } from '@/lib/books/guest-purchase';
 
 // GET /api/books/library -> { books: LibraryBook[] }
 //
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   try {
+    await claimGuestPurchases(db, userId);
     const [studentRes, entitlementRes] = await Promise.all([
       db.from('students').select('cohort_id').eq('id', userId).maybeSingle(),
       db.from('book_entitlements').select('book_id, source, granted_at').eq('student_id', userId).is('revoked_at', null),

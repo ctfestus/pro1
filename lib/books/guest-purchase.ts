@@ -81,3 +81,12 @@ export function guestBookAvailable(book: { status?: string | null; license_expir
   if (book.status !== 'published' && book.status !== 'archived') return false;
   return !isLicenseExpired(book.license_expires_at ?? null);
 }
+
+/**
+ * Makes the products this account's confirmed email bought as a guest its own (migration 252), before
+ * a page asks what the account owns. A failure only leaves them unclaimed until the next look.
+ */
+export async function claimGuestPurchases(db: SupabaseClient, studentId: string): Promise<void> {
+  const { error } = await db.rpc('claim_guest_book_purchases', { p_student_id: studentId });
+  if (error) console.error('[books] claim guest purchases failed', error.message);
+}

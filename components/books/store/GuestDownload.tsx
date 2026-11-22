@@ -4,15 +4,17 @@
  * The guest buyer's download page (/products/download?access=...). Shows the product and what is
  * left of the purchase; nothing is used by looking. Download takes one of the five downloads and
  * starts the file; Open in browser (interactive HTML) uses none, and a link product (migration 243)
- * only has Open, which uses none either. A guest whose link has
- * expired or been used up can still ask for help, and anyone can have a link emailed again.
+ * only has Open, which uses none either. A paid guest whose link has ended or been used up is sent
+ * to sign in with the email they paid with: the product is then in My Products (migration 252).
+ * A link that will not load can be emailed again.
  */
 import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Download, ExternalLink, Loader2, Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
-import { formatLabel } from '@/lib/books/format';
+import { formatLabel, longDate } from '@/lib/books/format';
+import { signInHref } from '@/lib/auth-redirect';
 import { ResendGuestLink } from '@/components/books/store/ResendGuestLink';
 
 type Info = {
@@ -107,9 +109,10 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
     return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#94a3b8' }} /></div>;
   }
 
-  const until = info.expiresAt ? new Date(info.expiresAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const until = longDate(info.expiresAt);
   const ready = info.state === 'ready';
   const canDownload = ready && info.downloadsLeft > 0;
+  const usedUp = info.state === 'used_up' || (ready && info.format !== 'link' && info.downloadsLeft === 0);
   const isLink = info.format === 'link';
   const primaryBtn = 'inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60';
   const secondaryStyle = { background: '#ffffff', color: '#0f172a', boxShadow: CARD_SHADOW };
@@ -123,7 +126,7 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
             : <Package className="w-8 h-8" style={{ color: '#94a3b8' }} />}
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
-          <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: '#16a34a' }}>
+          <p className="text-sm font-semibold" style={{ color: '#16a34a' }}>
             {ready ? (info.free ? (info.format === 'link' ? 'Your free copy' : 'Your free download') : 'Payment received') : info.state === 'pending' ? 'Confirming payment' : info.free ? (info.format === 'link' ? 'Your free copy' : 'Your free download') : 'Your purchase'}
           </p>
           <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>{info.title}</h1>
@@ -134,14 +137,20 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
               {until ? `Open it as often as you like until ${until}. ` : ''}Save your own copy there to keep it.
             </p>
           )}
-          {ready && !isLink && (
+          {canDownload && !isLink && (
             <p className="mt-4 text-sm" style={{ color: '#475569' }}>
-              {info.downloadsLeft > 0
-                ? `${info.downloadsLeft} of 5 downloads left${until ? `, until ${until}` : ''}. Save a copy to keep: it works without this link.`
-                : 'All 5 downloads have been used.'}
+              {`${info.downloadsLeft} of 5 downloads left${until ? `, until ${until}` : ''}. Save a copy to keep: it works without this link.`}
             </p>
           )}
-          {info.state === 'expired' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>This download link has expired.</p>}
+          {usedUp && <p className="mt-4 text-sm" style={{ color: '#475569' }}>All 5 downloads have been used.</p>}
+          {info.state === 'expired' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>This download link has ended.</p>}
+          {/* A paid product stays theirs: an account with the same email lists it in My Products (migration 252). */}
+          {!info.free && (info.state === 'expired' || usedUp) && (
+            <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
+              <p className="text-sm flex-1" style={{ color: '#475569' }}>Sign in or create an account with the email you paid with, and you will find it in My Products.</p>
+              <Link href={signInHref('/student#products')} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>Sign in</Link>
+            </div>
+          )}
           {info.state === 'unavailable' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>This product is no longer available.</p>}
           {info.state === 'not_paid' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>This purchase is no longer active.</p>}
           {info.state === 'pending' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>Your payment is still being confirmed. Refresh this page in a minute.</p>}
@@ -153,9 +162,9 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
               </button>
             </div>
           )}
-          {ready && !isLink && (
+          {canDownload && !isLink && (
             <div className="mt-6 flex flex-col sm:flex-row flex-wrap gap-3">
-              <button onClick={download} disabled={!canDownload || busy !== null} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
+              <button onClick={download} disabled={busy !== null} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
                 {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
               </button>
               {info.format === 'html' && (

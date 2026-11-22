@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/api-auth', () => ({
   requireStudentUser: vi.fn(),
   isAuthError: (value: any) => !!value?.error,
@@ -20,13 +21,16 @@ const book = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+const claims: [string, Record<string, any>][] = [];
+let claimResult: { data: unknown; error: unknown } = { data: 0, error: null };
 function authAs(tables: Record<string, any>) {
-  mockAuth.mockResolvedValue({ user: { id: 'u1' }, serviceDb: makeSupabaseStub(tables) } as any);
+  const rpc = (fn: string, args: Record<string, any>) => { claims.push([fn, args]); return claimResult; };
+  mockAuth.mockResolvedValue({ user: { id: 'u1' }, serviceDb: makeSupabaseStub(tables, rpc) } as any);
 }
 
 const call = () => GET(new NextRequest('http://localhost/api/books/library'));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); claims.length = 0; claimResult = { data: 0, error: null }; });
 
 describe('GET /api/books/library', () => {
   it('requires a signed-in student', async () => {
@@ -53,6 +57,12 @@ describe('GET /api/books/library', () => {
     expect(json).not.toContain('file_path');
     expect(json).not.toContain('preview');
     expect(json).not.toContain('file-x');
+  });
+
+  it('first claims what the account bought as a guest', async () => {
+    authAs({ students: { data: { cohort_id: null } }, learning_paths: { data: [] }, book_entitlements: { data: [] } });
+    expect((await call()).status).toBe(200);
+    expect(claims).toEqual([['claim_guest_book_purchases', { p_student_id: 'u1' }]]);
   });
 
   it('adds books assigned to the cohort, directly or through a path, once each', async () => {
