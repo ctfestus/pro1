@@ -32,9 +32,7 @@ export default function DashboardPage() {
   const C = useC();
   const router = useRouter();
   const { toggle: toggleTheme, theme } = useTheme();
-  const { logoUrl, logoDarkUrl, appName, primaryColor } = useTenant();
-  // Dark mode keeps the ocean accent; light mode uses the tenant's primary color.
-  const navAccent = theme === 'dark' ? '#3E93FF' : (primaryColor || '#3E93FF');
+  const { logoUrl, logoDarkUrl, appName } = useTenant();
   const [forms, setForms]           = useState<any[]>(_cache.forms ?? []);
   const [loading, setLoading]       = useState(_cache.forms === null);
   const [user, setUser]             = useState<any>(_cache.user ?? null);
@@ -289,10 +287,10 @@ export default function DashboardPage() {
       {/* -- Body -- */}
       <div className="flex flex-1 relative">
 
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} C={C} profile={profile} user={user} isStaff={isStaff} activeSection={activeSection} goSection={goSection} navAccent={navAccent} theme={theme} />
+        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} C={C} profile={profile} isStaff={isStaff} activeSection={activeSection} goSection={goSection} theme={theme} />
 
         {/* -- Main content -- */}
-        <main className="flex-1 min-w-0 px-4 md:px-10 py-6 sm:py-8">
+        <main className="flex-1 min-w-0 px-4 md:px-10 lg:px-12 py-6 sm:py-8">
           <motion.div
             key={activeSection}
             initial={{ opacity: 0, y: 8 }}

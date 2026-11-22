@@ -28,6 +28,7 @@
     "@duckdb/duckdb-wasm": "^1.33.1-dev45.0",
     "@google/genai": "^1.17.0",
     "@marsidev/react-turnstile": "^1.5.0",
+    "@phosphor-icons/react": "2.1.7",
     "@sentry/nextjs": "^10.70.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.99.1",
