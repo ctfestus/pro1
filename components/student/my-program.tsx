@@ -154,7 +154,6 @@ function ProgramView({ payload, timeline, C }: { payload: ProgramPayload; timeli
   const thisWeek = typeof homeWeek === 'number' ? weeks[homeWeek - 1]?.items ?? [] : anytime;
   const due = thisWeek.filter(i => i.type !== 'event' && !isCompleteStatus(i.status));
   const awaiting = [...weeks.flatMap(w => w.items), ...anytime].filter(i => i.status === 'awaiting');
-  const leads = payload.group?.members.filter(m => m.isLeader && !m.isYou) ?? [];
 
   const card = `rounded-2xl p-4 min-w-0 text-left ${CARD_SHADOW}`;
   const value = 'text-[22px] sm:text-[26px] leading-8 font-semibold truncate';
@@ -194,7 +193,7 @@ function ProgramView({ payload, timeline, C }: { payload: ProgramPayload; timeli
             <p className={label} style={{ color: C.text }}>Your group</p>
             <span className="mt-0.5 flex items-center justify-between gap-2">
               <span className={`${sub} mt-0 min-w-0`} style={{ color: C.muted }}>
-                {leads.length ? `With ${leads[0].name} (lead)` : plural(payload.group.members.length, 'member')}
+                {plural(payload.group.members.length, 'member')}
               </span>
               <span className="inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-semibold group-hover:underline" style={{ color: C.text }}>
                 View <CaretRight size={12} weight="bold"/>
