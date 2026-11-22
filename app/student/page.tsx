@@ -21,7 +21,6 @@ import { computeAccess } from '@/lib/enrollment-access';
 import { DARK_C, LIGHT_C, useC } from '@/lib/theme';
 import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
 import type { LearningStatusFilter } from '@/components/student/learning-card';
-import { Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar } from '@/components/student/shared';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
 import { GearSix } from '@phosphor-icons/react';
 import { OverviewSection } from '@/components/student/overview';
@@ -49,7 +48,6 @@ import {
 } from '@/lib/student-mode-client';
 
 
-// Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar live in @/components/student/shared
 
 // Only one section is ever mounted -- see the activeSection switch further down -- but
 // importing them all statically put every section in the first load of /student. That is
@@ -107,7 +105,7 @@ const SECTION_LINES: Partial<Record<SectionId, string>> = {
   explore:       'Explore the full catalogue. Purchase access or enroll to unlock more learning.',
   products:      'Digital products you have bought, or that your program gives you. Open or download them any time.',
   data_center:   'Explore real-world datasets and sharpen your skills in data analysis, visualization, and storytelling. Each dataset comes with business questions designed to challenge how you think with data.',
-  events:        'Upcoming sessions for your cohort. Join from here when they start.',
+  events:        'Upcoming sessions for your cohort, and recordings of past ones.',
   assignments:   'Continue your work, track deadlines, and review feedback.',
   calendar:      'Live sessions and assignment deadlines, by month, week or list.',
   schedule:      'Study plans your instructors publish for your cohort.',
@@ -524,6 +522,8 @@ export default function StudentDashboard() {
   const userName = profile?.name || profile?.full_name || user?.email?.split('@')[0] || 'Student';
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)!;
   const isMyLearning = MY_LEARNING_SECTIONS.includes(activeSection);
+  // Live sessions holds the upcoming sessions and, on a second tab, the recordings.
+  const isLiveSessions = activeSection === 'events' || activeSection === 'recordings';
 
   if (!mounted) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4F5F7' }}>
@@ -602,6 +602,10 @@ export default function StudentDashboard() {
               {/* Plain icons on slim rows: the open page is a grey row with dark text, a hovered one a
                   lighter grey. Collapsed, the rows are icon squares with the name as a tooltip. */}
               <nav className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-3 sidebar-nav" aria-label="Student menu">
+                {/* On a phone the top bar has no room for the cohort chip, so it opens the menu. */}
+                {cohortTimeline && !navCollapsed && (
+                  <div className="mb-4 lg:hidden"><CohortTimelineBadge cohort={cohortTimeline} inMenu /></div>
+                )}
                 {NAV_GROUPS.map((group, groupIdx) => {
                   const groupItems = group.items
                     .map(id => NAV_ITEMS.find(n => n.id === id)!)
@@ -617,7 +621,7 @@ export default function StudentDashboard() {
                       )}
                       <div className="flex flex-col gap-1">
                         {groupItems.map(item => {
-                          const isActive = item.id === 'courses' ? isMyLearning : activeSection === item.id;
+                          const isActive = item.id === 'courses' ? isMyLearning : item.id === 'events' ? isLiveSessions : activeSection === item.id;
                           return (
                             <button key={item.id} type="button"
                               onClick={() => { goSection(item.id); setSidebarOpen(false); }}
@@ -679,8 +683,8 @@ export default function StudentDashboard() {
                       <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>My learning</h1>
                       <p className="mt-1 text-sm" style={{ color: C.muted }}>Everything you are taking: courses, learning paths and virtual experiences.</p>
                     </>
-                  : <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{activeItem.label}</h1>}
-                {SECTION_LINES[activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[activeSection]}</p>}
+                  : <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isLiveSessions ? 'Live sessions' : activeItem.label}</h1>}
+                {SECTION_LINES[isLiveSessions ? 'events' : activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[isLiveSessions ? 'events' : activeSection]}</p>}
               </div>
             )}
 
@@ -829,6 +833,18 @@ export default function StudentDashboard() {
             )}
             {activeSection === 'learning_paths' && user && (
               <LearningPathsSection C={C} searchQuery={learningSearch} statusFilter={learningStatus} onCount={countPaths}/>
+            )}
+            {isLiveSessions && user && (
+              // Upcoming and Recordings as two tabs: the selected one blue on a white track.
+              <div role="tablist" aria-label="Live sessions" className="mb-6 inline-flex gap-1 rounded-full p-1" style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                {([['events', 'Upcoming'], ['recordings', 'Recordings']] as const).map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={activeSection === id} onClick={() => goSection(id)}
+                    className="h-9 rounded-full px-4 text-sm font-semibold transition-colors"
+                    style={activeSection === id ? { background: DARK_C.cta, color: '#ffffff' } : { color: C.muted }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             )}
             {activeSection === 'events' && user && (
               <EventsSection userId={effectiveId} C={C}/>

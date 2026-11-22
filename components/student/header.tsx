@@ -1,14 +1,15 @@
 'use client';
 
-// Dashboard header pieces: cohort and subscription timelines, the plan-upgrade prompt,
-// and the profile menu. Date helpers remain file-internal.
+// Dashboard header pieces: cohort and subscription timelines and the plan-upgrade prompt.
+// Date helpers remain file-internal.
 
-import { useState } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { useTheme } from '@/components/ThemeProvider';
-import { useC } from '@/lib/theme';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { DARK_C, useC } from '@/lib/theme';
+import { Pill, palette } from '@/components/dashboard/subscriptions/ui';
 import type { SubscriptionStatus } from '@/lib/db-subscriptions';
-import { ArrowUpRight, Award, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, ChevronDown } from 'lucide-react';
+import { FlagBanner, RocketLaunch } from '@phosphor-icons/react';
 
 export type CohortTimeline = {
   id: string;
@@ -56,11 +57,11 @@ function diffDays(from: Date, to: Date) {
 }
 
 function formatTimelineDate(value: Date) {
-  return value.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return value.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null }) {
-  return <TimelineBadge timeline={cohort} variant="cohort" />;
+export function CohortTimelineBadge({ cohort, inMenu }: { cohort: CohortTimeline | null; inMenu?: boolean }) {
+  return <TimelineBadge timeline={cohort} variant="cohort" inMenu={inMenu} />;
 }
 
 export function SubscriptionTimelineBadge({
@@ -84,51 +85,33 @@ export function UpgradePlanButton({ onUpgrade }: { onUpgrade?: () => void }) {
   return onUpgrade ? <PlanActionButton label="Upgrade" onClick={onUpgrade} /> : null;
 }
 
+// A plain button in the page's blue: the upgrade or renew prompt.
 function PlanActionButton({ label, onClick }: { label: 'Upgrade' | 'Renew'; onClick: () => void }) {
-  const C = useC();
-  const reduceMotion = useReducedMotion();
-
   return (
-    <motion.div
-      className="relative flex-shrink-0 overflow-hidden rounded-full p-px"
-      style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.12)' }}
-      whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.97 }}>
-      <motion.span
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-8"
-        style={{ background: 'conic-gradient(from 0deg, #00f5ff, #39ff14, #fff200, #ff6b00, #00f5ff)' }}
-        animate={reduceMotion ? undefined : { rotate: 360 }}
-        transition={reduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: 'linear' }}
-      />
-      <button
-        type="button"
-        onClick={onClick}
-        className="relative z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[10px] font-semibold sm:gap-1.5 sm:px-3.5 sm:text-[11px]"
-        style={{
-          background: `color-mix(in srgb, ${C.card} 78%, transparent)`,
-          color: C.text,
-          backdropFilter: 'blur(8px)',
-        }}>
-        {label === 'Renew' ? <>
-          <span className="sm:hidden">Renew plan</span>
-          <span className="hidden sm:inline">Renew</span>
-        </> : label}
-        <ArrowUpRight className="h-3.5 w-3.5" />
-      </button>
-    </motion.div>
+    <button type="button" onClick={onClick}
+      className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-opacity hover:opacity-90"
+      style={{ background: DARK_C.cta, color: '#ffffff' }}>
+      {label === 'Renew' ? 'Renew plan' : 'Upgrade'}
+      <ArrowUpRight className="h-4 w-4" />
+    </button>
   );
 }
 
-function TimelineBadge(props: TimelineBadgeProps) {
+// The cohort (or subscription) at a glance: name, week and a thin bar. A click or tap opens the
+// details; in the phone menu the same chip spans the menu's width.
+function TimelineBadge(props: TimelineBadgeProps & { inMenu?: boolean }) {
   const C = useC();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const P = palette(C);
   const [open, setOpen] = useState(false);
-
-  const green     = '#22c55e';
-  const greenDim  = isDark ? 'rgba(34,197,94,0.14)' : 'rgba(34,197,94,0.12)';
-  const greenGrad = 'linear-gradient(90deg,#16a34a 0%,#22c55e 55%,#4ade80 100%)';
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [open]);
 
   if (!props.timeline) return null;
   const start = props.variant === 'cohort'
@@ -160,142 +143,159 @@ function TimelineBadge(props: TimelineBadgeProps) {
     ? subscriptionHasEnded(props.timeline.status, end)
     : elapsed > Math.max(diffDays(start, end), 1);
   const isCatchUp  = !isDone && teachEnd !== end && elapsed > totalDays;
-  const isActive   = !isUpcoming && !isDone;
   const daysLeft   = Math.max(diffDays(today, isCatchUp ? end : teachEnd), 0);
+  const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
 
   const endedLabel = props.variant === 'subscription'
     ? subscriptionStatus === 'cancelled' ? 'Cancelled' : 'Expired'
-    : 'Done';
-  const chipLabel   = isUpcoming ? 'Soon' : isDone ? endedLabel : isCatchUp ? 'Catch-up' : 'Active';
-  const badgeStatus = isUpcoming
-    ? `Starts in ${daysToStart}d`
+    : 'Ended';
+  const status: { label: string; tone: 'good' | 'warn' | 'mute' } = isUpcoming ? { label: 'Starting soon', tone: 'warn' }
+    : isDone ? { label: endedLabel, tone: 'mute' }
+    : isCatchUp ? { label: 'Catch-up', tone: 'warn' }
+    : { label: 'Active', tone: 'good' };
+  const short = isUpcoming ? `Starts ${formatTimelineDate(start)}`
     : isDone ? endedLabel
-    : isCatchUp ? `Catch-up, ${daysLeft}d left`
-    : props.variant === 'subscription' ? `${daysLeft}d left` : `Wk ${weekNum}/${totalWeeks}`;
-  const detailLine  = isUpcoming
-    ? `Starts ${formatTimelineDate(start)}`
+    : isCatchUp ? `Catch-up, ${days(daysLeft)} left`
+    : props.variant === 'subscription' ? `${days(daysLeft)} left` : `Week ${weekNum} of ${totalWeeks}`;
+  const detail = isUpcoming ? `Starts in ${days(daysToStart)}`
     : isDone ? props.variant === 'subscription'
       ? subscriptionStatus === 'cancelled' ? 'Subscription cancelled' : `Access ended ${formatTimelineDate(end)}`
       : 'This cohort has ended'
-    : isCatchUp ? `Catch-up period, ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
-    : `${daysLeft} day${daysLeft === 1 ? '' : 's'} ${teachEnd !== end ? 'of classes ' : ''}remaining`;
-  const durationLine = props.variant === 'subscription'
-    ? `${props.timeline.duration_months} month${props.timeline.duration_months === 1 ? '' : 's'} subscription`
-    : null;
-
-  // circular ring: r=9 in viewBox 0 0 24 24 => circ ~56.55
-  const r    = 9;
-  const circ = 2 * Math.PI * r;
-  const dash = (pct / 100) * circ;
-
+    : isCatchUp ? `Catch-up period, ${days(daysLeft)} left`
+    : `${days(daysLeft)} ${teachEnd !== end ? 'of classes ' : ''}left`;
+  const fill = isDone ? C.faint : P.good;
+  const bar = (className: string) => (
+    <span className={`block overflow-hidden rounded-full ${className}`} style={{ background: C.pill }}>
+      <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: fill }} />
+    </span>
+  );
 
   return (
-    <div
-      className="relative hidden md:block"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}>
-      <button
-        type="button"
-        className="flex items-center gap-2.5 rounded-full border px-3.5 py-1.5 transition-all hover:shadow-md"
-        style={{ background: C.card, borderColor: C.cardBorder }}>
-        {/* Circular progress ring */}
-        <div className="relative w-8 h-8 flex-shrink-0">
-          <svg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx="12" cy="12" r={r} fill="none" stroke={greenDim} strokeWidth="2.5"/>
-            <circle cx="12" cy="12" r={r} fill="none" stroke={green} strokeWidth="2.5"
-              strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"/>
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <TrendingUp className="w-3 h-3" style={{ color: green }}/>
-          </div>
-        </div>
-        <div className="text-left leading-none pr-0.5">
-          <p className="text-[11px] font-bold truncate max-w-[160px]" style={{ color: C.text }}>{timeline.name}</p>
-          <p className="text-[10px] font-semibold mt-0.5" style={{ color: C.faint }}>{badgeStatus}</p>
-        </div>
+    <div ref={ref} className={props.inMenu ? 'relative' : 'relative hidden md:block'}>
+      {/* One line, the height of the buttons beside it: the name. The week, progress and
+          timeline are in the details it opens. */}
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} title={short}
+        className={`flex h-9 items-center gap-2 rounded-full pl-3.5 pr-3 text-left transition-colors ${props.inMenu ? 'w-full rounded-xl' : ''}`}
+        style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+        <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: status.tone === 'good' ? P.good : status.tone === 'warn' ? P.warn : C.faint }} />
+        <span className={`min-w-0 truncate text-[13px] font-semibold ${props.inMenu ? 'flex-1' : 'max-w-[200px]'}`} style={{ color: C.text }}>{timeline.name}</span>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: C.muted }} />
       </button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-full mt-2 w-72 rounded-2xl z-50"
-            style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: C.hoverShadow }}>
-
-            {/* Header */}
-            <div className="px-4 pt-4 pb-3 flex items-start gap-2.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-black truncate leading-tight" style={{ color: C.text }}>{timeline.name}</p>
-                <p className="text-xs mt-0.5 font-medium" style={{ color: C.muted }}>{detailLine}</p>
-                {durationLine && <p className="text-[11px] mt-1 font-semibold" style={{ color: C.faint }}>{durationLine}</p>}
-              </div>
-              <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full mt-0.5"
-                style={{ background: greenDim, color: green }}>{chipLabel}</span>
-            </div>
-
-            {/* Timeline track */}
-            <div className="px-4 pb-4">
-              <div className="relative h-16">
-                {/* Track bg */}
-                <div className="absolute inset-x-0 top-1/2 h-[3px] rounded-full"
-                  style={{ background: greenDim, transform: 'translateY(-50%)' }}/>
-                {/* Progress fill */}
-                <div className="absolute left-0 top-1/2 h-[3px] rounded-full"
-                  style={{ width: `${pct}%`, background: greenGrad, transform: 'translateY(-50%)' }}/>
-                {/* Start dot */}
-                <div className="absolute left-0 top-1/2 w-3 h-3 rounded-full border-2"
-                  style={{ background: C.card, borderColor: green, transform: 'translate(-1px, -50%)' }}/>
-                {/* End node */}
-                <div className="absolute right-0 top-1/2 w-6 h-6 rounded-full border-2 flex items-center justify-center"
-                  style={{ background: C.card, borderColor: green, transform: 'translate(4px, -50%)', boxShadow: `0 0 0 4px ${greenDim}` }}>
-                  <Award className="w-3 h-3" style={{ color: green }}/>
-                </div>
-                {/* Today: 3D pencil writing, tip planted on track */}
-                {isActive && (
-                  <div className="absolute pointer-events-none z-10"
-                    style={{ left: `${pct}%`, bottom: '50%', transform: 'translateX(-50%)' }}>
-                    <svg
-                      viewBox="0 0 14 34"
-                      width="13"
-                      height="32"
-                      style={{
-                        transform: 'rotate(-15deg)',
-                        transformOrigin: '50% 100%',
-                        filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.32))',
-                        display: 'block',
-                      }}>
-                      {/* Eraser */}
-                      <rect x="3" y="0.5" width="8" height="4" rx="1.5" fill="#fda4af"/>
-                      {/* Ferrule highlight */}
-                      <rect x="2.5" y="4.5" width="9" height="1" fill="#e5e7eb"/>
-                      {/* Ferrule band */}
-                      <rect x="2.5" y="5.5" width="9" height="2.5" fill="#9ca3af"/>
-                      {/* Body: light left / amber center / dark right = 3D barrel */}
-                      <rect x="2.5" y="8"   width="2.5" height="14.5" fill="#fde68a"/>
-                      <rect x="5"   y="8"   width="4.5" height="14.5" fill="#fbbf24"/>
-                      <rect x="9.5" y="8"   width="2"   height="14.5" fill="#d97706"/>
-                      {/* Tip wood: left face lighter, right face darker */}
-                      <polygon points="2.5,22.5 7,22.5 7,29.5" fill="#f59e0b"/>
-                      <polygon points="7,22.5 11.5,22.5 7,29.5" fill="#b45309"/>
-                      {/* Lead tip */}
-                      <polygon points="5.8,29.5 7,33 8.2,29.5" fill="#1f2937"/>
-                    </svg>
-                  </div>
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            // In the phone menu the details open in place, under the chip; in the top bar they drop down.
+            className={props.inMenu ? 'mt-2 rounded-xl p-4' : 'absolute right-0 top-full z-50 mt-2 w-[360px] rounded-2xl p-5'}
+            style={{ background: C.card, boxShadow: `0 20px 60px rgba(0,0,0,0.14), 0 0 0 1px ${C.divider}` }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold leading-5" style={{ color: C.text }}>{timeline.name}</p>
+                <p className="mt-1 text-[13px]" style={{ color: C.muted }}>{detail}</p>
+                {props.variant === 'subscription' && (
+                  <p className="mt-0.5 text-[13px]" style={{ color: C.muted }}>
+                    {props.timeline.duration_months} month{props.timeline.duration_months === 1 ? '' : 's'} plan
+                  </p>
                 )}
               </div>
-              {/* Date labels */}
-              <div className="flex justify-between mt-1">
-                <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(start)}</span>
-                {/* The track measures classes, so it ends on the last day of classes. */}
-                <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(teachEnd)}</span>
-              </div>
+              <Pill tone={status.tone} dot={status.tone === 'good'} C={C}>{status.label}</Pill>
             </div>
+            {props.variant === 'cohort' ? (
+              <CohortTrack C={C} start={start} teachEnd={teachEnd} end={end} today={today}
+                weekNum={weekNum} totalWeeks={totalWeeks} pct={pct} isUpcoming={isUpcoming} isDone={isDone} isCatchUp={isCatchUp} />
+            ) : (
+              <>
+                {!isUpcoming && (
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-baseline justify-between text-[13px]">
+                      <span style={{ color: C.text }}>Progress</span>
+                      <span className="font-semibold tabular-nums" style={{ color: C.text }}>{pct}%</span>
+                    </div>
+                    {bar('h-2 w-full')}
+                  </div>
+                )}
+                <div className="mt-4 flex justify-between text-[13px]" style={{ color: C.muted }}>
+                  <span>Started <b style={{ color: C.text }}>{formatTimelineDate(start)}</b></span>
+                  <span>Ends <b style={{ color: C.text }}>{formatTimelineDate(end)}</b></span>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// The cohort as a picture: one block per week of classes (done, this week, still to come), the
+// catch-up period as an amber dashed stretch after classes end, and a rocket on the track for today.
+function CohortTrack({ C, start, teachEnd, end, today, weekNum, totalWeeks, pct, isUpcoming, isDone, isCatchUp }: {
+  C: ReturnType<typeof useC>; start: Date; teachEnd: Date; end: Date; today: Date;
+  weekNum: number; totalWeeks: number; pct: number; isUpcoming: boolean; isDone: boolean; isCatchUp: boolean;
+}) {
+  const P = palette(C);
+  const teachDays = Math.max(diffDays(start, teachEnd), 1);
+  const catchDays = Math.max(diffDays(teachEnd, end), 0);
+  const allDays = teachDays + catchDays;
+  // Where today sits on the whole track (classes and catch-up), for the rocket.
+  const at = Math.min(Math.max(diffDays(start, today) / allDays, 0), 1) * 100;
+  const weekState = (i: number) => isDone || isCatchUp ? 'done' : isUpcoming ? 'todo' : i < weekNum - 1 ? 'done' : i === weekNum - 1 ? 'now' : 'todo';
+  const caption = isUpcoming ? 'Not started' : isDone ? 'Finished' : isCatchUp ? 'Catch-up period' : `Week ${weekNum} of ${totalWeeks}`;
+  return (
+    <div className="mt-4">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="font-semibold" style={{ color: C.text }}>{caption}</span>
+        <span className="font-semibold tabular-nums" style={{ color: C.text }}>{pct}% of classes</span>
+      </div>
+      <div className="relative mt-2 pt-9">
+        {/* Today: a small bubble with a rocket, its stem pointing at the track. */}
+        {!isUpcoming && !isDone && (
+          <div className="absolute top-0 flex flex-col items-center" style={{ left: `${at}%`, transform: 'translateX(-50%)' }}>
+            <span className="flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold leading-none"
+              style={{ background: C.text, color: C.card }}>
+              <RocketLaunch size={12} weight="fill" /> Today
+            </span>
+            <span className="h-3 w-px" style={{ background: C.text }} />
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <div className="flex gap-[3px]" style={{ flex: teachDays }}>
+            {Array.from({ length: totalWeeks }, (_, i) => {
+              const state = weekState(i);
+              return (
+                <span key={i} className="h-2.5 flex-1 rounded-[3px]" title={`Week ${i + 1}`}
+                  style={state === 'done' ? { background: P.good }
+                    : state === 'now' ? { background: P.goodSoft, boxShadow: `inset 0 0 0 1.5px ${P.good}` }
+                    : { background: C.pill }} />
+              );
+            })}
+          </div>
+          {catchDays > 0 && (
+            <span className="h-2.5 rounded-[3px]" title="Catch-up period"
+              style={{ flex: catchDays, background: P.warnSoft, border: `1.5px dashed ${P.warn}` }} />
+          )}
+        </div>
+        <div className="mt-2 flex gap-1 text-[12px]" style={{ color: C.muted }}>
+          <div className="flex justify-between gap-2" style={{ flex: teachDays }}>
+            <span>Start <b style={{ color: C.text }}>{formatTimelineDate(start)}</b></span>
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <FlagBanner size={13} weight="fill" style={{ color: P.good }} />
+              <b style={{ color: C.text }}>{formatTimelineDate(teachEnd)}</b>
+            </span>
+          </div>
+          {catchDays > 0 && (
+            <div className="flex justify-end whitespace-nowrap" style={{ flex: catchDays, minWidth: 48 }}>
+              <b style={{ color: C.text }}>{formatTimelineDate(end)}</b>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px]" style={{ color: C.muted }}>
+          <span className="flex items-center gap-1.5"><FlagBanner size={12} weight="fill" style={{ color: P.good }} /> Classes end</span>
+          {catchDays > 0 && <span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-[2px]" style={{ background: P.warnSoft, border: `1px dashed ${P.warn}` }} /> Catch-up to finish</span>}
+        </div>
+      </div>
     </div>
   );
 }
