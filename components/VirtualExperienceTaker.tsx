@@ -35,7 +35,7 @@ import type {
   Requirement, Lesson, Module, ProjectConfig, Progress, AiFeedbackEntry, VeRequirementContext,
 } from '@/components/ve/requirements/types';
 
-// Player type: Google Sans for text, Space Grotesk for headings (loaded in app/layout.tsx).
+// Player type: Google Sans for text, the heading font (Lato, --font-display in app/layout.tsx) for headings.
 const VE_BODY_FONT = "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif";
 const VE_DISPLAY_FONT = "var(--font-display), 'Google Sans', sans-serif";
 
