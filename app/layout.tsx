@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Metadata, Viewport } from 'next';
 /* eslint-disable @next/next/no-page-custom-font -- Google Sans Text and the admin-selected Google Font are not available through next/font. */
-import { Inter, Playfair_Display, JetBrains_Mono, Lato, Space_Grotesk } from 'next/font/google';
+import localFont from 'next/font/local';
 import { headers } from 'next/headers';
 import './globals.css';
 import ThemeProvider from '@/components/ThemeProvider';
@@ -15,14 +15,24 @@ import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallAppButton from '@/components/InstallAppButton';
 import GoogleAnalytics from '@/components/GoogleAnalytics';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+// The fonts are files in app/fonts, not fetched from Google at build time: next/font/google
+// downloads them on every build, and a bad answer from Google failed the build. Same fonts,
+// latin subset, the variable ones covering every weight.
+const inter = localFont({ src: './fonts/inter-latin-wght-normal.woff2', weight: '100 900', variable: '--font-sans', display: 'swap' });
 // preload: false -- these fonts are only used when a form creator picks serif/mono
 // so they shouldn't block every page load
-const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-serif', preload: false });
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', preload: false });
-const lato = Lato({ subsets: ['latin'], weight: ['400', '700', '900'], variable: '--font-lato', preload: false });
+const playfair = localFont({ src: './fonts/playfair-display-latin-wght-normal.woff2', weight: '400 900', variable: '--font-serif', display: 'swap', preload: false });
+const jetbrainsMono = localFont({ src: './fonts/jetbrains-mono-latin-wght-normal.woff2', weight: '100 800', variable: '--font-mono', display: 'swap', preload: false });
+const lato = localFont({
+  src: [
+    { path: './fonts/lato-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/lato-latin-700-normal.woff2', weight: '700', style: 'normal' },
+    { path: './fonts/lato-latin-900-normal.woff2', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-lato', display: 'swap', preload: false,
+});
 // Headings in the virtual experience player.
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-display', preload: false });
+const spaceGrotesk = localFont({ src: './fonts/space-grotesk-latin-wght-normal.woff2', weight: '300 700', variable: '--font-display', display: 'swap', preload: false });
 
 function selectedFontFamily(fontName: string): string {
   const safeName = fontName.replace(/[;'"\\]/g, '').trim();
