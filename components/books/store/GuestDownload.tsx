@@ -117,7 +117,7 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
   return (
     <div className="rounded-[28px] bg-white p-6 sm:p-8" style={{ boxShadow: CARD_SHADOW }}>
       <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-        <div className="w-28 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ aspectRatio: '3 / 4', background: '#E8EEF0' }}>
+        <div className="w-44 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16 / 9', background: '#E8EEF0' }}>
           {info.coverImage
             ? <img src={resolveCoverUrl(info.coverImage)} alt="" className="w-full h-full object-cover" />
             : <Package className="w-8 h-8" style={{ color: '#94a3b8' }} />}

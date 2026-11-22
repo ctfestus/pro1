@@ -53,9 +53,10 @@ export function ProductsShowcase({ products, dark, hFont, bFont }: {
           {products.slice(0, 4).map(p => (
             // The course card's style: a white card, the cover edge to edge, then title, price, tags and level.
             <Link key={p.id} href={`/products/${p.slug}`} className={FRAMED_CARD} style={{ background: dark ? '#1E1F26' : '#ffffff' }}>
-              <div className="overflow-hidden flex items-center justify-center" style={{ aspectRatio: '3 / 4', background: dark ? 'rgba(255,255,255,0.04)' : '#E8EEF0' }}>
+              {/* The cover in the courses' shape, as on the learner's My Products. */}
+              <div className="overflow-hidden flex items-center justify-center aspect-video" style={{ background: dark ? 'rgba(255,255,255,0.04)' : '#E8EEF0' }}>
                 {p.coverImage
-                  ? <img src={resolveCoverUrl(p.coverImage)} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                  ? <img src={resolveCoverUrl(p.coverImage)} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
                   : <Package className="w-10 h-10" style={{ color: muted }} />}
               </div>
               <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">

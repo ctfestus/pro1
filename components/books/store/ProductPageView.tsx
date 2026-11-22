@@ -132,9 +132,9 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
  */
 function BookCover({ book, primaryColor }: { book: StoreBook; primaryColor: string }) {
   return (
-    <div className="shrink-0 w-[160px] sm:w-[200px] lg:w-[230px]">
+    <div className="w-full shrink-0 sm:w-[320px] lg:w-[380px]">
       <div className="rounded-2xl overflow-hidden bg-white"
-        style={{ aspectRatio: '3 / 4', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 14px 32px -16px rgba(15,23,42,0.28)' }}>
+        style={{ aspectRatio: '16 / 9', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 14px 32px -16px rgba(15,23,42,0.28)' }}>
         {book.coverImage
           ? <img src={resolveCoverUrl(book.coverImage)} alt={`Cover of ${book.title}`} className="w-full h-full object-cover" />
           : (
@@ -151,7 +151,7 @@ function BookCover({ book, primaryColor }: { book: StoreBook; primaryColor: stri
 function MiniCard({ book }: { book: StoreBook }) {
   return (
     <Link href={`/products/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-all hover:-translate-y-0.5 hover:shadow-xl" style={{ boxShadow: CARD_SHADOW }}>
-      <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '3 / 4' }}>
+      <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '16 / 9' }}>
         {book.coverImage
           ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
           : <Package className="w-10 h-10" style={{ color: '#94a3b8' }} />}
