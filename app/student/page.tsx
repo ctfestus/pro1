@@ -19,6 +19,8 @@ import { useTenant } from '@/components/TenantProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { computeAccess } from '@/lib/enrollment-access';
 import { DARK_C, LIGHT_C, useC } from '@/lib/theme';
+import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
+import type { LearningStatusFilter } from '@/components/student/learning-card';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
 import { GearSix } from '@phosphor-icons/react';
 import { OverviewSection } from '@/components/student/overview';
@@ -96,7 +98,8 @@ function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCoh
   return true;
 }
 
-// The line under each section's title. My Learning, overview, my program, certifications and the
+// The line under each section's title. My Learning (its own line, beside its title), overview,
+// my program, certifications and the
 // AI toolkit open with their own introduction instead.
 const SECTION_LINES: Partial<Record<SectionId, string>> = {
   explore:       'Explore the full catalogue. Purchase access or enroll to unlock more learning.',
@@ -132,6 +135,12 @@ export default function StudentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [learningSearch, setLearningSearch] = useState('');
+  const [learningStatus, setLearningStatus] = useState<LearningStatusFilter>('all');
+  // How many items each My Learning tab holds, filled in as each tab loads.
+  const [learningCounts, setLearningCounts] = useState<Partial<Record<SectionId, number>>>({});
+  const countCourses = useCallback((n: number) => setLearningCounts(c => ({ ...c, courses: n })), []);
+  const countPaths = useCallback((n: number) => setLearningCounts(c => ({ ...c, learning_paths: n })), []);
+  const countExperiences = useCallback((n: number) => setLearningCounts(c => ({ ...c, virtual_experiences: n })), []);
   // A lighter, neutral background than the shared page grey, so the white cards read softly.
   const pageBg = theme === 'dark' ? C.page : '#F8F9FB';
   const [isOutstanding,        setIsOutstanding]        = useState(false);
@@ -669,7 +678,12 @@ export default function StudentDashboard() {
                 program (titled by the cohort) and certifications (its own landing). */}
             {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'certifications' && (
               <div className="mb-6">
-                <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isMyLearning ? 'My Learning' : isLiveSessions ? 'Live sessions' : activeItem.label}</h1>
+                {isMyLearning
+                  ? <>
+                      <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>My learning</h1>
+                      <p className="mt-1 text-sm" style={{ color: C.muted }}>Everything you are taking: courses, learning paths and virtual experiences.</p>
+                    </>
+                  : <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isLiveSessions ? 'Live sessions' : activeItem.label}</h1>}
                 {SECTION_LINES[isLiveSessions ? 'events' : activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[isLiveSessions ? 'events' : activeSection]}</p>}
               </div>
             )}
@@ -765,41 +779,46 @@ export default function StudentDashboard() {
             )}
 
             {isMyLearning && user && (
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                {/* Grey pill track, the open tab in white. */}
-                {/* On a phone the three tabs share the width, so none sits off-screen. */}
-                <div role="tablist" aria-label="My Learning sections" className="grid w-full grid-cols-3 gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto sm:max-w-full sm:overflow-x-auto"
-                  style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#E8EBF0' }}>
+              <div className="mb-6 grid gap-3">
+                {/* The dashboard's white step switch; the open tab in blue, with its count. On a
+                    phone the three tabs share the width, so none sits off-screen. */}
+                <div role="tablist" aria-label="My Learning sections" className="grid w-full grid-cols-3 gap-1 rounded-[14px] p-1 sm:inline-flex sm:w-auto sm:max-w-full sm:justify-self-start sm:overflow-x-auto"
+                  style={{ background: C.card }}>
                   {([
                     { id: 'courses', label: 'Courses' },
                     { id: 'learning_paths', label: 'Learning paths' },
                     { id: 'virtual_experiences', label: 'Virtual experiences' },
                   ] as const).map(({ id, label }) => {
                     const selected = activeSection === id;
+                    const count = learningCounts[id];
                     return (
-                      <button
-                        key={id}
-                        role="tab"
-                        aria-selected={selected}
+                      <button key={id} role="tab" aria-selected={selected}
                         onClick={() => { setLearningSearch(''); goSection(id); }}
-                        className={`rounded-lg px-2 py-2 text-center text-sm leading-5 transition-colors sm:whitespace-nowrap sm:px-4 ${selected ? 'font-semibold' : 'font-normal'}`}
-                        style={{
-                          background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
-                          color: selected ? C.text : C.muted,
-                          boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.08), 0 1px 6px rgba(15,23,42,0.06)' : 'none',
-                        }}>
-                        {label}
+                        className="h-9 rounded-[10px] px-2 text-center text-[13px] font-semibold leading-5 sm:whitespace-nowrap sm:px-4"
+                        style={selected ? { background: DARK_C.cta, color: '#ffffff' } : { color: C.muted }}>
+                        {label}{count !== undefined && <span className="ml-1 text-xs" style={{ opacity: 0.7 }}>{count}</span>}
                       </button>
                     );
                   })}
                 </div>
-                <label className="flex w-full items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:w-64"
-                  style={{ background: C.card, ['--search-line' as string]: C.cardBorder, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
-                  {/* Focus shows as the same 1px border turning a darker neutral grey. */}
-                  <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
-                  <input value={learningSearch} onChange={e => setLearningSearch(e.target.value)} placeholder={activeSection === 'courses' ? 'Search courses' : activeSection === 'learning_paths' ? 'Search learning paths' : 'Search experiences'}
-                    aria-label="Search My Learning" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
-                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex min-w-0 flex-[1_1_240px] items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)]"
+                    style={{ background: C.card, ['--search-line' as string]: C.divider, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
+                    {/* Focus shows as the same 1px border turning a darker neutral grey. */}
+                    <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+                    <input value={learningSearch} onChange={e => setLearningSearch(e.target.value)} placeholder={activeSection === 'courses' ? 'Search courses' : activeSection === 'learning_paths' ? 'Search learning paths' : 'Search experiences'}
+                      aria-label="Search My Learning" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
+                  </label>
+                  <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+                    {([['all', 'All'], ['progress', 'In progress'], ['not_started', 'Not started'], ['done', 'Completed']] as const).map(([id, label]) => (
+                      <button key={id} type="button" aria-pressed={learningStatus === id} onClick={() => setLearningStatus(id)}
+                        className="h-8 rounded-full px-3 text-xs font-semibold"
+                        style={learningStatus === id ? { background: DARK_C.cta, color: '#ffffff' } : { background: C.card, color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -807,13 +826,13 @@ export default function StudentDashboard() {
               <OverviewSection user={{ ...user, id: effectiveId, email: effectiveEmail }} name={viewingAs?.name ?? profile?.full_name ?? null} C={C} onNavigate={goSection}/>
             )}
             {activeSection === 'my_program' && user && (
-              <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>
+              <MyProgramSection C={C} coursesLocked={isOutstanding}/>
             )}
             {activeSection === 'courses' && user && (
-              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={learningSearch}/>
+              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={learningSearch} statusFilter={learningStatus} onCount={countCourses}/>
             )}
             {activeSection === 'learning_paths' && user && (
-              <LearningPathsSection C={C} searchQuery={learningSearch}/>
+              <LearningPathsSection C={C} searchQuery={learningSearch} statusFilter={learningStatus} onCount={countPaths}/>
             )}
             {isLiveSessions && user && (
               // Upcoming and Recordings as two tabs: the selected one blue on a white track.
@@ -843,7 +862,7 @@ export default function StudentDashboard() {
               <AnnouncementsSection userId={effectiveId} C={C}/>
             )}
             {activeSection === 'virtual_experiences' && user && (
-              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C} searchQuery={learningSearch}/>
+              <VirtualExperiencesSection userId={effectiveId} userEmail={effectiveEmail} C={C} searchQuery={learningSearch} statusFilter={learningStatus} onCount={countExperiences}/>
             )}
             {activeSection === 'certifications' && user && (
               <CertificationsSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>

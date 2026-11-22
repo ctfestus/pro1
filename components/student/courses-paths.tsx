@@ -10,7 +10,6 @@ import {
   BookOpen, Award, X, Check, CheckCircle, Play, GraduationCap, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Briefcase, Hand, Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { useToolIcons } from '@/lib/use-tool-icons';
@@ -21,7 +20,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
 import { CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
-import { LearningCard, deadlineTag } from '@/components/student/learning-card';
+import { LearningCard, LearningCardsSkeleton, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
 import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
@@ -51,7 +50,8 @@ function CourseCard({ course, deadline, C, onDetails }: {
       C={C}
       cover={courseCover(course)}
       fallbackLogo={icon}
-      tag={completed ? (passed ? { label: 'Completed', tone: 'green' } : { label: 'Not passed', tone: 'red' }) : deadlineTag(deadline, false)}
+      category={category}
+      tag={deadlineTag(deadline, completed)}
       title={course.form?.title ?? 'Untitled course'}
       byline={partner ? (
         <span className="inline-flex items-center gap-2">
@@ -59,12 +59,12 @@ function CourseCard({ course, deadline, C, onDetails }: {
           Offered by {partner.name}
         </span>
       ) : null}
-      description={toPlainText(course.form?.config?.description ?? course.form?.description)}
+      meta={lessons ? `${lessons} lesson${lessons === 1 ? '' : 's'}` : undefined}
       progress={progress}
       done={completed}
-      figure={showScore ? `${score}%` : lessons || courseProgressCounts(questions, course.answers ?? {}).total}
-      figureLabel={showScore ? 'Final score' : lessons ? (lessons === 1 ? 'Lesson' : 'Lessons') : 'Questions'}
-      chip={category ? { label: category, icon } : null}
+      status={completed
+        ? (passed ? { label: showScore ? `Passed, ${score}%` : 'Passed', tone: 'good' } : { label: 'Not passed', tone: 'bad' })
+        : progressStatus(false, progress)}
       action={{
         label: completed ? (passed ? 'Review' : 'Retake') : started ? 'Resume' : 'Start',
         href: `/${course.slug || course.form?.slug || course.form_id}`,
@@ -77,18 +77,12 @@ function CourseCard({ course, deadline, C, onDetails }: {
 
 // --- Course detail right pane ---
 function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT_C; onClose: () => void }) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
   const config = course.config ?? course.form?.config ?? {};
   const questions: any[] = course.form?.questions ?? config.questions ?? [];
   const lessons = questions.filter((q: any) => q.lesson?.title || q.lesson?.body || q.lesson?.doc);
   const lessonCount = lessons.length;
-  const countableDetailQ = questions.filter((q: any) => !q.isSection);
-  const assessmentCount = countableDetailQ.length;
-  // Shared rule for the percentage; assessmentCount above stays the plain slide tally, since it
-  // labels how much the course contains rather than how far this student has got.
+  // Shared rule for the percentage.
   const detailCounts = courseProgressCounts(questions, course.answers ?? {});
-  const answeredDetailQ = detailCounts.done;
   const currentIdx = course.current_question_index ?? 0;
   const completed = !!course.completed_at;
   const passed = course.passed === true;
@@ -249,7 +243,16 @@ const LOAD_ERROR_NETWORK = "Couldn't load learning paths. Check your connection 
 const LOAD_ERROR_SERVER  = "Couldn't load learning paths right now. Try again.";
 
 // --- Learning Paths section (shown above courses) ---
-export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_C; searchQuery?: string }) {
+// How far a learner is on a path, for its card and for the status chips.
+function pathState(path: any) {
+  const totalItems = (path.item_ids ?? []).length;
+  const completedIds: string[] = path.progress?.completed_item_ids ?? [];
+  const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
+  const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
+  return { totalItems, completedCount, complete, pct: totalItems ? (completedCount / totalItems) * 100 : 0 };
+}
+
+export function LearningPathsSection({ C, searchQuery = '', statusFilter = 'all', onCount }: { C: typeof LIGHT_C; searchQuery?: string; statusFilter?: LearningStatusFilter; onCount?: (n: number) => void }) {
   const [paths, setPaths]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
@@ -257,6 +260,9 @@ export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_
   const [lockedPath, setLockedPath] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [learnerName, setLearnerName] = useState<string | null>(null);
+
+  // The tab bar's count, once the list is known.
+  useEffect(() => { if (!loading && !error) onCount?.(paths.length); }, [loading, error, paths.length, onCount]);
 
   useEffect(() => {
     const syncSelectedPath = () => setSelectedPathId(new URLSearchParams(window.location.search).get('path'));
@@ -352,7 +358,7 @@ export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_
     return () => { cancelled = true; };
   }, [selectedPathId]);
 
-  if (loading) return <CarouselSkeleton C={C}/>;
+  if (loading) return <LearningCardsSkeleton C={C}/>;
 
   const selectedPath = paths.find((path: any) => path.id === selectedPathId)
     ?? (lockedPath?.id === selectedPathId ? lockedPath : null);
@@ -395,7 +401,10 @@ export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_
     </div>
   );
 
-  const shownPaths = paths.filter((p: any) => matchesSearch(searchQuery, p.title, p.description));
+  const shownPaths = paths.filter((p: any) => {
+    const st = pathState(p);
+    return matchesSearch(searchQuery, p.title, p.description) && matchesStatus(statusFilter, st.complete, st.pct);
+  });
   const openPath = (pathId: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('path', pathId);
@@ -405,18 +414,15 @@ export function LearningPathsSection({ C, searchQuery = '' }: { C: typeof LIGHT_
   return (
     shownPaths.length
       ? <LearningPathGrid paths={shownPaths} C={C} onOpen={openPath}/>
-      : <p className="py-6 text-center text-sm" style={{ color: C.muted }}>No learning paths found for &ldquo;{searchQuery.trim()}&rdquo;</p>
+      : <p className="py-6 text-center text-sm" style={{ color: C.muted }}>{searchQuery.trim() ? `No learning paths match "${searchQuery.trim()}".` : 'No learning paths here.'}</p>
   );
 }
 
 function LearningPathGrid({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_C; onOpen: (id: string) => void }) {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6">
       {paths.map((path: any) => {
-        const totalItems = (path.item_ids ?? []).length;
-        const completedIds: string[] = path.progress?.completed_item_ids ?? [];
-        const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
-        const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
+        const { totalItems, completedCount, complete, pct } = pathState(path);
         const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
         const started = !complete && (completedCount > 0 || hasItemProgress);
         const open = () => onOpen(path.id);
@@ -426,13 +432,11 @@ function LearningPathGrid({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_
             C={C}
             cover={path.cover_image}
             fallbackIcon={Layers}
-            tag={complete ? { label: 'Completed', tone: 'green' } : path.needs_track ? { label: 'Choose your track', tone: 'amber' } : null}
             title={path.title}
-            description={toPlainText(path.description)}
-            progress={totalItems ? (completedCount / totalItems) * 100 : 0}
+            meta={`${completedCount} of ${totalItems} completed`}
+            progress={pct}
             done={complete}
-            figure={`${completedCount} of ${totalItems}`}
-            figureLabel="Completed"
+            status={path.needs_track ? { label: 'Choose your track', tone: 'warn' } : progressStatus(complete, pct)}
             action={{
               label: path.locked ? enrollLabel(path.unlock) : complete ? 'Review path' : path.needs_track ? 'Choose track' : started ? 'Continue path' : 'Start path',
               onClick: open,
@@ -1165,7 +1169,7 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
 }
 
 // --- Courses section ---
-export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp, searchQuery = '' }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean; searchQuery?: string }) {
+export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp, searchQuery = '', statusFilter = 'all', onCount }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean; searchQuery?: string; statusFilter?: LearningStatusFilter; onCount?: (n: number) => void }) {
   const [courses,   setCourses]   = useState<any[]>([]);
   const [deadlines, setDeadlines] = useState<Record<string, Date | null>>({});
   const [loading,   setLoading]   = useState(true);
@@ -1173,7 +1177,6 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   const [refreshKey, setRefreshKey] = useState(0);
   const [detailCourse, setDetailCourse] = useState<any>(null);
   // VE attempt status map: formId -> { started, completed }
-  const [veStatusMap, setVeStatusMap] = useState<Record<string, { started: boolean; completed: boolean }>>({});
   const [isOutstandingInternal, setIsOutstandingInternal] = useState(false);
   const isOutstanding = isOutstandingProp ?? isOutstandingInternal;
 
@@ -1338,20 +1341,6 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
         setDeadlines(dlMap);
       }
 
-      // Load guided_project_attempts for VE status in search results
-      const { data: veAttempts } = await supabase
-        .from('guided_project_attempts')
-        .select('ve_id, completed_at')
-        .eq('student_id', effectiveUserId);
-      if (veAttempts?.length) {
-        const map: Record<string, { started: boolean; completed: boolean }> = {};
-        for (const a of veAttempts) {
-          map[a.ve_id] = { started: true, completed: Boolean(a.completed_at) };
-        }
-        if (cancelled) return;
-        setVeStatusMap(map);
-      }
-
       } catch (err) {
         console.error('Failed to load courses', err);
         // Without this the student sees the "No courses yet" empty state after a failed load.
@@ -1366,13 +1355,21 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   }, [userEmail, userIdProp, refreshKey]);
 
 
+  // The tab bar's count, once the list is known.
+  useEffect(() => { if (!loading && !loadError) onCount?.(courses.length); }, [loading, loadError, courses.length, onCount]);
+
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return null;
-    return courses.filter((c: any) => matchesSearch(q, c.form?.title, c.form?.config?.description ?? c.form?.description, c.form?.category));
-  }, [searchQuery, courses]);
+    if (!q && statusFilter === 'all') return null;
+    return courses.filter((c: any) => {
+      if (q && !matchesSearch(q, c.form?.title, c.form?.config?.description ?? c.form?.description, c.form?.category)) return false;
+      const questions = c.form?.questions ?? c.config?.questions ?? c.form?.config?.questions ?? [];
+      const done = !!c.completed_at;
+      return matchesStatus(statusFilter, done, done ? 100 : courseProgressPct(questions, c.answers ?? {}));
+    });
+  }, [searchQuery, statusFilter, courses]);
 
-  if (loading) return <CarouselSkeleton C={C}/>;
+  if (loading) return <LearningCardsSkeleton C={C}/>;
 
   if (loadError) return (
     <EmptyState
@@ -1401,11 +1398,11 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       {searchResults !== null && searchResults.length === 0 && (
         <p className="text-sm text-center py-6" style={{ color: C.muted }}>
-          No courses found for &ldquo;{searchQuery.trim()}&rdquo;
+          {searchQuery.trim() ? `No courses match "${searchQuery.trim()}".` : 'No courses here.'}
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6">
         {byTool(searchResults ?? courses).map((c: any) => (
           <CourseCard key={c.form_id} course={c} deadline={deadlines[c.form_id]} C={C}
             onDetails={() => setDetailCourse(c)} />
