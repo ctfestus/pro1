@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/api-auth', () => ({
   requireUser: vi.fn(),
   isAuthError: (value: any) => !!value?.error,
@@ -17,13 +18,16 @@ const BOOK = {
   purchasable: true, license_expires_at: null, preview_file_path: null,
 };
 
+const claims: [string, Record<string, any>][] = [];
+let claimResult: { data: unknown; error: unknown } = { data: 0, error: null };
 function authAs(userId: string, tables: Record<string, any>) {
-  mockAuth.mockResolvedValue({ user: { id: userId }, serviceDb: makeSupabaseStub(tables) } as any);
+  const rpc = (fn: string, args: Record<string, any>) => { claims.push([fn, args]); return claimResult; };
+  mockAuth.mockResolvedValue({ user: { id: userId }, serviceDb: makeSupabaseStub(tables, rpc) } as any);
 }
 const call = (id = BOOK_ID) => GET(new NextRequest(`http://localhost/api/books/${id}/access`), { params: Promise.resolve({ id }) });
 const owned = async () => (await (await call()).json()).owned;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); claims.length = 0; claimResult = { data: 0, error: null }; });
 
 describe('GET /api/books/[id]/access', () => {
   it('requires a signed-in user', async () => {
@@ -39,6 +43,19 @@ describe('GET /api/books/[id]/access', () => {
       book_entitlements: { data: { id: 'e1' } },
     });
     expect(await owned()).toBe(true);
+  });
+
+  it('first claims what the account bought as a guest, and still answers if that fails', async () => {
+    authAs('buyer', {
+      books: { data: BOOK },
+      students: { data: { role: 'student', cohort_id: null } },
+      learning_paths: { data: null },
+      book_entitlements: { data: { id: 'e1' } },
+    });
+    claimResult = { data: null, error: { message: 'boom' } };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await owned()).toBe(true);
+    expect(claims).toEqual([['claim_guest_book_purchases', { p_student_id: 'buyer' }]]);
   });
 
   it('is owned through the cohort the book is assigned to', async () => {

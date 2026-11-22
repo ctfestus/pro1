@@ -8536,6 +8536,37 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.release_guest_book_download(uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.release_guest_book_download(uuid) TO service_role;
 
+-- A guest's paid purchases become theirs once they have an account with that confirmed email (252).
+CREATE OR REPLACE FUNCTION public.claim_guest_book_purchases(p_student_id uuid)
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_email text;
+  v_count integer;
+BEGIN
+  SELECT lower(u.email) INTO v_email
+  FROM auth.users u
+  WHERE u.id = p_student_id AND u.email_confirmed_at IS NOT NULL;
+  IF v_email IS NULL OR NOT EXISTS (SELECT 1 FROM public.students s WHERE s.id = p_student_id) THEN
+    RETURN 0;
+  END IF;
+
+  INSERT INTO public.book_entitlements (student_id, book_id, source, source_ref)
+  SELECT DISTINCT ON (p.book_id) p_student_id, p.book_id, 'purchase', p.id::text
+  FROM public.book_purchases p
+  WHERE p.is_guest AND p.kind = 'sale' AND p.status = 'paid' AND p.guest_email = v_email
+    AND NOT EXISTS (
+      SELECT 1 FROM public.book_entitlements e WHERE e.source = 'purchase' AND e.source_ref = p.id::text
+    )
+  ORDER BY p.book_id, p.paid_at
+  ON CONFLICT (student_id, book_id) WHERE revoked_at IS NULL DO NOTHING;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_guest_book_purchases(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.claim_guest_book_purchases(uuid) TO service_role;
+
 -- Books store (migration 239): free claims without an account, and the download log.
 -- Also in 238; repeated so a database that ran an earlier 238 without it still gets it.
 ALTER TABLE public.book_purchases ADD COLUMN IF NOT EXISTS guest_name text;

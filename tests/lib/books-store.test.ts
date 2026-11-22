@@ -79,14 +79,13 @@ describe('loadStoreBooks / loadStoreBook', () => {
     expect(book.prices).toEqual([{ currency: 'GHS', amount: 90, original: 120, saleEndsAt: future }, { currency: 'USD', amount: 10 }]);
   });
 
-  it('returns a book with its contents, marking sample chapters only when there is a sample', async () => {
+  it('returns a book by its slug without the creator account id', async () => {
     const db = makeSupabaseStub({
       books: { data: row() },
       book_prices: { data: [{ book_id: ID, currency: 'GHS', amount: 120 }] },
-      book_chapters: { data: [{ title: 'One', is_preview: true }, { title: 'Two', is_preview: false }, { title: '  ', is_preview: false }] },
     });
     const book = await loadStoreBook('field-guide', db);
-    expect(book!.chapters).toEqual([{ title: 'One', inSample: true }, { title: 'Two', inSample: false }]);
+    expect(book!.slug).toBe('field-guide');
     expect(JSON.stringify(book)).not.toContain(U);
   });
 

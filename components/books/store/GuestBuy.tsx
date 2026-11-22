@@ -7,11 +7,10 @@
  */
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { formatMoney } from '@/lib/books/format';
+import { formatMoney, isEmail } from '@/lib/books/format';
 import { latestGuestCheckout, rememberGuestCheckout } from '@/lib/books/guest-checkout-store';
 import { PRICE_CHANGED_EVENT } from '@/lib/books/use-current-prices';
 
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v.trim());
 
 export function GuestBuy({ bookId, price, primaryColor, primaryBtn }: {
   bookId: string;

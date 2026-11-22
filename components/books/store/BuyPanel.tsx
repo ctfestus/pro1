@@ -18,12 +18,12 @@ import { supabase } from '@/lib/supabase';
 import { signInHref } from '@/lib/auth-redirect';
 import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
-import { formatMoney, getItLabel, opensInBrowser } from '@/lib/books/format';
+import { formatMoney, getItLabel, longDate, opensInBrowser } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { GuestBuy } from '@/components/books/store/GuestBuy';
 import { GuestReturn } from '@/components/books/store/GuestReturn';
 import { FreeClaim } from '@/components/books/store/FreeClaim';
-import { PRICE_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
+import { CURRENCY_CHANGED_EVENT, PRICE_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
 
 export interface BuyPanelBook {
   id: string;
@@ -156,7 +156,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
   const secondaryBtn = 'inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
   const secondaryStyle = { background: '#ffffff', color: '#0f172a', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 8px 20px -12px rgba(15,23,42,0.2)' };
   const owned = viewer.phase === 'signedIn' && viewer.owned;
-  const saleEnds = price?.saleEndsAt ? new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const saleEnds = longDate(price?.saleEndsAt);
 
   return (
     <div>
@@ -174,7 +174,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
             </span>
           )}
           {prices.length > 1 && (
-            <select value={currency} onChange={e => setCurrency(e.target.value)} aria-label="Currency"
+            <select value={currency} onChange={e => { setCurrency(e.target.value); window.dispatchEvent(new CustomEvent(CURRENCY_CHANGED_EVENT, { detail: e.target.value })); }} aria-label="Currency"
               className="rounded-xl px-3 py-2 text-sm outline-none" style={{ background: '#ffffff', color: '#334155' }}>
               {prices.map(p => <option key={p.currency} value={p.currency}>{p.currency}</option>)}
             </select>

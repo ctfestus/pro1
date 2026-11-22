@@ -60,13 +60,7 @@ export interface StoreBook {
   hasSample: boolean;
 }
 
-export interface StoreChapter {
-  title: string;
-  inSample: boolean;
-}
-
 export interface StoreBookDetail extends StoreBook {
-  chapters: StoreChapter[];
   /** The instructor who publishes the product, from their own profile (Settings). */
   instructor: StoreInstructor | null;
 }
@@ -185,7 +179,7 @@ export async function loadPreviewBook(id: string, db: any = adminClient(), now: 
   const hasSample = !free && prices.length > 0 && isBookObjectPath(row.id, row.preview_file_path, 'preview', row.format as BookFormat);
   const book = storeShape(row, free ? [] : prices, free, hasSample);
   return {
-    book: { ...book, instructor: await loadInstructor(db, row.user_id), chapters: [] },
+    book: { ...book, instructor: await loadInstructor(db, row.user_id) },
     blockers: storeBlockers(row, prices, now),
   };
 }
@@ -223,7 +217,7 @@ export async function loadStoreBooks(db: any = adminClient(), now: Date = new Da
   return rows.map(r => toStoreBook(r, prices.get(r.id) ?? [], now)).filter((b): b is StoreBook => !!b);
 }
 
-/** One book by slug with its table of contents, or null when the public may not see it. */
+/** One book by slug with its creator, or null when the public may not see it. */
 export async function loadStoreBook(slug: string, db: any = adminClient(), now: Date = new Date()): Promise<StoreBookDetail | null> {
   if (!/^[a-z0-9][a-z0-9-]{0,120}$/.test(slug)) return null;
   const { data, error } = await db.from('books').select(`${COLUMNS}, status, user_id`).eq('slug', slug).eq('status', 'published').maybeSingle();
@@ -232,20 +226,7 @@ export async function loadStoreBook(slug: string, db: any = adminClient(), now: 
   const prices = (data as any).purchasable === true ? (await pricesFor(db, [(data as any).id])).get((data as any).id) ?? [] : [];
   const book = toStoreBook(data, prices, now);
   if (!book) return null;
-  const instructor = await loadInstructor(db, (data as any).user_id);
-  const { data: chapters, error: chapterError } = await db
-    .from('book_chapters')
-    .select('title, is_preview, position')
-    .eq('book_id', book.id)
-    .order('position');
-  if (chapterError) throw chapterError;
-  return {
-    ...book,
-    instructor,
-    chapters: ((chapters as any[]) ?? [])
-      .filter(c => typeof c.title === 'string' && c.title.trim())
-      .map(c => ({ title: c.title, inSample: book.hasSample && c.is_preview === true })),
-  };
+  return { ...book, instructor: await loadInstructor(db, (data as any).user_id) };
 }
 
 /** The publishing instructor's public profile. A failure only hides the section. */

@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { PriceTag } from '@/components/books/store/PriceTag';
-import { useCurrentPrices } from '@/lib/books/use-current-prices';
+import { CURRENCY_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
 import type { ClientPrice } from '@/lib/books/pricing';
 
 export function MobileBuyBar({ title, free, prices, primaryColor }: {
@@ -29,7 +29,13 @@ export function MobileBuyBar({ title, free, prices, primaryColor }: {
 
   // The same prices as the buy card: an ended sale or a price checkout reported updates both.
   const current = useCurrentPrices(prices);
-  const price = current[0] ?? null;
+  const [currency, setCurrency] = useState(prices[0]?.currency ?? '');
+  useEffect(() => {
+    const onPick = (e: Event) => setCurrency((e as CustomEvent<string>).detail);
+    window.addEventListener(CURRENCY_CHANGED_EVENT, onPick);
+    return () => window.removeEventListener(CURRENCY_CHANGED_EVENT, onPick);
+  }, []);
+  const price = current.find(p => p.currency === currency) ?? current[0] ?? null;
 
   return (
     <div aria-hidden={cardVisible} className="lg:hidden fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2 transition-transform duration-300"
@@ -43,7 +49,7 @@ export function MobileBuyBar({ title, free, prices, primaryColor }: {
             : price && <PriceTag prices={[price]} className="text-base font-bold" style={{ color: '#0f172a' }} />}
         </div>
         <a href="#buy" tabIndex={cardVisible ? -1 : 0} className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold" style={{ background: primaryColor, color: '#ffffff' }}>
-          {free ? 'Get it' : 'Buy now'}
+          {free ? 'Get it free' : 'Buy now'}
         </a>
       </div>
     </div>

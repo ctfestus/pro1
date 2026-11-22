@@ -33,6 +33,17 @@ export function descriptionHtml(value: string | null | undefined): string {
   return v.split(/\n{2,}/).map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`).join('');
 }
 
+/**
+ * The description cut at its main headings (h1, h2), one part per heading, for a card each. Text
+ * before the first heading is titled "About this product".
+ */
+export function descriptionSections(value: string | null | undefined): { title: string; html: string }[] {
+  const parts = descriptionHtml(value).split(/<h[12]\b[^>]*>([\s\S]*?)<\/h[12]>/i);
+  const sections = [{ title: 'About this product', html: parts[0] }];
+  for (let i = 1; i < parts.length; i += 2) sections.push({ title: descriptionText(parts[i]), html: parts[i + 1] ?? '' });
+  return sections.filter(s => s.title && descriptionText(s.html));
+}
+
 /** What to store from the editor: sanitized rich text, or null when it has no words. */
 export function descriptionForSave(value: string | null): string | null {
   if (!value || !hasRichContent(value)) return null;

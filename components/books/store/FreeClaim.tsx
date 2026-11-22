@@ -7,8 +7,7 @@
  */
 import { useState } from 'react';
 import { Loader2, MailCheck } from 'lucide-react';
-
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v.trim());
+import { isEmail } from '@/lib/books/format';
 
 export function FreeClaim({ bookId, primaryColor, primaryBtn }: { bookId: string; primaryColor: string; primaryBtn: string }) {
   const [open, setOpen] = useState(false);

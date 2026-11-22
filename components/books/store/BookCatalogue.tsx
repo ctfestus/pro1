@@ -4,15 +4,13 @@
 // already rendered (lib/books/store.ts), so filtering costs no requests.
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Package, Search } from 'lucide-react';
-import { resolveCoverUrl } from '@/lib/cloudinary-url';
-import { PriceTag } from '@/components/books/store/PriceTag';
+import { ProductCard } from '@/components/books/store/ProductCard';
 import type { StoreBook } from '@/lib/books/store';
 
 const ALL = 'All';
 
-export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; primaryColor: string }) {
+export function BookCatalogue({ books }: { books: StoreBook[] }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(ALL);
   const [kind, setKind] = useState(ALL);
@@ -49,59 +47,42 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
     );
   }
 
+  // One chip style: the chosen chip in the primary blue.
+  const chip = (on: boolean) => on ? { background: '#3E93FF', color: '#ffffff' } : { background: '#ffffff', color: '#334155' };
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <label className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or topic" aria-label="Search products"
-            className="w-full rounded-2xl bg-white pl-10 pr-4 py-3 text-sm outline-none" style={{ color: '#0f172a' }} />
-        </label>
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Categories">
-            {categories.map(c => (
-              <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c}
-                className="px-3.5 py-2 rounded-full text-xs font-semibold"
-                style={category === c ? { background: primaryColor, color: '#ffffff' } : { background: '#ffffff', color: '#475569' }}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {kinds.length > 0 && (
-        <div className="flex flex-wrap gap-2 -mt-2" role="group" aria-label="Product types">
-          {kinds.map(k => (
-            <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
-              className="px-3.5 py-2 rounded-full text-xs font-semibold"
-              style={kind === k ? { background: '#0f172a', color: '#ffffff' } : { background: '#ffffff', color: '#475569' }}>
-              {k === ALL ? 'All types' : k}
-            </button>
-          ))}
+    <div className="space-y-5">
+      <label className="relative block">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#94a3b8' }} />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or topic" aria-label="Search products"
+          className="field-focus w-full rounded-xl bg-white py-3 pl-10 pr-4 text-sm outline-none" style={{ color: '#0f172a' }} />
+      </label>
+      {(categories.length > 0 || kinds.length > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Categories">
+              {categories.map(c => (
+                <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c}
+                  className="h-9 rounded-full px-4 text-sm font-semibold" style={chip(category === c)}>{c}</button>
+              ))}
+            </div>
+          )}
+          {kinds.length > 0 && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Product types">
+              {kinds.map(k => (
+                <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
+                  className="h-9 rounded-full px-4 text-sm font-semibold" style={chip(kind === k)}>{k === ALL ? 'All types' : k}</button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {shown.length === 0 ? (
-        <p className="text-sm py-10 text-center" style={{ color: '#64748b' }}>No products match your search.</p>
+        <p className="py-10 text-center text-sm" style={{ color: '#64748b' }}>No products match your search.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {shown.map(book => (
-            <Link key={book.id} href={`/products/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-transform hover:-translate-y-0.5" style={{ boxShadow: '0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -14px rgba(15,23,42,0.14)' }}>
-              <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '16 / 9' }}>
-                {book.coverImage
-                  ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" />
-                  : <Package className="w-10 h-10" style={{ color: '#94a3b8' }} />}
-              </div>
-              <p className="mt-3 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ color: '#0f172a' }}>{book.title}</p>
-              {book.authors.length > 0 && <p className="text-xs mt-1 truncate" style={{ color: '#64748b' }}>{book.authors.join(', ')}</p>}
-              <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-                {book.free
-                  ? <span className="text-sm font-bold" style={{ color: '#16a34a' }}>Free</span>
-                  : <PriceTag prices={book.prices} className="text-sm font-bold" style={{ color: '#0f172a' }} />}
-                <span className="text-[11px] font-semibold" style={{ color: '#64748b' }}>{book.productTypeLabel}</span>
-              </div>
-            </Link>
-          ))}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+          {shown.map(book => <ProductCard key={book.id} book={book} />)}
         </div>
       )}
     </div>

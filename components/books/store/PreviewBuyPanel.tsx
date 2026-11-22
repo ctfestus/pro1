@@ -7,7 +7,7 @@
  */
 import { Eye } from 'lucide-react';
 import { PriceTag } from '@/components/books/store/PriceTag';
-import { formatMoney, opensInBrowser } from '@/lib/books/format';
+import { formatMoney, longDate, opensInBrowser } from '@/lib/books/format';
 import type { StoreBook } from '@/lib/books/store';
 
 const primaryBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold cursor-default';
@@ -17,7 +17,7 @@ const OFF = 'Buttons do not work in the preview.';
 
 export function PreviewBuyPanel({ book, primaryColor }: { book: StoreBook; primaryColor: string }) {
   const price = book.prices[0];
-  const saleEnds = price?.saleEndsAt ? new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const saleEnds = longDate(price?.saleEndsAt);
   const forSale = !book.free && !!price;
 
   return (

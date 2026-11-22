@@ -35,7 +35,7 @@ export default async function GuestDownloadPage({ searchParams }: { searchParams
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <section className="max-w-[720px] mx-auto px-4 sm:px-6 pt-10 sm:pt-16 pb-20">
-        <GuestDownload access={typeof access === 'string' ? access : ''} primaryColor={primaryColor} />
+        <GuestDownload access={typeof access === 'string' ? access : ''} primaryColor="#3E93FF" />
       </section>
     </StoreChrome>
   );
