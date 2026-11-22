@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import { isAuthApiError, isAuthRetryableFetchError, isAuthSessionMissingError } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sun, Moon, Menu, X,
@@ -120,6 +121,8 @@ const SECTION_LINES: Partial<Record<SectionId, string>> = {
 
 export default function StudentDashboard() {
   const [mounted, setMounted] = useState(false);
+  // The sign-in check could not reach the server: a retry, not a sign-out.
+  const [connectionLost, setConnectionLost] = useState(false);
   const C = useC();
   const { toggle: toggleTheme, theme } = useTheme();
   const { logoUrl, logoDarkUrl, emailBannerUrl, appName } = useTenant();
@@ -283,10 +286,16 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
+      const toSignIn = () => { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/auth'); };
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (!session?.user) {
+        // A renewal that failed on a bad connection leaves no session but keeps the sign-in: that is
+        // not a sign-out, so offer a retry rather than the sign-in page.
+        if (sessionError && isAuthRetryableFetchError(sessionError)) { setConnectionLost(true); return; }
+        toSignIn(); return;
+      }
 
-      const [{ data: { user: authUser } }, { data: studentData }] = await Promise.all([
+      const [{ data: { user: authUser }, error: userError }, { data: studentData, error: studentError }] = await Promise.all([
         supabase.auth.getUser(),
         supabase
           .from('students')
@@ -295,7 +304,14 @@ export default function StudentDashboard() {
           .single(),
       ]);
 
-      if (!authUser) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
+      if (!authUser) {
+        // Signed out only when the server no longer knows the session; a network failure is a retry.
+        const signedOut = !userError || isAuthSessionMissingError(userError) || (isAuthApiError(userError) && (userError.status === 401 || userError.status === 403));
+        if (!signedOut) { setConnectionLost(true); return; }
+        toSignIn(); return;
+      }
+      // No student row yet (PGRST116) means onboarding; any other failure is the connection.
+      if (studentError && studentError.code !== 'PGRST116') { setConnectionLost(true); return; }
       if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/onboarding'); return; }
 
       // They asked to buy something before signing in. Put them back where they were going.
@@ -511,9 +527,19 @@ export default function StudentDashboard() {
     init();
   }, [router]);
 
+  // The session ended while the page was open (signed out elsewhere, or it expired): go to sign in,
+  // instead of sections failing one by one with "check your connection".
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
+      if (event === 'SIGNED_OUT') router.replace('/auth');
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
+
   const signOut = useCallback(async () => {
     clearStudentMode();
-    await supabase.auth.signOut();
+    // This browser only; the learner stays signed in on their other devices.
+    await supabase.auth.signOut({ scope: 'local' });
     router.replace('/auth');
   }, [router]);
 
@@ -528,6 +554,16 @@ export default function StudentDashboard() {
   if (!mounted) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4F5F7' }}>
       <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#0e09dd' }}/>
+    </div>
+  );
+
+  if (connectionLost) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ background: C.page }}>
+      <h1 className="text-xl font-semibold" style={{ color: C.text }}>Could not connect</h1>
+      <p className="text-sm" style={{ color: C.muted }}>You are still signed in. Check your connection and try again.</p>
+      <button type="button" onClick={() => window.location.reload()} className="mt-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ background: '#3E93FF' }}>
+        Try again
+      </button>
     </div>
   );
 

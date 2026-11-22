@@ -36,7 +36,9 @@ export default function SessionInactivityGuard() {
     signingOutRef.current = true;
     localStorage.setItem(LOGOUT_KEY, String(Date.now()));
     clearWarning();
-    await supabase.auth.signOut();
+    // This browser only: an idle tab or phone must not sign the learner out of a laptop they are
+    // using. (signOut's default scope is 'global', which ends every session on every device.)
+    await supabase.auth.signOut({ scope: 'local' });
     window.location.href = '/auth';
   }, [clearWarning]);
 

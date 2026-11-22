@@ -213,7 +213,7 @@ export default function DashboardPage() {
 
   const handleSignOut = async () => {
     _cache.forms = null; _cache.profile = null; _cache.user = null;
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
     window.location.href = '/';
   };
 

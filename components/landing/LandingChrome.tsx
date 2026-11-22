@@ -533,7 +533,7 @@ export function LandingNav({
               </Link>
             )}
             {user ? <ProfileMenu user={user} profile={profile} dark={isPageDark} fontFamily={fontFamily}
-              onSignOut={async () => { await supabase.auth.signOut(); window.location.href = '/'; }} /> : (
+              onSignOut={async () => { await supabase.auth.signOut({ scope: 'local' }); window.location.href = '/'; }} /> : (
               <>
                 <Link href="/auth"
                   className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
