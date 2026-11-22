@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, RefreshCw, Route, Users, X } from 'lucide-react';
+import { Lock, RefreshCw, Route, X } from 'lucide-react';
+import { CaretRight, UsersThree } from '@phosphor-icons/react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { supabase } from '@/lib/supabase';
 import { DARK_C, type LIGHT_C } from '@/lib/theme';
@@ -20,7 +21,6 @@ import {
   type ProgramGroup, type ProgramItemType, type ProgramPayload, type ProgramTimeline, type ProgramWeek, type TimelineItem,
 } from '@/lib/student-program';
 
-const GREEN = '#16a34a';
 const AVATAR_COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#14b8a6', '#ef4444', '#64748b'];
 
 const TYPE_LABEL: Record<ProgramItemType, string> = {
@@ -43,6 +43,9 @@ function actionLabel(item: TimelineItem) {
     default: return 'Start';
   }
 }
+
+/** The soft lift every card on the page has, as the My learning and Explore cards do. */
+const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)]';
 
 // A week, or 'all' for a program with no dates at all (no weeks to show).
 type WeekKey = number | 'all';
@@ -153,7 +156,7 @@ function ProgramView({ payload, timeline, C }: { payload: ProgramPayload; timeli
   const awaiting = [...weeks.flatMap(w => w.items), ...anytime].filter(i => i.status === 'awaiting');
   const leads = payload.group?.members.filter(m => m.isLeader && !m.isYou) ?? [];
 
-  const card = 'rounded-2xl p-4 min-w-0 text-left';
+  const card = `rounded-2xl p-4 min-w-0 text-left ${CARD_SHADOW}`;
   const value = 'text-[22px] sm:text-[26px] leading-8 font-semibold truncate';
   const label = 'text-[13px] font-semibold mt-1';
   const sub = 'text-xs mt-0.5 truncate';
@@ -183,12 +186,20 @@ function ProgramView({ payload, timeline, C }: { payload: ProgramPayload; timeli
         </div>
         {payload.group ? (
           <button ref={groupButtonRef} type="button" onClick={() => setGroupOpen(true)} aria-haspopup="dialog"
-            className={`${card} transition-transform hover:-translate-y-px`} style={{ background: C.card }}>
-            <p className={value} style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{payload.group.name}</p>
+            className={`${card} group relative transition-transform hover:-translate-y-px`} style={{ background: C.card }}>
+            <span className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.pill, color: C.text }}>
+              <UsersThree size={20} weight="duotone"/>
+            </span>
+            <p className={`${value} pr-11`} style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{payload.group.name}</p>
             <p className={label} style={{ color: C.text }}>Your group</p>
-            <p className={sub} style={{ color: C.muted }}>
-              {leads.length ? `With ${leads[0].name} (lead)` : plural(payload.group.members.length, 'member')}
-            </p>
+            <span className="mt-0.5 flex items-center justify-between gap-2">
+              <span className={`${sub} mt-0 min-w-0`} style={{ color: C.muted }}>
+                {leads.length ? `With ${leads[0].name} (lead)` : plural(payload.group.members.length, 'member')}
+              </span>
+              <span className="inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-semibold group-hover:underline" style={{ color: C.text }}>
+                View <CaretRight size={12} weight="bold"/>
+              </span>
+            </span>
           </button>
         ) : (
           <div className={card} style={{ background: C.card }}>
@@ -206,7 +217,7 @@ function ProgramView({ payload, timeline, C }: { payload: ProgramPayload; timeli
       )}
 
       {payload.items.length === 0 ? (
-        <div className="mt-4 rounded-2xl" style={{ background: C.card }}>
+        <div className={`mt-4 rounded-2xl ${CARD_SHADOW}`} style={{ background: C.card }}>
           <EmptyState icon={Route} title="Nothing assigned yet" body="When your instructor assigns courses, projects and assignments to your cohort, they will show here."/>
         </div>
       ) : (
@@ -238,12 +249,12 @@ function WeekTiles({ weeks, currentWeek, sel, onPick, C }: {
   }, [sel]);
 
   return (
-    <section className="mt-4 rounded-2xl p-4 sm:p-5" style={{ background: C.card }} aria-label="Weeks">
+    <section className={`mt-4 rounded-2xl p-4 sm:p-5 ${CARD_SHADOW}`} style={{ background: C.card }} aria-label="Weeks">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold" style={{ color: C.text }}>Weeks</h2>
         <p className="text-xs" style={{ color: C.muted }}>Tap a week to see its work</p>
       </div>
-      <div ref={rowRef} className="flex gap-1.5 overflow-x-auto py-1 mt-2.5 px-1 -mx-1" style={{ scrollbarWidth: 'none' }}>
+      <div ref={rowRef} className="flex gap-1.5 overflow-x-auto py-2 mt-1.5 px-2 -mx-2" style={{ scrollbarWidth: 'none' }}>
         {weeks.map(week => {
           const w = week.week;
           const full = week.required > 0 && week.completed === week.required;
@@ -302,7 +313,7 @@ function WeekCard({ sel, homeWeek, timeline, C }: { sel: WeekKey; homeWeek: Week
   const allDone = !!week && required > 0 && done === required;
 
   return (
-    <section className="mt-4 rounded-2xl p-4 sm:p-5" style={{ background: C.card }} aria-labelledby="week-title">
+    <section className={`mt-4 rounded-2xl p-4 sm:p-5 ${CARD_SHADOW}`} style={{ background: C.card }} aria-labelledby="week-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0" aria-live="polite">
           <h2 id="week-title" className="text-base font-semibold" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
@@ -476,11 +487,11 @@ function GroupModal({ group, C, onClose }: { group: ProgramGroup; C: typeof LIGH
   const leaders = group.members.filter(m => m.isLeader);
   const members = group.members.filter(m => !m.isLeader);
   const row = (m: ProgramGroup['members'][number]) => (
-    <div key={m.id} className="flex items-center gap-3 px-2.5 py-2 rounded-xl min-w-0" style={{ background: m.isLeader ? C.lime : 'transparent' }}>
+    <div key={m.id} className="flex items-center gap-3 px-2.5 py-2 rounded-xl min-w-0" style={{ background: m.isYou ? C.pill : 'transparent' }}>
       <Avatar member={m} index={group.members.indexOf(m)} size={36}/>
-      <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: C.text }}>{m.name}</span>
-      {m.isYou && <span className="text-xs font-semibold" style={{ color: C.faint }}>You</span>}
-      {m.isLeader && <span className="text-[11px] font-bold px-2 py-0.5 rounded-md" style={{ background: GREEN, color: '#ffffff' }}>Leader</span>}
+      <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: C.text }}>{m.name}</span>
+      {m.isYou && <span className="text-xs font-semibold" style={{ color: C.muted }}>You</span>}
+      {m.isLeader && <Pill tone="good" dot C={C}>Leader</Pill>}
     </div>
   );
 
@@ -490,16 +501,15 @@ function GroupModal({ group, C, onClose }: { group: ProgramGroup; C: typeof LIGH
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}>
       <motion.div role="dialog" aria-modal="true" aria-labelledby="my-group-title"
-        className="w-full max-w-[440px] max-h-[85vh] overflow-y-auto rounded-2xl p-5"
+        className="w-full max-w-[440px] max-h-[85vh] overflow-y-auto rounded-2xl p-5 shadow-2xl"
         style={{ background: C.card }}
         initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16 }}
         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
         onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3">
-          <span className="w-10 h-10 rounded-xl grid place-items-center flex-shrink-0" style={{ background: C.lime, color: C.cta }}><Users className="w-5 h-5"/></span>
+          <span className="w-10 h-10 rounded-xl grid place-items-center flex-shrink-0" style={{ background: C.pill, color: C.text }}><UsersThree size={22} weight="duotone"/></span>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.cta }}>My Group</p>
-            <h2 id="my-group-title" className="text-lg font-bold leading-tight break-words" style={{ color: C.text }}>{group.name}</h2>
+            <h2 id="my-group-title" className="text-xl font-semibold leading-7 break-words" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{group.name}</h2>
             <p className="text-[13px] mt-0.5 tabular-nums" style={{ color: C.muted }}>
               {group.members.length} member{group.members.length === 1 ? '' : 's'}
               {leaders.length > 0 && `, ${leaders.length} leader${leaders.length === 1 ? '' : 's'}`}
@@ -507,20 +517,20 @@ function GroupModal({ group, C, onClose }: { group: ProgramGroup; C: typeof LIGH
           </div>
           <button ref={closeRef} onClick={onClose} aria-label="Close"
             className="w-9 h-9 rounded-xl grid place-items-center flex-shrink-0 transition-opacity hover:opacity-80"
-            style={{ background: C.pill, color: C.muted }}>
+            style={{ background: C.pill, color: C.text }}>
             <X className="w-4 h-4"/>
           </button>
         </div>
         {group.description && <p className="text-[13px] mt-3" style={{ color: C.muted }}>{group.description}</p>}
         {leaders.length > 0 && (
           <>
-            <p className="text-[11px] font-bold uppercase tracking-widest mt-5 mb-2" style={{ color: C.faint }}>Leaders</p>
+            <p className="text-[13px] font-semibold mt-5 mb-1.5" style={{ color: C.muted }}>Leaders</p>
             <div className="space-y-1.5">{leaders.map(row)}</div>
           </>
         )}
         {members.length > 0 && (
           <>
-            <p className="text-[11px] font-bold uppercase tracking-widest mt-5 mb-2" style={{ color: C.faint }}>Members</p>
+            <p className="text-[13px] font-semibold mt-5 mb-1.5" style={{ color: C.muted }}>Members</p>
             <div className="space-y-1">{members.map(row)}</div>
           </>
         )}
@@ -537,14 +547,14 @@ function ProgramSkeleton({ C }: { C: typeof LIGHT_C }) {
       <div className="space-y-2"><Sk w={220} h={32}/><Sk w={320} h={14}/></div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
         {[0, 1, 2, 3].map(i => (
-          <div key={i} className="rounded-2xl p-4 space-y-2" style={{ background: C.card }}><Sk w={90} h={28}/><Sk w={110} h={12}/><Sk w={140} h={10}/></div>
+          <div key={i} className={`rounded-2xl p-4 space-y-2 ${CARD_SHADOW}`} style={{ background: C.card }}><Sk w={90} h={28}/><Sk w={110} h={12}/><Sk w={140} h={10}/></div>
         ))}
       </div>
-      <div className="mt-4 rounded-2xl p-4 sm:p-5" style={{ background: C.card }}>
+      <div className={`mt-4 rounded-2xl p-4 sm:p-5 ${CARD_SHADOW}`} style={{ background: C.card }}>
         <Sk w={70} h={16}/>
         <div className="flex gap-1.5 overflow-hidden mt-3.5">{Array.from({ length: 12 }, (_, i) => <Sk key={i} w={44} h={44} r={12}/>)}</div>
       </div>
-      <div className="mt-4 rounded-2xl p-4 sm:p-5 space-y-2" style={{ background: C.card }}>
+      <div className={`mt-4 rounded-2xl p-4 sm:p-5 space-y-2 ${CARD_SHADOW}`} style={{ background: C.card }}>
         <Sk w={90} h={16}/>
         {[0, 1, 2].map(i => <Sk key={i} h={68} r={12}/>)}
       </div>
