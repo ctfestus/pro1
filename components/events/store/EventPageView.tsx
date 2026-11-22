@@ -115,7 +115,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
               {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
               {event.capacity !== null && !event.isPast && (
                 <Fact icon={<Users className="w-5 h-5" />}
-                  title={event.spotsLeft === 0 ? 'Sold out' : `${event.spotsLeft} of ${event.capacity} spots left`} />
+                  title={event.spotsLeft === 0 ? 'Full' : `${event.spotsLeft} of ${event.capacity} spots left`} />
               )}
             </div>
           </header>
