@@ -172,16 +172,13 @@ function TimelineBadge(props: TimelineBadgeProps & { inMenu?: boolean }) {
 
   return (
     <div ref={ref} className={props.inMenu ? 'relative' : 'relative hidden md:block'}>
-      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
-        className={`flex items-center gap-3 rounded-full py-1.5 pl-3.5 pr-3 text-left transition-colors ${props.inMenu ? 'w-full rounded-xl' : ''}`}
+      {/* One line, the height of the buttons beside it: the name. The week, progress and
+          timeline are in the details it opens. */}
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} title={short}
+        className={`flex h-9 items-center gap-2 rounded-full pl-3.5 pr-3 text-left transition-colors ${props.inMenu ? 'w-full rounded-xl' : ''}`}
         style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
-        <span className="min-w-0 flex-1">
-          <span className="block max-w-[180px] truncate text-[13px] font-semibold leading-4" style={{ color: C.text }}>{timeline.name}</span>
-          <span className="mt-1 flex items-center gap-2">
-            <span className="text-xs leading-4" style={{ color: C.muted }}>{short}</span>
-            {!isUpcoming && bar('h-1 w-12')}
-          </span>
-        </span>
+        <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: status.tone === 'good' ? P.good : status.tone === 'warn' ? P.warn : C.faint }} />
+        <span className={`min-w-0 truncate text-[13px] font-semibold ${props.inMenu ? 'flex-1' : 'max-w-[200px]'}`} style={{ color: C.text }}>{timeline.name}</span>
         <ChevronDown className={`h-4 w-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: C.muted }} />
       </button>
 
