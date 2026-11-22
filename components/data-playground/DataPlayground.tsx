@@ -1754,8 +1754,8 @@ export function DataPlaygroundGrid({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }, (_, i) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
           <div key={i} style={{ background: C.card, borderRadius: 12, overflow: 'hidden' }}>
             <Sk C={C} h={150} r={0} />
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}><Sk C={C} h={15} /><Sk C={C} h={12} w="60%" /></div>
@@ -1819,12 +1819,11 @@ export function DataPlaygroundGrid({
         <div role="tablist" aria-label="Categories" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '-16px 0 24px' }}>
           {[['all', 'All'], ...orderedCategories.map(c => [c, c]), ...(hasUncategorized ? [['other', 'Other']] : [])].map(([id, label]) => {
             const on = category === id;
-            const count = id === 'all' ? datasets.length : datasets.filter(d => id === 'other' ? !d.category : d.category === id).length;
             return (
               <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setCategory(id)}
                 style={{ height: 36, padding: '0 14px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: font, fontSize: 14, fontWeight: 600,
                   background: on ? '#3E93FF' : C.card, color: on ? '#ffffff' : C.text, boxShadow: on ? 'none' : `inset 0 0 0 1px ${C.divider}` }}>
-                {label} <span style={{ fontWeight: 500, color: on ? 'rgba(255,255,255,0.8)' : C.muted }}>{count}</span>
+                {label}
               </button>
             );
           })}
@@ -1846,7 +1845,7 @@ export function DataPlaygroundGrid({
               {filtered.length} result{filtered.length !== 1 ? 's' : ''} for {`"${search}"`}
             </p>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {filtered.map(d => renderCard(d))}
           </div>
         </>
