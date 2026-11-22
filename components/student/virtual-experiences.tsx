@@ -11,8 +11,8 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
-import { CarouselSkeleton, EmptyState, ProgressBar } from '@/components/student/shared';
-import { LearningCard, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
+import { EmptyState, ProgressBar } from '@/components/student/shared';
+import { LearningCard, LearningCardsSkeleton, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
 import { matchesSearch } from '@/lib/plain-text';
 import { publicGuide, GuideCard } from '@/components/ve/guide';
 import VeInstructorReview from '@/components/VeInstructorReview';
@@ -377,7 +377,7 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
     load();
   }, [userEmail, userId, reloadKey]);
 
-  if (loading) return <CarouselSkeleton C={C}/>;
+  if (loading) return <LearningCardsSkeleton C={C}/>;
 
   if (loadError) return (
     <EmptyState icon={RefreshCw} title="Could not load your virtual experiences" body="Check your connection and try again."

@@ -20,7 +20,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
 import { CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
-import { LearningCard, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
+import { LearningCard, LearningCardsSkeleton, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
 import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
@@ -358,7 +358,7 @@ export function LearningPathsSection({ C, searchQuery = '', statusFilter = 'all'
     return () => { cancelled = true; };
   }, [selectedPathId]);
 
-  if (loading) return <CarouselSkeleton C={C}/>;
+  if (loading) return <LearningCardsSkeleton C={C}/>;
 
   const selectedPath = paths.find((path: any) => path.id === selectedPathId)
     ?? (lockedPath?.id === selectedPathId ? lockedPath : null);
@@ -1369,7 +1369,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
     });
   }, [searchQuery, statusFilter, courses]);
 
-  if (loading) return <CarouselSkeleton C={C}/>;
+  if (loading) return <LearningCardsSkeleton C={C}/>;
 
   if (loadError) return (
     <EmptyState

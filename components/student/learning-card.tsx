@@ -136,3 +136,22 @@ export function LearningCard({
     </article>
   );
 }
+
+/** The My learning grid while it loads: the same frame, cover, title, bar and footer as the cards. */
+export function LearningCardsSkeleton({ C }: { C: typeof LIGHT_C }) {
+  const block = (cls: string) => <div className={`animate-pulse ${cls}`} style={{ background: C.skeleton }} />;
+  return (
+    <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6" aria-busy="true">
+      {[0, 1, 2].map(i => (
+        <div key={i} className="flex flex-col overflow-hidden rounded-xl shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)]" style={{ background: C.card }}>
+          {block('aspect-video w-full')}
+          <div className="flex flex-col gap-3.5 px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+            <div className="space-y-2">{block('h-4 w-3/4 rounded')}{block('h-3 w-1/3 rounded')}</div>
+            {block('h-2.5 w-full rounded-full')}
+            <div className="flex items-center justify-between">{block('h-6 w-20 rounded-full')}{block('h-9 w-24 rounded-xl')}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

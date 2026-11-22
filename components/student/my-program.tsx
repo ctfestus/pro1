@@ -531,12 +531,23 @@ function GroupModal({ group, C, onClose }: { group: ProgramGroup; C: typeof LIGH
 }
 
 function ProgramSkeleton({ C }: { C: typeof LIGHT_C }) {
+  // The page's own layout in outline: header, four cards, the week tiles, then the week's rows.
   return (
-    <div className="max-w-6xl space-y-4">
+    <div className="max-w-6xl" aria-busy="true">
       <div className="space-y-2"><Sk w={220} h={32}/><Sk w={320} h={14}/></div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Sk key={i} h={96} r={16}/>)}</div>
-      <Sk h={96} r={16}/>
-      <div className="rounded-2xl p-5 space-y-2.5" style={{ background: C.card }}><Sk w={120} h={18}/><Sk h={68} r={12}/><Sk h={68} r={12}/><Sk h={68} r={12}/></div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="rounded-2xl p-4 space-y-2" style={{ background: C.card }}><Sk w={90} h={28}/><Sk w={110} h={12}/><Sk w={140} h={10}/></div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-2xl p-4 sm:p-5" style={{ background: C.card }}>
+        <Sk w={70} h={16}/>
+        <div className="flex gap-1.5 overflow-hidden mt-3.5">{Array.from({ length: 12 }, (_, i) => <Sk key={i} w={44} h={44} r={12}/>)}</div>
+      </div>
+      <div className="mt-4 rounded-2xl p-4 sm:p-5 space-y-2" style={{ background: C.card }}>
+        <Sk w={90} h={16}/>
+        {[0, 1, 2].map(i => <Sk key={i} h={68} r={12}/>)}
+      </div>
     </div>
   );
 }
