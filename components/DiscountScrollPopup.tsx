@@ -209,14 +209,14 @@ export function DiscountScrollPopup({ promotion, reached }: {
           style={{ top: 12, right: 12, width: 32, height: 32, background: 'rgba(255,255,255,0.22)', border: 'none', cursor: 'pointer' }}>
           <X className="w-4 h-4" style={{ color: bandText }} />
         </button>
-        <span className="relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider"
+        <span className="relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
           style={{ background: '#FFFFFF', color: C.successText }}>
           <Sparkles className="h-3 w-3" />
           {badge}
         </span>
-        <p className="relative mt-4 font-black tracking-tight" style={{ fontSize: 64, lineHeight: 0.95 }}>
+        <p className="relative mt-4 font-semibold" style={{ fontSize: 60, lineHeight: 1, fontFamily: 'var(--font-display), sans-serif' }}>
           {promotion.percentOff}%
-          <span className="ml-1 align-top text-2xl font-black tracking-normal" style={{ lineHeight: 1.6 }}>OFF</span>
+          <span className="ml-1 text-2xl">off</span>
         </p>
       </div>
 
@@ -237,18 +237,18 @@ export function DiscountScrollPopup({ promotion, reached }: {
       </div>
 
       <div style={{ padding: '20px 24px 24px', textAlign: 'center' }}>
-        <h2 id="discount-popup-title" className="text-lg font-bold leading-snug" style={{ color: C.text, textWrap: 'balance' }}>
-          Subscribe to {promotion.planName} for {term} and save {promotion.percentOff}%
+        <h2 id="discount-popup-title" className="text-xl font-semibold leading-snug" style={{ color: C.text, textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
+          Get {promotion.planName} for {term} and save {promotion.percentOff}%
         </h2>
         <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
           {audience.signedIn
-            ? `Choose ${term} on the pricing page to get everything in the plan for less while the offer lasts.`
-            : `Create a free account, then choose ${term} on the pricing page to get everything in the plan for less while the offer lasts.`}
+            ? `Choose ${term} on the pricing page while the offer lasts.`
+            : `Create a free account, then choose ${term} on the pricing page while the offer lasts.`}
         </p>
         <Link href="/pricing" onClick={() => rememberClosed(promotion)}
           // Mid-course the plans open in a new tab, so the lesson is still there behind it.
           {...(inCourse ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-          className="mt-6 flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none"
+          className="mt-5 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none"
           style={{ background: C.cta, color: C.ctaText, padding: '14px 16px', textDecoration: 'none' }}>
           See plans <ArrowRight className="h-4 w-4" />
         </Link>

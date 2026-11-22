@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { safeNextPath } from '@/lib/auth-redirect';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react';
 
 // CAPTCHA SUSPENDED -- const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!;
 
@@ -41,7 +41,7 @@ function buildTheme(brand: string, accent: string) {
   return {
     backdrop:           '#f0f2f5',
     cardBg:             '#ffffff',
-    cardShadow:         'none',
+    cardShadow:         '0 8px 30px rgba(15,23,42,0.06)',
     divider:            '#e5e7eb',
     headingColor:       '#111827',
     subColor:           '#6b7280',
@@ -70,7 +70,7 @@ function buildTheme(brand: string, accent: string) {
 type AuthMessage = { text: string; tone: 'success' | 'info' | 'error' };
 
 export default function AuthPage() {
-  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor, publicSignupEnabled } = useTenant();
+  const { logoUrl, logoDarkUrl, appName, brandColor, accentColor, publicSignupEnabled } = useTenant();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin]   = useState(true);
@@ -91,7 +91,7 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     const error  = params.get('error');
     if (error === 'not_allowed') {
-      setMessage({ text: 'You do not have access to this portal. Contact your Learning Advisor.', tone: 'error' });
+      setMessage({ text: 'You do not have access to this portal. Contact your learning advisor.', tone: 'error' });
     }
     if (error === 'invalid_link') {
       // Setup and reset links work once and then expire. Drop straight into the
@@ -111,7 +111,7 @@ export default function AuthPage() {
       setMessage({ text: 'That email provider is not supported. Please sign up with a permanent email address.', tone: 'error' });
     }
     if (error === 'no_admission_record') {
-      setMessage({ text: 'We could not find an admission record for that email. Contact your Learning Advisor.', tone: 'error' });
+      setMessage({ text: 'We could not find an admission record for that email. Contact your learning advisor.', tone: 'error' });
     }
     if (error === 'try_again') {
       // The original PKCE code was consumed already, but the callback deliberately
@@ -124,7 +124,7 @@ export default function AuthPage() {
       // With signups open this is a real destination -- landing pages and invite emails link
       // straight here. Invite-only keeps the explanation, because there is no form to open.
       if (publicSignupEnabled) setIsLogin(false);
-      else setMessage({ text: 'If your Learning Advisor has added you, use the setup link in your email, then sign in here.', tone: 'info' });
+      else setMessage({ text: 'If your learning advisor has added you, use the setup link in your email, then sign in here.', tone: 'info' });
     }
   }, [publicSignupEnabled]);
 
@@ -241,31 +241,34 @@ export default function AuthPage() {
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-[520px] rounded-2xl overflow-hidden"
+        className="w-full max-w-[420px] rounded-[20px] overflow-hidden"
         style={{ background: t.cardBg, boxShadow: t.cardShadow }}
       >
-        {/* TOP: Email banner image */}
-        {emailBannerUrl && (
-          <div className="relative w-full overflow-hidden" style={{ height: 180 }}>
-            <img
-              src={emailBannerUrl}
-              alt=""
-              className="w-full h-full object-cover object-center"
-            />
+        <div className="px-6 sm:px-8 py-8">
 
+          {/* The platform's logo, or its name when it has none. */}
+          <div className="mb-5 flex items-center gap-2">
+            {(logoUrl || logoDarkUrl)
+              ? <img src={logoUrl || logoDarkUrl || undefined} alt={appName || ''} className="h-8 w-auto" />
+              : appName && <span className="text-base font-bold" style={{ color: t.headingColor }}>{appName}</span>}
           </div>
-        )}
 
-        {/* Divider */}
-        {emailBannerUrl && <div style={{ height: 1, background: t.divider }} />}
-
-        {/* FORM AREA */}
-        <div className="px-8 py-8">
-
-          {/* Logo when no banner */}
-          {!emailBannerUrl && (logoUrl || logoDarkUrl) && (
-            <div className="mb-6">
-              <img src={logoUrl || logoDarkUrl || undefined} alt="" className="h-8 w-auto" />
+          {/* With sign-up open, both ways in sit at the top where a new visitor sees them first. */}
+          {isForgot ? (
+            <button type="button" onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(null); }}
+              className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: t.accentText }}>
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
+            </button>
+          ) : publicSignupEnabled && (
+            <div role="tablist" aria-label="Sign in or create an account" className="mb-6 flex gap-1 p-1 rounded-xl" style={{ background: t.backdrop }}>
+              {([[true, 'Sign in'], [false, 'Create account']] as const).map(([login, label]) => (
+                <button key={label} type="button" role="tab" aria-selected={isLogin === login}
+                  onClick={() => { setIsLogin(login); setMessage(null); }}
+                  className="flex-1 h-10 rounded-[10px] text-sm font-semibold transition-colors"
+                  style={isLogin === login ? { background: t.cardBg, color: t.headingColor, boxShadow: '0 1px 3px rgba(15,23,42,0.12)' } : { color: t.subColor }}>
+                  {label}
+                </button>
+              ))}
             </div>
           )}
 
@@ -279,7 +282,7 @@ export default function AuthPage() {
               transition={{ duration: 0.18 }}
               className="mb-7"
             >
-              <h1 className="text-[22px] font-bold tracking-tight mb-1" style={{ color: t.headingColor }}>
+              <h1 className="text-[26px] leading-[34px] font-semibold mb-1" style={{ color: t.headingColor, fontFamily: 'var(--font-display), sans-serif' }}>
                 {isForgot ? (needsConfirm ? 'Confirm your email' : 'Reset your password') : isLogin ? 'Welcome back' : 'Create your account'}
               </h1>
               <p className="text-sm" style={{ color: t.subColor }}>
@@ -287,7 +290,7 @@ export default function AuthPage() {
                   ? "Enter your email and we'll send a reset link."
                   : isLogin
                   ? 'Sign in to continue learning.'
-                  : 'Level up your Data and AI career with industry-recognized interactive learning - Excel, SQL, Power BI, AI and more.'}
+                  : 'Start learning in a few minutes. It is free to join.'}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -357,7 +360,7 @@ export default function AuthPage() {
                     autoComplete={isLogin ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={isLogin ? 'Your password' : 'Choose a password'}
                     className="auth-input w-full rounded-lg pl-9 pr-10 py-2.5 text-sm outline-none transition-all"
                     style={{
                       background: t.inputBg,
@@ -415,7 +418,7 @@ export default function AuthPage() {
             >
               {loading
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <>{isForgot ? (needsConfirm ? 'Resend Confirmation' : 'Send Reset Link') : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight className="w-3.5 h-3.5" /></>}
+                : <>{isForgot ? (needsConfirm ? 'Resend confirmation' : 'Send reset link') : isLogin ? 'Sign in' : 'Create account'} <ArrowRight className="w-3.5 h-3.5" /></>}
             </button>
 
             {canRetrySignup && (
@@ -425,54 +428,14 @@ export default function AuthPage() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold border transition-all hover:bg-gray-50"
                 style={{ borderColor: t.inputBorder, color: t.headingColor }}
               >
-                Retry Account Setup <ArrowRight className="w-3.5 h-3.5" />
+                Retry account setup <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
           </form>
 
-          {/* Mode toggle */}
-          <p className="mt-5 text-center text-sm" style={{ color: t.toggleColor }}>
-            {isForgot ? (
-              <>
-                Remember your password?{' '}
-                <button
-                  onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(null); }}
-                  className="font-semibold transition-colors"
-                  style={{ color: t.accentText }}
-                >
-                  Sign in
-                </button>
-              </>
-            ) : publicSignupEnabled ? (
-              isLogin ? (
-                <>
-                  New here?{' '}
-                  <button
-                    type="button"
-                    onClick={() => { setIsLogin(false); setMessage(null); }}
-                    className="font-semibold transition-colors"
-                    style={{ color: t.accentText }}
-                  >
-                    Create an account
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => { setIsLogin(true); setMessage(null); }}
-                    className="font-semibold transition-colors"
-                    style={{ color: t.accentText }}
-                  >
-                    Sign in
-                  </button>
-                </>
-              )
-            ) : (
-              <span>Need access? Contact your Learning Advisor.</span>
-            )}
-          </p>
+          {!isForgot && !publicSignupEnabled && (
+            <p className="mt-5 text-center text-sm" style={{ color: t.toggleColor }}>Need access? Contact your learning advisor.</p>
+          )}
 
           {/* The terms say that using the platform is agreement to them, so the screen where that
               starts has to say so and link them. "Continuing" covers signing in, signing up and a
@@ -480,9 +443,9 @@ export default function AuthPage() {
               half-filled form is lost. */}
           <p className="mt-4 text-center text-xs leading-relaxed" style={{ color: t.toggleColor }}>
             By continuing, you agree to our{' '}
-            <a href="/terms" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Terms of Use</a>
+            <a href="/terms" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Terms of use</a>
             {' '}and{' '}
-            <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Privacy Policy</a>.
+            <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Privacy policy</a>.
           </p>
 
         </div>

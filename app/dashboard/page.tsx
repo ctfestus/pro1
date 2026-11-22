@@ -10,7 +10,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { useC } from '@/lib/theme';
 import { IsStaffContext } from '@/components/dashboard/context';
-import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
+import { ProfileMenu } from '@/components/ProfileMenu';
 import { NAV_ITEMS, STAFF_SECTION_IDS, type SectionId } from '@/components/dashboard/nav';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SectionContent } from '@/components/dashboard/SectionContent';
