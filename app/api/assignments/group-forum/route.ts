@@ -311,6 +311,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           thread: { id: t.id, title: t.title, authorId: t.author_id, createdAt: t.created_at, lastPostAt: t.last_post_at, replyCount: 0 },
           post: shapePost(p),
+          // The conversation already existed (another member started it first); the client loads it.
+          existing: (data as any)?.existing === true,
         });
       }
 

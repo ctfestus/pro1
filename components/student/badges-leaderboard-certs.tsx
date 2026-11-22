@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
-import { LIGHT_C } from '@/lib/theme';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { Sk, CarouselSkeleton, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
@@ -204,12 +204,14 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
   const [rankings, setRankings] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const isDark = C.text === '#f0f0f0';
+  const [loadFailed, setLoadFailed] = useState(false);
+  const isDark = C.page === DARK_C.page;
   const HERO_BG = 'linear-gradient(135deg, #1a1f8c 0%, #2d35c8 60%, #3b45d4 100%)';
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setLoadFailed(false);
       try {
         // Get current student's cohort -- query by auth user ID (reliable; email can mismatch)
         const { data: { session } } = await supabase.auth.getSession();
@@ -244,6 +246,8 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
         setRankings(ranked ?? []);
       } catch (err) {
         console.error('[LeaderboardSection]', err);
+        // Shown as an error with a retry, not as "No rankings yet".
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -276,6 +280,12 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
         ))}
       </div>
     </div>
+  );
+
+  if (loadFailed) return (
+    <EmptyState icon={RefreshCw} title="Could not load the leaderboard" body="Check your connection and try again."
+      action={<button type="button" onClick={() => setRefreshKey(k => k + 1)} className="text-sm font-semibold px-4 py-3 rounded-xl"
+        style={{ background: C.cta, color: C.ctaText }}>Try again</button>} />
   );
 
   if (!cohort) return (
@@ -430,7 +440,7 @@ function groupCertsByType(certs: any[]): [string, any[]][] {
     const key = c.ve_id ? 'Virtual Experiences' : c.learning_path_id ? 'Learning Paths' : c.certification_id ? 'Certifications' : 'Courses';
     buckets[key].push(c);
   }
-  return (['Courses', 'Virtual Experiences', 'Learning Paths'] as const)
+  return (['Courses', 'Virtual Experiences', 'Learning Paths', 'Certifications'] as const)
     .filter(k => buckets[k].length).map(k => [k, buckets[k]] as [string, any[]]);
 }
 

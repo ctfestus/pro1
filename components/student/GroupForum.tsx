@@ -351,9 +351,16 @@ export function GroupForum({ assignmentId, groupId, userId, C, onBack, members =
       if (!thread) {
         const json = await call({ action: 'createThread', assignmentId, groupId, title: THREAD_TITLE, body });
         if (!mounted.current) return;
-        setThread({ id: json.thread.id, authorId: json.thread.authorId });
-        setPosts([json.post]);
-        pollCursor.current = null; // next poll re-syncs from the opening message
+        const started = { id: json.thread.id, authorId: json.thread.authorId };
+        setThread(started);
+        if (json.existing) {
+          // Someone else started the conversation first: show all of it, not just this message.
+          await loadPosts(started);
+        } else {
+          // Replace only this message's placeholder, so a second message sent meanwhile stays.
+          setPosts(prev => prev.map(p => p.id === tempId ? json.post : p));
+          pollCursor.current = null; // next poll re-syncs from the opening message
+        }
       } else {
         const json = await call({ action: 'createPost', threadId: thread.id, body });
         if (!mounted.current) return;

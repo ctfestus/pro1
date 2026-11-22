@@ -14,7 +14,7 @@ import type { CertificationType } from '@/lib/course-schema';
 import { EmptyState, HoverPreviewCard } from '@/components/student/shared';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { CertificationQuestionView, CertificationResultSummary } from '@/components/CertificationTaker';
-import { ShieldCheck, Clock, CheckCircle, Award, Briefcase, Code2, ArrowUpRight, BookOpenCheck, BadgeCheck, Share2, FileCheck2, X, ChevronLeft, ChevronRight, BookOpen, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Clock, CheckCircle, Award, Briefcase, Code2, ArrowUpRight, BookOpenCheck, BadgeCheck, Share2, FileCheck2, X, ChevronLeft, ChevronRight, BookOpen, ArrowRight, RefreshCw } from 'lucide-react';
 import { toPlainText } from '@/lib/plain-text';
 
 const softSurface = (C: typeof LIGHT_C, shadow = '0 12px 36px rgba(15,23,42,0.08)') => ({
@@ -172,9 +172,14 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
   const [enrolledId, setEnrolledId] = useState<string | null>(null);
   const [publicPaths, setPublicPaths] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setLoadError(false);
+      try {
       // Certifications metadata comes from the service-role API (students cannot read the base table,
       // which holds answer keys). Attempts are RLS-scoped to the student, so read those directly.
       const { data: { session } } = await supabase.auth.getSession();
@@ -183,7 +188,8 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
           body: JSON.stringify({ action: 'list' }),
-        }).then(r => r.ok ? r.json() : { certifications: [] }).catch(() => ({ certifications: [] })),
+        // A failed list is an error with a retry, not "No certifications yet".
+        }).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }),
         supabase.from('certification_attempts').select('certification_id, passed, completed_at, score').eq('student_id', userId),
         supabase.from('published_learning_paths').select('id,title,description,cover_image').limit(8),
       ]);
@@ -215,9 +221,13 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
         imageUrl: resolveCoverUrl(path.cover_image),
         pathCourses: pathItemsById[path.id] ?? [],
       })));
-      setLoading(false);
+      } catch {
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, [userId]);
+  }, [userId, reloadKey]);
 
   if (loading) return (
     <div className="space-y-10">
@@ -231,6 +241,12 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
       </div>
     </div>
   );
+  if (loadError) return (
+    <EmptyState icon={RefreshCw} title="Could not load certifications" body="Check your connection and try again."
+      action={<button type="button" onClick={() => setReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-3 rounded-xl"
+        style={{ background: C.cta, color: C.ctaText }}>Try again</button>} />
+  );
+
   if (!items.length) return <EmptyState icon={ShieldCheck} title="No certifications yet" body="Published certifications available to you will appear here." />;
 
   // One certification card. Extracted so both type groups render identical cards.
@@ -309,8 +325,8 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
             <h1 className="mt-5 max-w-2xl text-3xl font-semibold leading-[1.12] tracking-[-0.022em] sm:text-4xl lg:text-5xl" style={{ color: C.text }}>Certifications that prove what you can do</h1>
             <p className="mt-5 max-w-2xl text-base leading-relaxed sm:text-lg" style={{ color: C.muted }}>Validate practical skills, earn a trusted credential, and make your expertise easier to recognize and share.</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#certification-catalog" className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold" style={{ background: C.text, color: C.page }}>Explore certifications <ArrowUpRight className="h-4 w-4" /></a>
-              <a href="#how-certification-works" className="inline-flex items-center rounded-full px-5 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>How it works</a>
+              <a href="#certification-catalog" onClick={e => { e.preventDefault(); document.getElementById('certification-catalog')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold" style={{ background: C.text, color: C.page }}>Explore certifications <ArrowUpRight className="h-4 w-4" /></a>
+              <a href="#how-certification-works" onClick={e => { e.preventDefault(); document.getElementById('how-certification-works')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center rounded-full px-5 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>How it works</a>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold" style={{ color: C.muted }}>
               <span className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4" style={{ color: C.green }} /> Practical assessments</span>
@@ -398,7 +414,7 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
         </div>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-6" style={{ borderColor: C.inputBorder }}>
           <p className="text-sm font-semibold" style={{ color: C.text }}>{passedCount > 0 ? `You have earned ${passedCount} credential${passedCount === 1 ? '' : 's'}.` : 'Your first credential starts with one certification.'}</p>
-          <a href="#certification-catalog" className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: C.green }}>Choose a certification <ArrowUpRight className="h-4 w-4" /></a>
+          <a href="#certification-catalog" onClick={e => { e.preventDefault(); document.getElementById('certification-catalog')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: C.green }}>Choose a certification <ArrowUpRight className="h-4 w-4" /></a>
         </div>
       </section>
     </div>

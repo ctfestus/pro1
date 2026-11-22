@@ -4199,6 +4199,21 @@ BEGIN
     RAISE EXCEPTION 'forbidden';
   END IF;
 
+  -- One creator at a time per assignment and group; the lock ends with the transaction.
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_assignment_id::text || ':' || p_group_id::text, 0));
+
+  SELECT * INTO v_thread FROM public.assignment_group_threads
+  WHERE assignment_id = p_assignment_id AND group_id = p_group_id AND deleted_at IS NULL
+  ORDER BY last_post_at DESC, id DESC
+  LIMIT 1;
+
+  IF FOUND THEN
+    INSERT INTO public.assignment_group_posts (thread_id, author_id, body, is_opening)
+    VALUES (v_thread.id, p_author_id, left(v_body, 4000), false)
+    RETURNING * INTO v_post;
+    RETURN jsonb_build_object('thread', to_jsonb(v_thread), 'post', to_jsonb(v_post), 'existing', true);
+  END IF;
+
   INSERT INTO public.assignment_group_threads (assignment_id, group_id, author_id, title)
   VALUES (p_assignment_id, p_group_id, p_author_id, left(v_title, 200))
   RETURNING * INTO v_thread;
@@ -4207,7 +4222,7 @@ BEGIN
   VALUES (v_thread.id, p_author_id, left(v_body, 4000), true)
   RETURNING * INTO v_post;
 
-  RETURN jsonb_build_object('thread', to_jsonb(v_thread), 'post', to_jsonb(v_post));
+  RETURN jsonb_build_object('thread', to_jsonb(v_thread), 'post', to_jsonb(v_post), 'existing', false);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.create_group_thread(uuid, uuid, uuid, text, text) FROM PUBLIC;

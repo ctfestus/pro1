@@ -11,6 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useC as usePlatformC } from '@/lib/theme';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { sessionStartInstant } from '@/lib/event-sessions';
 
 /* --- tokens --- */
 const LIGHT = {
@@ -715,7 +716,7 @@ export default function CalendarSection({ userId, onNavigate }: {
         const [{ data: events }, { data: cohortAssignments }, { data: groupAssignments }] = await Promise.all([
           supabase
             .from('events')
-            .select('id, title, description, slug, cover_image, event_date, event_time, event_type, location, meeting_link, recurrence, recurrence_end_date, recurrence_days')
+            .select('id, title, description, slug, cover_image, event_date, event_time, timezone, event_type, location, meeting_link, recurrence, recurrence_end_date, recurrence_days')
             .contains('cohort_ids', [student.cohort_id])
             .eq('status', 'published'),
           supabase
@@ -772,7 +773,8 @@ export default function CalendarSection({ userId, onNavigate }: {
           const occurrences = expandEventDates(e.event_date, e.recurrence, recurrenceDays, e.recurrence_end_date);
 
           for (const occDate of occurrences) {
-            const d = timeStr ? new Date(`${occDate}T${timeStr}:00`) : new Date(`${occDate}T00:00:00`);
+            // In the event's own time zone, as the session card and banner read it.
+            const d = sessionStartInstant(occDate, timeStr ?? '00:00', e.timezone) ?? new Date(`${occDate}T00:00:00`);
             if (isNaN(d.getTime())) continue;
             calItems.push({
               id: e.id, kind: 'event',

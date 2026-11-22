@@ -485,8 +485,10 @@ export async function POST(req: NextRequest) {
       // the core, with needs_track telling the client to ask for one.
       const trackId = validTrackId(path, prog?.track_id);
       const myItemIds = requiredItemIds(path, trackId);
+      // Who a path is for, and who owns it, are not the learner's business.
+      const { cohort_ids: _cohortIds, user_id: _ownerId, ...shared } = path;
       return {
-        ...path,
+        ...shared,
         item_ids: myItemIds,
         tracks: pathTracks(path).map(t => ({ id: t.id, name: t.name, description: t.description ?? null, item_count: t.item_ids.length })),
         track_id: trackId,

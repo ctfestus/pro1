@@ -55,6 +55,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [loadingSub, setLoadingSub] = useState(true);
+  const [subLoadError, setSubLoadError] = useState(false);
+  const [subReloadKey, setSubReloadKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // VE-specific state
@@ -85,8 +87,13 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
 
   useEffect(() => {
     const load = async () => {
+      setLoadingSub(true);
+      setSubLoadError(false);
       // If group assignment, resolve student's group membership first
       let resolvedGroupId: string | null = null;
+      let sub: any = null;
+      // A failed read used to leave the page loading for good, with no message.
+      try {
       if (isGroupAssignment) {
         const { data: memberRow } = await supabase
           .from('group_members')
@@ -120,7 +127,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
         : supabase.from('assignment_submissions')
             .select('*').eq('assignment_id', assignment.id).eq('student_id', userId).maybeSingle();
 
-      const [{ data: sub }, { data: res }, { data: sol }] = await Promise.all([
+      const [{ data: subRow, error: subError }, { data: res }, { data: sol }] = await Promise.all([
         subQuery,
         supabase.from('assignment_resources')
           .select('id, name, url, resource_type').eq('assignment_id', assignment.id).order('created_at'),
@@ -128,6 +135,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
         supabase.from('assignment_solutions')
           .select('id, name, kind, url').eq('assignment_id', assignment.id).order('created_at'),
       ]);
+      if (subError) throw subError;
+      sub = subRow;
       if (sub) {
         setSubmission(sub);
         setResponseText(sub.response_text ?? '');
@@ -139,7 +148,12 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       }
       setResources(res ?? []);
       setSolutions((sol ?? []) as AssignmentSolution[]);
-      setLoadingSub(false);
+      } catch {
+        setSubLoadError(true);
+        return;
+      } finally {
+        setLoadingSub(false);
+      }
 
       // Load VE data if this is a virtual_experience assignment
       if (isVeType && assignment.config?.ve_form_id) {
@@ -204,7 +218,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       }
     };
     load();
-  }, [assignment.id, userId, isVeType, isGroupAssignment, assignment.config?.ve_form_id]);
+  }, [assignment.id, userId, isVeType, isGroupAssignment, assignment.config?.ve_form_id, subReloadKey]);
 
   const ALLOWED_TYPES = new Set([
     'application/pdf',
@@ -484,7 +498,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: C.green }}>Assignment</p>
           </div>
           <h1 className="text-[24px] font-bold tracking-tight" style={{ color: C.text }}>{assignment.title}</h1>
-          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-xs mt-2" style={{ color: C.faint }}><Clock3 className="w-3.5 h-3.5"/> Due {new Date(assignment.deadline_date).toLocaleDateString()}</p>}
+          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-xs mt-2" style={{ color: C.faint }}><Clock3 className="w-3.5 h-3.5"/> Due {new Date(`${assignment.deadline_date}T00:00:00`).toLocaleDateString()}</p>}
         </div>
       )}
 
@@ -730,8 +744,16 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       )}
 
 
+      {subLoadError && (
+        <div role="alert" className="rounded-2xl p-4 mb-4 flex flex-wrap items-center justify-between gap-3" style={{ background: C.card }}>
+          <p className="text-sm" style={{ color: C.text }}>Could not load your submission. Check your connection and try again.</p>
+          <button type="button" onClick={() => setSubReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-2 rounded-xl"
+            style={{ background: C.cta, color: C.ctaText }}>Try again</button>
+        </div>
+      )}
+
       {/* Participant selection -- all group assignment types, leader only */}
-      {!loadingSub && isGroupAssignment && isLeader && groupMembers.length > 0 && !isGraded && (
+      {!loadingSub && !subLoadError && isGroupAssignment && isLeader && groupMembers.length > 0 && !isGraded && (
         <div className="rounded-2xl p-4 mb-4" style={{ background: C.card }}>
           <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Mark Participants</p>
           <p className="text-xs mb-3" style={{ color: C.muted }}>Indicate the members who participated in this assignment. Only checked members will receive this grade.</p>
@@ -754,7 +776,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       )}
 
       {/* AI / VE tools -- rendered outside the card, full-width */}
-      {!loadingSub && isAiType && (
+      {!loadingSub && !subLoadError && isAiType && (
         <div className="mb-4">
           {/* Graded state shown above the player */}
           {isGraded && (
@@ -852,7 +874,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       )}
 
       {/* VE player */}
-      {!loadingSub && isVeType && (
+      {!loadingSub && !subLoadError && isVeType && (
         <div className="mb-4" style={{ fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
           {isGraded && (
             <div className="rounded-2xl p-5 mb-4" style={{ background: C.card }}>
@@ -900,7 +922,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       )}
 
       {/* Scenario-based standard assignment -- plain, open, per-task */}
-      {!loadingSub && isScenarioStandard && (
+      {!loadingSub && !subLoadError && isScenarioStandard && (
         <div className="mb-4">
           {isGraded && (() => {
             const passed = submission.score != null && submission.score >= passMark;
@@ -957,7 +979,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       )}
 
       {/* Submission panel -- legacy standard type only (no scenarios) */}
-      {assignmentType === 'standard' && !isScenarioStandard && (
+      {assignmentType === 'standard' && !isScenarioStandard && !subLoadError && (
       <div className="rounded-2xl p-6" style={{ background: C.card }}>
         <h3 className="text-sm font-bold mb-4" style={{ color: C.text }}>
           {isGroupAssignment ? 'Group Submission' : 'Your Submission'}
@@ -1188,7 +1210,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           their own work and feedback first. RLS releases these only once this student's (or their
           group's) submission is graded, so their presence here IS the release; renders for every
           assignment type. */}
-      {!loadingSub && solutions.length > 0 && (
+      {!loadingSub && !subLoadError && solutions.length > 0 && (
         <div className="rounded-2xl p-5 mt-4" style={{ background: C.card }}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <h3 className="text-sm font-bold" style={{ color: C.text }}>Solution files</h3>
@@ -1292,7 +1314,8 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
     const isSubmitted = item._sub && item._sub.status !== 'draft';
     const nowMs = Date.now();
     const daysLeft = (item.deadline_date && !isSubmitted)
-      ? Math.ceil((new Date(item.deadline_date).getTime() - nowMs) / 86400000)
+      // A plain date, due by the end of that day where the learner is, as the calendar reads it.
+      ? Math.ceil((new Date(`${item.deadline_date}T23:59:59`).getTime() - nowMs) / 86400000)
       : null;
     const deadlineLabel = daysLeft === null ? null
       : daysLeft < 0  ? 'Overdue'
@@ -1324,7 +1347,9 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
         )}
         {item._sub && (
           <div className="absolute top-2 right-2">
-            {item._sub.status === 'graded'
+            {item._sub.status === 'graded' && item._sub.score == null
+              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>Graded</span>
+              : item._sub.status === 'graded'
               ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                   style={{ background: item._sub.score >= passMark ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: item._sub.score >= passMark ? '#10b981' : '#ef4444', border: `1px solid ${item._sub.score >= passMark ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
                   {item._sub.score >= passMark ? 'Passed' : 'Failed'}
@@ -1358,7 +1383,10 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
           {!item._sub
             ? <span className="text-[11px] font-medium" style={{ color: C.muted }}>Not Submitted</span>
             : item._sub.status === 'graded'
-            ? <span className="text-[11px] font-semibold" style={{ color: item._sub.score >= passMark ? '#10b981' : '#ef4444' }}>Graded · {item._sub.score}%</span>
+            // A graded submission without a score is neither passed nor failed, as on its page.
+            ? (item._sub.score == null
+              ? <span className="text-[11px] font-semibold" style={{ color: C.muted }}>Graded</span>
+              : <span className="text-[11px] font-semibold" style={{ color: item._sub.score >= passMark ? '#10b981' : '#ef4444' }}>Graded, {item._sub.score}%</span>)
             : item._sub.status === 'submitted'
             ? <span className="text-[11px] font-semibold" style={{ color: '#16a34a' }}>Submitted</span>
             : <span className="text-[11px] font-medium" style={{ color: C.muted }}>Not Submitted</span>}
