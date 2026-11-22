@@ -151,10 +151,14 @@ export function CredentialFacts({ dateLabel = 'Issued', date, idLabel = 'Credent
   return (
     <div className="grid gap-2 text-[13px]" style={{ color: C.muted }}>
       <div className="flex items-center gap-2"><CalendarBlank size={15} weight="bold"/>{dateLabel} <b className="font-semibold" style={{ color: C.text }}>{date}</b></div>
-      <div className="flex min-w-0 items-center gap-2">
-        <IdentificationCard size={15} weight="bold" className="flex-shrink-0"/>{idLabel}
-        <b className="truncate font-semibold" style={{ color: C.text }}>{id}</b>
-        <button type="button" onClick={copy} aria-label={`Copy ${idLabel.toLowerCase()}`} title="Copy" className="ml-auto flex-shrink-0 rounded-md p-1 hover:opacity-70">
+      {/* IDs are long codes: the label on its own line, the whole ID under it, wrapping, never cut off. */}
+      <div className="flex min-w-0 items-start gap-2">
+        <IdentificationCard size={15} weight="bold" className="mt-0.5 flex-shrink-0"/>
+        <div className="min-w-0 flex-1">
+          <p>{idLabel}</p>
+          <p className="mt-0.5 break-all font-mono text-xs font-semibold" style={{ color: C.text }}>{id}</p>
+        </div>
+        <button type="button" onClick={copy} aria-label={`Copy ${idLabel.toLowerCase()}`} title="Copy" className="flex-shrink-0 rounded-md p-1 hover:opacity-70">
           {copied ? <Check size={14} weight="bold" style={{ color: '#12A150' }}/> : <Copy size={14} weight="bold"/>}
         </button>
       </div>
