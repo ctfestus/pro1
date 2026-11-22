@@ -43,7 +43,6 @@ describe('GET /api/books/library', () => {
         { book_id: 'b2', source: 'grant', granted_at: '2026-11-05T00:00:00Z' },
         { book_id: 'gone', source: 'purchase', granted_at: '2026-11-06T00:00:00Z' }, // draft now: hidden
       ] },
-      book_purchases: { data: [] },
       books: { data: [book('b1'), book('b2', { status: 'archived' })] },
     });
     const res = await call();
@@ -60,7 +59,6 @@ describe('GET /api/books/library', () => {
     authAs({
       students: { data: { cohort_id: 'c1' } },
       book_entitlements: { data: [{ book_id: 'b1', source: 'purchase', granted_at: '2026-11-01T00:00:00Z' }] },
-      book_purchases: { data: [] },
       books: [
         { data: [book('b1')] },                 // entitlements
         { data: [book('b1'), book('b3')] },      // direct cohort books (b1 already owned)
@@ -78,7 +76,6 @@ describe('GET /api/books/library', () => {
     authAs({
       students: { data: { cohort_id: null } },
       book_entitlements: { data: [] },
-      book_purchases: { data: [] },
       learning_paths: { data: [{ item_ids: ['course-x', 'b5'] }] },
       books: { data: [book('b5')] },
     });
@@ -91,7 +88,6 @@ describe('GET /api/books/library', () => {
       students: { data: { cohort_id: null } },
       learning_paths: { data: [] },
       book_entitlements: { data: [{ book_id: 'b1', source: 'purchase', granted_at: '2026-11-01T00:00:00Z' }] },
-      book_purchases: { data: [] },
       books: { data: [book('b1', { license_expires_at: '2020-01-01T00:00:00Z' })] },
     });
     const { books } = await (await call()).json();
@@ -99,27 +95,10 @@ describe('GET /api/books/library', () => {
     expect(books[0].available).toBe(false);
   });
 
-  it('returns every book payment, including ones still processing or under review', async () => {
-    authAs({
-      students: { data: { cohort_id: null } },
-      learning_paths: { data: [] },
-      book_entitlements: { data: [] },
-      book_purchases: { data: [
-        { id: 'p1', book_id: 'b1', book_title: 'Book b1', amount: '120.00', currency: 'GHS', status: 'paid', paid_at: '2026-11-01', created_at: '2026-11-01' },
-        { id: 'p2', book_id: 'b2', book_title: 'Book b2', amount: '50', currency: 'GHS', status: 'needs_review', paid_at: '2026-11-02', created_at: '2026-11-02' },
-        { id: 'p3', book_id: 'b3', book_title: 'Book b3', amount: '50', currency: 'GHS', status: 'pending', paid_at: null, created_at: '2026-11-03' },
-      ] },
-    });
-    const { books, purchases } = await (await call()).json();
-    expect(books).toEqual([]);
-    expect(purchases.map((p: any) => [p.status, p.amount])).toEqual([['paid', 120], ['needs_review', 50], ['pending', 50]]);
-  });
-
   it('reports a database failure as a 500 without details', async () => {
     authAs({
       students: { data: null, error: { message: 'boom' } },
       book_entitlements: { data: [] },
-      book_purchases: { data: [] },
     });
     const res = await call();
     expect(res.status).toBe(500);

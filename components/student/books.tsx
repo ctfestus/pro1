@@ -1,7 +1,7 @@
 'use client';
 
-// My Books: the books a learner can download (bought, given to them, or assigned to their program)
-// and their book payments. It is also where Paystack returns a book buyer
+// My Products: the products a learner can download (bought, given to them, or assigned to their
+// program). It is also where Paystack returns a buyer
 // (/student?book_reference=...#products, lib/paystack.ts) and where the receipt email links, so it
 // confirms a returning payment without waiting for the webhook.
 
@@ -11,12 +11,16 @@ import { AlertCircle, CheckCircle2, Clock, Download, ExternalLink, Loader2, Pack
 import { supabase } from '@/lib/supabase';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { downloadBook } from '@/lib/books/open-preview';
-import { fileSizeLabel, formatLabel, formatMoney, getItLabel } from '@/lib/books/format';
-import { Pill, palette } from '@/components/dashboard/subscriptions/ui';
+import { fileSizeLabel, formatLabel, getItLabel } from '@/lib/books/format';
+import { palette } from '@/components/dashboard/subscriptions/ui';
+import { FRAMED_CARD } from '@/components/CardMeta';
+
+/** The primary blue, for the download buttons. */
+const BLUE = '#3E93FF';
 import { EmptyState, Sk } from '@/components/student/shared';
 import type { LIGHT_C } from '@/lib/theme';
 
-import type { LibraryBook, LibraryPurchase } from '@/app/api/books/library/route';
+import type { LibraryBook } from '@/app/api/books/library/route';
 
 type ReturnState =
   | { phase: 'checking' }
@@ -33,13 +37,6 @@ const SOURCE_LABEL: Record<LibraryBook['source'], string> = {
   grant: 'Given to you',
   cohort: 'From your program',
 };
-const STATUS_LABEL: Record<string, string> = {
-  paid: 'Paid',
-  pending: 'Processing',
-  needs_review: 'Being checked',
-  failed: 'Not completed',
-  refunded: 'Refunded',
-};
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -52,11 +49,6 @@ function shortDate(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// A payment's status as the shared status colours: green paid, amber waiting, red failed.
-const STATUS_TONE: Record<string, 'good' | 'warn' | 'bad' | 'mute'> = {
-  paid: 'good', pending: 'warn', needs_review: 'warn', failed: 'bad', refunded: 'mute',
-};
-
 // What the checkout said, as the banner to show; 'pending' is retried before it is reported.
 const SETTLED: Record<string, ReturnState['phase']> = { paid: 'paid', refunded: 'refunded', needs_review: 'review', failed: 'failed' };
 
@@ -64,7 +56,6 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readOnly?: boolean }) {
   const [books, setBooks] = useState<LibraryBook[] | null>(null);
-  const [purchases, setPurchases] = useState<LibraryPurchase[]>([]);
   const [loadError, setLoadError] = useState('');
   const [returned, setReturned] = useState<ReturnState | null>(null);
   const [returnReference, setReturnReference] = useState<string | null>(null);
@@ -79,7 +70,6 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'Could not load your products.');
       setBooks(d.books ?? []);
-      setPurchases(d.purchases ?? []);
     } catch (e: any) {
       // Not "No products yet": the empty state below only shows when the load worked.
       setLoadError(e?.message || 'Could not load your products.');
@@ -180,7 +170,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
           paidBook && paidBook.available ? (
             <button onClick={() => download(paidBook.id, paidBook.format)} disabled={downloading === paidBook.id}
               className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-60"
-              style={{ background: C.cta, color: C.ctaText }}>
+              style={{ background: BLUE, color: '#ffffff' }}>
               {downloading === paidBook.id ? <Loader2 className="w-4 h-4 animate-spin" /> : paidBook.format === 'link' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />} {getItLabel(paidBook.format)}
             </button>
           ) : undefined);
@@ -196,7 +186,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
       case 'failed':
         return box('bad', <AlertCircle className="w-5 h-5" />, 'The payment was not completed',
           'No charge went through for this checkout. You can try buying it again.',
-          <Link href="/products" className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.cta, color: C.ctaText }}>Open the store</Link>);
+          <Link href="/products" className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: BLUE, color: '#ffffff' }}>Open the store</Link>);
       case 'error':
         return box('bad', <AlertCircle className="w-5 h-5" />, 'We could not confirm your payment', returned.message, again);
     }
@@ -211,10 +201,10 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
       )}
 
       {books === null ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} className="rounded-2xl p-3 space-y-3" style={card}>
-              <Sk h={180} r={12} /><Sk w="80%" /><Sk w="50%" h={12} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="overflow-hidden rounded-xl" style={card}>
+              <Sk h={180} r={0} /><div className="space-y-2 p-4"><Sk w="80%" /><Sk w="50%" h={12} /></div>
             </div>
           ))}
         </div>
@@ -223,53 +213,42 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
           <EmptyState icon={Package} title="No products yet" body="Digital products you buy, or that your program gives you, will appear here for download." />
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        // The dashboard's content card, the cover the shape of a course's: edge to edge with how it
+        // reached the learner on a tag, then the title, the author, the file, and one action.
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {books.map(book => (
-            <div key={book.id} className="rounded-2xl p-3 flex flex-col" style={card}>
-              <div className="rounded-xl overflow-hidden flex items-center justify-center" style={{ background: C.pill, aspectRatio: '3 / 4' }}>
+            <div key={book.id} className={FRAMED_CARD.replace('cursor-pointer ', '')} style={card}>
+              <div className="relative flex aspect-video items-center justify-center overflow-hidden" style={{ background: C.pill }}>
                 {book.coverImage
-                  ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover" />
-                  : <Package className="w-8 h-8" style={{ color: C.faint }} />}
+                  ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
+                  : <Package className="h-10 w-10" style={{ color: C.faint }} />}
+                <span className="absolute left-0 top-3 px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>{SOURCE_LABEL[book.source]}</span>
               </div>
-              <p className="mt-3 text-sm font-semibold leading-snug line-clamp-2" style={{ color: C.text }}>{book.title}</p>
-              {book.authors.length > 0 && <p className="text-xs mt-0.5 truncate" style={{ color: C.muted }}>{book.authors.join(', ')}</p>}
-              <p className="text-[11px] mt-1" style={{ color: C.faint }}>
-                {[formatLabel(book.format), fileSizeLabel(book.fileSize), SOURCE_LABEL[book.source]].filter(Boolean).join(' / ')}
-              </p>
-              <div className="mt-auto pt-3">
-                {book.available ? (
-                  <button onClick={() => download(book.id, book.format)} disabled={readOnly || downloading === book.id}
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-60"
-                    style={{ background: C.cta, color: C.ctaText }}>
-                    {downloading === book.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : book.format === 'link' ? <ExternalLink className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />} {getItLabel(book.format)}
-                  </button>
-                ) : (
-                  <p className="text-xs text-center py-2" style={{ color: C.faint }}>
-                    {book.licenseExpiresAt ? <>No longer available since <b style={{ color: C.muted }}>{shortDate(book.licenseExpiresAt)}</b></> : 'No longer available'}
-                  </p>
-                )}
+              <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
+                <p className="line-clamp-2 min-h-[40px] text-[15px] leading-5 font-bold" style={{ color: C.text }}>{book.title}</p>
+                {book.authors.length > 0 && <p className="mt-1 truncate text-sm" style={{ color: C.muted }}>{book.authors.join(', ')}</p>}
+                <p className="mt-1 text-[13px]" style={{ color: C.muted }}>
+                  {[formatLabel(book.format), fileSizeLabel(book.fileSize)].filter(Boolean).join(', ')}
+                </p>
+                <div className="mt-auto pt-4">
+                  {book.available ? (
+                    <button onClick={() => download(book.id, book.format)} disabled={readOnly || downloading === book.id}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                      style={{ background: BLUE, color: '#ffffff' }}>
+                      {downloading === book.id ? <Loader2 className="h-4 w-4 animate-spin" /> : book.format === 'link' ? <ExternalLink className="h-4 w-4" /> : <Download className="h-4 w-4" />} {getItLabel(book.format)}
+                    </button>
+                  ) : (
+                    <p className="py-2 text-center text-[13px]" style={{ color: C.muted }}>
+                      {book.licenseExpiresAt ? <>No longer available since <b style={{ color: C.text }}>{shortDate(book.licenseExpiresAt)}</b></> : 'No longer available'}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {purchases.length > 0 && (
-        <div className="rounded-2xl p-4 sm:p-5" style={card}>
-          <p className="text-sm font-semibold" style={{ color: C.text }}>Product payments</p>
-          <div className="mt-3 divide-y" style={{ borderColor: C.divider }}>
-            {purchases.map(p => (
-              // On a phone the date sits above the title, so the title keeps its width.
-              <div key={p.id} className="py-2.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm" style={{ borderColor: C.divider }}>
-                <span className="w-full sm:w-28 shrink-0 text-xs" style={{ color: C.faint }}>{shortDate(p.paidAt ?? p.createdAt)}</span>
-                <span className="flex-1 min-w-0 truncate" style={{ color: C.text }}>{p.bookTitle}</span>
-                <span className="shrink-0 text-xs" style={{ color: C.muted }}>{formatMoney(p.amount, p.currency)}</span>
-                <Pill tone={STATUS_TONE[p.status] ?? 'mute'} dot={p.status === 'paid'} C={C}>{STATUS_LABEL[p.status] ?? p.status}</Pill>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
