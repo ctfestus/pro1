@@ -79,6 +79,47 @@ const DEFAULT_POINTS: PointsSystem = {
 };
 
 // --- Constants ---
+/** The event time zones. The value is what events store (lib/event-sessions.ts reads the offset). */
+const TIMEZONE_OPTIONS = [
+  { value: 'GMT+0 (Accra)', label: 'GMT+0 - Accra' },
+  { value: 'GMT+1 (Lagos)', label: 'GMT+1 - Lagos' },
+  { value: 'GMT+2 (Cairo)', label: 'GMT+2 - Cairo' },
+  { value: 'GMT+2 (Johannesburg)', label: 'GMT+2 - Johannesburg' },
+  { value: 'GMT+3 (Nairobi)', label: 'GMT+3 - Nairobi' },
+  { value: 'GMT-5 (EST)', label: 'GMT-5 - Eastern (EST)' },
+  { value: 'GMT-4 (EDT)', label: 'GMT-4 - Eastern Daylight (EDT)' },
+  { value: 'GMT-6 (CST)', label: 'GMT-6 - Central (CST)' },
+  { value: 'GMT-5 (CDT)', label: 'GMT-5 - Central Daylight (CDT)' },
+  { value: 'GMT-7 (MST)', label: 'GMT-7 - Mountain (MST)' },
+  { value: 'GMT-8 (PST)', label: 'GMT-8 - Pacific (PST)' },
+  { value: 'GMT-7 (PDT)', label: 'GMT-7 - Pacific Daylight (PDT)' },
+  { value: 'GMT-9 (AKST)', label: 'GMT-9 - Alaska (AKST)' },
+  { value: 'GMT-10 (HST)', label: 'GMT-10 - Hawaii (HST)' },
+  { value: 'GMT-3 (BRT)', label: 'GMT-3 - Brasilia (BRT)' },
+  { value: 'GMT-5 (COT)', label: 'GMT-5 - Colombia (COT)' },
+  { value: 'GMT-4 (AMT)', label: 'GMT-4 - Amazon (AMT)' },
+  { value: 'GMT-3 (ART)', label: 'GMT-3 - Argentina (ART)' },
+  { value: 'GMT+0 (GMT)', label: 'GMT+0 - London (GMT)' },
+  { value: 'GMT+1 (BST)', label: 'GMT+1 - London Daylight (BST)' },
+  { value: 'GMT+1 (CET)', label: 'GMT+1 - Central Europe (CET)' },
+  { value: 'GMT+2 (CEST)', label: 'GMT+2 - Central Europe Summer (CEST)' },
+  { value: 'GMT+2 (EET)', label: 'GMT+2 - Eastern Europe (EET)' },
+  { value: 'GMT+3 (MSK)', label: 'GMT+3 - Moscow (MSK)' },
+  { value: 'GMT+3 (AST)', label: 'GMT+3 - Arabia (AST)' },
+  { value: 'GMT+4 (GST)', label: 'GMT+4 - Gulf (GST)' },
+  { value: 'GMT+5 (PKT)', label: 'GMT+5 - Pakistan (PKT)' },
+  { value: 'GMT+5:30 (IST)', label: 'GMT+5:30 - India (IST)' },
+  { value: 'GMT+6 (BST)', label: 'GMT+6 - Bangladesh (BST)' },
+  { value: 'GMT+7 (WIB)', label: 'GMT+7 - Jakarta (WIB)' },
+  { value: 'GMT+8 (CST)', label: 'GMT+8 - China/Singapore (CST)' },
+  { value: 'GMT+8 (PHT)', label: 'GMT+8 - Philippines (PHT)' },
+  { value: 'GMT+9 (JST)', label: 'GMT+9 - Japan/Korea (JST)' },
+  { value: 'GMT+5:30 (IST)', label: 'GMT+5:30 - Sri Lanka' },
+  { value: 'GMT+10 (AEST)', label: 'GMT+10 - Sydney (AEST)' },
+  { value: 'GMT+11 (AEDT)', label: 'GMT+11 - Sydney Daylight (AEDT)' },
+  { value: 'GMT+12 (NZST)', label: 'GMT+12 - New Zealand (NZST)' },
+];
+
 const COURSE_CATEGORIES = ['Excel', 'Power BI', 'SQL', 'Tableau', 'AI'] as const;
 
 
@@ -1896,56 +1937,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                   <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls} style={labelStyle}>Timezone</label>
-                    <select value={formConfig.eventDetails.timezone || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, timezone: e.target.value } })} className={inputCls} style={inputStyle}>
-                      <option value="">Select timezone</option>
-                      <optgroup label="Africa">
-                        <option value="GMT+0 (Accra)">GMT+0 - Accra</option>
-                        <option value="GMT+1 (Lagos)">GMT+1 - Lagos</option>
-                        <option value="GMT+2 (Cairo)">GMT+2 - Cairo</option>
-                        <option value="GMT+2 (Johannesburg)">GMT+2 - Johannesburg</option>
-                        <option value="GMT+3 (Nairobi)">GMT+3 - Nairobi</option>
-                      </optgroup>
-                      <optgroup label="Americas">
-                        <option value="GMT-5 (EST)">GMT-5 - Eastern (EST)</option>
-                        <option value="GMT-4 (EDT)">GMT-4 - Eastern Daylight (EDT)</option>
-                        <option value="GMT-6 (CST)">GMT-6 - Central (CST)</option>
-                        <option value="GMT-5 (CDT)">GMT-5 - Central Daylight (CDT)</option>
-                        <option value="GMT-7 (MST)">GMT-7 - Mountain (MST)</option>
-                        <option value="GMT-8 (PST)">GMT-8 - Pacific (PST)</option>
-                        <option value="GMT-7 (PDT)">GMT-7 - Pacific Daylight (PDT)</option>
-                        <option value="GMT-9 (AKST)">GMT-9 - Alaska (AKST)</option>
-                        <option value="GMT-10 (HST)">GMT-10 - Hawaii (HST)</option>
-                        <option value="GMT-3 (BRT)">GMT-3 - Brasilia (BRT)</option>
-                        <option value="GMT-5 (COT)">GMT-5 - Colombia (COT)</option>
-                        <option value="GMT-4 (AMT)">GMT-4 - Amazon (AMT)</option>
-                        <option value="GMT-3 (ART)">GMT-3 - Argentina (ART)</option>
-                      </optgroup>
-                      <optgroup label="Europe">
-                        <option value="GMT+0 (GMT)">GMT+0 - London (GMT)</option>
-                        <option value="GMT+1 (BST)">GMT+1 - London Daylight (BST)</option>
-                        <option value="GMT+1 (CET)">GMT+1 - Central Europe (CET)</option>
-                        <option value="GMT+2 (CEST)">GMT+2 - Central Europe Summer (CEST)</option>
-                        <option value="GMT+2 (EET)">GMT+2 - Eastern Europe (EET)</option>
-                        <option value="GMT+3 (MSK)">GMT+3 - Moscow (MSK)</option>
-                      </optgroup>
-                      <optgroup label="Asia">
-                        <option value="GMT+3 (AST)">GMT+3 - Arabia (AST)</option>
-                        <option value="GMT+4 (GST)">GMT+4 - Gulf (GST)</option>
-                        <option value="GMT+5 (PKT)">GMT+5 - Pakistan (PKT)</option>
-                        <option value="GMT+5:30 (IST)">GMT+5:30 - India (IST)</option>
-                        <option value="GMT+6 (BST)">GMT+6 - Bangladesh (BST)</option>
-                        <option value="GMT+7 (WIB)">GMT+7 - Jakarta (WIB)</option>
-                        <option value="GMT+8 (CST)">GMT+8 - China/Singapore (CST)</option>
-                        <option value="GMT+8 (PHT)">GMT+8 - Philippines (PHT)</option>
-                        <option value="GMT+9 (JST)">GMT+9 - Japan/Korea (JST)</option>
-                        <option value="GMT+5:30 (IST)">GMT+5:30 - Sri Lanka</option>
-                      </optgroup>
-                      <optgroup label="Pacific">
-                        <option value="GMT+10 (AEST)">GMT+10 - Sydney (AEST)</option>
-                        <option value="GMT+11 (AEDT)">GMT+11 - Sydney Daylight (AEDT)</option>
-                        <option value="GMT+12 (NZST)">GMT+12 - New Zealand (NZST)</option>
-                      </optgroup>
-                    </select>
+                    <MenuSelect label="Timezone" field searchable C={DC} placeholder="Select timezone"
+                      value={formConfig.eventDetails.timezone || ''} options={TIMEZONE_OPTIONS}
+                      onChange={timezone => updateConfig({ eventDetails: { ...formConfig.eventDetails!, timezone } })} />
                   </div>
                   {(formConfig.eventDetails!.recurrence ?? 'once') !== 'once' && (
                   <div>
