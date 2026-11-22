@@ -33,6 +33,8 @@ export interface LibraryBook {
   since: string | null;
   /** False once the licence has ended: listed, but not downloadable. */
   available: boolean;
+  /** When the licence ends or ended, so an unavailable product can say when. */
+  licenseExpiresAt: string | null;
 }
 
 export interface LibraryPurchase {
@@ -59,6 +61,7 @@ function toBook(row: any, source: LibrarySource, since: string | null, now: Date
     source,
     since,
     available: !isLicenseExpired(row.license_expires_at, now),
+    licenseExpiresAt: row.license_expires_at ?? null,
   };
 }
 

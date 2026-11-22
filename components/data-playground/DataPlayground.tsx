@@ -5,7 +5,7 @@ import { MenuIcon } from '@/components/MenuIcon';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence } from 'motion/react';
+import Link from 'next/link';
 import {
   Search, X, Database, Download, Table2,
   Copy, Check, Loader2, Play, RefreshCw, ChevronDown, ChevronLeft, ChevronRight,
@@ -31,6 +31,8 @@ import {
   type SQLRuntime,
 } from '@/lib/sql-engine';
 import { workbookRows, workbookSheetNames } from '@/lib/workbook-rows';
+import { formatAttachmentSize } from '@/lib/lesson-attachment';
+import { useToolIcons } from '@/lib/use-tool-icons';
 
 export type DatasetFile = { name: string; url: string };
 export type AnalystTaskType = 'sql' | 'analytics';
@@ -97,15 +99,13 @@ export type DataPlaygroundColors = {
   skeleton: string;
 };
 
-type HeaderLoader = HeadersInit | (() => HeadersInit | Promise<HeadersInit | null | undefined> | null | undefined);
+type HeaderLoader = () => HeadersInit | Promise<HeadersInit | null | undefined> | null | undefined;
 type SQLRuntimeTable = SQLRuntime['tables'][number];
 
 type DataPlaygroundGridProps = {
   C: DataPlaygroundColors;
   isDark: boolean;
   fetchHeaders?: HeaderLoader;
-  intro?: ReactNode;
-  loadingCardCount?: number;
   searchMaxWidth?: string | number;
   searchInputShadow?: boolean;
   showDetailCta?: boolean;
@@ -198,22 +198,6 @@ function analystSectionsByTaskType(d: DCDataset, type: AnalystTaskType): Analyst
     .filter(section => section.tasks.length > 0);
 }
 
-function questionsByType(d: DCDataset, type: 'sql' | 'analytics') {
-  return analystSectionsByTaskType(d, type).flatMap(section => section.tasks.map(task => task.prompt));
-}
-
-function deriveDifficulty(taskCount: number): 'Beginner' | 'Intermediate' | 'Advanced' {
-  if (taskCount <= 2) return 'Beginner';
-  if (taskCount <= 4) return 'Intermediate';
-  return 'Advanced';
-}
-
-function deriveTimeEstimate(taskCount: number): string {
-  if (taskCount <= 2) return '15-30 mins';
-  if (taskCount <= 4) return '30-60 mins';
-  return '45-90 mins';
-}
-
 const DIFF_LEVEL: Record<string, number> = { Beginner: 1, Intermediate: 2, Advanced: 3 };
 
 function DifficultyDots({ level, color, faint }: { level: number; color: string; faint: string }) {
@@ -260,12 +244,6 @@ export function WhatsAppCommunityBanner({ url, C, isDark, style }: { url: string
       <span style={{ background: '#25D366', color: '#fff', fontWeight: 700, fontSize: 14, padding: '11px 22px', borderRadius: 10, whiteSpace: 'nowrap' }}>Join the group</span>
     </a>
   );
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function quoteIdent(name: string) {
@@ -391,9 +369,9 @@ const lightSQLEditorTheme = EditorView.theme({
 });
 
 const lightSQLHighlightStyle = HighlightStyle.define([
-  { tag: highlightTags.keyword, color: '#0e09dd', fontWeight: '700' },
-  { tag: highlightTags.operatorKeyword, color: '#0e09dd', fontWeight: '700' },
-  { tag: highlightTags.definitionKeyword, color: '#7c3aed', fontWeight: '700' },
+  { tag: highlightTags.keyword, color: '#1d4ed8', fontWeight: '700' },
+  { tag: highlightTags.operatorKeyword, color: '#1d4ed8', fontWeight: '700' },
+  { tag: highlightTags.definitionKeyword, color: '#334155', fontWeight: '700' },
   { tag: highlightTags.atom, color: '#0f766e' },
   { tag: highlightTags.bool, color: '#b45309' },
   { tag: highlightTags.number, color: '#b45309' },
@@ -647,75 +625,6 @@ Based on the actual data, please generate:
 3) Suggested SQL queries and pandas code to answer the analyst tasks above.`;
 }
 
-export function buildColabCode(datasetFiles: DatasetFile[]) {
-  const url = datasetFiles[0]?.url;
-  if (!url) return null;
-  const safeUrl = url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  const lower = url.toLowerCase();
-  if (lower.endsWith('.zip')) {
-    return `import pandas as pd
-import zipfile
-import requests
-import io
-
-url = "${safeUrl}"
-response = requests.get(url)
-
-dataframes = {}
-with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-    csv_files = [f for f in z.namelist() if f.lower().endswith('.csv')]
-    for csv_file in csv_files:
-        with z.open(csv_file) as f:
-            name = csv_file.split('/')[-1].replace('.csv', '').replace(' ', '_')
-            dataframes[name] = pd.read_csv(f)
-
-# Make each table available as a direct variable
-for name, df in dataframes.items():
-    globals()[name] = df
-
-# Display each table
-for name, df in dataframes.items():
-    print(f"\\n{'='*60}")
-    print(f"Table: {name}  |  {len(df):,} rows  x  {len(df.columns)} columns")
-    print('='*60)
-    display(df.head(10))
-
-print("\\nAvailable tables:", list(dataframes.keys()))
-print("Access any table directly, e.g.:")
-for name in list(dataframes.keys())[:3]:
-    print(f"  {name}.head()")`;
-  }
-  if (lower.endsWith('.xlsx')) {
-    return `import pandas as pd
-
-url = "${safeUrl}"
-sheets = pd.read_excel(url, sheet_name=None)
-
-# Make each sheet available as a direct variable
-for name, df in sheets.items():
-    globals()[name.replace(' ', '_')] = df
-
-# Display each sheet
-for name, df in sheets.items():
-    print(f"\\n{'='*60}")
-    print(f"Sheet: {name}  |  {len(df):,} rows  x  {len(df.columns)} columns")
-    print('='*60)
-    display(df.head(10))
-
-print("\\nAvailable sheets:", list(sheets.keys()))
-print("Access any sheet directly, e.g.:")
-for name in list(sheets.keys())[:3]:
-    print(f"  {name.replace(' ', '_')}.head()")`;
-  }
-  return `import pandas as pd
-
-url = "${safeUrl}"
-df = pd.read_csv(url)
-
-print(f"{len(df):,} rows  x  {len(df.columns)} columns")
-display(df.head(10))`;
-}
-
 function DatasetDetailPane({
   dataset,
   C,
@@ -737,6 +646,19 @@ function DatasetDetailPane({
   const [zipTables, setZipTables] = useState<PreviewEntry[]>([]);
   const [activeTable, setActiveTable] = useState('');
   const [showWorkbench, setShowWorkbench] = useState(false);
+  // The ChatGPT logo from the shared tool icons, which admins can replace.
+  const toolIcon = useToolIcons();
+  // Escape closes the top-most layer: the workbench or preview, then the dataset itself.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showWorkbench) setShowWorkbench(false);
+      else if (showPreview) setShowPreview(false);
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showWorkbench, showPreview, onClose]);
   const [workbenchLoading, setWorkbenchLoading] = useState(false);
   const [workbenchError, setWorkbenchError] = useState('');
   const [workbenchNotice, setWorkbenchNotice] = useState('');
@@ -750,7 +672,8 @@ function DatasetDetailPane({
   const [csvExporting, setCsvExporting] = useState(false);
   const [activeOutputTab, setActiveOutputTab] = useState('results');
   const [queryPanePercent, setQueryPanePercent] = useState(40);
-  const [workbenchSideWidth, setWorkbenchSideWidth] = useState(230);
+  // Narrower on a phone, where 230px left the SQL editor about 130px.
+  const [workbenchSideWidth, setWorkbenchSideWidth] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640 ? 132 : 230);
   const [tablePreviewResult, setTablePreviewResult] = useState<SQLResult | null>(null);
   const [tablePreviewLoading, setTablePreviewLoading] = useState(false);
   const [tablePreviewError, setTablePreviewError] = useState('');
@@ -787,8 +710,6 @@ function DatasetDetailPane({
   const hasNextSection = activeSectionIdx < analystSections.length - 1;
   const goPrevSection = () => { if (hasPrevSection) setSelectedSectionId(analystSections[activeSectionIdx - 1].id || ''); };
   const goNextSection = () => { if (hasNextSection) setSelectedSectionId(analystSections[activeSectionIdx + 1].id || ''); };
-  const totalTasks = analystSections.reduce((sum, section) => sum + section.tasks.length, 0);
-  const totalSqlTasks = analystSections.reduce((sum, section) => sum + section.tasks.filter(task => task.type === 'sql').length, 0);
 
   async function openPreview() {
     setShowPreview(true);
@@ -911,11 +832,11 @@ function DatasetDetailPane({
     }
     const length = Number(res.headers.get('content-length') ?? 0);
     if (length && length > remainingBytes) {
-      throw new Error(`This dataset is too large for the browser SQL Workbench (${formatBytes(MAX_WORKBENCH_BYTES)} limit).`);
+      throw new Error(`This dataset is too large for the browser SQL Workbench (${formatAttachmentSize(MAX_WORKBENCH_BYTES)} limit).`);
     }
     const buf = await res.arrayBuffer();
     if (buf.byteLength > remainingBytes) {
-      throw new Error(`This dataset is too large for the browser SQL Workbench (${formatBytes(MAX_WORKBENCH_BYTES)} limit).`);
+      throw new Error(`This dataset is too large for the browser SQL Workbench (${formatAttachmentSize(MAX_WORKBENCH_BYTES)} limit).`);
     }
     return buf;
   }
@@ -946,14 +867,14 @@ function DatasetDetailPane({
             const bytes = await zip.files[name].async('arraybuffer');
             totalBytes += bytes.byteLength;
             if (totalBytes > MAX_WORKBENCH_BYTES) {
-              throw new Error(`This ZIP expands beyond the browser SQL Workbench limit (${formatBytes(MAX_WORKBENCH_BYTES)}).`);
+              throw new Error(`This ZIP expands beyond the browser SQL Workbench limit (${formatAttachmentSize(MAX_WORKBENCH_BYTES)}).`);
             }
             entries.push(...await expandXLSXEntries(bytes, `${file.name}: ${base}`, true));
           } else {
             const content = await zip.files[name].async('string');
             totalBytes += new TextEncoder().encode(content).byteLength;
             if (totalBytes > MAX_WORKBENCH_BYTES) {
-              throw new Error(`This ZIP expands beyond the browser SQL Workbench limit (${formatBytes(MAX_WORKBENCH_BYTES)}).`);
+              throw new Error(`This ZIP expands beyond the browser SQL Workbench limit (${formatAttachmentSize(MAX_WORKBENCH_BYTES)}).`);
             }
             entries.push({ name: `${file.name}: ${base}`, type: 'csv', content });
           }
@@ -1229,10 +1150,7 @@ function DatasetDetailPane({
               <p style={{ margin: '0 0 12px', color: C.faint, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>Analysis Path</p>
               {analystSections.length > 0 ? analystSections.map((section, index) => {
                 const isActive = section.id === activeSectionId;
-                const sqlCount = section.tasks.filter(task => task.type === 'sql').length;
                 const isFirst = index === 0;
-                const diff = section.difficulty || deriveDifficulty(section.tasks.length);
-                const estTime = section.duration || deriveTimeEstimate(section.tasks.length);
                 return (
                   <button key={section.id || section.title}
                     onClick={() => { setSelectedSectionId(section.id || ''); if (typeof window !== 'undefined' && window.innerWidth < 640) setSidebarOpen(false); }}
@@ -1240,12 +1158,12 @@ function DatasetDetailPane({
                     onMouseLeave={() => setHoveredSectionId(null)}
                     style={{ width: '100%', display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr)', gap: 10, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: font }}>
                     <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ width: 30, height: 30, borderRadius: '50%', background: isFirst || isActive ? accent : C.input, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
+                      <span style={{ width: 30, height: 30, borderRadius: '50%', background: isActive ? accent : C.input, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
                         {isFirst
-                          ? <Star size={14} fill="currentColor" style={{ color: '#fff' }} />
+                          ? <Star size={14} fill="currentColor" style={{ color: isActive ? '#fff' : C.faint }} />
                           : <span style={{ color: isActive ? '#fff' : C.faint }}>{index + 1}</span>}
                       </span>
-                      {index < analystSections.length - 1 && <span style={{ flex: 1, minHeight: 30, width: 0, borderLeft: `2px dashed ${C.cardBorder}`, margin: '4px 0' }} />}
+                      {index < analystSections.length - 1 && <span style={{ flex: 1, minHeight: 30, width: 0, borderLeft: `2px dashed ${C.divider}`, margin: '4px 0' }} />}
                     </span>
                     <span style={{ minWidth: 0, paddingTop: 5, paddingBottom: index < analystSections.length - 1 ? 18 : 10, paddingLeft: 8, paddingRight: 8, borderRadius: 8, background: hoveredSectionId === (section.id || section.title) ? (isDark ? C.input : 'rgba(0,0,0,0.07)') : 'transparent', transition: 'background 0.15s' }}>
                       <span style={{ display: 'block', color: isActive ? accent : C.text, fontSize: 13, fontWeight: isActive ? 700 : 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{section.title}</span>
@@ -1271,13 +1189,18 @@ function DatasetDetailPane({
                 <div style={{ padding: '22px 24px 18px' }}>
                   <p style={{ margin: '0 0 7px', color: accent, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>Phase {analystSections.findIndex(section => section.id === activeSection.id) + 1} of {analystSections.length}</p>
                   <h3 style={{ margin: 0, color: C.text, fontSize: 22, lineHeight: 1.25, fontWeight: 700 }}>{activeSection.title}</h3>
-                  {(activeSection.tasks.length > 0 || activeSection.difficulty || activeSection.duration) && (
+                  {/* Level and time only as the author set them; guessing them from the task count
+                      labelled any five-task phase "Advanced, 45-90 mins". */}
+                  {(activeSection.difficulty || activeSection.duration) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 11 }}>
-                      <DifficultyDots level={DIFF_LEVEL[activeSection.difficulty || deriveDifficulty(activeSection.tasks.length)] ?? 1} color={accent} faint={C.cardBorder} />
-                      <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{activeSection.difficulty || deriveDifficulty(activeSection.tasks.length)}</span>
-                      <span style={{ fontSize: 12, color: C.faint }}>&middot;</span>
-                      <Clock size={12} style={{ color: C.faint }} />
-                      <span style={{ fontSize: 12, color: C.faint }}>{activeSection.duration || deriveTimeEstimate(activeSection.tasks.length)}</span>
+                      {activeSection.difficulty && <>
+                        <DifficultyDots level={DIFF_LEVEL[activeSection.difficulty] ?? 1} color={accent} faint={C.divider} />
+                        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{activeSection.difficulty}</span>
+                      </>}
+                      {activeSection.duration && <>
+                        <Clock size={12} style={{ color: C.faint, marginLeft: activeSection.difficulty ? 6 : 0 }} />
+                        <span style={{ fontSize: 12, color: C.faint }}>{activeSection.duration}</span>
+                      </>}
                     </div>
                   )}
                   {activeSection.brief && hasRichContent(activeSection.brief) && (
@@ -1345,7 +1268,7 @@ function DatasetDetailPane({
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
                     <a href={`https://chatgpt.com/?q=${encodeURIComponent(prompt)}`} target="_blank" rel="noreferrer"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 10px', borderRadius: 10, background: C.input, color: C.text, fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: font }}>
-                      <img src="https://jbdfdxqvdaztmlzaxxtk.supabase.co/storage/v1/object/public/Assets/openai-chatgpt-logo-icon-free-png.webp" alt="ChatGPT" style={{ width: 19, height: 19, objectFit: 'contain', flexShrink: 0 }} /> ChatGPT
+                      {toolIcon('chatgpt') && <img src={toolIcon('chatgpt')} alt="" style={{ width: 19, height: 19, objectFit: 'contain', flexShrink: 0 }} />} ChatGPT
                     </a>
                     <button onClick={copyPrompt}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 10px', borderRadius: 10, border: 'none', background: C.input, color: C.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: font }}>
@@ -1381,7 +1304,7 @@ function DatasetDetailPane({
                   <p style={{ fontWeight: 700, fontSize: 14, color: C.text, margin: '0 0 3px' }}>Go deeper with guided projects</p>
                   <p style={{ fontSize: 12.5, color: C.muted, margin: 0, lineHeight: 1.45 }}>Access structured courses, cohorts, and expert-led project experiences.</p>
                 </div>
-                <a href="https://festman.io" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 18px', borderRadius: 10, background: accent, color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>Learn More</a>
+                <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', padding: '9px 18px', borderRadius: 10, background: accent, color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>Learn More</Link>
               </div>
             )}
 
@@ -1391,7 +1314,7 @@ function DatasetDetailPane({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 8, gap: 8 }}>
                 <button onClick={goPrevSection} disabled={!hasPrevSection}
                   className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium transition-all hover:opacity-70 disabled:opacity-30 flex-shrink-0"
-                  style={{ border: `1px solid ${C.cardBorder}`, color: C.muted, background: C.card, cursor: hasPrevSection ? 'pointer' : 'not-allowed', outline: 'none' }}>
+                  style={{ border: `1px solid ${C.divider}`, color: C.muted, background: C.card, cursor: hasPrevSection ? 'pointer' : 'not-allowed', outline: 'none' }}>
                   <ChevronLeft size={16} /> Previous
                 </button>
 
@@ -1399,8 +1322,9 @@ function DatasetDetailPane({
                   {analystSections.map((s, i) => {
                     const isCurr = s.id === activeSectionId;
                     return (
-                      <div key={s.id || i} onClick={() => setSelectedSectionId(s.id || '')}
-                        style={{ width: isCurr ? 24 : 8, height: 8, borderRadius: 999, background: isCurr ? accent : C.cardBorder, transition: 'all 0.2s', cursor: 'pointer', flexShrink: 0 }} />
+                      <button key={s.id || i} type="button" onClick={() => setSelectedSectionId(s.id || '')}
+                        aria-label={`Phase ${i + 1}`} aria-current={isCurr ? 'step' : undefined}
+                        style={{ width: isCurr ? 24 : 8, height: 8, padding: 0, border: 'none', borderRadius: 999, background: isCurr ? accent : C.divider, transition: 'all 0.2s', cursor: 'pointer', flexShrink: 0 }} />
                     );
                   })}
                 </div>
@@ -1429,7 +1353,7 @@ function DatasetDetailPane({
                     <p style={{ margin: 0, fontSize: 14, color: C.faint }}>{zipTables.length > 1 ? `${zipTables.length} files available` : (activePdfUrl ? 'PDF preview' : 'First 10 rows preview')}</p>
                   </div>
                 </div>
-                <button onClick={() => setShowPreview(false)} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.input, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted }}>
+                <button onClick={() => setShowPreview(false)} aria-label="Close preview" style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.input, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted }}>
                   <X size={16} />
                 </button>
               </div>
@@ -1475,7 +1399,7 @@ function DatasetDetailPane({
                   <p style={{ margin: 0, fontSize: 12, color: C.faint }}>Browser-only SQL Workbench</p>
                 </div>
               </div>
-              <button onClick={() => setShowWorkbench(false)} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.input, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, flexShrink: 0 }}>
+              <button onClick={() => setShowWorkbench(false)} aria-label="Close SQL Workbench" style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.input, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, flexShrink: 0 }}>
                 <X size={16} />
               </button>
             </div>
@@ -1507,7 +1431,7 @@ function DatasetDetailPane({
                         <div key={section.id || section.title} style={{ display: 'grid', gridTemplateColumns: '22px minmax(0, 1fr)', gap: 8, minWidth: 0 }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, background: 'rgba(8,145,178,0.14)', color: '#0891b2', fontSize: 10.5, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sectionIndex + 1}</span>
-                            {sectionIndex < sqlTaskSections.length - 1 && <span style={{ flex: 1, minHeight: 12, width: 0, borderLeft: `2px dashed ${C.cardBorder}`, margin: '4px 0' }} />}
+                            {sectionIndex < sqlTaskSections.length - 1 && <span style={{ flex: 1, minHeight: 12, width: 0, borderLeft: `2px dashed ${C.divider}`, margin: '4px 0' }} />}
                           </div>
                           <div style={{ minWidth: 0, paddingBottom: sectionIndex < sqlTaskSections.length - 1 ? 10 : 0 }}>
                             <p style={{ margin: '1px 0 7px', color: C.text, fontSize: 12, fontWeight: 850, lineHeight: 1.25, overflowWrap: 'anywhere' }}>{section.title}</p>
@@ -1544,7 +1468,7 @@ function DatasetDetailPane({
 
                 <div onPointerDown={startWorkbenchSideResize} title="Drag to resize the tasks panel"
                   style={{ flexShrink: 0, width: 8, cursor: 'col-resize', borderLeft: `1px solid ${C.divider}`, borderRight: `1px solid ${C.divider}`, background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ width: 3, height: 42, borderRadius: 999, background: C.cardBorder }} />
+                  <span style={{ width: 3, height: 42, borderRadius: 999, background: C.divider }} />
                 </div>
 
                 <main ref={workbenchMainRef} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1583,7 +1507,7 @@ function DatasetDetailPane({
 
                   <div onPointerDown={startWorkbenchResize} title="Drag to resize query and output"
                     style={{ flex: '0 0 10px', cursor: 'row-resize', borderTop: `1px solid ${C.divider}`, borderBottom: `1px solid ${C.divider}`, background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ width: 42, height: 3, borderRadius: 999, background: C.cardBorder }} />
+                    <span style={{ width: 42, height: 3, borderRadius: 999, background: C.divider }} />
                   </div>
 
                   <section style={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1730,8 +1654,6 @@ export function DataPlaygroundGrid({
   C,
   isDark,
   fetchHeaders,
-  intro,
-  loadingCardCount = 6,
   searchMaxWidth,
   searchInputShadow = false,
   showDetailCta = false,
@@ -1753,21 +1675,12 @@ export function DataPlaygroundGrid({
   };
 
   useEffect(() => {
-    if (typeof document === 'undefined' || document.getElementById('gfont-google-sans-text')) return;
-    const link = document.createElement('link');
-    link.id = 'gfont-google-sans-text';
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Google+Sans+Text:wght@400;500;700&display=swap';
-    document.head.appendChild(link);
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setLoadError(false);
       try {
-        const headers = typeof fetchHeaders === 'function' ? await fetchHeaders() : fetchHeaders;
+        const headers = fetchHeaders ? await fetchHeaders() : undefined;
         const res = await fetch('/api/data-center', headers ? { headers } : undefined);
         // A failed request is an error with a retry, not "No datasets available yet".
         if (!res.ok) throw new Error(String(res.status));
@@ -1823,6 +1736,8 @@ export function DataPlaygroundGrid({
       }}
       onMouseLeave={() => { hoverTimer.current = setTimeout(() => setHover(null), 120); }}
       onClick={() => setSelected(d)}
+      role="button" tabIndex={0} aria-label={`Open ${d.title}`}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(d); } }}
       style={{ ...(carousel ? { flexShrink: 0, width: 230, scrollSnapAlign: 'start' } : {}), background: 'transparent', cursor: 'pointer', fontFamily: font, display: 'flex', flexDirection: 'column' }}>
       {d.cover_image_url ? (
         <img src={d.cover_image_url} alt={d.cover_image_alt ?? ''} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block', borderRadius: 12 }} />
@@ -1845,11 +1760,11 @@ export function DataPlaygroundGrid({
           <h3 style={{ fontSize: 17, fontWeight: 700, color: C.text, margin: 0, fontFamily: font }}>{label}</h3>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <button onClick={() => scrollCategory(cat, -1)} aria-label="Scroll left"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.cardBorder}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.divider}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <ChevronLeft size={14} />
             </button>
             <button onClick={() => scrollCategory(cat, 1)} aria-label="Scroll right"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.cardBorder}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              style={{ width: 32, height: 32, borderRadius: '50%', border: `1px solid ${C.divider}`, background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <ChevronRight size={14} />
             </button>
           </div>
@@ -1865,7 +1780,7 @@ export function DataPlaygroundGrid({
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-        {Array.from({ length: Math.max(2, Math.ceil(loadingCardCount / 4)) }, (_, i) => (
+        {Array.from({ length: 2 }, (_, i) => (
           <div key={i}>
             <Sk C={C} h={16} w={160} />
             <div style={{ display: 'flex', gap: 18, marginTop: 16, overflow: 'hidden' }}>
@@ -1901,11 +1816,6 @@ export function DataPlaygroundGrid({
 
   return (
     <>
-      {intro && (
-        <p style={{ fontSize: 16.5, color: C.muted, margin: '0 0 20px', lineHeight: 1.6, fontFamily: font }}>
-          {intro}
-        </p>
-      )}
 
       {/* Search bar */}
       <div style={{ position: 'relative', maxWidth: searchMaxWidth, marginBottom: 32 }}>
@@ -1914,6 +1824,7 @@ export function DataPlaygroundGrid({
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search datasets..."
+          aria-label="Search datasets"
           style={{
             width: '100%',
             padding: searchInputShadow ? '12px 14px 12px 44px' : '11px 14px 11px 42px',
@@ -1929,7 +1840,7 @@ export function DataPlaygroundGrid({
           } as CSSProperties}
         />
         {search && (
-          <button onClick={() => setSearch('')}
+          <button onClick={() => setSearch('')} aria-label="Clear search"
             style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.faint, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
             <X size={14} />
           </button>
@@ -1949,7 +1860,7 @@ export function DataPlaygroundGrid({
         ) : (
           <>
             <p style={{ fontSize: 13, color: C.faint, margin: '0 0 16px', fontFamily: font, fontWeight: 600 }}>
-              {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{search}&rdquo;
+              {filtered.length} result{filtered.length !== 1 ? 's' : ''} for {`"${search}"`}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 18 }}>
               {filtered.map(d => renderCard(d, false))}
@@ -2015,9 +1926,7 @@ export function DataPlaygroundGrid({
         document.body
       )}
 
-      <AnimatePresence>
-        {selected && <DatasetDetailPane dataset={selected} C={C} isDark={isDark} showCta={showDetailCta} onClose={() => setSelected(null)} />}
-      </AnimatePresence>
+      {selected && <DatasetDetailPane dataset={selected} C={C} isDark={isDark} showCta={showDetailCta} onClose={() => setSelected(null)} />}
     </>
   );
 }
