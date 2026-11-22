@@ -19,6 +19,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { computeAccess } from '@/lib/enrollment-access';
 import { DARK_C, LIGHT_C, useC } from '@/lib/theme';
+import { BUTTON } from '@/components/dashboard/subscriptions/Modal';
 import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
 import type { LearningStatusFilter } from '@/components/student/learning-card';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
@@ -688,56 +689,71 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {/* Outstanding payment modal -- shown once per session on any tab */}
-            {showOutstandingModal && (
-              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}>
-                <motion.div
-                  initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                  className="w-full max-w-sm rounded-xl overflow-hidden"
-                  style={{ background: C.card, boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}>
-                  <div className="relative">
-                    <img src={emailBannerUrl || logoUrl} alt="" className="w-full object-cover" style={{ height: 140 }}/>
-                    <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%)' }}>
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-md" style={{ background: 'rgba(220,38,38,0.9)', backdropFilter: 'blur(8px)' }}>
-                        <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#ffffff' }}/>
-                        <span className="text-xs font-bold tracking-wide" style={{ color: '#ffffff' }}>Action Required</span>
+            {/* Outstanding payment pop-up, once per session on any tab: the site's banner image, then
+                what has happened in words for the learner's state, and the way back in. */}
+            {showOutstandingModal && (() => {
+              const close = () => { sessionStorage.setItem('outstandingModalDismissed', '1'); setShowOutstandingModal(false); };
+              // The live status (computeAccess above) is a deposit due or an overdue payment here.
+              const deposit = enrollmentStatus === 'pending_deposit';
+              const copy = deposit
+                ? { badge: 'Deposit due', title: 'Pay your deposit', line: 'Your courses open once it is confirmed.' }
+                : { badge: 'Payment overdue', title: 'Your courses are paused', line: 'Pay what is due to open them again.' };
+              // Each step names the button on My Plan it means, in bold.
+              const steps: [string, React.ReactNode][] = [
+                ['pay', <>In <b>My Plan</b>, open <b>How to pay</b> and make your payment.</>],
+                ['tell', <>Then click <b>I have paid</b> and send the details.</>],
+                ['open', <>We reopen your courses once an admin confirms it.</>],
+              ];
+              return (
+                <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" style={{ background: 'rgba(4,8,20,0.6)', backdropFilter: 'blur(8px)' }}
+                  onClick={e => { if (e.target === e.currentTarget) close(); }}>
+                  <motion.div role="dialog" aria-modal="true" aria-label={copy.title}
+                    initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                    className="w-full max-w-sm overflow-hidden rounded-2xl"
+                    style={{ background: C.card, boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
+                    <div className="relative">
+                      <img src={emailBannerUrl || logoUrl} alt="" className="w-full object-cover" style={{ height: 140 }}/>
+                      <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)' }}>
+                        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold" style={{ color: deposit ? '#B45309' : '#D92D20' }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />{copy.badge}
+                        </span>
+                      </div>
+                      <button type="button" onClick={close} aria-label="Close"
+                        className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/90 transition-opacity hover:opacity-80">
+                        <X className="h-4 w-4" style={{ color: '#1C1D1F' }} />
+                      </button>
+                    </div>
+                    <div className="p-6">
+                      <h3 className="text-center text-[22px] leading-7 font-bold" style={{ color: C.text }}>{copy.title}</h3>
+                      <p className="mt-1 text-center text-sm" style={{ color: C.muted }}>{copy.line}</p>
+                      {/* The steps as a timeline: a numbered ring for each, on a dashed line. */}
+                        <ol className="mt-5">
+                          {steps.map(([key, step], i) => {
+                            const last = i === steps.length - 1;
+                            return (
+                              <li key={key} className="flex gap-3 text-sm" style={{ color: C.text }}>
+                                <div className="relative flex w-6 flex-shrink-0 justify-center">
+                                  <span className="relative z-10 grid h-6 w-6 place-items-center rounded-full text-xs font-semibold"
+                                    style={{ background: C.card, color: C.text, boxShadow: `inset 0 0 0 1.5px ${C.faint}` }}>{i + 1}</span>
+                                  {!last && <span className="absolute bottom-0 top-6 border-l-2 border-dashed opacity-50" style={{ borderColor: C.faint }} />}
+                                </div>
+                                <span className={`pt-0.5 ${last ? '' : 'pb-4'}`}>{step}</span>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      <div className="mt-5 flex flex-col gap-2">
+                        <button type="button" onClick={() => { close(); goSection('payments'); }} className={`${BUTTON} w-full`} style={{ background: DARK_C.cta, color: '#ffffff' }}>
+                          Go to My Plan
+                        </button>
+                        <button type="button" onClick={close} className={`${BUTTON} w-full`} style={{ color: C.muted }}>Not now</button>
                       </div>
                     </div>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div className="text-center space-y-1">
-                      <h3 className="text-[22px] leading-7 font-bold tracking-tight" style={{ color: C.text }}>Payment Overdue</h3>
-                      <p className="text-sm" style={{ color: C.muted }}>Your course access has been temporarily restricted.</p>
-                    </div>
-                    <div className="rounded-lg p-4 space-y-3" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
-                      <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>What to do</p>
-                      {['Go to My Plan and submit a confirmation', 'Include your method, reference, and amount', 'Access is restored once admin approves'].map((step, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
-                            style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', color: 'white' }}>{i + 1}</div>
-                          <p className="text-xs" style={{ color: C.muted }}>{step}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => { sessionStorage.setItem('outstandingModalDismissed', '1'); setShowOutstandingModal(false); goSection('payments'); }}
-                        className="w-full py-3 rounded-lg text-sm font-bold tracking-wide transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: 'white', boxShadow: '0 4px 20px rgba(220,38,38,0.4)' }}>
-                        Make Payment
-                      </button>
-                      <button
-                        onClick={() => { sessionStorage.setItem('outstandingModalDismissed', '1'); setShowOutstandingModal(false); }}
-                        className="w-full py-3 rounded-lg text-sm font-medium tracking-wide transition-all hover:opacity-80 active:scale-95"
-                        style={{ color: C.muted }}>
-                        I Understand
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
+                  </motion.div>
+                </div>
+              );
+            })()}
 
             {/* Section content */}
 
