@@ -1,23 +1,13 @@
 'use client';
 
-import { useEffect, useState, type ComponentType, type CSSProperties } from 'react';
+import { useEffect, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, DARK_C } from '@/lib/theme';
 import {
   BriefcaseBusiness, Download, FileUser, Globe, GraduationCap, HelpCircle, MousePointerClick,
   Package, Plus, Puzzle, RefreshCw, Search, SlidersHorizontal, Terminal, Upload, X,
 } from 'lucide-react';
-import { downloadPortfolioPack } from '@/lib/student-portfolio-download';
-
-// LinkedIn's brand mark (filled). lucide's stroked glyph reads thin next to a
-// recognizable logo, so we use the canonical mark already used elsewhere in the app.
-function LinkedInGlyph({ className, style }: { className?: string; style?: CSSProperties }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className} style={style}>
-      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-    </svg>
-  );
-}
+import { LinkedInIcon } from '@/components/LinkedInIcon';
 
 type ToolkitDownload = {
   title: string;
@@ -25,14 +15,13 @@ type ToolkitDownload = {
   command: string;
   endpoint: string;
   filename: string;
-  buttonLabel: string;
-  Icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  Icon: ComponentType<{ className?: string }>;
 };
 
 type HelpStep = {
   title: string;
-  body: string;
-  Icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  body: ReactNode;
+  Icon: ComponentType<{ className?: string }>;
 };
 
 const DOWNLOADS: ToolkitDownload[] = [
@@ -42,7 +31,6 @@ const DOWNLOADS: ToolkitDownload[] = [
     command: '/portfolio-builder',
     endpoint: '/api/portfolio',
     filename: 'portfolio-builder.zip',
-    buttonLabel: 'Download skill',
     Icon: BriefcaseBusiness,
   },
   {
@@ -51,7 +39,6 @@ const DOWNLOADS: ToolkitDownload[] = [
     command: '/ai-transcript',
     endpoint: '/api/transcript',
     filename: 'ai-transcript.zip',
-    buttonLabel: 'Download transcript',
     Icon: GraduationCap,
   },
   {
@@ -60,8 +47,7 @@ const DOWNLOADS: ToolkitDownload[] = [
     command: '/linkedin-builder',
     endpoint: '/api/linkedin',
     filename: 'linkedin-builder.zip',
-    buttonLabel: 'Download skill',
-    Icon: LinkedInGlyph,
+    Icon: LinkedInIcon,
   },
   {
     title: 'Job Search and Apply Kit',
@@ -69,7 +55,6 @@ const DOWNLOADS: ToolkitDownload[] = [
     command: '/job-search',
     endpoint: '/api/job-search',
     filename: 'job-search-kit.zip',
-    buttonLabel: 'Download skill',
     Icon: Search,
   },
   {
@@ -78,7 +63,6 @@ const DOWNLOADS: ToolkitDownload[] = [
     command: '/resume-builder',
     endpoint: '/api/resume',
     filename: 'resume-builder.zip',
-    buttonLabel: 'Download skill',
     Icon: FileUser,
   },
 ];
@@ -86,7 +70,7 @@ const DOWNLOADS: ToolkitDownload[] = [
 const HELP_STEPS: HelpStep[] = [
   {
     title: 'Open Claude.ai',
-    body: 'Go to Claude.ai after downloading your skill zip from this page.',
+    body: <>Go to <a href="https://claude.ai" target="_blank" rel="noreferrer" className="underline font-semibold">claude.ai</a> after downloading your skill zip from this page.</>,
     Icon: Globe,
   },
   {
@@ -144,7 +128,7 @@ const TOOLKIT_STYLES = `
 
 .act-icon { inline-size: 2.7rem; block-size: 2.7rem; border-radius: .8rem; display: grid; place-items: center; flex: none; background: color-mix(in oklab, var(--act-accent) 13%, transparent); color: var(--act-accent); }
 .act-title { font-size: 1.0625rem; font-weight: 650; line-height: 1.25; letter-spacing: -.01em; color: var(--act-text); text-wrap: balance; }
-.act-desc { font-size: .8125rem; line-height: 1.55; color: var(--act-muted); margin: .3rem 0 0; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.act-desc { font-size: .8125rem; line-height: 1.55; color: var(--act-muted); margin: .3rem 0 0; text-wrap: pretty; }
 .act-foot { margin-block-start: auto; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding-block-start: .85rem; border-block-start: 1px solid var(--act-divider); }
 .act-cmd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; padding: .28rem .5rem; border-radius: .5rem; background: var(--act-pill); color: var(--act-muted); }
 .act-go { display: inline-flex; align-items: center; gap: .4rem; font-size: .8125rem; font-weight: 600; color: var(--act-accent); white-space: nowrap; }
@@ -165,7 +149,6 @@ const TOOLKIT_STYLES = `
 .act-modal-body { padding: 1.3rem 1.4rem 1.4rem; }
 .act-steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7rem; }
 .act-step { display: flex; gap: .8rem; align-items: flex-start; padding: .95rem; border-radius: .85rem; background: var(--act-pill); translate: 0 0; transition: background-color .2s ease, translate .2s ease; }
-.act-step:hover { background: color-mix(in oklab, var(--act-pill) 88%, var(--act-accent)); translate: 0 -2px; }
 .act-step-ic { inline-size: 2.3rem; block-size: 2.3rem; border-radius: .65rem; display: grid; place-items: center; flex: none; background: color-mix(in oklab, var(--act-accent) 14%, transparent); color: var(--act-accent); }
 .act-step-ic svg { width: 18px; height: 18px; }
 .act-step-n { font-size: .6rem; font-weight: 700; letter-spacing: .09em; color: var(--act-faint); }
@@ -182,17 +165,12 @@ const TOOLKIT_STYLES = `
 
 @media (prefers-reduced-motion: reduce) {
   .act-card, .act-card::before, .act-go svg, .act-help, .act-step, .act-x { transition: none; }
-  .act-card:hover, .act-card:focus-visible, .act-step:hover { translate: 0 0; }
+  .act-card:hover, .act-card:focus-visible { translate: 0 0; }
   .act-scrim, .act-modal { animation: none; }
 }
 `;
 
 async function downloadPackage(item: ToolkitDownload) {
-  if (item.endpoint === '/api/portfolio') {
-    await downloadPortfolioPack();
-    return;
-  }
-
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = session?.access_token
     ? { Authorization: `Bearer ${session.access_token}` }
@@ -209,13 +187,29 @@ async function downloadPackage(item: ToolkitDownload) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(objectUrl);
+  // Revoked straight after click(), some browsers cancelled the download.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
 export function AiCareerToolkitSection({ C }: { C: typeof LIGHT_C }) {
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // The tools build from finished work; with none, a download is an almost empty skill.
+  const [hasFinishedWork, setHasFinishedWork] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const id = session?.user?.id;
+      if (!id) return;
+      const done = (table: string) => supabase.from(table).select('student_id', { count: 'exact', head: true })
+        .eq('student_id', id).not('completed_at', 'is', null);
+      const [courses, experiences] = await Promise.all([done('course_attempts'), done('guided_project_attempts')]);
+      if (!cancelled && !courses.error && !experiences.error) setHasFinishedWork(((courses.count ?? 0) + (experiences.count ?? 0)) > 0);
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleDownload(item: ToolkitDownload) {
     setActiveDownload(item.filename);
@@ -241,7 +235,6 @@ export function AiCareerToolkitSection({ C }: { C: typeof LIGHT_C }) {
   const themeVars = {
     '--act-accent':       C.cta,
     '--act-card':         C.card,
-    '--page':             C.page,
     '--act-text':         C.text,
     '--act-muted':        C.muted,
     '--act-faint':        C.faint,
@@ -274,6 +267,11 @@ export function AiCareerToolkitSection({ C }: { C: typeof LIGHT_C }) {
       </header>
 
       {error && <div className="act-error" role="alert">{error}</div>}
+      {hasFinishedWork === false && (
+        <div className="act-note" role="status">
+          These tools build from work you have finished. Complete a course or a virtual experience first, then download a tool.
+        </div>
+      )}
 
       <div className="act-grid">
         {DOWNLOADS.map((item) => {
@@ -287,7 +285,6 @@ export function AiCareerToolkitSection({ C }: { C: typeof LIGHT_C }) {
               data-busy={busy ? 'true' : 'false'}
               disabled={!!activeDownload}
               onClick={() => handleDownload(item)}
-              aria-label={`${item.title}: download skill`}
             >
               <span className="act-icon"><Icon className="w-5 h-5" /></span>
               <div>

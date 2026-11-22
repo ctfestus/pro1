@@ -41,7 +41,6 @@ export default function DataPlaygroundPage() {
         <DataPlaygroundGrid
           C={C}
           isDark={isDark}
-          loadingCardCount={6}
           searchMaxWidth={560}
           searchInputShadow
           showDetailCta

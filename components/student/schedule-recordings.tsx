@@ -40,9 +40,7 @@ export function DataCenterSection({ C }: { C: typeof LIGHT_C }) {
       C={C}
       isDark={theme === 'dark'}
       fetchHeaders={getDataCenterAuthHeaders}
-      loadingCardCount={3}
       emptyNoDatasetsMessage="Datasets will appear here once published by instructors."
-      emptyNoMatchMessage="No datasets match your search."
     />
   );
 }

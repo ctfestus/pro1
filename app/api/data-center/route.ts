@@ -19,7 +19,10 @@ function publicClient() {
   return createClient(url, key);
 }
 
-const FIELDS = 'id,title,description,cover_image_url,cover_image_alt,tags,category,sample_questions,sample_question_types,analyst_sections,file_url,file_name,files,row_count,source,source_url,scenario,disclaimer,table_type,sql_workbench_enabled,is_published,created_at,created_by';
+// What a learner or visitor sees. Staff also get the publishing fields their editor needs; the
+// author's id and the draft flag are not for the public grid.
+const PUBLIC_FIELDS = 'id,title,description,cover_image_url,cover_image_alt,tags,category,sample_questions,sample_question_types,analyst_sections,file_url,file_name,files,row_count,source,source_url,scenario,disclaimer,table_type,sql_workbench_enabled,created_at';
+const FIELDS = `${PUBLIC_FIELDS},is_published,created_by`;
 
 async function validateDatasetFileInputs(fileUrl: unknown, files: unknown): Promise<NextResponse | null> {
   const urls: string[] = [];
@@ -53,7 +56,7 @@ export async function GET(req: NextRequest) {
   const db = showAll ? adminClient() : publicClient();
   let query = db
     .from('data_center_datasets')
-    .select(FIELDS)
+    .select(showAll ? FIELDS : PUBLIC_FIELDS)
     .order('created_at', { ascending: false });
 
   if (!showAll) {
