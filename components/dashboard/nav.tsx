@@ -1,41 +1,43 @@
 'use client';
 
+// Phosphor icons: the menu draws them duotone, and solid for the open page.
 import {
-  CalendarDays, Settings, BookOpen, GraduationCap, ClipboardList, Award, Users,
-  Megaphone, Trophy, CheckCircle2, Briefcase, Activity, CreditCard, Palette, Video,
-  PlayCircle, Database, ShieldCheck, Handshake, BadgeDollarSign, FileText, BadgePercent, Mail, Package,
-} from 'lucide-react';
+  PlayCircle, ClipboardText, CalendarDots, UsersThree, Megaphone, SealPercent, Briefcase, SealCheck,
+  Calendar, VideoCamera, Stack, Package, Database, Certificate, Trophy, Medal, ChartLineUp, CheckCircle,
+  Student, CurrencyCircleDollar, GraduationCap, CreditCard, Handshake, FileText, EnvelopeSimple, Palette,
+  Globe, IdentificationBadge,
+} from '@phosphor-icons/react';
 import { LIGHT_C } from '@/lib/theme';
 
 // --- Sidebar navigation ---
 export const NAV_ITEMS = [
-  { id: 'courses',       label: 'Courses',       Icon: Video,         adminOnly: false },
-  { id: 'assignments',   label: 'Assignments',    Icon: ClipboardList, adminOnly: false },
-  { id: 'events',        label: 'Events',         Icon: CalendarDays,  adminOnly: false },
-  { id: 'community',     label: 'Community',      Icon: Users,         adminOnly: false },
+  { id: 'courses',       label: 'Courses',       Icon: PlayCircle,         adminOnly: false },
+  { id: 'assignments',   label: 'Assignments',    Icon: ClipboardText, adminOnly: false },
+  { id: 'events',        label: 'Events',         Icon: CalendarDots,  adminOnly: false },
+  { id: 'community',     label: 'Community',      Icon: UsersThree,         adminOnly: false },
   { id: 'announcements', label: 'Announcements',  Icon: Megaphone,     adminOnly: false },
-  { id: 'promotions',    label: 'Promotions',     Icon: BadgePercent,  adminOnly: false },
+  { id: 'promotions',    label: 'Promotions',     Icon: SealPercent,  adminOnly: false },
   { id: 'virtual_experiences',  label: 'Virtual Experiences',  Icon: Briefcase,   adminOnly: false },
-  { id: 'certifications', label: 'Certifications',  Icon: ShieldCheck,   adminOnly: false },
-  { id: 'schedule',         label: 'Schedule',         Icon: CalendarDays, adminOnly: false },
-  { id: 'recordings',      label: 'Recordings',       Icon: PlayCircle,   adminOnly: false },
-  { id: 'learning_paths', label: 'Learning Paths',  Icon: BookOpen,      adminOnly: false },
+  { id: 'certifications', label: 'Certifications',  Icon: SealCheck,   adminOnly: false },
+  { id: 'schedule',         label: 'Schedule',         Icon: Calendar, adminOnly: false },
+  { id: 'recordings',      label: 'Recordings',       Icon: VideoCamera,   adminOnly: false },
+  { id: 'learning_paths', label: 'Learning Paths',  Icon: Stack,      adminOnly: false },
   { id: 'products',      label: 'Digital Products',          Icon: Package,       adminOnly: false },
   { id: 'data_center',   label: 'Data Playground', Icon: Database,      adminOnly: false },
-  { id: 'certificates',  label: 'Certificates',   Icon: Award,         adminOnly: false },
+  { id: 'certificates',  label: 'Certificates',   Icon: Certificate,         adminOnly: false },
   { id: 'leaderboard',   label: 'Leaderboard',    Icon: Trophy,        adminOnly: false },
-  { id: 'badges',        label: 'Badges',         Icon: Award,         adminOnly: false },
-  { id: 'tracking',      label: 'Tracking',       Icon: Activity,      adminOnly: false },
-  { id: 'attendance',    label: 'Live Sessions',  Icon: CheckCircle2,  adminOnly: false },
-  { id: 'students',      label: 'Students',       Icon: Users,         adminOnly: false },
-  { id: 'subscriptions', label: 'Subscriptions',  Icon: BadgeDollarSign, adminOnly: false },
+  { id: 'badges',        label: 'Badges',         Icon: Medal,         adminOnly: false },
+  { id: 'tracking',      label: 'Tracking',       Icon: ChartLineUp,      adminOnly: false },
+  { id: 'attendance',    label: 'Live Sessions',  Icon: CheckCircle,  adminOnly: false },
+  { id: 'students',      label: 'Students',       Icon: Student,         adminOnly: false },
+  { id: 'subscriptions', label: 'Subscriptions',  Icon: CurrencyCircleDollar, adminOnly: false },
   { id: 'cohorts',       label: 'Cohorts',        Icon: GraduationCap, adminOnly: false },
   { id: 'payments',      label: 'Payments',       Icon: CreditCard,    adminOnly: false },
   { id: 'partners',      label: 'Partners',       Icon: Handshake,     adminOnly: false },
   { id: 'applications',  label: 'Applications',   Icon: FileText,      adminOnly: false },
-  { id: 'email_templates', label: 'Email Templates', Icon: Mail,       adminOnly: false },
+  { id: 'email_templates', label: 'Email Templates', Icon: EnvelopeSimple,       adminOnly: false },
   { id: 'branding',      label: 'Platform',       Icon: Palette,       adminOnly: false },
-  { id: 'site',          label: 'Site',           Icon: Settings,      adminOnly: false },
+  { id: 'site',          label: 'Site',           Icon: Globe,      adminOnly: false },
 ] as const;
 export type SectionId = typeof NAV_ITEMS[number]['id'];
 export const STAFF_SECTION_IDS = new Set<SectionId>(['events', 'recordings', 'tracking', 'cohorts', 'applications']);
@@ -52,7 +54,7 @@ export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
 // External-page nav links (rendered with same styling as NAV_ITEMS but as <Link> elements)
 export const NAV_LINK_GROUPS = [
   { label: 'Credentials', items: [
-    { id: 'open_certificates', label: 'Open Certificates', Icon: Award, href: '/admin/open-certificates' },
+    { id: 'open_certificates', label: 'Open Certificates', Icon: IdentificationBadge, href: '/admin/open-certificates' },
   ]},
 ] as const;
 

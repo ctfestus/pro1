@@ -3,33 +3,34 @@
 // and sections that navigate (e.g. OverviewSection's onNavigate), so SectionId has a single
 // source of truth that lives outside the route file.
 
+// Phosphor icons: the menu draws them duotone, and solid for the open page.
 import {
-  LayoutDashboard, Film, Layers, Briefcase, Database, CalendarDays, ClipboardList,
-  CalendarCheck, Users, Megaphone, Calendar, Video, Trophy, Award, Medal, CreditCard,
-  Sparkles, ShieldCheck, Compass, Route, Package,
-} from 'lucide-react';
+  SquaresFour, PlayCircle, Stack, Briefcase, Database, CalendarDots, ClipboardText,
+  CalendarCheck, UsersThree, Megaphone, Calendar, VideoCamera, Trophy, Certificate, Medal, CreditCard,
+  Sparkle, SealCheck, Compass, Path, Package,
+} from '@phosphor-icons/react';
 
 export const NAV_ITEMS = [
-  { id: 'overview',          label: 'Dashboard',           Icon: LayoutDashboard },
-  { id: 'my_program',        label: 'My Bootcamp',         Icon: Route           },
-  { id: 'courses',           label: 'My Learning',         Icon: Film            },
-  { id: 'learning_paths',    label: 'Learning Paths',      Icon: Layers          },
+  { id: 'overview',          label: 'Dashboard',           Icon: SquaresFour },
+  { id: 'my_program',        label: 'My Bootcamp',         Icon: Path           },
+  { id: 'courses',           label: 'My Learning',         Icon: PlayCircle            },
+  { id: 'learning_paths',    label: 'Learning Paths',      Icon: Stack          },
   { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase     },
-  { id: 'certifications',    label: 'Certifications',       Icon: ShieldCheck     },
+  { id: 'certifications',    label: 'Certifications',       Icon: SealCheck     },
   { id: 'explore',           label: 'Explore',             Icon: Compass         },
   { id: 'data_center',       label: 'Data Playground',      Icon: Database        },
   { id: 'products',          label: 'My Products',            Icon: Package         },
-  { id: 'events',            label: 'Live Sessions',        Icon: CalendarDays    },
-  { id: 'assignments',       label: 'Assignments',         Icon: ClipboardList   },
+  { id: 'events',            label: 'Live Sessions',        Icon: CalendarDots    },
+  { id: 'assignments',       label: 'Assignments',         Icon: ClipboardText   },
   { id: 'calendar',          label: 'Calendar',            Icon: CalendarCheck   },
-  { id: 'community',         label: 'Community',           Icon: Users           },
+  { id: 'community',         label: 'Community',           Icon: UsersThree           },
   { id: 'announcements',     label: 'Tech Blog',            Icon: Megaphone       },
   { id: 'schedule',          label: 'Schedule',            Icon: Calendar        },
-  { id: 'recordings',       label: 'Recordings',          Icon: Video           },
+  { id: 'recordings',       label: 'Recordings',          Icon: VideoCamera           },
   { id: 'leaderboard',       label: 'Leaderboard',         Icon: Trophy          },
-  { id: 'certificates',      label: 'My Certificates',     Icon: Award           },
+  { id: 'certificates',      label: 'My Certificates',     Icon: Certificate           },
   { id: 'badges',            label: 'Badges',              Icon: Medal           },
-  { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkles        },
+  { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkle        },
   { id: 'payments',          label: 'My Plan',             Icon: CreditCard      },
 ] as const;
 export type SectionId = typeof NAV_ITEMS[number]['id'];

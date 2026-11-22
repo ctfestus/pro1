@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback, useRef, useMemo, type ReactNode } fro
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Settings, Sun, Moon, Menu, X,
+  Sun, Moon, Menu, X,
   AlertTriangle,
-  Loader2, ChevronRight, ChevronLeft,
+  Loader2, ArrowLeftToLine, ArrowRightToLine,
   FileText, Search,
   Zap, RefreshCw,
   Check,
@@ -21,6 +21,7 @@ import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar } from '@/components/student/shared';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
+import { GearSix } from '@phosphor-icons/react';
 import { OverviewSection } from '@/components/student/overview';
 import {
   type CohortTimeline,
@@ -121,9 +122,9 @@ export default function StudentDashboard() {
   const C = useC();
   const { toggle: toggleTheme, theme } = useTheme();
   const { logoUrl, logoDarkUrl, emailBannerUrl, appName } = useTenant();
-  // Dark mode keeps the ocean accent; light mode uses the tenant's primary color.
-  // The selected menu item: the ocean blue in both themes (the tenant's deep primary read too heavy).
-  const navAccent = '#3E93FF';
+  // The menu marks the open page with a grey row and dark text, and a lighter grey on hover.
+  const navSelected = theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E8EBF0';
+  const navHover    = theme === 'dark' ? 'rgba(255,255,255,0.04)' : '#F1F3F6';
   const router = useRouter();
   const [user, setUser]       = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -580,88 +581,82 @@ export default function StudentDashboard() {
         {/* -- Sidebar -- */}
         <AnimatePresence>
           {(sidebarOpen || true) && (
+            <div className="relative flex-shrink-0">
             <motion.aside
               initial={false}
-              animate={{ width: navCollapsed ? 56 : 220 }}
+              animate={{ width: navCollapsed ? 72 : 264 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className={`fixed lg:static inset-y-0 left-0 z-40 lg:z-auto flex flex-col overflow-hidden transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-              style={{ background: C.nav, top: 57 }}>
-              {/* Nav items + collapse toggle share the same scroll area */}
-              <nav className="flex-1 px-2 pt-1 pb-2 space-y-0.5 overflow-y-auto overflow-x-hidden sidebar-nav">
-                {/* Collapse toggle as first row -- desktop only */}
-                <div className="hidden lg:flex pb-0.5" style={{ justifyContent: navCollapsed ? 'center' : 'flex-end' }}>
-                  <button
-                    onClick={() => setNavCollapsed(o => !o)}
-                    className="p-2 rounded-lg transition-all"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.pill; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                    {navCollapsed
-                      ? <ChevronRight className="w-4 h-4" style={{ color: C.faint }}/>
-                      : <ChevronLeft className="w-4 h-4" style={{ color: C.faint }}/>}
-                  </button>
-                </div>
-                {NAV_GROUPS.map(group => {
+              className={`fixed lg:static inset-y-0 left-0 z-40 lg:z-auto lg:h-full flex flex-col overflow-hidden transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+              style={{ background: C.nav, top: 57, borderRight: `1px solid ${C.divider}` }}>
+              {/* Plain icons on slim rows: the open page is a grey row with dark text, a hovered one a
+                  lighter grey. Collapsed, the rows are icon squares with the name as a tooltip. */}
+              <nav className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-3 sidebar-nav" aria-label="Student menu">
+                {NAV_GROUPS.map((group, groupIdx) => {
                   const groupItems = group.items
                     .map(id => NAV_ITEMS.find(n => n.id === id)!)
                     .filter(Boolean)
                     .filter(item => isSectionVisibleForStudent(item.id, showExplore, showCohortActivities));
                   if (groupItems.length === 0) return null;
                   return (
-                    <div key={group.label} className={navCollapsed ? '' : 'mb-3'}>
-                      {!navCollapsed && group.label && (
-                        <p className="px-3 mb-1 text-[11px] font-semibold tracking-widest uppercase"
-                          style={{ color: C.faint }}>
-                          {group.label}
-                        </p>
+                    <div key={group.label}>
+                      {/* Each group after the first opens with a line, then its heading. */}
+                      {groupIdx > 0 && <div className={`my-4 h-px ${navCollapsed ? 'mx-auto w-8' : ''}`} style={{ background: C.divider }} />}
+                      {group.label && !navCollapsed && (
+                        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-[0.06em]" style={{ color: C.faint }}>{group.label}</p>
                       )}
-                      {groupItems.map(item => {
-                        const isActive = item.id === 'courses'
-                          ? isMyLearning
-                          : activeSection === item.id;
-                        return (
-                          <button key={item.id}
-                            onClick={() => { goSection(item.id); setSidebarOpen(false); }}
-                            title={navCollapsed ? item.label : undefined}
-                            className="w-full flex items-center gap-3 rounded-xl text-sm font-normal transition-all text-left"
-                            style={{
-                              padding: navCollapsed ? '10px 0' : '8px 12px',
-                              justifyContent: navCollapsed ? 'center' : 'flex-start',
-                              color: isActive ? navAccent : C.muted,
-                            }}
-                            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = C.text; }}
-                            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.color = C.muted; }}>
-                            <div className="relative w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-                              style={{ background: isActive ? `${navAccent}18` : C.pill }}>
-                              <item.Icon className="w-4 h-4" style={{ color: isActive ? navAccent : theme === 'dark' ? 'rgba(255,255,255,0.35)' : '#9ca3af' }}/>
-                            </div>
-                            {!navCollapsed && <span className="truncate">{item.label}</span>}
-                          </button>
-                        );
-                      })}
+                      <div className="flex flex-col gap-1">
+                        {groupItems.map(item => {
+                          const isActive = item.id === 'courses' ? isMyLearning : activeSection === item.id;
+                          return (
+                            <button key={item.id} type="button"
+                              onClick={() => { goSection(item.id); setSidebarOpen(false); }}
+                              title={navCollapsed ? item.label : undefined}
+                              aria-current={isActive ? 'page' : undefined}
+                              className={`flex h-10 items-center gap-3.5 rounded-xl text-left text-[15px] transition-colors ${navCollapsed ? 'mx-auto w-10 justify-center' : 'w-full px-3'} ${isActive ? 'font-semibold' : 'font-medium'}`}
+                              style={{ color: isActive ? C.text : C.muted, background: isActive ? navSelected : 'transparent' }}
+                              onMouseEnter={e => { if (!isActive) { const el = e.currentTarget as HTMLElement; el.style.color = C.text; el.style.background = navHover; } }}
+                              onMouseLeave={e => { if (!isActive) { const el = e.currentTarget as HTMLElement; el.style.color = C.muted; el.style.background = 'transparent'; } }}>
+                              <item.Icon size={20} weight={isActive ? 'fill' : 'duotone'} className="flex-shrink-0" />
+                              {!navCollapsed && <span className="truncate">{item.label}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
               </nav>
 
-              {/* Sidebar footer */}
-              <div className="px-2 pb-3 pt-2 border-t space-y-0.5" style={{ borderColor: C.divider }}>
-                {!navCollapsed && !viewingAs && (
-                  <Link href="/settings"
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-normal transition-all"
+              {/* Settings at the foot of the menu. */}
+              {!viewingAs && (
+                <div className="px-4 py-3" style={{ borderTop: `1px solid ${C.divider}` }}>
+                  <Link href="/settings" title={navCollapsed ? 'Settings' : undefined}
+                    className={`flex h-10 items-center gap-3.5 rounded-xl text-[15px] font-medium transition-colors ${navCollapsed ? 'mx-auto w-10 justify-center' : 'w-full px-3'}`}
                     style={{ color: C.muted }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = C.text; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = C.muted; }}>
-                    <Settings className="w-4 h-4 flex-shrink-0" style={{ color: theme === 'dark' ? 'rgba(255,255,255,0.35)' : '#9ca3af' }}/> Settings
+                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.color = C.text; el.style.background = navHover; }}
+                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.color = C.muted; el.style.background = 'transparent'; }}>
+                    <GearSix size={20} weight="duotone" className="flex-shrink-0" />
+                    {!navCollapsed && 'Settings'}
                   </Link>
-                )}
-              </div>
+                </div>
+              )}
             </motion.aside>
+            {/* The fold control: a square tab straddling the menu's right edge just above Settings,
+                always in reach and taking no row in the menu (desktop only). */}
+            <button type="button" onClick={() => setNavCollapsed(o => !o)}
+              aria-label={navCollapsed ? 'Expand menu' : 'Collapse menu'} title={navCollapsed ? 'Expand menu' : 'Collapse menu'}
+              className="absolute bottom-[72px] z-10 hidden h-11 w-9 place-items-center transition-colors lg:grid"
+              style={{ left: 'calc(100% - 18px)', background: C.nav, color: C.text }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = navHover; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = C.nav; }}>
+              {navCollapsed ? <ArrowRightToLine className="h-5 w-5" /> : <ArrowLeftToLine className="h-5 w-5" />}
+            </button>
+            </div>
           )}
         </AnimatePresence>
 
         {/* -- Main content -- */}
-        <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
+        <main className="flex-1 min-w-0 overflow-y-auto px-5 py-7 md:px-8 lg:px-12" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
           {hasBootcampCohort && effectiveId && <NextSessionBanner userId={effectiveId} C={C}/>}
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {/* Section header: the menu name and one line. Hidden on overview (its own greeting), my
