@@ -1,169 +1,54 @@
 'use client';
 
-// Student-facing certifications listing. Shows the published certifications assigned to the
-// student's cohort, with their attempt status (Start / Continue / Review). Taking one opens the
-// full-screen CertificationTaker at /{slug}.
+// Certifications: where the student stands (earned, in progress, available), the catalog grouped
+// by type as cards with one action each, how it works in three steps, and the learning paths to
+// prepare with. Taking one opens the full-screen CertificationTaker at /{slug}. Icons are Phosphor.
 
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C, DARK_C } from '@/lib/theme';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { CertificationType } from '@/lib/course-schema';
-import { EmptyState, HoverPreviewCard } from '@/components/student/shared';
-import { useHoverPreview } from '@/lib/use-hover-preview';
-import { CertificationQuestionView, CertificationResultSummary } from '@/components/CertificationTaker';
-import { ShieldCheck, Clock, CheckCircle, Award, Briefcase, Code2, ArrowUpRight, BookOpenCheck, BadgeCheck, Share2, FileCheck2, X, ChevronLeft, ChevronRight, BookOpen, ArrowRight, RefreshCw } from 'lucide-react';
+import { EmptyState, Sk } from '@/components/student/shared';
+import { FRAMED_CARD } from '@/components/CardMeta';
+import { DISPLAY_FONT, Pill, btnClass, btnStyle, type Tone } from '@/components/dashboard/subscriptions/ui';
+import { LearningCardsSkeleton } from '@/components/student/learning-card';
+import { ArrowClockwise, BookOpen, Certificate, Clock, Exam, SealCheck, Target } from '@phosphor-icons/react';
 import { toPlainText } from '@/lib/plain-text';
 
-const softSurface = (C: typeof LIGHT_C, shadow = '0 12px 36px rgba(15,23,42,0.08)') => ({
-  background: C.card,
-  border: 'none',
-  boxShadow: C.page === DARK_C.page ? 'none' : shadow,
-});
+const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)]';
+const GRID = 'grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6';
 
-function CredentialSeal({ cert, C, size = 132 }: { cert: any; C: typeof LIGHT_C; size?: number }) {
+/** The certification's badge, or a seal, in a ringed circle: each card's picture. */
+function CredentialSeal({ cert, C }: { cert: any; C: typeof LIGHT_C }) {
+  const [broken, setBroken] = useState(false);
   return (
-    <div className="relative grid shrink-0 place-items-center rounded-full" style={{ width: size, height: size, border: C.page === DARK_C.page ? 'none' : `1px solid ${C.inputBorder}`, background: C.card, boxShadow: C.cardShadow }}>
-      <div className="absolute inset-[9%] rounded-full" style={{ border: `2px dotted ${C.green}66` }} />
-      <div className="absolute inset-[17%] rounded-full" style={{ border: `1.5px solid ${C.green}` }} />
-      {cert?.badge_image_url
-        ? <img src={resolveCoverUrl(cert.badge_image_url)} alt="" className="relative z-10 h-[62%] w-[62%] object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
-        : <div className="relative z-10 grid h-[48%] w-[48%] place-items-center rounded-full" style={{ background: `${C.green}14`, color: C.green }}><ShieldCheck className="h-[56%] w-[56%]" /></div>}
-      <span className="absolute bottom-[13%] z-20 rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.14em]" style={{ background: C.green, color: '#fff' }}>Certified</span>
+    <span className="grid h-24 w-24 place-items-center rounded-full"
+      style={{ background: C.card, boxShadow: '0 0 0 8px color-mix(in srgb, #16a34a 10%, transparent)', color: '#16a34a' }}>
+      {cert?.badge_image_url && !broken
+        ? <img src={resolveCoverUrl(cert.badge_image_url)} alt="" onError={() => setBroken(true)} className="h-16 w-16 object-contain"/>
+        : <SealCheck size={44} weight="duotone"/>}
+    </span>
+  );
+}
+
+function Stat({ value, label, sub, C }: { value: React.ReactNode; label: string; sub?: string; C: typeof LIGHT_C }) {
+  return (
+    <div className={`min-w-0 rounded-2xl px-4 py-3.5 ${CARD_SHADOW}`} style={{ background: C.card }}>
+      <div className="truncate text-[22px] font-semibold leading-8 sm:text-[26px]" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{value}</div>
+      <p className="mt-1 text-[13px] font-semibold" style={{ color: C.text }}>{label}</p>
+      {sub && <p className="mt-0.5 truncate text-xs" style={{ color: C.muted }}>{sub}</p>}
     </div>
   );
 }
 
-const examPreviewTheme = (C: typeof LIGHT_C) => C.page === DARK_C.page
-  ? { bg: '#17181E', card: '#1E1F26', cardHover: '#23242c', border: 'rgba(255,255,255,0.10)', text: '#f0f0f0', muted: '#8a8a93', track: 'rgba(255,255,255,0.08)' }
-  : { bg: '#ffffff', card: '#ffffff', cardHover: '#f8fafc', border: 'rgba(15,23,42,0.09)', text: '#111827', muted: '#667085', track: '#e9eef5' };
+const STEPS = [
+  { Icon: BookOpen, title: 'Prepare', body: 'Study with your courses and the learning paths below.' },
+  { Icon: Exam, title: 'Pass the exam', body: 'Reach the pass mark within the time and attempts shown. One exam at a time.' },
+  { Icon: Certificate, title: 'Get your credential', body: 'A certificate and badge you can download and add to LinkedIn.' },
+];
 
-function QuestionTypesPreview({ C }: { C: typeof LIGHT_C }) {
-  const previewTheme = examPreviewTheme(C);
-  const sample = { id: 'preview-mc', type: 'multiple_choice', question: 'Which approach best validates a model before deployment?', options: ['Test against representative data', 'Use only training accuracy', 'Skip edge-case testing'], correctAnswer: 'Test against representative data' };
-  const [answer, setAnswer] = useState('');
-  return (
-    <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl" style={{ background: previewTheme.bg, border: 'none', boxShadow: C.page === DARK_C.page ? 'none' : '0 14px 40px rgba(15,23,42,0.10)' }}>
-      <div className="grid grid-cols-[28px_minmax(0,1fr)_64px] items-center gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_72px]" style={{ background: previewTheme.bg }}>
-        <span className="grid h-7 w-7 place-items-center rounded-full" style={{ background: previewTheme.track, color: previewTheme.muted }} aria-hidden="true"><X className="h-3.5 w-3.5" /></span>
-        <div className="min-w-0">
-          <div className="mb-1.5 flex items-center justify-between text-[9px] font-bold" style={{ color: previewTheme.muted }}><span>Question 2 of 10</span><span>20%</span></div>
-          <div className="h-1.5 overflow-hidden rounded-full" style={{ background: previewTheme.track }}><div className="h-full w-[20%] rounded-full" style={{ background: C.green }} /></div>
-        </div>
-        <span className="flex items-center justify-end gap-1 text-[10px] font-bold tabular-nums" style={{ color: previewTheme.muted }}><Clock className="h-3.5 w-3.5" />04:18</span>
-      </div>
-      <div className="mx-auto max-w-xl p-4 sm:p-5"><CertificationQuestionView q={sample} qType="multiple_choice" value={answer} onChange={setAnswer} t={previewTheme} accentColor={C.green} sharedPlayground={{}} /></div>
-    </div>
-  );
-}
-
-function ResultPreview({ C }: { C: typeof LIGHT_C }) {
-  const previewTheme = examPreviewTheme(C);
-  if (C.card) {
-    return (
-      <div className="mx-auto max-w-xl rounded-2xl p-4 text-center sm:p-5" style={{ background: previewTheme.bg, border: 'none', color: previewTheme.text, boxShadow: C.page === DARK_C.page ? 'none' : '0 14px 40px rgba(15,23,42,0.10)' }}>
-        <CertificationResultSummary compact result={{ score: 86, passed: true, correctQuestions: 17, totalQuestions: 20, skills: [{ id: 'analysis', name: 'Analysis', correct: 11, total: 12, pct: 92 }, { id: 'application', name: 'Application', correct: 5, total: 6, pct: 83 }, { id: 'judgement', name: 'Judgement', correct: 1, total: 2, pct: 50 }] }} passmark={70} theme={previewTheme} accentColor={C.green} />
-      </div>
-    );
-  }
-  return (
-    <div className="overflow-hidden rounded-xl border" style={{ background: C.page, borderColor: C.inputBorder, boxShadow: C.cardShadow }}>
-      <div className="flex items-center justify-between border-b px-3 py-2" style={{ borderColor: C.inputBorder, background: C.card }}>
-        <span className="flex gap-1.5" aria-hidden="true"><span className="h-2 w-2 rounded-full bg-rose-400"/><span className="h-2 w-2 rounded-full bg-amber-400"/><span className="h-2 w-2 rounded-full bg-emerald-400"/></span>
-        <span className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: C.faint }}>Results</span><BadgeCheck className="h-3.5 w-3.5" style={{ color: C.green }} />
-      </div>
-      <div className="grid grid-cols-[88px_1fr] gap-3 p-3.5">
-        <div className="grid aspect-square place-items-center rounded-full" style={{ background: `conic-gradient(${C.green} 0 86%, ${C.pill} 86% 100%)` }}>
-          <div className="grid h-[72%] w-[72%] place-items-center rounded-full text-center" style={{ background: C.page }}><span><strong className="block text-lg leading-none" style={{ color: C.text }}>86%</strong><small className="text-[7px] font-bold uppercase" style={{ color: C.green }}>Passed</small></span></div>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold" style={{ color: C.text }}>Certification passed</p>
-          <p className="mt-0.5 text-[8px]" style={{ color: C.muted }}>Your strongest skill areas</p>
-          <div className="mt-2 space-y-2">
-            {[['Analysis', 92], ['Application', 81], ['Judgement', 76]].map(([label, score]) => <div key={String(label)}><div className="mb-0.5 flex justify-between text-[7px]" style={{ color: C.muted }}><span>{label}</span><span>{score}%</span></div><div className="h-1 rounded-full" style={{ background: C.pill }}><div className="h-full rounded-full" style={{ width: `${score}%`, background: C.green }} /></div></div>)}
-          </div>
-        </div>
-      </div>
-      <div className="mx-3.5 mb-3.5 flex items-center justify-between rounded-lg px-2.5 py-2 text-[8px] font-bold" style={{ background: `${C.green}10`, color: C.green }}><span>Credential unlocked</span><span>View certificate →</span></div>
-    </div>
-  );
-}
-
-function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (direction: number) => scrollRef.current?.scrollBy({ left: direction * 380, behavior: 'smooth' });
-  const { hover, open: openHover, scheduleClose, cancelClose } = useHoverPreview<any>();
-  const isDark = C.page === DARK_C.page;
-  return (
-    <>
-    <section className="relative overflow-hidden rounded-2xl p-5 sm:p-6" style={{ ...softSurface(C, '0 14px 40px rgba(15,23,42,0.10)'), background: isDark ? '#23242c' : C.card }} aria-label="Published learning paths">
-      <div className="relative">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h4 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: C.text }}>Learning Paths</h4>
-            <p className="mt-1.5 max-w-xl text-xs leading-relaxed sm:text-sm" style={{ color: C.muted }}>Launch your career in tech with curated courses, virtual experiences and guided projects.</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={() => scrollByCards(-1)} aria-label="Scroll learning paths left" className="grid h-9 w-9 place-items-center rounded-full border transition-all hover:scale-105 active:scale-95" style={{ borderColor: C.cardBorder, color: C.muted, background: C.card }}><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" onClick={() => scrollByCards(1)} aria-label="Scroll learning paths right" className="grid h-9 w-9 place-items-center rounded-full border transition-all hover:scale-105 active:scale-95" style={{ borderColor: C.cardBorder, color: C.muted, background: C.card }}><ChevronRight className="h-4 w-4" /></button>
-          </div>
-        </div>
-        <div ref={scrollRef} className="flex snap-x flex-nowrap gap-4 overflow-x-auto pb-2 pt-5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
-          {paths.map((path) => (
-            <div key={path.id} className="group w-[220px] shrink-0 snap-start sm:w-[260px]" onMouseEnter={(event) => openHover(path, event.currentTarget, { height: 420 })} onMouseLeave={scheduleClose}>
-              <div className="relative aspect-video w-full overflow-hidden rounded-xl transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.65)]" style={{ background: path.imageUrl ? '#0b0b0d' : 'transparent' }}>
-                {path.imageUrl
-                  ? <img src={path.imageUrl} alt={path.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
-                  : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 transition-transform duration-500 group-hover:scale-[1.07]"><BookOpen className="h-8 w-8 text-white/70" /></div>}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/45 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                <div className="pointer-events-none absolute bottom-2 right-2 grid h-8 w-8 translate-y-1.5 place-items-center rounded-full bg-white text-slate-900 opacity-0 shadow-md transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"><ArrowRight className="h-4 w-4" /></div>
-              </div>
-              <p className="mt-2.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
-              {toPlainText(path.description) && <p className="mt-1 line-clamp-1 text-[11px]" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
-            </div>
-          ))}
-          {!paths.length && (
-            <div className="flex min-h-36 w-full items-center justify-center rounded-xl px-5 text-center text-sm" style={{ background: C.page, color: C.muted }}>Published learning paths will appear here.</div>
-          )}
-        </div>
-      </div>
-    </section>
-    {typeof document !== 'undefined' && createPortal(
-      <AnimatePresence>
-      {hover && (
-      <HoverPreviewCard key={hover.item.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} width={hover.width} onEnter={cancelClose} onLeave={scheduleClose}>
-        <div className="overflow-hidden rounded-2xl" style={{ background: C.card, boxShadow: isDark ? '0 18px 55px rgba(0,0,0,0.38)' : '0 16px 44px rgba(15,23,42,0.14)' }}>
-          <div className="p-4 pb-0">
-            <span className="mb-2 inline-block rounded-md bg-[#FF9933] px-2 py-0.5 text-[10px] font-bold text-white">Learning Path</span>
-            <h5 className="line-clamp-2 text-lg font-bold leading-snug" style={{ color: C.text }}>{hover.item.title}</h5>
-            {hover.item.description && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed" style={{ color: C.muted }}>{hover.item.description}</p>}
-          </div>
-          <div className="p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>{hover.item.pathCourses.length} item{hover.item.pathCourses.length === 1 ? '' : 's'} in this path</p>
-            <div className="flex flex-wrap gap-2.5">
-              {hover.item.pathCourses.slice(0, 4).map((item: any) => (
-                <div key={`${item.type}-${item.id}`} className="w-[110px] shrink-0">
-                  <div className="mb-1.5 flex aspect-video items-center justify-center overflow-hidden rounded-lg" style={{ background: isDark ? C.pill : '#F0F6FF' }}>
-                    {item.imageUrl ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" /> : <BookOpen className="h-5 w-5 text-[#9CA3AF]" />}
-                  </div>
-                  <p className="line-clamp-2 text-[11px] font-medium leading-snug" style={{ color: C.text }}>{item.title}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </HoverPreviewCard>
-      )}
-      </AnimatePresence>,
-      document.body,
-    )}
-    </>
-  );
-}
-
-export function CertificationsSection({ userId, userEmail, C }: { userId: string; userEmail?: string; C: typeof LIGHT_C }) {
+export function CertificationsSection({ userId, C }: { userId: string; userEmail?: string; C: typeof LIGHT_C }) {
   const [items, setItems] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<Record<string, { passed: boolean; inProgress: boolean; score: number }>>({});
   // The certification the student is currently "enrolled" in: one they have attempted but not passed
@@ -230,193 +115,140 @@ export function CertificationsSection({ userId, userEmail, C }: { userId: string
   }, [userId, reloadKey]);
 
   if (loading) return (
-    <div className="space-y-10">
-      <div className="rounded-[28px] p-7 sm:p-12" style={{ background: C.card }}>
-        <div className="h-4 w-52 rounded animate-pulse" style={{ background: C.skeleton }} />
-        <div className="mt-5 h-12 w-[560px] max-w-full rounded-xl animate-pulse" style={{ background: C.skeleton }} />
-        <div className="mt-4 h-5 w-[620px] max-w-full rounded animate-pulse" style={{ background: C.skeleton }} />
+    <div className="space-y-6" aria-busy="true">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {[0, 1, 2].map(i => (
+          <div key={i} className={`space-y-2 rounded-2xl px-4 py-3.5 ${CARD_SHADOW}`} style={{ background: C.card }}><Sk w={60} h={26}/><Sk w={100} h={12}/><Sk w={130} h={10}/></div>
+        ))}
       </div>
-      <div className="flex gap-4 overflow-hidden">
-        {[...Array(3)].map((_, i) => <div key={i} className="h-[390px] min-w-[300px] flex-1 rounded-2xl animate-pulse" style={{ background: C.card }} />)}
-      </div>
+      <Sk w={200} h={16}/>
+      <LearningCardsSkeleton C={C} bar={false}/>
     </div>
   );
   if (loadError) return (
-    <EmptyState icon={RefreshCw} title="Could not load certifications" body="Check your connection and try again."
-      action={<button type="button" onClick={() => setReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-3 rounded-xl"
-        style={{ background: C.cta, color: C.ctaText }}>Try again</button>} />
+    <EmptyState icon={ArrowClockwise} title="Could not load certifications" body="Check your connection and try again."
+      action={<button type="button" onClick={() => setReloadKey(k => k + 1)} className={btnClass}
+        style={{ background: DARK_C.cta, color: '#ffffff' }}>Try again</button>} />
   );
 
-  if (!items.length) return <EmptyState icon={ShieldCheck} title="No certifications yet" body="Published certifications available to you will appear here." />;
+  if (!items.length) return <EmptyState icon={SealCheck} title="No certifications yet" body="Published certifications available to you will appear here." />;
 
-  // One certification card. Extracted so both type groups render identical cards.
-  const renderCard = (cert: any, i: number) => {
+  // One certification card: its seal, rules, a status and one action.
+  const renderCard = (cert: any) => {
     const st = attempts[cert.id];
-    const label = st?.passed ? 'View result' : st?.inProgress ? 'Continue' : 'Start exam';
+    const href = `/${cert.slug || cert.id}`;
     // Locked to a Switch while the student is enrolled in a DIFFERENT exam (in progress or failed),
     // mirroring the server's one-at-a-time rule so a quit/fail cannot silently unlock the others.
     const lockedByOther = !!enrolledId && enrolledId !== cert.id && !st?.passed;
+    const status: { label: string; tone: Tone } = st?.passed ? { label: `Earned, ${st.score}%`, tone: 'good' }
+      : st?.inProgress ? { label: 'In progress', tone: 'warn' }
+      : enrolledId === cert.id ? { label: 'Not passed yet', tone: 'bad' }
+      : { label: 'Not started', tone: 'mute' };
+    const action = lockedByOther ? { label: 'Switch to this exam', primary: false }
+      : st?.passed ? { label: 'View result', primary: false }
+      : st?.inProgress ? { label: 'Continue', primary: true }
+      : enrolledId === cert.id ? { label: 'Retake', primary: true }
+      : { label: 'Start exam', primary: true };
     return (
-      <motion.div key={cert.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-        whileHover={{ y: -5 }} className="group relative flex min-h-[410px] w-[86vw] max-w-[360px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border p-5 sm:w-[340px]" style={softSurface(C, '0 7px 24px rgba(15,23,42,0.075), 0 2px 8px rgba(15,23,42,0.035)')}>
-        <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}>{st?.passed ? 'Credential earned' : st?.inProgress ? 'In progress' : 'Details'}</span>
-          <a href={`/${cert.slug || cert.id}`} aria-label={`Open ${cert.title}`} className="grid h-9 w-9 place-items-center rounded-full transition-transform group-hover:rotate-6" style={{ background: C.pill, color: C.text }}><ArrowUpRight className="h-4 w-4" /></a>
-        </div>
-        <div className="flex flex-1 items-center justify-center py-7">
-          <CredentialSeal cert={cert} C={C} size={154} />
-        </div>
-        {st?.passed && (
-          <span className="absolute left-1/2 top-[205px] -translate-x-1/2 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1" style={{ background: `${C.green}16`, color: C.green }}>
-            <CheckCircle className="w-3 h-3" /> Passed
-          </span>
-        )}
-        <div className="flex flex-col">
-          <div className="min-w-0">
-            <h3 className="text-lg font-bold leading-tight line-clamp-2" style={{ color: C.text }}>{cert.title}</h3>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-2" style={{ color: C.faint }}>
-              <span>Pass {cert.passmark ?? 70}%</span>
-              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{cert.time_limit ? `${cert.time_limit}m` : 'Untimed'}</span>
-            </div>
+      <div key={cert.id} className={FRAMED_CARD} style={{ background: C.card, cursor: 'default' }}>
+        <a href={href} aria-label={`Open ${cert.title}`} className="grid aspect-video w-full place-items-center" style={{ background: C.pill }}>
+          <CredentialSeal cert={cert} C={C}/>
+        </a>
+        <div className="flex flex-1 flex-col gap-3.5 px-3 pb-3.5 pt-2.5 sm:px-4 sm:pb-[18px] sm:pt-3.5">
+          <div>
+            <a href={href} className="line-clamp-2 text-[15px] font-bold leading-5 hover:underline" style={{ color: C.text }}>{cert.title}</a>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: C.muted }}>
+              <span className="inline-flex items-center gap-1"><Target size={13} weight="bold"/>Pass {cert.passmark ?? 70}%</span>
+              <span className="inline-flex items-center gap-1"><Clock size={13} weight="bold"/>{cert.time_limit ? `${cert.time_limit} min` : 'Untimed'}</span>
+              {cert.max_attempts ? <span>{cert.max_attempts} attempt{cert.max_attempts === 1 ? '' : 's'}</span> : null}
+            </p>
+            {cert.description && <p className="mt-2 line-clamp-2 text-[13px]" style={{ color: C.muted }}>{toPlainText(cert.description)}</p>}
           </div>
-          {cert.description && <p className="text-sm mt-3 mb-5 line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{cert.description}</p>}
-        {lockedByOther ? (
-          // Another exam is in progress. Keep this actionable: opening it lets the student switch
-          // (the taker asks to confirm, discarding the other) instead of a dead-end message.
           <div className="mt-auto">
-            <a href={`/${cert.slug || cert.id}`}
-              className="inline-flex w-full items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
-              style={{ background: C.pill, color: C.text }}>
-              Switch to this exam
-            </a>
-            <p className="text-[11px] text-center mt-1.5" style={{ color: C.faint }}>You have another exam in progress.</p>
+            <div className="flex items-center justify-between gap-3">
+              <Pill tone={status.tone} dot={status.tone === 'good'} C={C}>{status.label}</Pill>
+              <a href={href} className={btnClass} style={action.primary ? { background: DARK_C.cta, color: '#ffffff' } : btnStyle('sec', C)}>{action.label}</a>
+            </div>
+            {lockedByOther && <p className="mt-1.5 text-[11px]" style={{ color: C.muted }}>You have another exam in progress.</p>}
           </div>
-        ) : (
-          <a href={`/${cert.slug || cert.id}`}
-            className="mt-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{ background: st?.passed ? C.pill : C.cta, color: st?.passed ? C.muted : C.ctaText }}>
-            {st?.passed && <Award className="w-4 h-4" />} {label}
-          </a>
-        )}
         </div>
-      </motion.div>
+      </div>
     );
   };
 
   // Grouped by type. Anything without a type (legacy rows) falls under Technology.
-  const GROUPS: { type: CertificationType; label: string; Icon: typeof Briefcase }[] = [
-    { type: 'career', label: 'Career Certifications', Icon: Briefcase },
-    { type: 'technology', label: 'Technology Certifications', Icon: Code2 },
+  const GROUPS: { type: CertificationType; label: string }[] = [
+    { type: 'career', label: 'Career certifications' },
+    { type: 'technology', label: 'Technology certifications' },
   ];
-  const featured = items.find(c => attempts[c.id]?.passed) ?? items.find(c => attempts[c.id]?.inProgress) ?? items[0];
-  const featuredStatus = attempts[featured.id];
-  const passedCount = Object.values(attempts).filter(a => a.passed).length;
+  const passed = items.filter(c => attempts[c.id]?.passed);
+  const best = passed.sort((a, b) => (attempts[b.id]?.score ?? 0) - (attempts[a.id]?.score ?? 0))[0];
+  const current = items.find(c => attempts[c.id]?.inProgress);
 
   return (
-    <div className="space-y-14 sm:space-y-20 pb-10">
-      <section className="relative overflow-hidden rounded-[28px] px-6 py-10 sm:px-10 sm:py-14 lg:px-14" style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}>
-        <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full blur-3xl" style={{ background: `${C.green}12` }} />
-        <div className="relative grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em]" style={{ color: C.green }}>
-              <motion.span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 5px ${C.green}14` }} animate={{ scale: [0.82, 1.12, 0.82], opacity: [0.65, 1, 0.65] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }} />
-              <span>Professional credentials</span>
-            </div>
-            <h1 className="mt-5 max-w-2xl text-3xl font-semibold leading-[1.12] tracking-[-0.022em] sm:text-4xl lg:text-5xl" style={{ color: C.text }}>Certifications that prove what you can do</h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed sm:text-lg" style={{ color: C.muted }}>Validate practical skills, earn a trusted credential, and make your expertise easier to recognize and share.</p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#certification-catalog" onClick={e => { e.preventDefault(); document.getElementById('certification-catalog')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold" style={{ background: C.text, color: C.page }}>Explore certifications <ArrowUpRight className="h-4 w-4" /></a>
-              <a href="#how-certification-works" onClick={e => { e.preventDefault(); document.getElementById('how-certification-works')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center rounded-full px-5 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>How it works</a>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold" style={{ color: C.muted }}>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4" style={{ color: C.green }} /> Practical assessments</span>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4" style={{ color: C.green }} /> Shareable credentials</span>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4" style={{ color: C.green }} /> Verifiable results</span>
-            </div>
-          </motion.div>
+    <div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat C={C} label="Earned" value={passed.length} sub={best ? `${best.title}, ${attempts[best.id].score}%` : 'None yet'}/>
+        <Stat C={C} label="In progress" value={current ? 1 : 0} sub={current ? current.title : 'One exam at a time'}/>
+        <Stat C={C} label="Available to you" value={items.length} sub="Open to your cohort"/>
+      </div>
 
-          <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: 0.08 }} className="mx-auto w-full max-w-[430px] rounded-[26px] p-4 sm:p-5" style={softSurface(C, '0 14px 42px rgba(15,23,42,0.10)')}>
-            <div className="rounded-[20px] p-5 sm:p-7" style={{ background: C.card }}>
-              <div className="flex items-start justify-between gap-3">
-                <div><p className="text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ color: C.green }}>Credential preview</p><p className="mt-1 text-xs" style={{ color: C.muted }}>{featuredStatus?.passed ? 'Credential earned' : 'Your next milestone'}</p></div>
-                <BadgeCheck className="h-5 w-5" style={{ color: C.green }} />
-              </div>
-              <div className="flex justify-center py-5"><CredentialSeal cert={featured} C={C} size={132} /></div>
-              <h2 className="text-center text-lg font-bold" style={{ color: C.text }}>{featured.title}</h2>
-              <p className="mt-2 text-center text-xs leading-relaxed" style={{ color: C.muted }}>{featuredStatus?.passed ? `Completed with a best score of ${featuredStatus.score}%` : 'Complete the assessment to unlock your certificate and badge.'}</p>
-              <div className="mt-5 flex items-center justify-between border-t pt-4 text-xs" style={{ borderColor: C.inputBorder, color: C.muted }}><span>{featured.time_limit ? `${featured.time_limit} min` : 'Untimed'}</span><span>{featured.passmark ?? 70}% pass mark</span></div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      <section id="certification-catalog" className="scroll-mt-24 space-y-12">
       {GROUPS.map(g => {
         const groupItems = items.filter(c => (c.cert_type === 'career' ? 'career' : 'technology') === g.type);
         if (!groupItems.length) return null;
         return (
-          <section key={g.type}>
-            <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-              <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: C.green }}><g.Icon className="h-4 w-4" /> {g.type === 'career' ? 'Build your career' : 'Deepen your expertise'}</div>
-                <h2 className="mt-2 text-2xl font-extrabold sm:text-3xl" style={{ color: C.text }}>{g.label}</h2>
-                <p className="mt-1 max-w-2xl text-sm" style={{ color: C.muted }}>{g.type === 'career' ? 'Role-focused credentials that demonstrate your ability to perform in real professional contexts.' : 'Focused credentials that validate practical knowledge across tools, technologies, and specialist skills.'}</p>
-              </div>
-              <span className="text-xs font-semibold" style={{ color: C.faint }}>{groupItems.length} available</span>
-            </div>
-            <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 py-4 [scroll-padding-inline:1rem] [scrollbar-width:thin]">
-              {groupItems.map((cert, i) => renderCard(cert, i))}
-            </div>
+          <section key={g.type} className="mt-7">
+            <h3 className="mb-3 text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{g.label}</h3>
+            <div className={GRID}>{groupItems.map(renderCard)}</div>
           </section>
         );
       })}
-      </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {[
-          { Icon: FileCheck2, title: 'Official certificate', body: 'A clear record of the certification you earned and the standard you met.' },
-          { Icon: BadgeCheck, title: 'Professional badge', body: 'A compact credential you can display as evidence of your achievement.' },
-          { Icon: Share2, title: 'Easy to share', body: 'Showcase your result and make your verified expertise easier to discover.' },
-        ].map(({ Icon, title, body }) => (
-          <div key={title} className="rounded-2xl p-6" style={softSurface(C)}>
-            <div className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: `${C.green}12`, color: C.green }}><Icon className="h-5 w-5" /></div>
-            <h3 className="mt-5 text-base font-bold" style={{ color: C.text }}>{title}</h3>
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>{body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section id="how-certification-works" className="scroll-mt-24 rounded-[28px] p-6 sm:p-10 lg:p-12" style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}>
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold uppercase tracking-[0.15em]" style={{ color: C.green }}>Your certification journey</p>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: C.text }}>From preparation to credential in three steps</h2>
-          <p className="mt-3 text-sm leading-relaxed sm:text-base" style={{ color: C.muted }}>Build confidence, demonstrate your skills, and unlock a credential you can carry forward.</p>
-        </div>
-        <div className="mt-9 space-y-5">
-          {[
-            { Icon: BookOpenCheck, title: 'Prepare with confidence', body: 'Use the study resources, courses, learning paths, and practice questions provided for your certification.' },
-            { Icon: FileCheck2, title: 'Pass the assessment', body: 'Complete the practical exam and meet the required pass mark within the available attempts.' },
-            { Icon: Award, title: 'Receive your credential', body: 'Unlock your result, certificate, and badge, ready to view and share.' },
-          ].map(({ Icon, title, body }, index) => (
-            <div key={title} className="relative grid gap-6 rounded-2xl p-5 lg:grid-cols-[0.32fr_0.68fr] lg:p-7" style={softSurface(C, '0 10px 30px rgba(15,23,42,0.07)')}>
+      <section className={`mt-7 rounded-2xl px-5 py-[18px] ${CARD_SHADOW}`} style={{ background: C.card }}>
+        <h3 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>How it works</h3>
+        <div className="mt-3 grid gap-4 md:grid-cols-3">
+          {STEPS.map(({ Icon, title, body }) => (
+            <div key={title} className="flex gap-3">
+              <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.text }}><Icon size={20} weight="duotone"/></span>
               <div>
-                <div className="flex items-center justify-between"><div className="grid h-11 w-11 place-items-center rounded-xl" style={{ background: `${C.green}13`, color: C.green }}><Icon className="h-5 w-5" /></div><span className="text-3xl font-extrabold" style={{ color: `${C.green}28` }}>0{index + 1}</span></div>
-                <h3 className="mt-5 text-base font-bold" style={{ color: C.text }}>{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>{body}</p>
-              </div>
-              <div className="min-w-0">
-                {index === 0 && <LearningPathPreview paths={publicPaths} C={C} />}
-                {index === 1 && <QuestionTypesPreview C={C} />}
-                {index === 2 && <ResultPreview C={C} />}
+                <p className="text-sm font-semibold" style={{ color: C.text }}>{title}</p>
+                <p className="text-[13px]" style={{ color: C.muted }}>{body}</p>
               </div>
             </div>
           ))}
         </div>
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-6" style={{ borderColor: C.inputBorder }}>
-          <p className="text-sm font-semibold" style={{ color: C.text }}>{passedCount > 0 ? `You have earned ${passedCount} credential${passedCount === 1 ? '' : 's'}.` : 'Your first credential starts with one certification.'}</p>
-          <a href="#certification-catalog" onClick={e => { e.preventDefault(); document.getElementById('certification-catalog')?.scrollIntoView({ behavior: 'smooth' }); }} className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: C.green }}>Choose a certification <ArrowUpRight className="h-4 w-4" /></a>
-        </div>
       </section>
+
+      {publicPaths.length > 0 && (
+        <section className="mt-7">
+          <h3 className="mb-3 text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Prepare with a learning path</h3>
+          <div className={GRID}>
+            {publicPaths.map(path => {
+              const href = `/${encodeURIComponent(path.id)}?catalogueType=learning_path`;
+              const blurb = toPlainText(path.description);
+              const count = path.pathCourses.length;
+              return (
+                <a key={path.id} href={href} className={FRAMED_CARD} style={{ background: C.card }}>
+                  <div className="relative grid aspect-video w-full place-items-center overflow-hidden" style={{ background: C.pill, color: C.faint }}>
+                    {path.imageUrl
+                      ? <img src={path.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
+                      : <BookOpen size={32} weight="duotone"/>}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-3.5 px-3 pb-3.5 pt-2.5 sm:px-4 sm:pb-[18px] sm:pt-3.5">
+                    <div>
+                      <p className="line-clamp-2 text-[15px] font-bold leading-5" style={{ color: C.text }}>{path.title}</p>
+                      <p className="mt-1 line-clamp-1 text-xs" style={{ color: C.muted }}>
+                        {[blurb, count ? `${count} item${count === 1 ? '' : 's'}` : ''].filter(Boolean).join('. ')}
+                      </p>
+                    </div>
+                    <span className={`${btnClass} mt-auto self-end`} style={btnStyle('sec', C)}>Open path</span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

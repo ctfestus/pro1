@@ -1,20 +1,25 @@
 'use client';
 
-// Community + Announcements (Tech Blog) sections, extracted verbatim from
-// app/student/page.tsx. CommunitySection and AnnouncementsSection are exported;
-// AnnThumbnail / AnnouncementCard / AnnouncementModal are file-internal.
+// Community and Tech Blog. Community: the cohort's groups as cards with a WhatsApp Join.
+// Tech Blog: the first pinned post as a wide feature card, the rest as cards; a post opens in a
+// dialog with Like, Save and More posts. Icons are Phosphor, as the menu.
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { renderAnnouncementContent, sanitizeAnnouncementContent } from '@/lib/sanitize';
-import { LIGHT_C, useC } from '@/lib/theme';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { announcementCohortFilter, isIndividualCohort } from '@/lib/cohort-kind';
 import { getStudentMode } from '@/lib/student-mode-client';
-import {
-  Users, Megaphone, X, ExternalLink, ChevronRight, ChevronLeft, Play, ThumbsUp, Bookmark,
-} from 'lucide-react';
+import { toPlainText } from '@/lib/plain-text';
+import { FRAMED_CARD } from '@/components/CardMeta';
+import { DISPLAY_FONT, btnClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
+import { LearningCardsSkeleton } from '@/components/student/learning-card';
+import { ArrowSquareOut, Article, BookmarkSimple, Megaphone, Play, PushPin, ThumbsUp, UsersThree, WhatsappLogo, X } from '@phosphor-icons/react';
+
+const GRID = 'grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6';
+const CARD_BODY = 'flex flex-1 flex-col gap-3.5 px-3 pb-3.5 pt-2.5 sm:px-4 sm:pb-[18px] sm:pt-3.5';
 
 // --- Community section ---
 export function CommunitySection({ userId, C }: { userId: string; C: typeof LIGHT_C }) {
@@ -40,146 +45,136 @@ export function CommunitySection({ userId, C }: { userId: string; C: typeof LIGH
     load();
   }, [userId]);
 
-  if (loading) return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {[0,1,2,3].map(i => (
-        <div key={i} className="rounded-2xl overflow-hidden" style={{ background: C.card }}>
-          <Sk h={140} r={0}/><div className="p-4 space-y-2"><Sk h={15} w="70%"/><Sk h={11} w="50%"/></div>
-        </div>
-      ))}
-    </div>
-  );
+  if (loading) return <LearningCardsSkeleton C={C} bar={false}/>;
 
   if (!communities.length) return (
-    <EmptyState icon={Users} title="No communities yet" body="Communities are being set up. Check back soon to connect with fellow students."/>
+    <EmptyState icon={UsersThree} title="No communities yet" body="Communities are being set up. Check back soon to connect with fellow students."/>
   );
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {communities.map((com, i) => (
-        <motion.div key={com.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-          className="rounded-2xl overflow-hidden group"
-          style={{ background: C.card }}>
-          <div className="relative h-36 overflow-hidden" style={{ background: C.thumbBg }}>
+    <div className={GRID}>
+      {communities.map(com => (
+        <div key={com.id} className={FRAMED_CARD} style={{ background: C.card, cursor: 'default' }}>
+          <div className="grid aspect-video w-full place-items-center overflow-hidden" style={{ background: C.pill, color: C.faint }}>
             {com.cover_image
-              ? <img src={com.cover_image} alt={com.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
-              : <div className="w-full h-full flex items-center justify-center"><Users className="w-10 h-10 opacity-25" style={{ color: C.green }}/></div>}
+              ? <img src={com.cover_image} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
+              : <UsersThree size={34} weight="duotone"/>}
           </div>
-          <div className="p-4">
-            <h3 className="text-sm font-semibold leading-snug mb-1 truncate" style={{ color: C.text }}>{com.name}</h3>
-            {com.description && <p className="text-xs line-clamp-2 mb-3" style={{ color: C.muted }}>{com.description.replace(/<[^>]*>/g, ' ').trim()}</p>}
-            {com.whatsapp_link ? (
-              <a href={com.whatsapp_link} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl no-underline hover:opacity-80 transition-opacity"
-                style={{ background: '#dcfce7', color: '#16a34a' }}>
-                <ExternalLink className="w-3.5 h-3.5"/> Join WhatsApp
-              </a>
-            ) : (
-              <span className="text-xs font-medium" style={{ color: C.faint }}>Community</span>
-            )}
+          <div className={CARD_BODY}>
+            <div>
+              <h3 className="line-clamp-2 text-[15px] font-bold leading-5" style={{ color: C.text }}>{com.name}</h3>
+              {com.description && <p className="mt-1 line-clamp-2 text-[13px]" style={{ color: C.muted }}>{toPlainText(com.description)}</p>}
+            </div>
+            <div className="mt-auto flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
+                {com.whatsapp_link ? <><WhatsappLogo size={16} weight="fill" style={{ color: '#25D366' }}/>WhatsApp group</> : 'Community'}
+              </span>
+              {com.whatsapp_link && (
+                <a href={com.whatsapp_link} target="_blank" rel="noreferrer" className={btnClass} style={btnStyle('sec', C)}>
+                  <ArrowSquareOut size={14} weight="bold"/> Join
+                </a>
+              )}
+            </div>
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
 }
 
-// --- Announcements section (tech-blog style) ---
+// --- Tech Blog (announcements) ---
 
-function AnnThumbnail({ ann, isVideo }: { ann: any; isVideo: boolean }) {
-  const C = useC();
-  const embedId = ann.youtube_url?.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)?.[1];
+type Reactions = { liked: boolean; bookmarked: boolean };
+const NO_REACTIONS: Reactions = { liked: false, bookmarked: false };
+
+const youtubeId = (url?: string | null) => url?.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)?.[1];
+const postDate = (iso: string, long = false) =>
+  new Date(iso).toLocaleDateString('en-US', long ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
+const authorOf = (ann: any) => {
+  const name: string = ann.author?.full_name || 'Admin';
+  return { name, initials: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(), avatar: ann.author?.avatar_url as string | undefined };
+};
+
+/** The post's cover, else its YouTube thumbnail, else an article icon; a play mark on videos. */
+function PostCover({ ann, C, iconSize = 30 }: { ann: any; C: typeof LIGHT_C; iconSize?: number }) {
+  const [broken, setBroken] = useState(false);
+  const embedId = youtubeId(ann.youtube_url);
   const src = ann.cover_image || (embedId ? `https://img.youtube.com/vi/${embedId}/hqdefault.jpg` : null);
-  const initLetter = (ann.title?.[0] ?? 'A').toUpperCase();
-
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      {src ? (
-        <>
-          <img src={src} alt={ann.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}/>
-          {(embedId || isVideo) && (
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Play style={{ width: 13, height: 13, color: '#111', marginLeft: 2 }}/>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.lime, fontSize: 32, fontWeight: 800, color: C.green, opacity: 0.6 }}>
-          {initLetter}
-        </div>
+    <>
+      {src && !broken
+        ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>
+        : <span className="grid h-full w-full place-items-center" style={{ color: C.faint }}><Article size={iconSize} weight="duotone"/></span>}
+      {embedId && (
+        <span className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="grid h-11 w-11 place-items-center rounded-full" style={{ background: 'rgba(0,0,0,0.6)', color: '#ffffff' }}><Play size={18} weight="fill"/></span>
+        </span>
       )}
+    </>
+  );
+}
+
+function Byline({ ann, C, long }: { ann: any; C: typeof LIGHT_C; long?: boolean }) {
+  const a = authorOf(ann);
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-xs" style={{ color: C.muted }}>
+      <span className="grid h-6 w-6 flex-shrink-0 place-items-center overflow-hidden rounded-full text-[10px] font-bold" style={{ background: C.pill, color: C.text }}>
+        {a.avatar ? <img src={a.avatar} alt="" className="h-full w-full object-cover"/> : a.initials}
+      </span>
+      <span className="truncate">{a.name}, {postDate(ann.published_at, long)}</span>
+    </span>
+  );
+}
+
+/** Save as a square icon button, blue while saved. */
+function SaveButton({ on, onToggle, C }: { on: boolean; onToggle: () => void; C: typeof LIGHT_C }) {
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); onToggle(); }} aria-label={on ? 'Saved' : 'Save'} aria-pressed={on} title={on ? 'Saved' : 'Save'}
+      className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl transition-opacity hover:opacity-80"
+      style={on ? selectedStyle : btnStyle('sec', C)}>
+      <BookmarkSimple size={15} weight={on ? 'fill' : 'bold'}/>
+    </button>
+  );
+}
+const selectedStyle = { background: `color-mix(in srgb, ${DARK_C.cta} 12%, transparent)`, color: DARK_C.cta, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${DARK_C.cta} 30%, transparent)` };
+
+function PostCard({ ann, C, react, onSave, onOpen }: { ann: any; C: typeof LIGHT_C; react: Reactions; onSave: () => void; onOpen: () => void }) {
+  return (
+    <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === 'Enter') onOpen(); }} className={FRAMED_CARD} style={{ background: C.card }}>
+      <div className="relative aspect-video w-full overflow-hidden" style={{ background: C.pill }}>
+        <PostCover ann={ann} C={C}/>
+        {ann.is_pinned && <PinnedRibbon/>}
+      </div>
+      <div className={CARD_BODY}>
+        <div>
+          <h3 className="line-clamp-2 min-h-[40px] text-[15px] font-bold leading-5" style={{ color: C.text }}>{ann.title}</h3>
+          {ann.subtitle && <p className="mt-1 line-clamp-1 text-xs" style={{ color: C.muted }}>{ann.subtitle}</p>}
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <Byline ann={ann} C={C}/>
+          <SaveButton on={react.bookmarked} onToggle={onSave} C={C}/>
+        </div>
+      </div>
     </div>
   );
 }
 
-function AnnouncementCard({ ann, C, react, onToggleReaction, onClick }: {
-  ann: any; C: typeof LIGHT_C;
-  react: { liked: boolean; bookmarked: boolean; likeCount: number; bookmarkCount: number };
-  onToggleReaction: (type: 'like' | 'bookmark') => void;
-  onClick: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const authorName = ann.author?.full_name || 'Admin';
-  const authorInitials = authorName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-  const hasVideo = !!ann.youtube_url;
-
+function PinnedRibbon() {
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="flex-shrink-0 snap-start cursor-pointer flex flex-col"
-      style={{ width: 300, padding: 8, borderRadius: 14, boxSizing: 'border-box', background: hovered ? C.pill : 'transparent', transition: 'background 0.2s' }}>
-      {/* Thumbnail */}
-      <div className="relative rounded-xl overflow-hidden w-full" style={{ aspectRatio: '16 / 9', background: C.lime }}>
-        <AnnThumbnail ann={ann} isVideo={hasVideo}/>
-        {ann.is_pinned && (
-          <span className="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
-            style={{ background: 'rgba(0,0,0,0.65)', color: 'white' }}>Pinned</span>
-        )}
-      </div>
-      {/* Meta row -- YouTube style: avatar + title/author/date */}
-      <div className="mt-3 flex gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden text-xs font-bold"
-          style={{ background: C.green, color: '#fff' }}>
-          {ann.author?.avatar_url
-            ? <img src={ann.author.avatar_url} alt={authorName} className="w-full h-full object-cover"/>
-            : authorInitials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.35, color: C.text }}>{ann.title}</h3>
-          <div className="flex items-center gap-2 text-[13px] mt-1" style={{ color: C.faint }}>
-            <span>{authorName}</span>
-          </div>
-        </div>
-        <button
-          onClick={e => { e.stopPropagation(); onToggleReaction('bookmark'); }}
-          aria-label={react.bookmarked ? 'Saved' : 'Save'}
-          className="flex-shrink-0 self-start transition-opacity hover:opacity-70"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: react.bookmarked ? C.green : C.faint, padding: 2 }}>
-          <Bookmark className="w-4 h-4" style={{ fill: react.bookmarked ? C.green : 'none' }}/>
-        </button>
-      </div>
-    </div>
+    <span className="absolute left-0 top-3 inline-flex items-center gap-1 px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+      <PushPin size={12} weight="fill"/> Pinned
+    </span>
   );
 }
 
 function AnnouncementModal({ ann, C, react, onToggleReaction, onClose, otherItems, onSelect }: {
-  ann: any; C: typeof LIGHT_C;
-  react: { liked: boolean; bookmarked: boolean; likeCount: number; bookmarkCount: number };
+  ann: any; C: typeof LIGHT_C; react: Reactions;
   onToggleReaction: (type: 'like' | 'bookmark') => void;
   onClose: () => void;
   otherItems: any[];
   onSelect: (a: any) => void;
 }) {
-  const pub = new Date(ann.published_at);
-  const dateStr = pub.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const authorName = ann.author?.full_name || 'Admin';
-  const authorInitials = authorName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-  const embedId = ann.youtube_url?.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)?.[1];
+  const embedId = youtubeId(ann.youtube_url);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -190,132 +185,72 @@ function AnnouncementModal({ ann, C, react, onToggleReaction, onClose, otherItem
   }, [onClose]);
 
   return (
-    <motion.div
-      ref={backdropRef}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <motion.div ref={backdropRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={e => { if (e.target === backdropRef.current) onClose(); }}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', overflowY: 'auto' }}>
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 24 }}
-        className="w-full rounded-2xl overflow-hidden relative"
-        style={{ maxWidth: 640, background: C.card, boxShadow: '0 32px 80px rgba(0,0,0,0.35)', margin: 'auto' }}>
-
-        {/* Close */}
-        <button onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center justify-center hover:opacity-70 transition-opacity"
-          style={{ background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'pointer', color: 'white' }}>
-          <X className="w-4 h-4"/>
-        </button>
-
-        {/* Header: pinned + title + author */}
-        <div className="p-5 md:p-6 pb-4">
-          {ann.is_pinned && (
-            <span className="inline-block text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full mb-3"
-              style={{ background: `${C.green}18`, color: C.green }}>Pinned</span>
-          )}
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.02em', color: C.text, marginBottom: '0.8rem' }}>
-            {ann.title}
-          </h1>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden text-sm font-bold"
-              style={{ background: C.green, color: '#fff' }}>
-              {ann.author?.avatar_url
-                ? <img src={ann.author.avatar_url} alt={authorName} className="w-full h-full object-cover"/>
-                : authorInitials}
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto px-4 py-8"
+      style={{ background: 'rgba(10,12,18,0.55)', backdropFilter: 'blur(6px)' }}>
+      <motion.div role="dialog" aria-modal="true" aria-labelledby="post-title"
+        initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
+        className="relative m-auto w-full max-w-[640px] overflow-hidden rounded-[20px] shadow-2xl" style={{ background: C.card }}>
+        <div className="p-5 pb-4 md:p-6 md:pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {ann.is_pinned && (
+                <span className="mb-2 inline-flex items-center gap-1 rounded-full px-2 text-xs font-semibold leading-[22px]" style={{ background: C.pill, color: C.text }}>
+                  <PushPin size={12} weight="fill"/> Pinned
+                </span>
+              )}
+              <h1 id="post-title" className="text-2xl font-semibold leading-[30px]" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{ann.title}</h1>
             </div>
-            <div>
-              <p className="text-base font-semibold" style={{ color: C.text }}>{authorName}</p>
-              <p className="text-sm" style={{ color: C.faint }}>{dateStr}</p>
-            </div>
+            <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={btnStyle('sec', C)}>
+              <X size={14} weight="bold"/>
+            </button>
           </div>
+          <div className="mt-3"><Byline ann={ann} C={C} long/></div>
         </div>
 
-        {/* Cover image -- full width, edge to edge */}
         {ann.cover_image && (
-          <img src={ann.cover_image} alt={ann.title}
-            style={{ width: '100%', display: 'block', aspectRatio: '16/9', maxHeight: 260, objectFit: 'cover' }}
+          <img src={ann.cover_image} alt="" className="block aspect-video max-h-[260px] w-full object-cover"
             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}/>
         )}
 
-        {/* Body */}
         <div className="p-5 md:p-6">
           {embedId && (
-            <div className="mb-5" style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-              <iframe
-                src={`https://www.youtube.com/embed/${embedId}`}
-                title={ann.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-              />
+            <div className="relative mb-5 h-0 overflow-hidden rounded-xl pb-[56.25%]">
+              <iframe src={`https://www.youtube.com/embed/${embedId}`} title={ann.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen
+                className="absolute inset-0 h-full w-full border-0"/>
             </div>
           )}
           {ann.content && (
             <div className="rich-content compact" style={{ color: C.text, fontSize: 15.5 }}
-              dangerouslySetInnerHTML={{ __html: renderAnnouncementContent(sanitizeAnnouncementContent(ann.content ?? '')) }}
-            />
+              dangerouslySetInnerHTML={{ __html: renderAnnouncementContent(sanitizeAnnouncementContent(ann.content ?? '')) }}/>
           )}
-          <div className="flex items-center gap-3 mt-6 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <button
-              onClick={() => onToggleReaction('like')}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: react.liked ? '#2563eb18' : C.pill, border: 'none', cursor: 'pointer', color: react.liked ? '#2563eb' : C.muted }}>
-              <ThumbsUp className="w-4 h-4" style={{ fill: react.liked ? '#2563eb' : 'none' }}/>
-              {react.liked ? 'Liked' : 'Like'}
+          <div className="mt-6 flex items-center gap-2 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+            <button type="button" onClick={() => onToggleReaction('like')} aria-pressed={react.liked} className={btnClass} style={react.liked ? selectedStyle : btnStyle('sec', C)}>
+              <ThumbsUp size={16} weight={react.liked ? 'fill' : 'bold'}/> {react.liked ? 'Liked' : 'Like'}
             </button>
-            <button
-              onClick={() => onToggleReaction('bookmark')}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: react.bookmarked ? `${C.green}18` : C.pill, border: 'none', cursor: 'pointer', color: react.bookmarked ? C.green : C.muted }}>
-              <Bookmark className="w-4 h-4" style={{ fill: react.bookmarked ? C.green : 'none' }}/>
-              {react.bookmarked ? 'Saved' : 'Save'}
+            <button type="button" onClick={() => onToggleReaction('bookmark')} aria-pressed={react.bookmarked} className={btnClass} style={react.bookmarked ? selectedStyle : btnStyle('sec', C)}>
+              <BookmarkSimple size={16} weight={react.bookmarked ? 'fill' : 'bold'}/> {react.bookmarked ? 'Saved' : 'Save'}
             </button>
           </div>
         </div>
 
-        {/* More posts */}
         {otherItems.length > 0 && (
-          <div className="px-5 md:px-6 pb-6" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <p className="text-xs font-bold uppercase tracking-wide mt-5 mb-3" style={{ color: C.faint }}>More Posts</p>
-            <div className="space-y-3">
-              {otherItems.slice(0, 3).map(item => {
-                const embedId = item.youtube_url?.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)?.[1];
-                const thumbSrc = item.cover_image || (embedId ? `https://img.youtube.com/vi/${embedId}/hqdefault.jpg` : null);
-                const initLetter = (item.title?.[0] ?? 'A').toUpperCase();
-                const itemDate = new Date(item.published_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                return (
-                  <button key={item.id} onClick={() => onSelect(item)}
-                    className="w-full text-left flex items-center gap-3 transition-opacity hover:opacity-70"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    {/* Thumbnail */}
-                    <div style={{ width: 80, height: 56, flexShrink: 0, borderRadius: 8, overflow: 'hidden', background: C.lime, position: 'relative' }}>
-                      {thumbSrc
-                        ? <img src={thumbSrc} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: C.green, opacity: 0.5 }}>{initLetter}</div>
-                      }
-                      {embedId && (
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Play style={{ width: 9, height: 9, color: '#111', marginLeft: 1 }}/>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* Text */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm leading-snug mb-0.5"
-                        style={{ color: C.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {item.title}
-                      </p>
-                      <p className="text-xs" style={{ color: C.faint }}>{itemDate}</p>
-                    </div>
-                  </button>
-                );
-              })}
+          <div className="px-5 pb-6 md:px-6" style={{ borderTop: `1px solid ${C.divider}` }}>
+            <p className="mb-2 mt-5 text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>More posts</p>
+            <div className="space-y-1">
+              {otherItems.slice(0, 3).map(item => (
+                <button key={item.id} type="button" onClick={() => onSelect(item)} className="group flex w-full items-center gap-3 rounded-xl py-2 text-left">
+                  <span className="relative h-11 w-[72px] flex-shrink-0 overflow-hidden rounded-lg" style={{ background: C.pill }}>
+                    <PostCover ann={item} C={C} iconSize={18}/>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-sm font-semibold leading-snug group-hover:underline" style={{ color: C.text }}>{item.title}</span>
+                    <span className="mt-0.5 block text-xs" style={{ color: C.muted }}>{postDate(item.published_at, true)}</span>
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -327,12 +262,10 @@ function AnnouncementModal({ ann, C, react, onToggleReaction, onClose, otherItem
 export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: string; C: typeof LIGHT_C }) {
   const [items, setItems]     = useState<any[]>([]);
   const [userId, setUserId]   = useState('');
-  const [reactState, setReactState] = useState<Record<string, { liked: boolean; bookmarked: boolean; likeCount: number; bookmarkCount: number }>>({});
+  const [reactState, setReactState] = useState<Record<string, Reactions>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
   const [acting, setActing]   = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
   useEffect(() => {
     const load = async () => {
@@ -379,8 +312,8 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
 
       const enriched = (anns ?? []).map((a: any) => ({ ...a, author: authorMap[a.author_id] ?? null }));
       setItems(enriched);
-      const rs: Record<string, { liked: boolean; bookmarked: boolean; likeCount: number; bookmarkCount: number }> = {};
-      for (const a of enriched) rs[a.id] = { liked: likes.has(a.id), bookmarked: bookmarks.has(a.id), likeCount: 0, bookmarkCount: 0 };
+      const rs: Record<string, Reactions> = {};
+      for (const a of enriched) rs[a.id] = { liked: likes.has(a.id), bookmarked: bookmarks.has(a.id) };
       setReactState(rs);
       setLoading(false);
     };
@@ -391,16 +324,11 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
     if (acting || !userId) return;
     if (getStudentMode()) return; // read-only: never react on a student's behalf in Student Mode
     setActing(true);
-    const prev = reactState[annId] ?? { liked: false, bookmarked: false, likeCount: 0, bookmarkCount: 0 };
+    const prev = reactState[annId] ?? NO_REACTIONS;
     const isOn = type === 'like' ? prev.liked : prev.bookmarked;
     setReactState(s => ({
       ...s,
-      [annId]: {
-        liked: type === 'like' ? !prev.liked : prev.liked,
-        bookmarked: type === 'bookmark' ? !prev.bookmarked : prev.bookmarked,
-        likeCount: type === 'like' ? prev.likeCount + (isOn ? -1 : 1) : prev.likeCount,
-        bookmarkCount: type === 'bookmark' ? prev.bookmarkCount + (isOn ? -1 : 1) : prev.bookmarkCount,
-      }
+      [annId]: type === 'like' ? { ...prev, liked: !prev.liked } : { ...prev, bookmarked: !prev.bookmarked },
     }));
     try {
       // supabase-js reports a refused write as { error }, not by throwing; undo it either way.
@@ -416,75 +344,65 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
   }
 
   if (loading) return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      <Sk h={22} w="180px"/>
-      <div className="flex gap-4 overflow-hidden mt-4">
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className="flex-shrink-0" style={{ width: 250 }}>
-            <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: '16 / 9', background: C.skeleton }}/>
-            <div className="mt-2.5 space-y-2">
-              <Sk h={11} w="30%"/>
-              <Sk h={14} w="85%"/>
-              <Sk h={11}/><Sk h={11} w="60%"/>
-            </div>
-          </div>
-        ))}
+    <div className="space-y-6" aria-busy="true">
+      <div className="grid overflow-hidden rounded-2xl md:grid-cols-[1.1fr_1fr]" style={{ background: C.card }}>
+        <div className="aspect-video w-full animate-pulse md:aspect-auto md:min-h-[220px]" style={{ background: C.skeleton }}/>
+        <div className="space-y-3 p-5"><Sk h={22} w="80%"/><Sk h={13} w="60%"/><Sk h={11} w="40%"/><div className="pt-6"><Sk w={110} h={40} r={12}/></div></div>
       </div>
-    </section>
+      <LearningCardsSkeleton C={C} bar={false}/>
+    </div>
   );
 
   if (!items.length) return (
     <EmptyState icon={Megaphone} title="No posts yet" body="Tech blog posts from instructors and admins will appear here."/>
   );
 
+  // The first pinned post leads; everything else (other pinned posts first, as the query orders) follows.
+  const featured = items[0]?.is_pinned ? items[0] : null;
+  const rest = featured ? items.slice(1) : items;
+  const reactOf = (id: string) => reactState[id] ?? NO_REACTIONS;
+
   return (
     <>
-      <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-        {/* Header: title + nav arrows */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>Tech Blog</h3>
-            <p className="text-sm mt-1" style={{ color: C.muted }}>The latest in tech, AI trends, data insights, and tips to level up your career.</p>
+      {featured && (
+        <div role="button" tabIndex={0} onClick={() => setSelected(featured)} onKeyDown={e => { if (e.key === 'Enter') setSelected(featured); }}
+          className="group grid cursor-pointer overflow-hidden rounded-2xl shadow-[0_1px_2px_rgba(16,24,40,0.06),0_8px_24px_-12px_rgba(16,24,40,0.18)] md:grid-cols-[1.1fr_1fr]"
+          style={{ background: C.card }}>
+          <div className="relative aspect-video w-full overflow-hidden md:aspect-auto md:min-h-[220px]" style={{ background: C.pill }}>
+            <PostCover ann={featured} C={C} iconSize={40}/>
+            <PinnedRibbon/>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-              className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronLeft className="w-4 h-4"/>
-            </button>
-            <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-              className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronRight className="w-4 h-4"/>
-            </button>
+          <div className="flex flex-col gap-2.5 p-5 md:p-6">
+            <h3 className="text-[22px] font-semibold leading-7" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{featured.title}</h3>
+            {featured.subtitle && <p className="text-sm" style={{ color: C.muted }}>{featured.subtitle}</p>}
+            <Byline ann={featured} C={C} long/>
+            <div className="mt-auto flex items-center gap-2 pt-3">
+              <span className={btnClass} style={{ background: DARK_C.cta, color: '#ffffff' }}>Read post</span>
+              <SaveButton on={reactOf(featured.id).bookmarked} onToggle={() => toggleReaction(featured.id, 'bookmark')} C={C}/>
+            </div>
           </div>
         </div>
-        {/* Carousel */}
-        <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {items.map(ann => (
-            <AnnouncementCard
-              key={ann.id}
-              ann={ann}
-              C={C}
-              react={reactState[ann.id] ?? { liked: false, bookmarked: false, likeCount: 0, bookmarkCount: 0 }}
-              onToggleReaction={type => toggleReaction(ann.id, type)}
-              onClick={() => setSelected(ann)}
-            />
-          ))}
-        </div>
-      </section>
+      )}
+
+      {rest.length > 0 && (
+        <section className={featured ? 'mt-7' : ''}>
+          {featured && <h3 className="mb-3 text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Latest posts</h3>}
+          <div className={GRID}>
+            {rest.map(ann => (
+              <PostCard key={ann.id} ann={ann} C={C} react={reactOf(ann.id)}
+                onSave={() => toggleReaction(ann.id, 'bookmark')} onOpen={() => setSelected(ann)}/>
+            ))}
+          </div>
+        </section>
+      )}
+
       <AnimatePresence>
         {selected && (
-          <AnnouncementModal
-            ann={selected}
-            C={C}
-            react={reactState[selected.id] ?? { liked: false, bookmarked: false, likeCount: 0, bookmarkCount: 0 }}
+          <AnnouncementModal ann={selected} C={C} react={reactOf(selected.id)}
             onToggleReaction={type => toggleReaction(selected.id, type)}
             onClose={() => setSelected(null)}
             otherItems={items.filter(i => i.id !== selected.id)}
-            onSelect={setSelected}
-          />
+            onSelect={setSelected}/>
         )}
       </AnimatePresence>
     </>
