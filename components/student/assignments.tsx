@@ -14,7 +14,9 @@ import { useTheme } from '@/components/ThemeProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
-import { LIGHT_C } from '@/lib/theme';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
+import { DISPLAY_FONT, btnClass, btnSmClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
+import { LearningCard, LearningCardsSkeleton, deadlineTag } from '@/components/student/learning-card';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { getStudentMode } from '@/lib/student-mode-client';
 import { isScenarioConfig, parseTaskGrades, passMarkOf } from '@/lib/assignment-scenarios';
@@ -28,6 +30,8 @@ import {
 } from 'lucide-react';
 
 // --- Assignments section ---
+/** "Sun, Nov 29" for a plain YYYY-MM-DD date. */
+const formatDue = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 const CodeReviewPlayer        = dynamic(() => import('@/components/CodeReviewPlayer'),        { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
 const ExcelReviewPlayer       = dynamic(() => import('@/components/ExcelReviewPlayer'),       { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
 const DashboardCritiquePlayer = dynamic(() => import('@/components/DashboardCritiquePlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
@@ -482,8 +486,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
     <div className={isScenarioStandard ? 'sa-scenario-font' : undefined} style={isScenarioStandard ? { fontFamily: "'Google Sans Text', 'Inter', sans-serif" } : undefined}>
       {isScenarioStandard && <style>{`.sa-scenario-font .rich-content { font-family: 'Google Sans Text', 'Inter', sans-serif; }`}</style>}
       <div className="flex items-center justify-between gap-4 mb-5">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl"
-          style={{ color: C.muted, background: C.pill, border: 'none', cursor: 'pointer' }}>
+        <button type="button" onClick={onBack} className={btnSmClass} style={btnStyle('sec', C)}>
           <ArrowLeft className="w-3.5 h-3.5"/> Assignments
         </button>
         {!isScenarioStandard && submission && isParticipant && (
@@ -493,12 +496,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       {/* Scenario-based standard assignments show the title inside the player's right pane. */}
       {!isScenarioStandard && (
         <div className="mb-5">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 5px ${C.green}14` }}/>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: C.green }}>Assignment</p>
-          </div>
-          <h1 className="text-[24px] font-bold tracking-tight" style={{ color: C.text }}>{assignment.title}</h1>
-          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-xs mt-2" style={{ color: C.faint }}><Clock3 className="w-3.5 h-3.5"/> Due {new Date(`${assignment.deadline_date}T00:00:00`).toLocaleDateString()}</p>}
+          <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{assignment.title}</h1>
+          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: C.muted }}><Clock3 className="w-3.5 h-3.5"/> Due {formatDue(assignment.deadline_date)}</p>}
         </div>
       )}
 
@@ -512,7 +511,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <p className="text-sm font-bold" style={{ color: C.text }}>Group channel</p>
             <p className="text-xs mt-0.5" style={{ color: C.muted }}>Chat, share links, and run polls with your group.{groupMembers.length ? ` ${groupMembers.length} members.` : ''}</p>
           </div>
-          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: C.cta, color: C.ctaText }}>Open <ArrowRight className="w-3.5 h-3.5"/></span>
+          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: DARK_C.cta, color: '#ffffff' }}>Open <ArrowRight className="w-3.5 h-3.5"/></span>
         </button>
       )}
 
@@ -557,7 +556,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: C.faint }}>Related Course</p>
+              <p className="text-[13px] font-semibold mb-3" style={{ color: C.text }}>Related course</p>
               <a
                 href={`/${assignment._course_slug || assignment.related_course}`}
                 className="flex items-center gap-3 no-underline transition-all hover:opacity-80"
@@ -574,7 +573,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                 </div>
                 {/* Text */}
                 <div className="flex-1 min-w-0 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: C.green }}>Course</p>
+                  <p className="text-[11px] font-semibold mb-0.5" style={{ color: C.muted }}>Course</p>
                   <p className="text-[13px] font-semibold leading-snug truncate" style={{ color: C.text }}>{assignment._course_title}</p>
                   <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Review course material before submitting</p>
                 </div>
@@ -588,7 +587,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Scenario</p>
+              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Scenario</p>
               <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.scenario) }}/>
             </div>
           </>
@@ -598,7 +597,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Brief</p>
+              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Brief</p>
               <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.brief) }}/>
             </div>
           </>
@@ -608,7 +607,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Tasks</p>
+              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Tasks</p>
               <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.tasks) }}/>
             </div>
           </>
@@ -618,7 +617,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Requirements</p>
+              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Requirements</p>
               <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.requirements) }}/>
             </div>
           </>
@@ -628,7 +627,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <>
             <div style={{ borderTop: `1px solid ${C.divider}` }}/>
             <div className="px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: C.faint }}>Resources</p>
+              <p className="text-[15px] font-semibold mb-3" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Resources</p>
               <div className="flex flex-col gap-2">
                 {resources.map((r: any) => (
                   <a key={r.id} href={r.url} target="_blank" rel="noreferrer"
@@ -748,14 +747,14 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
         <div role="alert" className="rounded-2xl p-4 mb-4 flex flex-wrap items-center justify-between gap-3" style={{ background: C.card }}>
           <p className="text-sm" style={{ color: C.text }}>Could not load your submission. Check your connection and try again.</p>
           <button type="button" onClick={() => setSubReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-2 rounded-xl"
-            style={{ background: C.cta, color: C.ctaText }}>Try again</button>
+            style={{ background: DARK_C.cta, color: '#ffffff' }}>Try again</button>
         </div>
       )}
 
       {/* Participant selection -- all group assignment types, leader only */}
       {!loadingSub && !subLoadError && isGroupAssignment && isLeader && groupMembers.length > 0 && !isGraded && (
         <div className="rounded-2xl p-4 mb-4" style={{ background: C.card }}>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Mark Participants</p>
+          <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Mark participants</p>
           <p className="text-xs mb-3" style={{ color: C.muted }}>Indicate the members who participated in this assignment. Only checked members will receive this grade.</p>
           <div className="flex flex-col gap-2">
             {groupMembers.map((m: any) => {
@@ -765,7 +764,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                   style={{ background: C.page, border: `1px solid ${C.divider}` }}>
                   <input type="checkbox" checked={selectedParticipants.includes(m.student_id)}
                     onChange={() => toggleParticipant(m.student_id)}
-                    style={{ width: 15, height: 15, accentColor: C.cta, cursor: 'pointer' }}/>
+                    style={{ width: 15, height: 15, accentColor: DARK_C.cta, cursor: 'pointer' }}/>
                   <span className="text-sm" style={{ color: C.text }}>{s.full_name}</span>
                   {m.is_leader && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>Leader</span>}
                 </label>
@@ -803,7 +802,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                         className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                         style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}>
                         {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}
-                        Resubmit Assignment
+                        Resubmit assignment
                       </button>
                     )}
                   </>
@@ -950,7 +949,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                     className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                     style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}>
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}
-                    Resubmit Assignment
+                    Resubmit assignment
                   </button>
                 )}
               </div>
@@ -981,8 +980,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
       {/* Submission panel -- legacy standard type only (no scenarios) */}
       {assignmentType === 'standard' && !isScenarioStandard && !subLoadError && (
       <div className="rounded-2xl p-6" style={{ background: C.card }}>
-        <h3 className="text-sm font-bold mb-4" style={{ color: C.text }}>
-          {isGroupAssignment ? 'Group Submission' : 'Your Submission'}
+        <h3 className="text-base font-semibold mb-4" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+          {isGroupAssignment ? 'Group submission' : 'Your submission'}
         </h3>
         {loadingSub ? (
           <div className="space-y-2"><Sk h={14} w="60%"/><Sk h={100}/></div>
@@ -1078,7 +1077,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                       style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}
                     >
                       {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Resubmit Assignment
+                      Resubmit assignment
                     </button>
                   )}
                 </>
@@ -1101,7 +1100,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             {/* Saved attachments (editable) */}
             {savedFiles.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Saved Attachments</p>
+                <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Saved attachments</p>
                 <div className="flex flex-col gap-2">
                   {savedFiles.map(f => (
                     <div key={f.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
@@ -1126,14 +1125,14 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
 
             {/* Links */}
             <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Add Links</p>
+              <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Links</p>
               <div className="space-y-2">
                 {links.map((link, i) => (
                   <div key={i} className="flex gap-2 items-center">
                     <input
                       type="url" value={link} onChange={e => setLinks(prev => prev.map((l, idx) => idx === i ? e.target.value : l))}
                       placeholder="https://github.com/your-repo"
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: 10, background: C.input, color: C.text, fontSize: 13, outline: 'none' }}
+                      style={{ flex: 1, height: 40, padding: '0 12px', borderRadius: 12, background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.text, fontSize: 13, outline: 'none' }}
                     />
                     {links.length > 1 && (
                       <button onClick={() => removeLink(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint }}>
@@ -1144,19 +1143,18 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                 ))}
               </div>
               <button onClick={() => setLinks(prev => [...prev, ''])}
-                className="mt-2 text-xs font-medium flex items-center gap-1"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.green, padding: 0 }}>
+                className="mt-2 text-xs font-semibold flex items-center gap-1"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.text, padding: 0 }}>
                 <Plus className="w-3.5 h-3.5"/> Add another link
               </button>
             </div>
 
             {/* File upload */}
             <div className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Upload Files</p>
+              <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Files</p>
               <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
               <button type="button" onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
-                style={{ background: C.pill, color: C.muted, border: `1px solid ${C.divider}`, cursor: 'pointer' }}>
+                className={btnClass} style={btnStyle('sec', C)}>
                 <Upload className="w-4 h-4"/> Choose files
               </button>
               {readyFiles.length > 0 && (
@@ -1189,13 +1187,11 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               ) : (
                 <div className="flex gap-3">
                   <button onClick={() => handleSubmit(true)} disabled={submitting}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold"
-                    style={{ background: C.pill, color: C.muted, border: `1px solid ${C.divider}`, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}>
-                    Save Draft
+                    className={btnClass} style={btnStyle('sec', C)}>
+                    Save draft
                   </button>
                   <button onClick={() => handleSubmit(false)} disabled={submitting || uploading || !hasContent}
-                    className="px-5 py-2 rounded-xl text-sm font-semibold dashboard-cta"
-                    style={{ background: C.cta, color: C.ctaText, border: 'none', cursor: (submitting || uploading || !hasContent) ? 'not-allowed' : 'pointer', opacity: (submitting || uploading || !hasContent) ? 0.6 : 1 }}>
+                    className={btnClass} style={{ background: DARK_C.cta, color: '#ffffff' }}>
                     {submitting ? 'Submitting...' : uploading ? 'Uploading...' : isSubmitted ? 'Resubmit' : 'Submit'}
                   </button>
                 </div>
@@ -1224,12 +1220,20 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
   );
 }
 
+/** Where an assignment stands for the list's chips: not handed in (or a draft), waiting, or graded. */
+type AssignmentState = 'todo' | 'submitted' | 'graded';
+const STATE_LABEL: Record<'all' | AssignmentState, string> = { all: 'All', todo: 'To do', submitted: 'Submitted', graded: 'Graded' };
+function assignmentState(item: any): AssignmentState {
+  const status = item._sub?.status;
+  return status === 'graded' ? 'graded' : status && status !== 'draft' ? 'submitted' : 'todo';
+}
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
 export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LIGHT_C }) {
   const router = useRouter();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | AssignmentState>('all');
 
   useEffect(() => {
     const load = async () => {
@@ -1298,136 +1302,74 @@ export function AssignmentsSection({ userId, C }: { userId: string; C: typeof LI
     load();
   }, [userId]);
 
-  const skCard = (
-    <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1px solid ${C.divider}` }}>
-      <Sk h={140} r={0}/><div className="p-4 space-y-2"><Sk h={15} w="70%"/><Sk h={11} w="50%"/></div>
-    </div>
-  );
-
-  if (loading) return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[0,1,2,3].map(i => <div key={i}>{skCard}</div>)}</div>;
+  if (loading) return <LearningCardsSkeleton C={C} bar={false}/>;
 
   if (!items.length) return (
     <EmptyState icon={ClipboardList} title="No assignments" body="You do not have any assignments assigned yet."/>
   );
 
-  const AssignmentCard = ({ item, i }: { item: any; i: number }) => {
-    const isSubmitted = item._sub && item._sub.status !== 'draft';
-    const nowMs = Date.now();
-    const daysLeft = (item.deadline_date && !isSubmitted)
-      // A plain date, due by the end of that day where the learner is, as the calendar reads it.
-      ? Math.ceil((new Date(`${item.deadline_date}T23:59:59`).getTime() - nowMs) / 86400000)
-      : null;
-    const deadlineLabel = daysLeft === null ? null
-      : daysLeft < 0  ? 'Overdue'
-      : daysLeft === 0 ? 'Due today'
-      : `${daysLeft}d left`;
-    const deadlineColor = daysLeft === null ? null
-      : daysLeft < 0  ? '#ef4444'
-      : daysLeft <= 3 ? '#f59e0b'
-      : '#6b7280';
-    const passMark = passMarkOf(item.config); // this assignment's configured passing grade
+  const counts = { all: items.length, todo: 0, submitted: 0, graded: 0 };
+  for (const item of items) counts[assignmentState(item)]++;
+  const shown = items.filter(item => filter === 'all' || assignmentState(item) === filter);
 
-    return (
-    <motion.button key={item.id} onClick={() => router.push(`/student/assignments/${item.id}`)}
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-      className="text-left rounded-[20px] overflow-hidden group transition-all"
-      style={{ background: C.card, cursor: 'pointer', border: `1px solid ${C.divider}`, boxShadow: isDark ? 'none' : C.cardShadow }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = C.hoverShadow)}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = C.cardShadow)}>
-      <div className="relative h-44 overflow-hidden" style={{ background: C.thumbBg }}>
-        <div className="absolute inset-0 flex items-center justify-center text-4xl font-black" style={{ color: C.green, opacity: 0.25 }}>{item.title?.[0]?.toUpperCase()}</div>
-        {item.cover_image && <img src={resolveCoverUrl(item.cover_image)} alt={item.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onError={e => (e.currentTarget.style.display = 'none')}/>}
-        {(item.group_ids?.length > 0) && (
-          <div className="absolute top-2 left-2">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: C.cta, color: C.ctaText, backdropFilter: 'blur(4px)' }}>
-              <Users className="w-3 h-3"/> Group
-            </span>
-          </div>
-        )}
-        {item._sub && (
-          <div className="absolute top-2 right-2">
-            {item._sub.status === 'graded' && item._sub.score == null
-              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>Graded</span>
-              : item._sub.status === 'graded'
-              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: item._sub.score >= passMark ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: item._sub.score >= passMark ? '#10b981' : '#ef4444', border: `1px solid ${item._sub.score >= passMark ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
-                  {item._sub.score >= passMark ? 'Passed' : 'Failed'}
-                </span>
-              : item._sub.status === 'submitted'
-              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#ffffff', color: '#16a34a', border: '1px solid rgba(22,163,74,0.25)' }}>
-                  Submitted
-                </span>
-              : item._sub.status === 'draft'
-              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.08)', color: '#888', border: '1px solid rgba(0,0,0,0.12)' }}>
-                  Draft
-                </span>
-              : null}
-          </div>
-        )}
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h3 className="text-[15px] font-bold leading-snug" style={{ color: C.text }}>{item.title}</h3>
-          <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg flex-shrink-0" style={{ background: C.pill, color: C.faint }}>{(item.type || 'standard').replaceAll('_', ' ')}</span>
-        </div>
-        {deadlineLabel && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2"
-            style={{ background: `${deadlineColor ?? '#6b7280'}18`, color: deadlineColor ?? '#6b7280' }}>
-            <Clock3 className="w-3 h-3"/> {deadlineLabel}
-          </span>
-        )}
-        <div className="flex items-center justify-between">
-          {!item._sub
-            ? <span className="text-[11px] font-medium" style={{ color: C.muted }}>Not Submitted</span>
-            : item._sub.status === 'graded'
-            // A graded submission without a score is neither passed nor failed, as on its page.
-            ? (item._sub.score == null
-              ? <span className="text-[11px] font-semibold" style={{ color: C.muted }}>Graded</span>
-              : <span className="text-[11px] font-semibold" style={{ color: item._sub.score >= passMark ? '#10b981' : '#ef4444' }}>Graded, {item._sub.score}%</span>)
-            : item._sub.status === 'submitted'
-            ? <span className="text-[11px] font-semibold" style={{ color: '#16a34a' }}>Submitted</span>
-            : <span className="text-[11px] font-medium" style={{ color: C.muted }}>Not Submitted</span>}
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl" style={{ background: C.cta, color: C.ctaText }}>
-            {!item._sub || item._sub.status === 'draft' ? <Play className="w-3 h-3" fill="currentColor"/> : <ArrowRight className="w-3.5 h-3.5"/>}
-            {!item._sub || item._sub.status === 'draft' ? 'Start' : 'View'}
-          </span>
-        </div>
-      </div>
-    </motion.button>
-  );
-  };
-
-  // Group by course
+  // Grouped by course; the headings show only when there is more than one group.
   const grouped: Record<string, any[]> = {};
-  for (const item of items) {
+  for (const item of shown) {
     const key = item._course_title ?? '__none__';
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(item);
   }
   const courseKeys = Object.keys(grouped).filter(k => k !== '__none__').sort();
   if (grouped['__none__']) courseKeys.push('__none__');
+  const open = (item: any) => router.push(`/student/assignments/${item.id}`);
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-end">
-        <span className="text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.pill, color: C.muted }}>{items.length} total</span>
+    <div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Show">
+        {(['all', 'todo', 'submitted', 'graded'] as const).map(key => (
+          <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}
+            className="h-8 rounded-full px-3 text-xs font-semibold"
+            style={filter === key ? { background: DARK_C.cta, color: '#ffffff' } : { background: C.card, color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+            {STATE_LABEL[key]} <span className="ml-0.5 opacity-70">{counts[key]}</span>
+          </button>
+        ))}
       </div>
+
+      {shown.length === 0 && (
+        <p className="py-10 text-center text-sm" style={{ color: C.muted }}>No {STATE_LABEL[filter].toLowerCase()} assignments.</p>
+      )}
       {courseKeys.map(key => (
-        <div key={key}>
-          <div className="flex items-center gap-2 mb-4">
-            {key !== '__none__'
-              ? <><BookOpen className="w-3.5 h-3.5" style={{ color: C.green }}/><p className="text-xs font-bold uppercase tracking-widest" style={{ color: C.green }}>{key}</p></>
-              : <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.faint }}>General</p>
-            }
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: C.pill, color: C.faint }}>{grouped[key].length}</span>
+        <section key={key} className="mt-5">
+          {courseKeys.length > 1 && (
+            <h3 className="mb-3 text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+              {key === '__none__' ? 'Other assignments' : key}
+            </h3>
+          )}
+          <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6">
+            {grouped[key].map(item => {
+              const sub = item._sub;
+              const state = assignmentState(item);
+              const passMark = passMarkOf(item.config); // this assignment's configured passing grade
+              const kind = (item.type || 'standard') as string;
+              return (
+                <LearningCard key={item.id} C={C} cover={item.cover_image} fallbackIcon={item.group_ids?.length ? Users : ClipboardList}
+                  category={item.group_ids?.length ? 'Group' : kind !== 'standard' ? sentence(kind.replaceAll('_', ' ')) : null}
+                  // A plain date, due by the end of that day where the learner is, as the calendar reads it.
+                  tag={deadlineTag(item.deadline_date ? new Date(`${item.deadline_date}T23:59:59`) : null, state !== 'todo')}
+                  title={item.title}
+                  meta={item.deadline_date ? `Due ${formatDue(item.deadline_date)}` : undefined}
+                  status={state === 'todo' ? { label: sub?.status === 'draft' ? 'Draft' : 'Not started', tone: 'mute' }
+                    : state === 'submitted' ? { label: 'Awaiting grade', tone: 'warn' }
+                    // A graded submission without a score is neither passed nor failed, as on its page.
+                    : sub.score == null ? { label: 'Graded', tone: 'good' }
+                    : sub.score >= passMark ? { label: `Passed, ${sub.score}%`, tone: 'good' }
+                    : { label: `Not passed, ${sub.score}%`, tone: 'bad' }}
+                  action={{ label: state === 'todo' ? (sub ? 'Continue' : 'Start') : 'View', onClick: () => open(item), quiet: state !== 'todo' }}
+                  onOpen={() => open(item)}/>
+              );
+            })}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {grouped[key].map((item, i) => <AssignmentCard key={item.id} item={item} i={i}/>)}
-          </div>
-        </div>
+        </section>
       ))}
     </div>
   );

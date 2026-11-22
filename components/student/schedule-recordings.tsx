@@ -12,6 +12,8 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C, DARK_C } from '@/lib/theme';
 import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
+import { FRAMED_CARD } from '@/components/CardMeta';
+import { DISPLAY_FONT, btnClass, btnStyle } from '@/components/dashboard/subscriptions/ui';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink, FileText,
@@ -313,11 +315,14 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     }
   }
 
+  const grid = 'grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6';
+
   if (loading) return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {[0,1,2,3,4,5].map(i => (
-        <div key={i} className="rounded-2xl overflow-hidden" style={{ background: C.card }}>
-          <Sk h={160} r={0}/><div className="p-3 space-y-2"><Sk h={13} w="70%"/><Sk h={10} w="45%"/></div>
+    <div className={grid} aria-busy="true">
+      {[0, 1, 2].map(i => (
+        <div key={i} className="overflow-hidden rounded-xl" style={{ background: C.card }}>
+          <div className="aspect-video w-full animate-pulse" style={{ background: C.skeleton }}/>
+          <div className="space-y-2 px-4 pb-[18px] pt-3.5"><Sk h={14} w="70%"/><Sk h={11} w="45%"/><div className="flex justify-end pt-1.5"><Sk w={72} h={36} r={12}/></div></div>
         </div>
       ))}
     </div>
@@ -337,77 +342,55 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
     return (
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {/* Back + title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <button onClick={() => setSelected(null)}
-            style={{ width: 34, height: 34, borderRadius: 10,
-              background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0 }}>
-            <ArrowLeft size={15} style={{ color: C.text }}/>
+        <div className="mb-4 flex items-center gap-3">
+          <button type="button" onClick={() => setSelected(null)} aria-label="Back to recordings"
+            className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl" style={{ background: C.card, color: C.text }}>
+            <ArrowLeft className="h-4 w-4"/>
           </button>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">{selected.title}</p>
-            <p style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{totalEntries} recording{totalEntries !== 1 ? 's' : ''} - {weeks.length} week{weeks.length !== 1 ? 's' : ''}</p>
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-semibold leading-7" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{selected.title}</h2>
+            <p className="text-xs" style={{ color: C.muted }}>{totalEntries} recording{totalEntries !== 1 ? 's' : ''}, {weeks.length} week{weeks.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
 
-        {/* Cover banner */}
         {selected.cover_image && (
-          <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 16, height: 180,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
-            <img src={selected.cover_image} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
+          <div className="mb-4 h-[180px] overflow-hidden rounded-2xl">
+            <img src={selected.cover_image} alt="" className="h-full w-full object-cover object-top"/>
           </div>
         )}
 
-        {/* Description */}
-        <AuthoredText value={selected.description ?? ''}
-          style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
+        <AuthoredText value={selected.description ?? ''} style={{ fontSize: 14, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
 
-        {/* Week tabs */}
         {weeks.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}
-            className="hide-scrollbar">
+          <div className="hide-scrollbar mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Week">
             {weeks.map(w => (
-              <button key={w} onClick={() => setActiveWeek(w)}
-                style={{
-                  padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
-                  whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: 'none',
-                  background: currentWeek === w ? C.green : C.pill,
-                  color: currentWeek === w ? (C === DARK_C ? '#111' : '#fff') : C.muted,
-                  transition: 'all 0.15s',
-                }}>
+              <button key={w} type="button" onClick={() => setActiveWeek(w)} aria-pressed={currentWeek === w}
+                className="h-8 flex-shrink-0 whitespace-nowrap rounded-full px-3.5 text-xs font-semibold"
+                style={currentWeek === w ? { background: DARK_C.cta, color: '#ffffff' } : { background: C.card, color: C.text, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
                 Week {w}
               </button>
             ))}
           </div>
         )}
 
-        {/* Entries for selected week */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {weekEntries.length === 0
-            ? <p style={{ fontSize: 13, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No recordings for this week.</p>
+            ? <p className="py-6 text-center text-[13px]" style={{ color: C.faint }}>No recordings for this week.</p>
             : weekEntries.map((entry: any, idx: number) => (
-                <motion.div key={entry.id}
-                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
-                  style={{ borderRadius: 16, background: C.card }}>
-                  <a href={entry.url} target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                      textDecoration: 'none' }}>
-                    {/* Play button */}
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Play size={16} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
-                        {entry.topic}
-                      </p>
-                      <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Week {entry.week} - Recording {idx + 1}</p>
-                    </div>
-                    <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                <div key={entry.id} className="rounded-2xl" style={{ background: C.card }}>
+                  <a href={entry.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 px-4 py-3">
+                    <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl"
+                      style={{ background: `color-mix(in srgb, ${DARK_C.cta} 14%, transparent)`, color: DARK_C.cta }}>
+                      <Play className="ml-0.5 h-4 w-4" fill="currentColor"/>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold group-hover:underline" style={{ color: C.text }}>{entry.topic}</span>
+                      <span className="mt-0.5 block text-xs" style={{ color: C.muted }}>Week {entry.week}, recording {idx + 1}</span>
+                    </span>
+                    <span className={btnClass} style={btnStyle('sec', C)}><ExternalLink className="h-3.5 w-3.5"/>Watch</span>
                   </a>
                   <SessionExtras entry={entry} C={C}/>
-                </motion.div>
+                </div>
               ))
           }
         </div>
@@ -415,39 +398,27 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     );
   }
 
-  /* -- Grid view -- */
+  /* -- Grid view: each collection as the My learning card -- */
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {recordings.map((rec, i) => (
-        <motion.button key={rec.id} onClick={() => openRecording(rec)}
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-          className="text-left w-full"
-          style={{ background: C.card, borderRadius: 16,
-            overflow: 'hidden', cursor: 'pointer' }}>
-          {/* Cover */}
-          <div style={{ height: 160, background: C.pill, position: 'relative', overflow: 'hidden' }}>
-            {rec.cover_image
-              ? <img src={rec.cover_image} alt={rec.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Video size={28} style={{ color: C.faint }}/>
-                </div>
-            }
-            {/* Play overlay */}
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.92)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.22)' }}>
-                <Play size={14} fill={C.green} style={{ color: C.green, marginLeft: 2 }}/>
-              </div>
+    <div className={grid}>
+      {recordings.map(rec => (
+        <button key={rec.id} type="button" onClick={() => openRecording(rec)} className={`${FRAMED_CARD} text-left`} style={{ background: C.card }}>
+          <div className="relative aspect-video w-full overflow-hidden" style={{ background: C.pill }}>
+            {rec.cover_image && <img src={rec.cover_image} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"/>}
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full shadow-md" style={{ background: DARK_C.cta, color: '#ffffff' }}>
+                <Play className="ml-0.5 h-[18px] w-[18px]" fill="currentColor"/>
+              </span>
+            </span>
+          </div>
+          <div className="flex flex-1 flex-col gap-3.5 px-3 pb-3.5 pt-2.5 sm:px-4 sm:pb-[18px] sm:pt-3.5">
+            <div>
+              <p className="line-clamp-2 text-[15px] font-bold leading-5" style={{ color: C.text }}>{rec.title}</p>
+              {hasRichContent(rec.description) && <p className="mt-1 line-clamp-1 text-xs" style={{ color: C.muted }}>{toPlainText(rec.description)}</p>}
             </div>
+            <span className={`${btnClass} mt-auto self-end`} style={btnStyle('sec', C)}>Open</span>
           </div>
-          {/* Info */}
-          <div style={{ padding: '10px 12px 12px' }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, lineHeight: 1.3 }}
-              className="line-clamp-2">{rec.title}</p>
-          </div>
-        </motion.button>
+        </button>
       ))}
     </div>
   );

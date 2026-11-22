@@ -71,14 +71,15 @@ export function LearningCard({
   byline?: ReactNode;
   /** One line under the title, such as "12 lessons". */
   meta?: string;
-  progress: number;
-  done: boolean;
+  /** Left out for work with no progress to show (assignments): the bar is dropped. */
+  progress?: number;
+  done?: boolean;
   status: LearningCardStatus;
   action: { label: string; href?: string; onClick?: () => void; quiet?: boolean };
   onOpen: () => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
-  const pct = Math.max(0, Math.min(100, Math.round(progress)));
+  const pct = progress === undefined ? null : Math.max(0, Math.min(100, Math.round(progress)));
   const showImage = !!cover && !imgErr;
   const actionClass = 'inline-flex h-9 items-center justify-center rounded-xl px-4 text-sm font-semibold whitespace-nowrap transition-opacity hover:opacity-85';
   const actionStyle = action.quiet
@@ -124,7 +125,7 @@ export function LearningCard({
 
         {/* Progress, status and action sit at the bottom, so they line up across a row. */}
         <div className="mt-auto flex flex-col gap-3.5">
-          <DepthBar pct={pct} done={done} C={C} className="h-2.5 w-full" />
+          {pct !== null && <DepthBar pct={pct} done={!!done} C={C} className="h-2.5 w-full" />}
           <div className="flex items-center justify-between gap-3" onClick={e => e.stopPropagation()}>
             <Pill tone={status.tone} dot={status.tone === 'good'} C={C}>{status.label}</Pill>
             {action.href
@@ -138,7 +139,7 @@ export function LearningCard({
 }
 
 /** The My learning grid while it loads: the same frame, cover, title, bar and footer as the cards. */
-export function LearningCardsSkeleton({ C }: { C: typeof LIGHT_C }) {
+export function LearningCardsSkeleton({ C, bar = true }: { C: typeof LIGHT_C; bar?: boolean }) {
   const block = (cls: string) => <div className={`animate-pulse ${cls}`} style={{ background: C.skeleton }} />;
   return (
     <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6" aria-busy="true">
@@ -147,7 +148,7 @@ export function LearningCardsSkeleton({ C }: { C: typeof LIGHT_C }) {
           {block('aspect-video w-full')}
           <div className="flex flex-col gap-3.5 px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
             <div className="space-y-2">{block('h-4 w-3/4 rounded')}{block('h-3 w-1/3 rounded')}</div>
-            {block('h-2.5 w-full rounded-full')}
+            {bar && block('h-2.5 w-full rounded-full')}
             <div className="flex items-center justify-between">{block('h-6 w-20 rounded-full')}{block('h-9 w-24 rounded-xl')}</div>
           </div>
         </div>
