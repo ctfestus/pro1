@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requireUser, isAuthError } from '@/lib/api-auth';
+import { computeAccess } from '@/lib/enrollment-access';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
           id, cohort_id, total_fee, currency, payment_plan,
           deposit_required, paid_total, access_status, access_until,
           bootcamp_starts_at, bootcamp_ends_at,
+          cohort:cohorts ( name ),
           payment_installments ( id, due_date, amount_due, amount_paid, status )
         `)
         .eq('student_id', targetStudentId)
@@ -82,7 +84,9 @@ export async function GET(req: NextRequest) {
     const enrollment = enrollRes.data;
     const enrollmentId = enrollment.id;
 
-    const [paymentsRes, confirmationsRes] = await Promise.all([
+    // The live access state, worked out the way the dashboard banners and the nightly sweep do,
+    // rather than the stored status, which only changes when something writes it.
+    const [paymentsRes, confirmationsRes, settingsRes, studentRes] = await Promise.all([
       db
         .from('payments')
         .select('id, amount, paid_at, method, reference, notes, created_at')
@@ -93,24 +97,44 @@ export async function GET(req: NextRequest) {
         .select('id, amount, paid_at, method, reference, notes, receipt_url, status, admin_notes, created_at')
         .eq('enrollment_id', enrollmentId)
         .order('created_at', { ascending: false }),
+      db.from('cohort_payment_settings').select('post_bootcamp_access_months, grace_period_days').eq('cohort_id', enrollment.cohort_id).maybeSingle(),
+      db.from('students').select('payment_exempt, original_cohort_id').eq('id', targetStudentId).maybeSingle(),
     ]);
 
     const installments = (enrollment.payment_installments ?? [])
       .slice()
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    const live = computeAccess({
+      payment_plan:                enrollment.payment_plan as any,
+      total_fee:                   Number(enrollment.total_fee),
+      deposit_required:            Number(enrollment.deposit_required),
+      paid_total:                  Number(enrollment.paid_total),
+      bootcamp_ends_at:            enrollment.bootcamp_ends_at ? new Date(enrollment.bootcamp_ends_at) : null,
+      post_bootcamp_access_months: settingsRes.data?.post_bootcamp_access_months ?? 3,
+      grace_period_days:           settingsRes.data?.grace_period_days ?? null,
+      installments:                installments.map((i: any) => ({ due_date: new Date(i.due_date), status: i.status })),
+    });
+    // An older row can still hold 'expired', which computeAccess no longer produces; keep it.
+    const accessStatus = enrollment.access_status === 'expired' ? 'expired' : live.access_status;
+    const exempt = !!studentRes.data?.payment_exempt;
 
     return NextResponse.json({
       enrollment: {
         id:              enrollment.id,
         cohort_id:       enrollment.cohort_id,
         total_fee:       Number(enrollment.total_fee),
-        currency:        enrollment.currency ?? 'GHS',
+        // No currency stored: the page shows bare amounts rather than guessing one.
+        currency:        enrollment.currency ?? null,
+        cohort_name:     (enrollment as any).cohort?.name ?? null,
         payment_plan:    enrollment.payment_plan,
         deposit_required: Number(enrollment.deposit_required),
         paid_total:      Number(enrollment.paid_total),
         balance:         Math.max(0, Number(enrollment.total_fee) - Number(enrollment.paid_total)),
-        access_status:   enrollment.access_status,
-        access_until:    enrollment.access_until,
+        access_status:   accessStatus,
+        access_until:    accessStatus === 'expired' ? enrollment.access_until : live.access_until ? live.access_until.toISOString().slice(0, 10) : null,
+        grace_active:    live.grace_active,
+        // Course access is paused (the same rule as the dashboard's outstanding banner).
+        restricted:      !!studentRes.data?.original_cohort_id || (!exempt && ['pending_deposit', 'overdue', 'expired'].includes(accessStatus)),
         bootcamp_starts_at: enrollment.bootcamp_starts_at,
         bootcamp_ends_at:   enrollment.bootcamp_ends_at,
       },

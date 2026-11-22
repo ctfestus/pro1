@@ -741,8 +741,8 @@ export default function StudentDashboard() {
 
             {/* Section content */}
 
-            {/* Grace period banner -- payment is overdue but still within grace window */}
-            {isInGracePeriod && !isOutstanding && (
+            {/* Grace period banner -- payment is overdue but still within grace window (not on My Plan) */}
+            {isInGracePeriod && !isOutstanding && activeSection !== 'payments' && (
               <div className="flex items-start gap-3 px-4 py-3 rounded-xl mb-4"
                 style={{ background: 'rgba(245,158,11,0.09)', border: '1px solid rgba(245,158,11,0.35)' }}>
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#d97706' }}/>
@@ -758,8 +758,8 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {/* Outstanding banner -- persists across all tabs */}
-            {isOutstanding && (
+            {/* Outstanding banner -- on every tab but My Plan, whose hero says the same */}
+            {isOutstanding && activeSection !== 'payments' && (
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-4"
                 style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}>
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#dc2626' }}/>
