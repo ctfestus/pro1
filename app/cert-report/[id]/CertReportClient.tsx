@@ -1,180 +1,129 @@
 'use client';
 
+// The public certification report: the score dial and the skill bars, with the share actions at the
+// top, in the shared credential page frame (components/credential/PublicCredential).
+
 import { useState } from 'react';
 import { useTenant } from '@/components/TenantProvider';
-import { ShieldCheck, Calendar, Link2, Check, CheckCircle2, XCircle, Award, ExternalLink } from 'lucide-react';
-import type { CertReportData, SkillResult } from '@/lib/cert-report';
+import { useC } from '@/lib/theme';
+import type { CertReportData } from '@/lib/cert-report';
 import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
-
-// Official LinkedIn brand mark (fills currentColor so it inherits the button colour).
-function LinkedInIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
-    </svg>
-  );
-}
-
-function hexToRgba(hex: string, a: number): string {
-  const h = String(hex || '').replace('#', '');
-  if (h.length === 6) { const n = parseInt(h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
-  return `rgba(62,147,255,${a})`;
-}
+import { DISPLAY_FONT, btnClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { ArrowSquareOut, CalendarBlank, Check, CheckCircle, LinkSimple, LinkedinLogo, SealCheck, XCircle } from '@phosphor-icons/react';
+import { CARD_SHADOW, CredentialShell, usePageUrl } from '@/components/credential/PublicCredential';
 
 export default function CertReportClient({ data }: { data: CertReportData }) {
-  const { appName, orgName, logoUrl } = useTenant();
-  // The report uses a professional success-green accent (not the tenant brand, which can be purple).
-  const accent = '#16a34a';
-  const org = orgName || appName || 'our platform';
-  const firstName = data.studentName.split(' ')[0] || data.studentName;
+  const C = useC();
+  const P = palette(C);
+  const { appName, orgName } = useTenant();
+  const org = orgName || appName || '';
+  const pageUrl = usePageUrl();
+  const origin = pageUrl ? new URL(pageUrl).origin : '';
+  const reportUrl = `${origin}/cert-report/${data.certId}`;
+  const certUrl = `${origin}/certificate/${data.certId}`;
+  const [copied, setCopied] = useState(false);
+  const copyLink = () => navigator.clipboard?.writeText(reportUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {});
 
-  const reportUrl = () => `${window.location.origin}/cert-report/${data.certId}`;
-  const certUrl = () => `${window.location.origin}/certificate/${data.certId}`;
-  const openNew = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
-  const shareToLinkedIn = () => openNew(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(reportUrl())}`);
-  const addToLinkedIn = () => openNew(linkedInAddCertUrl({
-    name: data.certTitle, organizationName: org, issuedAt: data.issuedAt, certId: data.certId, certUrl: certUrl(),
-  }));
-
-  const [copied, setCopied] = useState<'link' | 'text' | null>(null);
-  const copy = (val: string, which: 'link' | 'text') => {
-    navigator.clipboard?.writeText(val).then(() => { setCopied(which); setTimeout(() => setCopied(null), 1800); }).catch(() => {});
-  };
-
-  // Dark palette (mirrors the reference report).
-  const C = { page: '#15161d', card: '#1e1f27', cardAlt: '#23242f', text: '#e8eaf0', muted: '#9097a5', faint: '#6b7280', track: '#2a2c37', border: 'rgba(255,255,255,0.08)' };
-
-  // Overall-score gauge: a half (semicircle) dial. Green fill = score; the tick marks the pass mark.
+  // Half dial: the green fill is the score; the tick marks the pass mark.
   const gCx = 108, gCy = 108, gR = 88, gStroke = 15;
-  const gArc = Math.PI * gR;                                   // path length of the semicircle
+  const gArc = Math.PI * gR;
   const scoreFrac = Math.max(0, Math.min(100, data.score)) / 100;
   const passFrac = Math.max(0, Math.min(100, data.passmark)) / 100;
   const pcos = Math.cos(passFrac * Math.PI), psin = Math.sin(passFrac * Math.PI);
   const tickIn = gR - gStroke / 2 - 2, tickOut = gR + gStroke / 2 + 2;
   const gaugePath = `M ${gCx - gR} ${gCy} A ${gR} ${gR} 0 0 1 ${gCx + gR} ${gCy}`;
-
-  // A skill counts as a strength when it clears the certification's own pass mark.
-  const STRONG = data.passmark;
-  const strengths = data.skills.filter(s => s.pct >= STRONG);
-  const gaps = data.skills.filter(s => s.pct < STRONG);
-
-  const card = { background: C.card, borderRadius: 18, padding: 24, border: `1px solid ${C.border}` };
-  const eyebrow = { fontSize: 12, fontWeight: 800 as const, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: C.muted, marginBottom: 12 };
-  const btn = { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 as const, padding: '11px 18px', borderRadius: 12, cursor: 'pointer', border: 'none' };
-
-  const SkillRow = (s: SkillResult) => (
-    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-      <span style={{ flex: '0 0 150px', fontSize: 14, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-      <div style={{ flex: 1, maxWidth: 240, position: 'relative', height: 8, borderRadius: 999, background: C.track }}>
-        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${s.pct}%`, minWidth: s.pct > 0 ? 8 : 0, background: accent, borderRadius: 999 }} />
-        {/* pass-mark tick -- same marker as the score gauge */}
-        <div title={`Pass mark ${data.passmark}%`} style={{ position: 'absolute', left: `${data.passmark}%`, top: -3, bottom: -3, width: 2, marginLeft: -1, background: C.text, borderRadius: 2 }} />
-      </div>
-      <span style={{ flex: '0 0 auto', fontSize: 13, color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{s.pct}%</span>
-    </div>
-  );
+  const skills = [...data.skills].sort((a, b) => b.pct - a.pct);
+  const initials = data.studentName.split(' ').slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
+  const card = `rounded-2xl p-5 ${CARD_SHADOW}`;
 
   return (
-    <div style={{ minHeight: '100vh', background: C.page, color: C.text, fontFamily: "'Google Sans Text','Inter',system-ui,sans-serif" }}>
-      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '32px 22px 72px' }}>
-        {/* Top bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-          {logoUrl ? <img src={logoUrl} alt="" style={{ height: 26, objectFit: 'contain' }} /> : <span style={{ fontWeight: 800 }}>{org}</span>}
-        </div>
-
-        {/* Hero: statement (left) + profile (right) */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'flex-start', marginBottom: 36 }}>
-          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
-            <div style={eyebrow}>Assessment report</div>
-            <h1 style={{ fontSize: 'clamp(30px, 4vw, 44px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px' }}>{data.certTitle}</h1>
-            <p style={{ fontSize: 17, color: C.muted, lineHeight: 1.6, margin: '0 0 18px', maxWidth: 560 }}>
-              {firstName} {data.passed ? 'passed' : 'completed'} this assessment with an overall score of <span style={{ color: C.text, fontWeight: 700 }}>{data.score}%</span>.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13.5, color: C.muted, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShieldCheck className="w-4 h-4" style={{ color: '#3E93FF' }} /> Credentials verified</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Calendar className="w-4 h-4" /> {data.issueDate}</span>
+    <CredentialShell>
+      <div className="grid gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            {data.badgeImageUrl && <img src={data.badgeImageUrl} alt="" className="h-14 w-14 flex-shrink-0 object-contain"/>}
+            <div className="min-w-0">
+              <p className="text-xs font-semibold" style={{ color: C.muted }}>Assessment report</p>
+              <h1 className="mt-1 text-[28px] font-semibold leading-9" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{data.certTitle}</h1>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]" style={{ color: C.muted }}>
+                <span className="inline-flex items-center gap-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold" style={{ background: C.pill, color: C.text }}>{initials}</span>
+                  <b className="font-semibold" style={{ color: C.text }}>{data.studentName}</b>
+                </span>
+                <span className="inline-flex items-center gap-1.5"><CalendarBlank size={14} weight="bold"/>{data.issueDate}</span>
+              </div>
             </div>
           </div>
-
-          {/* Profile card -- shows the certification badge (no student photo). Flat: no background or border. */}
-          <div style={{ flex: '0 1 300px', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 0 }}>
-              {data.badgeImageUrl
-                ? <img src={data.badgeImageUrl} alt="Certification badge" style={{ width: 128, height: 128, objectFit: 'contain' }} />
-                : <div style={{ width: 96, height: 96, borderRadius: '50%', background: accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, fontWeight: 800 }}>{firstName.charAt(0).toUpperCase()}</div>}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <a href={origin ? linkedInAddCertUrl({ name: data.certTitle, organizationName: org || undefined, issuedAt: data.issuedAt, certId: data.certId, certUrl }) : '#'}
+              target="_blank" rel="noopener noreferrer" className={btnClass} style={btnStyle('sec', C)}>
+              <LinkedinLogo size={16} weight="fill" style={{ color: '#0A66C2' }}/> Add to LinkedIn
+            </a>
+            <a href={origin ? `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(reportUrl)}` : '#'}
+              target="_blank" rel="noopener noreferrer" className={btnClass} style={btnStyle('sec', C)}>
+              <LinkedinLogo size={16} weight="fill" style={{ color: '#0A66C2' }}/> Share a post
+            </a>
+            <button type="button" onClick={copyLink} className={btnClass} style={btnStyle('sec', C)}>
+              {copied ? <Check size={15} weight="bold" style={{ color: P.good }}/> : <LinkSimple size={15} weight="bold"/>}
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <a href={`/certificate/${data.certId}`} target="_blank" rel="noopener noreferrer" className={btnClass} style={btnStyle('sec', C)}>
+              <ArrowSquareOut size={15} weight="bold"/> View certificate
+            </a>
           </div>
         </div>
 
-        {/* Overall score gauge (half dial) */}
-        <div style={{ ...card, border: 'none', marginBottom: 36, display: 'flex', flexWrap: 'wrap', gap: 30, alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: 216, height: 122, flexShrink: 0 }}>
-            <svg width="216" height="122" viewBox="0 0 216 118">
-              <path d={gaugePath} fill="none" stroke={C.track} strokeWidth={gStroke} strokeLinecap="round" />
-              <path d={gaugePath} fill="none" stroke={accent} strokeWidth={gStroke} strokeLinecap="round"
-                strokeDasharray={`${scoreFrac * gArc} ${gArc}`} />
-              {/* pass-mark tick */}
-              <line x1={gCx - tickIn * pcos} y1={gCy - tickIn * psin} x2={gCx - tickOut * pcos} y2={gCy - tickOut * psin}
-                stroke={C.text} strokeWidth={3} strokeLinecap="round" />
+        <div className={`${card} flex flex-wrap items-center gap-6`} style={{ background: C.card }}>
+          <div className="relative h-[122px] w-[216px] flex-shrink-0">
+            <svg width="216" height="122" viewBox="0 0 216 118" aria-hidden>
+              <path d={gaugePath} fill="none" stroke={C.pill} strokeWidth={gStroke} strokeLinecap="round"/>
+              <path d={gaugePath} fill="none" stroke={P.good} strokeWidth={gStroke} strokeLinecap="round" strokeDasharray={`${scoreFrac * gArc} ${gArc}`}/>
+              <line x1={gCx - tickIn * pcos} y1={gCy - tickIn * psin} x2={gCx - tickOut * pcos} y2={gCy - tickOut * psin} stroke={C.text} strokeWidth={3} strokeLinecap="round"/>
             </svg>
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1 }}>{data.score}%</span>
-              <span style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>Overall score</span>
+            <div className="absolute inset-x-0 bottom-0.5 flex flex-col items-center">
+              <span className="text-[32px] font-semibold leading-none" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{data.score}%</span>
+              <span className="mt-1 text-xs" style={{ color: C.muted }}>Overall score</span>
             </div>
           </div>
-          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 999, fontSize: 13.5, fontWeight: 700, marginBottom: 14, background: data.passed ? hexToRgba(accent, 0.14) : 'rgba(239,68,68,0.14)', color: data.passed ? '#22c55e' : '#f87171' }}>
-              {data.passed ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          <div className="min-w-0 flex-[1_1_240px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold leading-6"
+              style={data.passed ? { color: P.good, background: C.card, boxShadow: `inset 0 0 0 1px ${P.goodSoft}` } : { color: P.bad, background: P.badSoft }}>
+              {data.passed ? <CheckCircle size={14} weight="fill"/> : <XCircle size={14} weight="fill"/>}
               {data.passed ? 'Passed' : 'Not passed'}
-            </div>
-            <p style={{ fontSize: 15.5, color: C.muted, lineHeight: 1.6, margin: '0 0 12px' }}>
-              Scored <strong style={{ color: C.text, fontWeight: 700 }}>{data.correctQuestions} of {data.totalQuestions}</strong> questions correct.
+            </span>
+            <p className="mt-2.5 text-[15px]" style={{ color: C.text }}>
+              Scored <b>{data.correctQuestions} of {data.totalQuestions}</b> questions correct.
             </p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.muted }}>
-              <span style={{ display: 'inline-block', width: 3, height: 15, background: C.text, borderRadius: 2 }} />
-              Pass mark {data.passmark}% (marked on the dial and each skill bar)
-            </div>
+            <p className="mt-1 text-[13px]" style={{ color: C.muted }}>Pass mark {data.passmark}%, marked on the dial and each skill bar.</p>
           </div>
         </div>
 
-        {/* Knowledge summary */}
-        {data.skills.length > 0 && (
-          <div style={{ marginBottom: 36 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 6px' }}>Knowledge summary</h2>
-            <p style={{ fontSize: 15, color: C.muted, margin: '0 0 24px' }}>Performance by skill area, showing strengths and areas to improve.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 32 }}>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 18px' }}>Strengths</h3>
-                {strengths.length ? strengths.map(SkillRow)
-                  : <p style={{ fontSize: 14, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No observable strengths for this report.</p>}
-              </div>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 18px' }}>Areas to improve</h3>
-                {gaps.length ? gaps.map(SkillRow)
-                  : <p style={{ fontSize: 14, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No skill gaps for this report.</p>}
-              </div>
-            </div>
-          </div>
+        {skills.length > 0 && (
+          <section className={card} style={{ background: C.card }}>
+            <h2 className="text-base font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>By skill</h2>
+            <p className="mb-3 mt-0.5 text-xs" style={{ color: C.muted }}>Strongest first. Bars below the pass mark are in amber.</p>
+            {skills.map(s => {
+              const fill = s.pct >= data.passmark ? P.good : P.warn;
+              return (
+                <div key={s.id} className="grid grid-cols-[110px_minmax(0,1fr)_40px] items-center gap-3 py-1.5 text-[13px] sm:grid-cols-[170px_minmax(0,1fr)_44px]">
+                  <span className="truncate" style={{ color: C.text }}>{s.name}</span>
+                  <span className="relative h-2 rounded-full" style={{ background: C.pill, boxShadow: 'inset 0 1px 2px rgba(15,23,42,0.12)' }}>
+                    <span className="absolute inset-y-0 left-0 rounded-full"
+                      style={{ width: `${s.pct}%`, minWidth: s.pct > 0 ? 8 : 0, background: `linear-gradient(90deg, color-mix(in srgb, ${fill} 70%, #ffffff), ${fill})` }}/>
+                    <span title={`Pass mark ${data.passmark}%`} className="absolute -top-[3px] -bottom-[3px] w-0.5 -translate-x-1/2 rounded" style={{ left: `${data.passmark}%`, background: C.text, opacity: 0.55 }}/>
+                  </span>
+                  <b className="text-right font-semibold tabular-nums" style={{ color: C.text }}>{s.pct}%</b>
+                </div>
+              );
+            })}
+          </section>
         )}
 
-        {/* Share + verification */}
-        <div style={{ ...card, border: 'none' }}>
-          <div style={eyebrow}>Share</div>
-          <h2 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 16px' }}>Showcase your achievement</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <button onClick={addToLinkedIn} style={{ ...btn, background: '#0a66c2', color: '#fff' }}><LinkedInIcon className="w-4 h-4" /> Add to LinkedIn profile</button>
-            <button onClick={shareToLinkedIn} style={{ ...btn, background: hexToRgba(accent, 0.16), color: accent }}><LinkedInIcon className="w-4 h-4" /> Share a post</button>
-            <button onClick={() => copy(reportUrl(), 'link')} style={{ ...btn, background: C.cardAlt, color: C.text }}>
-              {copied === 'link' ? <><Check className="w-4 h-4" /> Copied</> : <><Link2 className="w-4 h-4" /> Copy link</>}
-            </button>
-            <button onClick={() => openNew(certUrl())} style={{ ...btn, background: C.cardAlt, color: C.text }}><Award className="w-4 h-4" /> View certificate <ExternalLink className="w-3.5 h-3.5" /></button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 16, fontSize: 12.5, color: C.muted }}>
-            <ShieldCheck className="w-4 h-4" style={{ color: '#3E93FF' }} />
-            Verified credential &middot; ID <span style={{ fontFamily: 'ui-monospace, monospace', color: C.text }}>{data.certId}</span>
-          </div>
-        </div>
+        <p className="flex items-start gap-1.5 text-xs" style={{ color: C.muted }}>
+          <SealCheck size={14} weight="fill" className="mt-px flex-shrink-0" style={{ color: P.good }}/>
+          <span>Verified credential. ID <span className="font-mono" style={{ color: C.text }}>{data.certId}</span>{org ? `, issued by ${org}.` : '.'}</span>
+        </p>
       </div>
-    </div>
+    </CredentialShell>
   );
 }

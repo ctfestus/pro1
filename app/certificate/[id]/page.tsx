@@ -22,13 +22,13 @@ export default async function CertificatePage({ params }: { params: Promise<{ id
   const result = await loadCertificate(id);
 
   if (result.status === "revoked") {
-    return <Notice heading="Certificate Revoked" body="This certificate has been revoked by the issuer." />;
+    return <Notice heading="Certificate revoked" body="This certificate has been revoked by the issuer." />;
   }
   if (result.status === "notfound") {
-    return <Notice heading="Certificate Not Found" body="This certificate ID does not exist." />;
+    return <Notice heading="Certificate not found" body="This certificate ID does not exist." />;
   }
   if (result.status === "unavailable") {
-    return <Notice heading="Certificate Unavailable" body="We could not load this certificate right now. Please refresh the page to try again." />;
+    return <Notice heading="Certificate unavailable" body="We could not load this certificate right now. Please refresh the page to try again." />;
   }
 
   const { settings, ...rest } = result.data;
