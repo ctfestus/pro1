@@ -22,10 +22,10 @@ export default async function CredentialPage({ params }: { params: Promise<{ id:
   const result = await loadOpenCert(id);
 
   if (result.status === "revoked") {
-    return <Notice heading="Credential Revoked" body="This credential has been revoked by the issuer." />;
+    return <Notice heading="Credential revoked" body="This credential has been revoked by the issuer." />;
   }
   if (result.status === "notfound") {
-    return <Notice heading="Credential Not Found" body="This credential ID does not exist." />;
+    return <Notice heading="Credential not found" body="This credential ID does not exist." />;
   }
 
   const { settings, ...rest } = result.data;

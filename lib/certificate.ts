@@ -13,6 +13,10 @@ const svc = createClient(
 
 type CertType = 'course' | 'virtual_experience' | 'learning_path' | 'certification';
 
+/** Instructor tags as a clean list: strings only, trimmed, no blanks or repeats. */
+const tagList = (v: unknown): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter((t): t is string => typeof t === 'string').map(t => t.trim()).filter(Boolean))] : [];
+
 export interface CertificateData {
   certId:           string;
   studentName:      string;
@@ -28,6 +32,8 @@ export interface CertificateData {
   pathCoverImage?:  string | null;
   partnerName?:     string | null;
   partnerLogoUrl?:  string | null;
+  /** The tags (a learning path's skills) its instructor set on the content, shown as Skills. */
+  skills:           string[];
 }
 
 export type CertificateResult =
@@ -94,7 +100,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
   if (cert.ve_id) {
     const { data: ve } = await svc
       .from('virtual_experiences')
-      .select('title, user_id, badge_image_url')
+      .select('title, user_id, badge_image_url, tags')
       .eq('id', cert.ve_id)
       .single();
 
@@ -109,6 +115,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
         courseName:    ve?.title ?? 'Virtual Experience',
         certType:      'virtual_experience',
         badgeImageUrl: ve?.badge_image_url ?? null,
+        skills:        tagList(ve?.tags),
         settings:      mapSettings(rawSettings),
       },
     };
@@ -118,7 +125,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
   if (cert.certification_id) {
     const { data: c } = await svc
       .from('certifications')
-      .select('title, user_id, badge_image_url')
+      .select('title, user_id, badge_image_url, tags')
       .eq('id', cert.certification_id)
       .maybeSingle();
 
@@ -140,6 +147,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
         courseName:    c?.title ?? 'Certification',
         certType:      'certification',
         badgeImageUrl: c?.badge_image_url ?? null,
+        skills:        tagList(c?.tags),
         settings:      mapSettings(rawSettings),
       },
     };
@@ -149,7 +157,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
   if (!cert.course_id && cert.learning_path_id) {
     const [{ data: pathRow }, { data: prog, error: progError }] = await Promise.all([
       svc.from('learning_paths')
-        .select('title, instructor_id, item_ids, tracks, cover_image, badge_image_url')
+        .select('title, instructor_id, item_ids, tracks, cover_image, badge_image_url, skills')
         .eq('id', cert.learning_path_id)
         .single(),
       cert.student_id
@@ -200,6 +208,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
         badgeImageUrl:  (path as any)?.badge_image_url ?? null,
         pathItems,
         pathCoverImage: (path as any)?.cover_image ?? null,
+        skills:         tagList((path as any)?.skills),
         settings:       mapSettings(rawSettings),
       },
     };
@@ -208,7 +217,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
   // Course certificate
   const { data: content } = await svc
     .from('courses')
-    .select('title, user_id, badge_image_url, partner_id')
+    .select('title, user_id, badge_image_url, partner_id, tags')
     .eq('id', cert.course_id)
     .maybeSingle();
 
@@ -230,6 +239,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
       badgeImageUrl: content?.badge_image_url ?? null,
       partnerName:    partner?.name ?? null,
       partnerLogoUrl: partner?.logo_url ?? null,
+      skills:        tagList(content?.tags),
       settings:      mapSettings(rawSettings),
     },
   };
