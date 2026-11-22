@@ -1169,6 +1169,25 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
 }
 
 // --- Courses section ---
+
+// The course card's columns. Not `questions`: that is every slide in full (lesson bodies, options,
+// answer keys), far more than the cards need; loadOutlines reads each slide's outline instead.
+const COURSE_CARD_COLUMNS = 'id, title, slug, cover_image, deadline_days, passmark, description, learn_outcomes, category, partner:partners(name, logo_url)';
+
+/**
+ * Each course's slides as the cards need them (id, section and share flags, lesson title), from the
+ * course_outlines view (migration 251). Until that migration has run the view is missing, so fall
+ * back to the full slides rather than failing the page.
+ */
+async function loadOutlines(ids: string[]): Promise<Record<string, any[]>> {
+  if (!ids.length) return {};
+  const { data, error } = await supabase.from('course_outlines').select('id, outline').in('id', ids);
+  if (!error) return Object.fromEntries((data ?? []).map((r: any) => [r.id, r.outline ?? []]));
+  const { data: full, error: fullError } = await supabase.from('courses').select('id, questions').in('id', ids);
+  if (fullError) throw fullError;
+  return Object.fromEntries((full ?? []).map((r: any) => [r.id, stripSqlSolutions(r.questions ?? [])]));
+}
+
 export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp, searchQuery = '', statusFilter = 'all', onCount }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean; searchQuery?: string; statusFilter?: LearningStatusFilter; onCount?: (n: number) => void }) {
   const [courses,   setCourses]   = useState<any[]>([]);
   const [deadlines, setDeadlines] = useState<Record<string, Date | null>>({});
@@ -1246,7 +1265,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       // Load cohort courses + student attempts + certificates in parallel
       const courseCatalogQuery = !restrictedByPayment
         ? (() => {
-            const query = supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, content_type:id, partner:partners(name, logo_url)').eq('status', 'published');
+            const query = supabase.from('courses').select(`${COURSE_CARD_COLUMNS}, content_type:id`).eq('status', 'published');
             return student?.cohort_id
               ? query.or(`available_to_everyone.eq.true,cohort_ids.cs.{${student.cohort_id}}`)
               : query.eq('available_to_everyone', true);
@@ -1275,14 +1294,13 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       const certMap: Record<string, string> = {};
       for (const c of (certsRes.data ?? [])) if (c.course_id) certMap[c.course_id] = c.id;
 
-      // Normalize course rows with config shape
+      // Normalize course rows with config shape; `questions` is the slide outline (see loadOutlines).
       const normalizeCourse = (c: any) => ({
         ...c, content_type: 'course',
         config: { isCourse: true, title: c.title, coverImage: c.cover_image,
-          questions: stripSqlSolutions(c.questions ?? []), deadline_days: c.deadline_days, passmark: c.passmark,
+          questions: c.questions, deadline_days: c.deadline_days, passmark: c.passmark,
           description: c.description ?? '', learnOutcomes: c.learn_outcomes ?? [] },
       });
-      const cohortCourses = (cohortCourseRows ?? []).map(normalizeCourse);
 
       // Deduplicate: one row per course.
       // A passed+completed attempt always wins over in-progress (student retaking a passed course).
@@ -1302,21 +1320,24 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
       }
 
       // Merge: cohort courses + any extra courses the student has attempted
-      const cohortIds = new Set(cohortCourses.map((f: any) => f.id));
+      const cohortIds = new Set((cohortCourseRows ?? []).map((f: any) => f.id));
       // Access paused for payment: nothing to resume here either, as on My Bootcamp, where these
       // courses show locked; the page banner says why.
       const extraIds  = restrictedByPayment ? [] : Object.keys(progressMap).filter(id => !cohortIds.has(id));
 
-      let extraForms: any[] = [];
+      let extraRows: any[] = [];
       if (extraIds.length) {
-        const { data, error: extraError } = await supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, partner:partners(name, logo_url)').in('id', extraIds).eq('status', 'published');
+        const { data, error: extraError } = await supabase.from('courses').select(COURSE_CARD_COLUMNS).in('id', extraIds).eq('status', 'published');
         // These are courses the student has actually attempted. Dropping them on error would
         // read as lost progress, so surface the failure rather than a partial list.
         if (extraError) throw extraError;
-        extraForms = (data ?? []).map(normalizeCourse);
+        extraRows = data ?? [];
       }
 
-      const allForms = [...cohortCourses, ...extraForms];
+      const rows = [...(cohortCourseRows ?? []), ...extraRows];
+      const outlines = await loadOutlines(rows.map((r: any) => r.id));
+      const cohortCourses = (cohortCourseRows ?? []).map((c: any) => normalizeCourse({ ...c, questions: outlines[c.id] ?? [] }));
+      const allForms = [...cohortCourses, ...extraRows.map((c: any) => normalizeCourse({ ...c, questions: outlines[c.id] ?? [] }))];
       if (cancelled) return;
       setCourses(allForms.map(f => ({ ...progressMap[f.id], form: f, form_id: f.id, cert_id: certMap[f.id] ?? null })));
 

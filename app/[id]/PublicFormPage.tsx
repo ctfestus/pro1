@@ -686,6 +686,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
   const [pathPreview, setPathPreview] = useState<any>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
+  // A lookup failed (network or server), so "nothing found" is not known to be true: offer a retry
+  // instead of "Not found". retryKey re-runs the load.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
   const [studentTheme, setStudentTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
@@ -797,11 +801,15 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       // registration pages.
       const noRow = Promise.resolve({ data: null as any });
       const signedIn = !!authSession?.access_token;
-      const [{ data: course }, { data: event }, { data: ve }] = await Promise.all([
+      // A missing row is { data: null, error: null }; a failed read carries an error. Only the second
+      // makes "Not found" untrue, so remember it.
+      let lookupFailed = false;
+      const [{ data: course, error: courseError }, { data: event, error: eventError }, { data: ve, error: veError }] = await Promise.all([
         signedIn ? supabase.from('courses').select('*').eq(lookupField, id).maybeSingle() : noRow,
         supabase.from('events').select('*').eq(lookupField, id).maybeSingle(),
         signedIn ? supabase.from('virtual_experiences').select('*').eq(lookupField, id).maybeSingle() : noRow,
-      ]);
+      ]) as { data: any; error?: unknown }[];
+      if (courseError || eventError || veError) lookupFailed = true;
 
       // Reconstruct a form-compatible object with config shape for the viewer
       let data: any = null;
@@ -860,8 +868,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           if (res.ok) {
             const { certification } = await res.json();
             if (certification) data = { id: certification.id, slug: certification.slug, user_id: certification.user_id, content_type: 'certification', config: certification.config };
-          }
-        } catch { /* fall through to not-found */ }
+          } else if (res.status >= 500) lookupFailed = true;
+        } catch { lookupFailed = true; }
       }
 
       // RLS correctly hides the authored row when this learner has no access. In that case, ask
@@ -886,8 +894,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               setPathPreview(cataloguePathToPathRow(item));
               foundPath = true;
             }
-          }
-        } catch { /* fall through to not-found */ }
+          } else if (previewRes.status >= 500) lookupFailed = true;
+        } catch { lookupFailed = true; }
       }
 
       // Signed out. RLS hides paid rows and the student catalogue needs a session, so a shared
@@ -911,8 +919,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               setPathPreview(cataloguePathToPathRow(item));
               foundPath = true;
             }
-          }
-        } catch { /* fall through to not-found */ }
+          } else if (publicRes.status >= 500) lookupFailed = true;
+        } catch { lookupFailed = true; }
       }
 
       // An event open to public registration has one page, /events/<slug>, for everyone: visitors,
@@ -921,6 +929,14 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       // sharing it keeps its own page.
       if (publicEventPath && !foundPath && (!data || data.content_type === 'event')) {
         window.location.replace(publicEventPath);
+        return;
+      }
+
+      // After the event redirect, which works on its own: only now does a failed lookup with
+      // nothing found mean "could not load" rather than "not found".
+      if (!data && !foundPath && lookupFailed) {
+        setLoadFailed(true);
+        setLoading(false);
         return;
       }
 
@@ -1021,7 +1037,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       setLoading(false);
     };
     fetchForm();
-  }, [id, publicEventPath]);
+  }, [id, publicEventPath, retryKey]);
 
   useEffect(() => {
     const name = contentPageTitle(form, pathPreview);
@@ -1213,6 +1229,17 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       </div>
     );
   }
+
+  if (!form && loadFailed) return (
+    <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
+      <h1 className="ff-pub" style={{ fontSize: 20, fontWeight: 700, color: '#111', fontFamily: "'Inter', sans-serif" }}>Could not load this page</h1>
+      <p className="ff-pub" style={{ fontSize: 14, color: '#555', maxWidth: 420, fontFamily: "'Inter', sans-serif" }}>Check your connection and try again.</p>
+      <button type="button" onClick={() => { setLoadFailed(false); setLoading(true); setRetryKey(k => k + 1); }}
+        style={{ fontSize: 14, fontWeight: 700, background: '#3E93FF', color: '#fff', padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}>
+        Try again
+      </button>
+    </div>
+  );
 
   if (!form) {
     if (pathPreview) {
