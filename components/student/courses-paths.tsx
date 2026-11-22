@@ -99,7 +99,8 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
 
   const courseUrl = `/${course.slug || course.form?.slug || course.form_id}`;
   const actionHref = completed && passed && certId ? `/certificate/${certId}` : courseUrl;
-  const actionLabel = completed ? (passed && certId ? 'View Certificate' : 'Retake') : currentIdx > 0 ? 'Continue' : 'Start';
+  // A passed course without a certificate (revoked, say) is reviewed, as its card says, not retaken.
+  const actionLabel = completed ? (passed ? (certId ? 'View certificate' : 'Review') : 'Retake') : currentIdx > 0 ? 'Continue' : 'Start';
 
   return (
     <>
@@ -1299,7 +1300,9 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       // Merge: cohort courses + any extra courses the student has attempted
       const cohortIds = new Set(cohortCourses.map((f: any) => f.id));
-      const extraIds  = Object.keys(progressMap).filter(id => !cohortIds.has(id));
+      // Access paused for payment: nothing to resume here either, as on My Bootcamp, where these
+      // courses show locked; the page banner says why.
+      const extraIds  = restrictedByPayment ? [] : Object.keys(progressMap).filter(id => !cohortIds.has(id));
 
       let extraForms: any[] = [];
       if (extraIds.length) {

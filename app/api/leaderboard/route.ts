@@ -61,13 +61,13 @@ export async function GET(req: NextRequest) {
       completionCount[c.student_id] = (completionCount[c.student_id] ?? 0) + 1;
     }
 
-    const callerEmail = (profile.email ?? auth.user.email ?? '').toLowerCase().trim();
 
     const ranked = students
       .map((s: any) => ({
         id:          s.id,
         email:       s.email,
-        name:        s.full_name?.trim() || s.email,
+        // A classmate with no name is not shown by their email address; staff still see it.
+        name:        s.full_name?.trim() || (isInstructorOrAdmin ? s.email : 'Learner'),
         xp:          xpMap[s.id] ?? 0,
         completions: completionCount[s.id] ?? 0,
       }))
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       name:        s.name,
       xp:          s.xp,
       completions: s.completions,
-      ...(isInstructorOrAdmin ? { email: s.email } : { isMe: s.email.toLowerCase() === callerEmail }),
+      ...(isInstructorOrAdmin ? { email: s.email } : { isMe: s.id === auth.user.id }),
     }));
 
     return NextResponse.json({ rankings: response }, {

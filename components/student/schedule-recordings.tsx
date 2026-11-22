@@ -76,7 +76,8 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
     d ? d.toLocaleDateString('en-US', opts ?? { month: 'short', day: 'numeric', year: 'numeric' }) : null;
   const startLabel = fmt(schedule.startDate);
   const endLabel   = fmt(schedule.endDate);
-  const dateRange  = endLabel && endLabel !== startLabel ? `${startLabel} -> ${endLabel}` : startLabel ?? 'Date TBA';
+  const dateRange  = endLabel && endLabel !== startLabel ? `${startLabel} to ${endLabel}` : startLabel ?? 'Date TBA';
+  const ended      = !!schedule.endDate && schedule.endDate < new Date();
 
   const getDomain = (url: string) => { try { return new URL(url).hostname.replace('www.', ''); } catch { return url; } };
 
@@ -101,7 +102,7 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
           <div className="flex items-start justify-between gap-3 mb-3">
             <h2 className="text-xl font-bold leading-tight" style={{ color: C.text }}>{schedule.title}</h2>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
-              style={{ background: `${C.green}12`, color: C.green }}>Active</span>
+              style={ended ? { background: C.pill, color: C.muted } : { background: `${C.green}12`, color: C.green }}>{ended ? 'Ended' : 'Active'}</span>
           </div>
           <div className="flex items-center gap-1.5 mb-4">
             <Calendar className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }}/>
@@ -265,7 +266,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   const [loading, setLoading]       = useState(true);
   const [selected, setSelected]     = useState<any | null>(null);
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
-  const topRef = useRef<HTMLDivElement>(null);
+  const openingId = useRef<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -285,9 +286,14 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   }, [userId]);
 
   async function openRecording(rec: any) {
+    openingId.current = rec.id;
     setSelected(rec);
     setActiveWeek(null);
-    topRef.current?.closest('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    // The detail view is not mounted yet when opening from the grid, so scroll the
+    // page's own scroller, and the window where the page scrolls instead.
+    const scroller = document.querySelector('main');
+    scroller?.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (!entries[rec.id]) {
       const { data } = await supabase.from('recording_entries')
         .select('id, week, topic, url, description, attachments, order_index')
@@ -296,6 +302,8 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
         ...row, attachments: normalizeRecordingAttachments(row.attachments),
       }));
       setEntries(prev => ({ ...prev, [rec.id]: rows }));
+      // Another recording may have been opened while this one loaded.
+      if (openingId.current !== rec.id) return;
       const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
       setActiveWeek(firstWeek);
     } else {
@@ -328,7 +336,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     const totalEntries = recEntries.length;
 
     return (
-      <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         {/* Back + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <button onClick={() => setSelected(null)}
@@ -469,9 +477,11 @@ export function ScheduleSection({ userId, C }: { userId: string; C: typeof LIGHT
       }
       const items: any[] = scheduleRows.map((r: any) => ({
         id: r.id, type: 'schedule',
-        date: new Date(r.start_date || r.created_at),
-        startDate: r.start_date ? new Date(r.start_date) : null,
-        endDate:   r.end_date   ? new Date(r.end_date)   : null,
+        // start_date and end_date are plain dates: read them in the learner's own day (new Date
+        // on 'YYYY-MM-DD' is UTC midnight), and a schedule runs to the end of its last day.
+        date: r.start_date ? new Date(`${r.start_date}T00:00:00`) : new Date(r.created_at),
+        startDate: r.start_date ? new Date(`${r.start_date}T00:00:00`) : null,
+        endDate:   r.end_date   ? new Date(`${r.end_date}T23:59:59`) : null,
         title: r.title, description: r.description, coverImage: r.cover_image, status: r.status,
         _course_title: r.course_id ? (scheduleCourseMap[r.course_id] ?? null) : null,
       }));
@@ -509,7 +519,7 @@ export function ScheduleSection({ userId, C }: { userId: string; C: typeof LIGHT
     const isSoon     = item.startDate ? (!isPast && !isOngoing && item.startDate > now && item.startDate.getTime() - now.getTime() < 48 * 3600 * 1000) : false;
     const startFmt = item.startDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const endFmt   = item.endDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const dateRange = endFmt && endFmt !== startFmt ? `${startFmt} -> ${endFmt}` : startFmt ?? 'Date TBA';
+    const dateRange = endFmt && endFmt !== startFmt ? `${startFmt} to ${endFmt}` : startFmt ?? 'Date TBA';
 
     return (
       <motion.button onClick={() => setSelected(item)} className="w-full text-left"

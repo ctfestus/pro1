@@ -183,7 +183,9 @@ export default function StudentDashboard() {
             ? 'courses'
             : validSaved ?? 'overview';
         setActiveSection(target);
-        window.location.hash = target;
+        // Replace, not push: assigning the hash adds a history step, and pressing Back to the
+        // bare /student would land here again and add it again, so Back never left the page.
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${target}`);
       }
     };
     apply();

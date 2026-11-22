@@ -257,16 +257,21 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
   const [attempts,    setAttempts]    = useState<Record<string, any>>({});
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
   const [loading,     setLoading]     = useState(true);
+  const [loadError,   setLoadError]   = useState(false);
+  const [reloadKey,   setReloadKey]   = useState(0);
   const [detail,      setDetail]      = useState<any | null>(null);
   const [focusReview, setFocusReview] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: profile } = await supabase.from('students').select('cohort_id').eq('id', userId).maybeSingle();
+      setLoadError(false);
+      try {
+      const { data: profile, error: profileError } = await supabase.from('students').select('cohort_id').eq('id', userId).maybeSingle();
+      if (profileError) throw profileError;
       const cohortId = profile?.cohort_id ?? null;
 
-      const veSelect = 'id, title, slug, cover_image, modules, industry, difficulty, role, company, duration, tools, tagline, deadline_days, cohort_ids, status, guide_snapshot';
+      const veSelect = 'id, title, slug, cover_image, modules, industry, difficulty, role, company, duration, tools, tagline, deadline_days, guide_snapshot';
       const normalizeVe = (ve: any) => ({
         ...ve,
         content_type: 'virtual_experience',
@@ -286,7 +291,7 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
         },
       });
 
-      const [{ data: veRows }, { data: attRows }] = await Promise.all([
+      const [{ data: veRows, error: veError }, { data: attRows, error: attError }] = await Promise.all([
         // A virtual experience can now be offered to everyone (migration 186), so a learner with no
         // cohort still has one to show here. Without this branch a public VE unlocks in Explore and
         // then never appears in My Learning, which reads as the toggle not working.
@@ -307,6 +312,9 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
           .eq('student_id', userId),
       ]);
 
+      // A failed query would otherwise read as "no virtual experiences".
+      if (veError) throw veError;
+      if (attError) throw attError;
       const cohortForms = (veRows ?? []).map(normalizeVe);
 
       // Merge: VEs the student has attempted that are not directly assigned to the cohort
@@ -360,12 +368,22 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
         }
         setDeadlines(dlMap);
       }
-      setLoading(false);
+      } catch {
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
-  }, [userEmail, userId]);
+  }, [userEmail, userId, reloadKey]);
 
   if (loading) return <CarouselSkeleton C={C}/>;
+
+  if (loadError) return (
+    <EmptyState icon={RefreshCw} title="Could not load your virtual experiences" body="Check your connection and try again."
+      action={<button type="button" onClick={() => setReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-3 rounded-xl"
+        style={{ background: C.cta, color: C.ctaText }}>Try again</button>} />
+  );
 
   if (!items.length) return (
     <EmptyState icon={Briefcase} title="No Virtual Experiences" body="Virtual experiences assigned to your cohort will appear here." />

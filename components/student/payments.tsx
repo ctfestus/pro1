@@ -146,7 +146,9 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
     if (s === 'completed') return '#2563eb';
     if (s === 'overdue')   return '#dc2626';
     if (s === 'pending_deposit') return '#d97706';
-    return C.muted;
+    // A six-digit grey: the card adds 'cc' for its gradient, which a three-digit colour cannot
+    // take, so expired and waived lost their background and their white label.
+    return '#6b7280';
   };
   const statusLabel = (s: string) => {
     const map: Record<string, string> = {
@@ -158,7 +160,7 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
     return map[s] ?? s;
   };
 
-  const fmt = (n: number, currency = 'GHS') => `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fmt = (n: number, currency = 'GHS') => `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
   const inputStyle = {

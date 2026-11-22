@@ -153,12 +153,6 @@ function AnnouncementCard({ ann, C, react, onToggleReaction, onClick }: {
           <h3 style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.35, color: C.text }}>{ann.title}</h3>
           <div className="flex items-center gap-2 text-[13px] mt-1" style={{ color: C.faint }}>
             <span>{authorName}</span>
-            {react.likeCount > 0 && (
-              <>
-                <span>&middot;</span>
-                <span>{react.likeCount} {react.likeCount === 1 ? 'like' : 'likes'}</span>
-              </>
-            )}
           </div>
         </div>
         <button
@@ -272,7 +266,6 @@ function AnnouncementModal({ ann, C, react, onToggleReaction, onClose, otherItem
               style={{ background: react.liked ? '#2563eb18' : C.pill, border: 'none', cursor: 'pointer', color: react.liked ? '#2563eb' : C.muted }}>
               <ThumbsUp className="w-4 h-4" style={{ fill: react.liked ? '#2563eb' : 'none' }}/>
               {react.liked ? 'Liked' : 'Like'}
-              {react.likeCount > 0 && <span className="text-xs opacity-60 ml-0.5">{react.likeCount}</span>}
             </button>
             <button
               onClick={() => onToggleReaction('bookmark')}
@@ -352,7 +345,7 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
       const { data: student } = await supabase.from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', effectiveUserId).single();
       // Both individual cohort kinds receive platform-wide announcements, but not
       // bootcamp-cohort announcements. Empty cohort_ids is the existing global marker.
-      const audienceFilter = announcementCohortFilter(student?.cohort_id, (student as any).cohort?.cohort_kind);
+      const audienceFilter = announcementCohortFilter(student?.cohort_id, (student as any)?.cohort?.cohort_kind);
       let announcementQuery = supabase
         .from('announcements')
         .select('id, title, subtitle, content, cover_image, youtube_url, is_pinned, published_at, author_id')
@@ -410,13 +403,13 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
       }
     }));
     try {
-      if (isOn) {
-        await supabase.from('announcement_reactions')
-          .delete().eq('announcement_id', annId).eq('student_id', userId).eq('type', type);
-      } else {
-        await supabase.from('announcement_reactions')
+      // supabase-js reports a refused write as { error }, not by throwing; undo it either way.
+      const { error } = isOn
+        ? await supabase.from('announcement_reactions')
+          .delete().eq('announcement_id', annId).eq('student_id', userId).eq('type', type)
+        : await supabase.from('announcement_reactions')
           .insert({ announcement_id: annId, student_id: userId, type });
-      }
+      if (error) throw error;
     } catch {
       setReactState(s => ({ ...s, [annId]: prev }));
     } finally { setActing(false); }

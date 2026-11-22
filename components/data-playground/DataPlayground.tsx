@@ -1740,6 +1740,8 @@ export function DataPlaygroundGrid({
 }: DataPlaygroundGridProps) {
   const [datasets, setDatasets] = useState<DCDataset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<DCDataset | null>(null);
   const [search, setSearch] = useState('');
   const [hover, setHover] = useState<{ d: DCDataset; left: number; top: number; originX: number; originY: number } | null>(null);
@@ -1763,20 +1765,23 @@ export function DataPlaygroundGrid({
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setLoadError(false);
       try {
         const headers = typeof fetchHeaders === 'function' ? await fetchHeaders() : fetchHeaders;
         const res = await fetch('/api/data-center', headers ? { headers } : undefined);
+        // A failed request is an error with a retry, not "No datasets available yet".
+        if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
         if (!cancelled) setDatasets(json.datasets ?? []);
       } catch {
-        if (!cancelled) setDatasets([]);
+        if (!cancelled) { setDatasets([]); setLoadError(true); }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [fetchHeaders]);
+  }, [fetchHeaders, reloadKey]);
 
   const orderedCategories = useMemo(
     () => Array.from(new Set(datasets.map(d => d.category).filter(Boolean))) as string[],
@@ -1878,6 +1883,22 @@ export function DataPlaygroundGrid({
     );
   }
 
+  const noDatasetsBlock = loadError ? (
+    <div role="alert" style={{ textAlign: 'center', padding: '52px 20px', color: C.faint, fontFamily: font }}>
+      <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
+      <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>Could not load the datasets</p>
+      <p style={{ fontSize: 13, color: C.faint, marginBottom: 12 }}>Check your connection and try again.</p>
+      <button type="button" onClick={() => setReloadKey(k => k + 1)}
+        style={{ padding: '10px 16px', borderRadius: 12, border: 'none', background: C.cta, color: C.ctaText, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+    </div>
+  ) : (
+    <div style={{ textAlign: 'center', padding: '52px 20px', color: C.faint, fontFamily: font }}>
+      <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
+      <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>No datasets available yet</p>
+      <p style={{ fontSize: 13, color: C.faint }}>{emptyNoDatasetsMessage}</p>
+    </div>
+  );
+
   return (
     <>
       {intro && (
@@ -1918,11 +1939,7 @@ export function DataPlaygroundGrid({
       {/* Search results: flat grid */}
       {searchQuery ? (
         datasets.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '52px 20px', color: C.faint, fontFamily: font }}>
-            <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>No datasets available yet</p>
-            <p style={{ fontSize: 13, color: C.faint }}>{emptyNoDatasetsMessage}</p>
-          </div>
+          noDatasetsBlock
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: C.faint, fontFamily: font }}>
             <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
@@ -1942,11 +1959,7 @@ export function DataPlaygroundGrid({
       ) : (
         /* No search: one carousel row per category */
         datasets.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '52px 20px', color: C.faint, fontFamily: font }}>
-            <Database size={40} style={{ color: C.faint, display: 'block', margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 600, fontSize: 16, color: C.text, marginBottom: 4 }}>No datasets available yet</p>
-            <p style={{ fontSize: 13, color: C.faint }}>{emptyNoDatasetsMessage}</p>
-          </div>
+          noDatasetsBlock
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
             {orderedCategories.map(cat => renderCategoryRow(cat, cat))}

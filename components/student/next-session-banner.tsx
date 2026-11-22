@@ -159,7 +159,10 @@ export function NextSessionBanner({ userId, C }: { userId: string; C: typeof LIG
     setJoinErr('');
     const existing = tokens.get(ev.id);
     if (existing) { window.open(`/api/join?token=${existing}`, '_blank', 'noopener,noreferrer'); return; }
-    const win = window.open('', '_blank', 'noopener,noreferrer');
+    // Without 'noopener', or the browser returns null and the tab can never be sent on; cutting
+    // opener by hand keeps the same protection.
+    const win = window.open('', '_blank');
+    if (win) win.opener = null;
     setJoining(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

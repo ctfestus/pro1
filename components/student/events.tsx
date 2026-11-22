@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
-import { getLastScheduledSessionDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
+import { getLastScheduledSessionDate, getNextScheduledSessionDate, sessionStartInstant } from '@/lib/event-sessions';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { Sk, EmptyState } from '@/components/student/shared';
@@ -25,7 +25,8 @@ const LOGOS: Record<string, string> = {
 };
 const ProviderIcon = ({ provider }: { provider: string }) => {
   const p = (provider || '').toLowerCase();
-  const src = p.includes('zoom') ? LOGOS.zoom : p.includes('teams') || p.includes('microsoft') ? LOGOS.teams : LOGOS.meet;
+  const src = p.includes('zoom') ? LOGOS.zoom : p.includes('teams') || p.includes('microsoft') ? LOGOS.teams : p.includes('meet') ? LOGOS.meet : null;
+  if (!src) return null;
   return <img src={src} alt={provider} style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }}/>;
 };
 
@@ -177,10 +178,10 @@ const EventCard = ({ item, past: isPast, index, C, imgErrors, onImageError }: { 
           )}
 
           {/* Actions: Join + Add to Calendar */}
-          {((item.joinToken || item.meetingUrl) || calGoogleUrl) && (
+          {((isVirtual && item.meetingUrl) || calGoogleUrl) && (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                {(item.joinToken || item.meetingUrl) && (
+                {isVirtual && item.meetingUrl && (
                   <button
                     className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg w-fit dashboard-cta"
                     style={{ background: C.cta, color: C.ctaText, border: 'none', cursor: 'pointer' }}
@@ -192,7 +193,10 @@ const EventCard = ({ item, past: isPast, index, C, imgErrors, onImageError }: { 
                         window.open(`/api/join?token=${item.joinToken}`, '_blank', 'noopener,noreferrer');
                         return;
                       }
-                      const win = window.open('', '_blank', 'noopener,noreferrer');
+                      // Without 'noopener', or the browser returns null and the tab can never be sent
+                      // on; cutting opener by hand keeps the same protection.
+                      const win = window.open('', '_blank');
+                      if (win) win.opener = null;
                       try {
                         const { data: { session } } = await supabase.auth.getSession();
                         if (session?.access_token) {
@@ -337,13 +341,10 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
     void load();
   }, [reloadKey, userId]);
 
-  const buildDateFromEventDetails = (eventDetails: any) => {
-    if (!eventDetails?.date) return null;
-    const timeStr = eventDetails.time ? eventDetails.time.substring(0, 5) : '00:00';
-    const merged = `${eventDetails.date}T${timeStr}:00`;
-    const d = new Date(merged);
-    return Number.isNaN(d.getTime()) ? null : d;
-  };
+  // In the event's own time zone, as the next-session banner reads it; the stored time is the
+  // host's clock, not the learner's.
+  const buildDateFromEventDetails = (eventDetails: { date: string | null; time?: string | null; timezone?: string | null }) =>
+    eventDetails.date ? sessionStartInstant(eventDetails.date, eventDetails.time ? eventDetails.time.substring(0, 5) : '00:00', eventDetails.timezone) : null;
 
   const sanitizeHttpUrl = (value?: string | null) => {
     if (!value) return null;
@@ -370,7 +371,7 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
     const nextSessionDate = getNextScheduledSessionDate(schedule);
     const lastSessionDate = nextSessionDate ? null : getLastScheduledSessionDate(schedule);
     const displayDate = nextSessionDate ?? lastSessionDate ?? f.event_date ?? null;
-    const start = buildDateFromEventDetails({ date: displayDate, time: f.event_time });
+    const start = buildDateFromEventDetails({ date: displayDate, time: f.event_time, timezone: f.timezone });
     const mode = (f.event_type || '').toLowerCase() === 'virtual' ? 'Virtual' : 'In-Person';
     const meetingUrl = sanitizeHttpUrl(f.meeting_link);
     const registered = registeredEventIds.has(f.id);
@@ -383,7 +384,11 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
       startsAt: start,
       eventType: mode,
       locationText: f.location || '',
-      meetingProvider: mode === 'Virtual' ? 'Google Meet' : 'Venue',
+      // Named from the link, so a Zoom or Teams session no longer shows the Google Meet logo.
+      meetingProvider: mode !== 'Virtual' ? 'Venue'
+        : /zoom\.us/i.test(f.meeting_link || '') ? 'Zoom'
+        : /teams\.(microsoft|live)\.com/i.test(f.meeting_link || '') ? 'Microsoft Teams'
+        : /meet\.google\.com/i.test(f.meeting_link || '') ? 'Google Meet' : 'Online',
       meetingNote: mode === 'Virtual' ? 'Link shared after registration' : (f.location || 'In-person event'),
       meetingUrl,
       joinToken: regTokenMap.get(f.id) ?? null,
