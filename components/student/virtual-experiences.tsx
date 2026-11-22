@@ -12,8 +12,8 @@ import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { CarouselSkeleton, EmptyState, ProgressBar } from '@/components/student/shared';
-import { LearningCard, deadlineTag } from '@/components/student/learning-card';
-import { matchesSearch, toPlainText } from '@/lib/plain-text';
+import { LearningCard, deadlineTag, matchesStatus, progressStatus, type LearningStatusFilter } from '@/components/student/learning-card';
+import { matchesSearch } from '@/lib/plain-text';
 import { publicGuide, GuideCard } from '@/components/ve/guide';
 import VeInstructorReview from '@/components/VeInstructorReview';
 import { takeVeReviewTarget } from '@/lib/pending-ve-review';
@@ -35,7 +35,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
   const [imgErr, setImgErr] = useState(false);
 
   const modules = cfg.modules || [];
-  const totalLessons = modules.reduce((a: number, m: any) => a + (m.lessons?.length || 0), 0);
   // Shared rule, so a skipped optional LinkedIn share cannot hold this below 100% while the
   // status beside it reads Completed.
   const veCounts = veCompletionCounts(modules, attempt?.progress ?? {});
@@ -237,22 +236,21 @@ function VeCard({ form, attempt, deadline, C, onDetails }: {
       C={C}
       cover={form.config?.coverImage ?? form.cover_image}
       fallbackIcon={Briefcase}
-      tag={completed ? { label: 'Completed', tone: 'green' } : deadlineTag(deadline, false)}
+      category={industry}
+      tag={deadlineTag(deadline, completed)}
       title={form.title}
       byline={role || null}
-      description={toPlainText(form.tagline)}
+      meta={missions ? `${missions} mission${missions === 1 ? '' : 's'}` : undefined}
       progress={pct}
       done={completed}
-      figure={missions}
-      figureLabel={missions === 1 ? 'Mission' : 'Missions'}
-      chip={industry ? { label: industry } : null}
+      status={progressStatus(completed, attempt ? pct : 0)}
       action={{ label: completed ? 'Review' : attempt ? 'Continue' : 'Start', href: `/${form.slug || form.id}`, quiet: completed }}
       onOpen={onDetails}
     />
   );
 }
 
-export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = '' }: { userId: string; userEmail: string; C: typeof LIGHT_C; searchQuery?: string }) {
+export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = '', statusFilter = 'all', onCount }: { userId: string; userEmail: string; C: typeof LIGHT_C; searchQuery?: string; statusFilter?: LearningStatusFilter; onCount?: (n: number) => void }) {
   const [items,       setItems]       = useState<any[]>([]);
   const [attempts,    setAttempts]    = useState<Record<string, any>>({});
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
@@ -260,6 +258,8 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
   const [loadError,   setLoadError]   = useState(false);
   const [reloadKey,   setReloadKey]   = useState(0);
   const [detail,      setDetail]      = useState<any | null>(null);
+  // The tab bar's count, once the list is known.
+  useEffect(() => { if (!loading && !loadError) onCount?.(items.length); }, [loading, loadError, items.length, onCount]);
   const [focusReview, setFocusReview] = useState(false);
 
   useEffect(() => {
@@ -389,14 +389,19 @@ export function VirtualExperiencesSection({ userId, userEmail, C, searchQuery = 
     <EmptyState icon={Briefcase} title="No Virtual Experiences" body="Virtual experiences assigned to your cohort will appear here." />
   );
 
-  const shown = items.filter((f: any) => matchesSearch(searchQuery, f.title, f.tagline, f.role, f.company, f.industry ?? f.config?.industry));
+  const shown = items.filter((f: any) => {
+    if (!matchesSearch(searchQuery, f.title, f.tagline, f.role, f.company, f.industry ?? f.config?.industry)) return false;
+    const att = attempts[f.id];
+    const done = !!att?.completed_at;
+    return matchesStatus(statusFilter, done, done ? 100 : att ? veProgressPct(f.config?.modules || f.modules || [], att.progress ?? {}) : 0);
+  });
 
   return (
     <div className="space-y-6">
       {shown.length === 0 && (
-        <p className="py-6 text-center text-sm" style={{ color: C.muted }}>No experiences found for &ldquo;{searchQuery.trim()}&rdquo;</p>
+        <p className="py-6 text-center text-sm" style={{ color: C.muted }}>{searchQuery.trim() ? `No experiences match "${searchQuery.trim()}".` : 'No experiences here.'}</p>
       )}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 sm:gap-6">
         {shown.map((form: any) => (
           <VeCard key={form.id} form={form} attempt={attempts[form.id]} deadline={deadlines[form.id]} C={C}
             onDetails={() => setDetail(form)} />
