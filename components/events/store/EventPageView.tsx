@@ -1,15 +1,15 @@
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, Clock, MapPin, Repeat, Users, Video } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock, MapPin, Repeat, UserRound, Users, Video } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { sessionStartInstant } from '@/lib/event-sessions';
-import { sanitizeRichText } from '@/lib/sanitize';
+import { descriptionSections } from '@/lib/books/description';
 import { getFontById } from '@/lib/fonts';
 import { EVENT_THEME_CSS, textOn } from '@/lib/events/page-theme';
 import { dateParts, displayDate, displayTime, recurrenceLabel, type PublicEvent } from '@/lib/events/public-event';
 import type { PublicEventDetail } from '@/lib/events/store';
 import { InstructorLinks } from '@/components/books/store/InstructorLinks';
 import { EventCard, BADGE_STYLE, seatsBadge } from '@/components/events/store/EventCard';
-import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
+import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
 import { LocalTime } from '@/components/events/store/LocalTime';
 import { ShareButtons } from '@/components/ShareButtons';
@@ -35,12 +35,27 @@ function Fact({ icon, title, sub, href, label, accent }: { icon: React.ReactNode
     : <div className="flex items-start gap-3">{body}</div>;
 }
 
+const SECTION = 'rounded-3xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6';
+const SECTION_STYLE = { boxShadow: CARD_SHADOW };
+const SECTION_TITLE = 'text-[22px] leading-7 font-bold tracking-tight';
+
+/** A person's photo, or a plain person icon when there is none. */
+function Avatar({ src, size }: { src: string | null; size: number }) {
+  return (
+    <span className="flex-shrink-0 overflow-hidden rounded-full inline-flex items-center justify-center"
+      style={{ width: size, height: size, background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-muted,#64748b)' }}>
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <UserRound style={{ width: size / 2, height: size / 2 }} />}
+    </span>
+  );
+}
+
 /**
  * A public event's page, in the event's own Appearance settings (colour, light or dark mode, font)
  * through the .event-theme variables (lib/events/page-theme.ts):
  *   hero   cover, format, title, when, where and seats; the register box beside it (below it on
  *          phones, straight after the facts so it is never far away)
- *   body   about (rich text), speakers, the host, then other upcoming events
+ *   body   the description on the page, one titled block per heading; speakers, the host and
+ *          sharing in cards; then other upcoming events
  */
 export function EventPageView({ event, more, primaryColor, shareUrl }: {
   event: PublicEventDetail;
@@ -53,7 +68,8 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
   const repeat = recurrenceLabel(event);
   const badge = seatsBadge(event);
   const mapsUrl = event.location ? `https://maps.google.com/?q=${encodeURIComponent(event.location)}` : null;
-  const aboutHtml = event.description ? sanitizeRichText(event.description) : '';
+  // One card per heading in the description (About this event, What you will learn...).
+  const sections = descriptionSections(event.description).map((sec, i) => (i === 0 ? { ...sec, title: 'About this event' } : sec));
   // The event's own font from its Appearance step (lib/fonts.ts); none keeps the site font.
   const font = event.font ? getFontById(event.font) : null;
   // Only a timed upcoming session counts down: an untimed one has no real start to count to.
@@ -85,10 +101,10 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
           </div>
 
           <header>
-            <p className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--ev-body2,#475569)' }}>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold" style={{ color: 'var(--ev-body2,#475569)' }}>
               {event.format === 'virtual' ? 'Online event' : 'In person event'}
-              {event.isPast && <span className="rounded-full px-3 py-0.5 normal-case tracking-normal" style={{ background: 'var(--ev-line,#e2e8f0)', color: 'var(--ev-body,#334155)' }}>Ended</span>}
-              {badge && <span className="rounded-full px-3 py-0.5 normal-case tracking-normal" style={BADGE_STYLE[badge.tone]}>{badge.label}</span>}
+              {event.isPast && <span className="rounded-full px-3 py-0.5" style={{ background: 'var(--ev-line,#e2e8f0)', color: 'var(--ev-body,#334155)' }}>Ended</span>}
+              {badge && <span className="rounded-full px-3 py-0.5" style={BADGE_STYLE[badge.tone]}>{badge.label}</span>}
             </p>
             <h1 className="mt-2 text-[28px] leading-9 sm:text-[36px] sm:leading-[44px] font-extrabold tracking-tight" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.title}</h1>
 
@@ -125,56 +141,51 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
             <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />
           </div>
 
-          {aboutHtml && (
-            <div>
-              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>About this event</h2>
+          {/* The event details sit on the page itself, one block per heading; people and sharing get cards. */}
+          {sections.map(sec => (
+            <section key={sec.title}>
+              <h2 className={SECTION_TITLE} style={{ color: 'var(--ev-text,#0f172a)' }}>{sec.title}</h2>
               <div className="rich-preview mt-3 text-base leading-relaxed" style={{ color: 'var(--ev-body,#334155)' }}
-                dangerouslySetInnerHTML={{ __html: aboutHtml }} />
-            </div>
-          )}
+                dangerouslySetInnerHTML={{ __html: sec.html }} />
+            </section>
+          ))}
 
           {event.speakers.length > 0 && (
-            <div>
-              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Speakers</h2>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <section className={SECTION} style={SECTION_STYLE}>
+              <h2 className={SECTION_TITLE} style={{ color: 'var(--ev-text,#0f172a)' }}>{event.speakers.length > 1 ? 'Speakers' : 'Speaker'}</h2>
+              <ul className="mt-2">
                 {event.speakers.map((sp, i) => (
-                  <div key={`${sp.name}-${i}`} className="flex gap-3 rounded-2xl bg-[var(--ev-surface,#ffffff)] p-4" style={{ boxShadow: CARD_SHADOW }}>
-                    <div className="w-12 h-12 flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold"
-                      style={{ background: `${primaryColor}18`, color: primaryColor }}>
-                      {sp.avatar ? <img src={sp.avatar} alt="" className="w-full h-full object-cover" /> : initials(sp.name)}
-                    </div>
+                  <li key={`${sp.name}-${i}`} className="flex gap-4 py-4" style={i ? { borderTop: '1px solid var(--ev-line,#e2e8f0)' } : undefined}>
+                    <Avatar src={sp.avatar} size={48} />
                     <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{sp.name}</p>
-                      {sp.title && <p className="text-xs mt-0.5" style={{ color: 'var(--ev-muted,#64748b)' }}>{sp.title}</p>}
-                      {sp.bio && <p className="text-sm mt-2 line-clamp-4" style={{ color: 'var(--ev-body2,#475569)' }}>{sp.bio}</p>}
-                      {sp.linkedin && (
-                        <a href={sp.linkedin} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-semibold" style={{ color: '#0A66C2' }}>LinkedIn</a>
-                      )}
+                      <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{sp.name}</p>
+                      {sp.title && <p className="mt-0.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>{sp.title}</p>}
+                      {sp.bio && <p className="mt-2 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>{sp.bio}</p>}
+                      {sp.linkedin && <InstructorLinks name={sp.name} links={[{ key: 'linkedin', url: sp.linkedin }]} />}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
-            </div>
+              </ul>
+            </section>
           )}
 
           {event.host && (
-            <div>
-              <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Hosted by</h2>
-              <div className="mt-4 flex gap-4 rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5" style={{ boxShadow: CARD_SHADOW }}>
-                <div className="w-14 h-14 flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center font-bold"
-                  style={{ background: `${primaryColor}18`, color: primaryColor }}>
-                  {event.host.avatar ? <img src={resolveCoverUrl(event.host.avatar)} alt="" className="w-full h-full object-cover" /> : initials(event.host.name)}
-                </div>
+            <section className={SECTION} style={SECTION_STYLE}>
+              <h2 className={SECTION_TITLE} style={{ color: 'var(--ev-text,#0f172a)' }}>Hosted by</h2>
+              <div className="mt-4 flex gap-4">
+                <Avatar src={event.host.avatar ? resolveCoverUrl(event.host.avatar) : null} size={56} />
                 <div className="min-w-0">
                   <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.host.name}</p>
                   {event.host.bio && <p className="mt-2 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>{event.host.bio}</p>}
                   <InstructorLinks name={event.host.name} links={event.host.links} />
                 </div>
               </div>
-            </div>
+            </section>
           )}
 
-          <ShareButtons url={shareUrl} title={event.title} blurb={event.summary} />
+          <section aria-label="Share" className={SECTION} style={SECTION_STYLE}>
+            <ShareButtons url={shareUrl} title={event.title} blurb={event.summary} />
+          </section>
         </div>
 
         <aside className="hidden lg:block lg:sticky lg:top-24">
@@ -186,9 +197,9 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
         <div className="mt-16">
           <div className="flex items-end justify-between gap-4">
             <h2 className="text-[22px] leading-7 font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>More upcoming events</h2>
-            <Link href="/events" className="text-sm font-semibold hover:underline" style={{ color: primaryColor }}>See all</Link>
+            <Link href="/events" className="inline-flex items-center gap-1 text-sm font-semibold" style={{ color: 'var(--ev-text,#0f172a)' }}>See all <ChevronRight className="w-4 h-4" /></Link>
           </div>
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {more.map(ev => <EventCard key={ev.id} ev={ev} primaryColor={primaryColor} />)}
           </div>
         </div>
