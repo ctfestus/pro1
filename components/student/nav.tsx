@@ -7,12 +7,12 @@
 import {
   SquaresFour, PlayCircle, Stack, Briefcase, Database, CalendarDots, ClipboardText,
   CalendarCheck, UsersThree, Megaphone, Calendar, VideoCamera, Trophy, Certificate, Medal, CreditCard,
-  Sparkle, SealCheck, Compass, Path, Package,
+  Sparkle, SealCheck, Compass, RocketLaunch, Package,
 } from '@phosphor-icons/react';
 
 export const NAV_ITEMS = [
   { id: 'overview',          label: 'Dashboard',           Icon: SquaresFour },
-  { id: 'my_program',        label: 'My Bootcamp',         Icon: Path           },
+  { id: 'my_program',        label: 'My Bootcamp',         Icon: RocketLaunch   },
   { id: 'courses',           label: 'My Learning',         Icon: PlayCircle            },
   { id: 'learning_paths',    label: 'Learning Paths',      Icon: Stack          },
   { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase     },
@@ -20,12 +20,12 @@ export const NAV_ITEMS = [
   { id: 'explore',           label: 'Explore',             Icon: Compass         },
   { id: 'data_center',       label: 'Data Playground',      Icon: Database        },
   { id: 'products',          label: 'My Products',            Icon: Package         },
-  { id: 'events',            label: 'Live Sessions',        Icon: CalendarDots    },
+  { id: 'events',            label: 'Live sessions',        Icon: CalendarDots    },
   { id: 'assignments',       label: 'Assignments',         Icon: ClipboardText   },
   { id: 'calendar',          label: 'Calendar',            Icon: CalendarCheck   },
   { id: 'community',         label: 'Community',           Icon: UsersThree           },
   { id: 'announcements',     label: 'Tech Blog',            Icon: Megaphone       },
-  { id: 'schedule',          label: 'Schedule',            Icon: Calendar        },
+  { id: 'schedule',          label: 'Study plan',            Icon: Calendar        },
   { id: 'recordings',       label: 'Recordings',          Icon: VideoCamera           },
   { id: 'leaderboard',       label: 'Leaderboard',         Icon: Trophy          },
   { id: 'certificates',      label: 'My Certificates',     Icon: Certificate           },
@@ -43,7 +43,9 @@ export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
   // in app/student/page.tsx.
   { label: '',            items: ['overview', 'my_program', 'courses'] },
   { label: 'Learn',       items: ['explore', 'certifications', 'products', 'data_center'] },
-  { label: 'Activities',  items: ['events', 'assignments', 'calendar', 'schedule', 'recordings'] },
+  // Recordings is a tab of Live sessions, so it has no menu row of its own; it stays in NAV_ITEMS
+  // because the recording emails link to /student#recordings (app/api/recording-notify).
+  { label: 'Activities',  items: ['events', 'assignments', 'calendar', 'schedule'] },
   { label: 'Community',   items: ['community', 'announcements'] },
   { label: 'Achievements', items: ['leaderboard', 'certificates', 'badges', 'ai_toolkit'] },
   { label: 'Account',     items: ['payments'] },
