@@ -561,10 +561,12 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   return (
     <div>
       {(groups.length > 1 || hasLevels) && (
-      <div className="flex items-center gap-3 mb-4 sm:mb-5">
+      // Phones: the categories wrap onto their own lines and the level filter sits under them, so no
+      // category hides behind the filter. Wider screens keep one row.
+      <div className="flex flex-col items-start gap-3 mb-4 sm:flex-row sm:items-center sm:mb-5">
       {/* A single category needs no tabs, so the chips only appear with two or more. */}
       {groups.length > 1 ? (
-        <div className="flex flex-1 gap-2 overflow-x-auto min-w-0" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex w-full flex-wrap gap-2 min-w-0 sm:w-auto sm:flex-1 sm:flex-nowrap sm:overflow-x-auto" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
           {groups.map(([name]) => {
             const on = name === current?.[0];
             return (
@@ -576,7 +578,7 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
             );
           })}
         </div>
-      ) : <div className="flex-1" />}
+      ) : <div className="hidden sm:block sm:flex-1" />}
       {hasLevels && (
         <div className="flex-shrink-0">
           <MenuSelect label="Filter by level" value={level} C={isDark ? DARK_C : LIGHT_C}
