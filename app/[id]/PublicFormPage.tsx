@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
@@ -32,7 +32,12 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
-import { eventLocalDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
+import { sessionStartInstant } from '@/lib/event-sessions';
+import { toEventView } from '@/lib/events/public-event';
+import type { SocialKey } from '@/lib/books/store';
+import { EventPageView } from '@/components/events/store/EventPageView';
+import { Countdown } from '@/components/events/store/Countdown';
+import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
@@ -172,8 +177,6 @@ const LIGHT_P = {
   pillBg:       '#eef0f3',
   pillText:     '#555',
   shareBg:      '#eef0f3',
-  pastBg:       '#fef9c3',
-  pastText:     '#854d0e',
   footerText:   '#999',
   footerBold:   '#111',
 };
@@ -199,39 +202,8 @@ const DARK_P = {
   pillBg:       '#242630',
   pillText:     '#aaa',
   shareBg:      '#242630',
-  pastBg:       'rgba(234,179,8,0.12)',
-  pastText:     '#fbbf24',
   footerText:   '#555',
   footerBold:   '#aaa',
-};
-
-const formatDateParts = (dateString?: string) => {
-  if (!dateString) return null;
-  try {
-    // A "YYYY-MM-DD" date is a calendar day: read and shown in UTC so it never shifts a day.
-    const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateString) ? `${dateString}T00:00:00Z` : dateString);
-    if (isNaN(date.getTime())) return null;
-
-    const monthShort = date.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase();
-    const day = date.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
-    const fullDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
-
-    return { monthShort, day, fullDate };
-  } catch (e) {
-    return null;
-  }
-};
-
-const formatLocation = (locationString?: string) => {
-  if (!locationString) return { main: '', sub: '' };
-  const parts = locationString.split(',');
-  if (parts.length > 1) {
-    return {
-      main: parts[0].trim(),
-      sub: parts.slice(1).join(',').trim()
-    };
-  }
-  return { main: locationString, sub: '' };
 };
 
 // Detect meeting platform from a URL
@@ -1885,6 +1857,229 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     );
   }
 
+  // A cohort event: the public event page's layout (lib/events, EventPageView) with the member box
+  // (countdown, Join, Add to calendar) in place of the register box.
+  const cohortEvent = config.eventDetails?.isEvent ? toEventView({ ...form, capacity: null }, 0) : null;
+  if (cohortEvent) {
+    const ev = config.eventDetails;
+    const isPast = cohortEvent.isPast;
+    const member = Boolean(joinToken || isCohortMember);
+    const startsAt = cohortEvent.nextDate && cohortEvent.time ? sessionStartInstant(cohortEvent.nextDate, cohortEvent.time, cohortEvent.timezone)?.toISOString() ?? null : null;
+    const eventColor = cohortEvent.accent ?? '#3E93FF';
+    const host = creatorProfile ? {
+      name: creatorProfile.name || 'Host',
+      avatar: creatorProfile.avatar_url ?? null,
+      bio: creatorProfile.bio ?? null,
+      links: Object.entries((creatorProfile.social_links ?? {}) as Record<string, string>)
+        .filter(([key, url]) => url && ['linkedin', 'twitter', 'instagram', 'github', 'youtube', 'website'].includes(key))
+        .map(([key, url]) => ({ key: key as SocialKey, url })),
+    } : null;
+    const panel = (
+      <div className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW, ['--ev-accent' as any]: eventColor }}>
+        {startsAt && !isPast && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={eventColor} /></div>}
+        {isPast ? (
+          <>
+            <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>This event has ended</p>
+            <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>Its last session has passed.</p>
+          </>
+        ) : member ? (
+          <>
+            <p className="text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>You are in this event</p>
+            <p className="mt-1.5 mb-5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>It is part of your cohort&apos;s schedule, so there is nothing to sign up for.</p>
+                      {/* Join link for cohort members (no registration required) */}
+                      {(joinToken || isCohortMember) && !isPast && ev.meetingLink && (() => {
+                        const platform = detectPlatform(ev.meetingLink);
+                        return (
+                          <>
+                            <button type="button" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-bold"
+                              style={{ background: 'var(--ev-accent)', color: 'var(--ev-on-accent,#ffffff)' }}
+                              onClick={async () => {
+                                setJoinErr('');
+                                if (joinToken) {
+                                  window.open(`/api/join?token=${joinToken}`, '_blank', 'noopener,noreferrer');
+                                  return;
+                                }
+                                // Opened now (still inside the click, so it is not blocked) and pointed at the link once it
+                                // arrives. 'noopener' would return no handle to the tab, so the opener is cut by hand.
+                                const win = window.open('', '_blank');
+                                if (win) win.opener = null;
+                                try {
+                                  const { data: { session } } = await supabase.auth.getSession();
+                                  if (session?.access_token) {
+                                    const res = await fetch('/api/event-register', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                                      body: JSON.stringify({ formId: form.id }),
+                                    });
+                                    const json = await res.json();
+                                    if (json.join_token) {
+                                      setJoinToken(json.join_token);
+                                      if (win) { win.location.href = `/api/join?token=${json.join_token}`; return; }
+                                    }
+                                  }
+                                } catch {}
+                                win?.close();
+                                setJoinErr('Could not get your join link. Please refresh and try again.');
+                              }}>
+                              {platform ? `Join on ${platform.name}` : 'Join meeting'} <ExternalLink style={{ width: 16, height: 16 }}/>
+                            </button>
+                            {joinErr && (
+                              <p className="mt-2 text-sm" style={{ color: '#b91c1c' }} role="alert">{joinErr}</p>
+                            )}
+                          </>
+                        );
+                      })()}
+
+                      {/* Add to calendar, for anyone with a seat (cohort members and registrants). */}
+                      {(joinToken || isCohortMember) && !isPast && ev.date && (() => {
+                const ev = config.eventDetails;
+                const isVirtual = ev.eventType === 'virtual';
+                // Absolute join link so a tap from the calendar reminder reaches /api/join and records attendance.
+                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                const joinHref = joinToken ? `${origin}/api/join?token=${joinToken}` : '';
+                const recurring = isRecurring(form.recurrence);
+                const { calLocation, calDescription } = buildCalendarFields({ isVirtual, joinUrl: joinHref, location: ev.location, description: config.description });
+                const googleUrl  = buildGoogleCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days);
+                // Outlook.com and Yahoo web links can't encode a recurrence -- only offer them for one-time events; the .ics carries the full series.
+                const outlookUrl = recurring ? null : buildOutlookCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
+                const yahooUrl   = recurring ? null : buildYahooCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
+                const GoogleIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.657 14.013 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                  </svg>
+                );
+                const OutlookIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 21 21" style={{ flexShrink: 0 }}>
+                    <rect x="0" y="0" width="10" height="10" rx="1" fill="#f25022"/>
+                    <rect x="11" y="0" width="10" height="10" rx="1" fill="#7fba00"/>
+                    <rect x="0" y="11" width="10" height="10" rx="1" fill="#00a4ef"/>
+                    <rect x="11" y="11" width="10" height="10" rx="1" fill="#ffb900"/>
+                  </svg>
+                );
+                const YahooIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
+                    <path d="M0 4h8.6l7.4 11.2L23.4 4H32L18.6 22.4V32h-5.2V22.4z" fill="white"/>
+                  </svg>
+                );
+                const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', textDecoration: 'none', width: '100%', textAlign: 'left' as const };
+                // For virtual events without a token yet, register on demand so the calendar entry carries a tracked join link.
+                const openCal = async () => {
+                  setJoinErr('');
+                  let preparedToken = joinToken;
+                  if (isVirtual && !preparedToken) {
+                    setCalBusy(true);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (session?.access_token) {
+                        const res = await fetch('/api/event-register', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                          body: JSON.stringify({ formId: form.id }),
+                        });
+                        const json = await res.json();
+                        if (json.join_token) {
+                          preparedToken = json.join_token;
+                          setJoinToken(json.join_token);
+                        }
+                      }
+                    } catch {}
+                    setCalBusy(false);
+                  }
+                  if (isVirtual && !preparedToken) {
+                    setJoinErr('Could not prepare your calendar link. Please refresh and try again.');
+                    return;
+                  }
+                  setCalPopupOpen(true);
+                };
+                return (
+                  <div className="mt-2.5">
+                    <div>
+                      <button
+                        onClick={openCal}
+                        disabled={calBusy}
+                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' }}
+                      >
+                        <Calendar style={{ width: 15, height: 15 }}/> {calBusy ? 'Preparing...' : 'Add to calendar'}
+                      </button>
+                    </div>
+                    {calPopupOpen && (
+                      <>
+                        <div onClick={() => setCalPopupOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }} />
+                        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 101, background: dark ? '#18181b' : '#ffffff', borderRadius: 22, boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: 'min(340px, calc(100vw - 32px))', padding: '28px 20px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                          {/* Header */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+                            <div style={{ width: 56, height: 56, borderRadius: '50%', background: dark ? '#27272a' : '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Calendar style={{ width: 26, height: 26, color: accentColor }}/>
+                            </div>
+                            <div>
+                              <p style={{ fontWeight: 700, fontSize: 17, color: t.title, margin: 0 }}>Add to calendar</p>
+                              <p style={{ fontSize: 13, color: t.body, marginTop: 6, lineHeight: 1.55 }}>{recurring ? 'Saves every session in the series to your calendar.' : 'Save this event to your preferred calendar app.'}</p>
+                            </div>
+                          </div>
+                          {/* Options */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {googleUrl && (
+                              <a href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: '#ffffff', color: '#3c4043', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                                <GoogleIcon/> Google Calendar
+                              </a>
+                            )}
+                            {yahooUrl && (
+                              <a href={yahooUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: '#6001D2', color: 'white' }}>
+                                <YahooIcon/> Yahoo Calendar
+                              </a>
+                            )}
+                            {outlookUrl && (
+                              <a href={outlookUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: dark ? '#1e3a5f' : '#e8f1fb', color: dark ? 'white' : '#0078D4' }}>
+                                <OutlookIcon/> Outlook.com
+                              </a>
+                            )}
+                            <button onClick={() => { downloadIcs(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days); setCalPopupOpen(false); }}
+                              style={{ ...btnBase, background: dark ? '#27272a' : '#f4f4f5', color: dark ? '#a1a1aa' : '#52525b' }}>
+                              <Download style={{ width: 18, height: 18, flexShrink: 0 }}/> iCal (Apple / Outlook)
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+                      })()}
+
+          </>
+        ) : signedOut ? (
+          <>
+            <p className="text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>For cohort members</p>
+            <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>Sign in to join this event.</p>
+            <Link href={signInHref(`/${form.slug ?? form.id}`)} className="mt-5 flex h-12 w-full items-center justify-center rounded-xl text-base font-bold"
+              style={{ background: eventColor, color: 'var(--ev-on-accent,#ffffff)', textDecoration: 'none' }}>Sign in</Link>
+          </>
+        ) : (
+          <>
+            <p className="text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>For cohort members</p>
+            <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>This event is for the members of its cohort.</p>
+          </>
+        )}
+      </div>
+    );
+    return (
+      <div className="ff-pub" style={{ minHeight: '100vh', background: t.page }}>
+        {studentMode && <StudentModeBanner context={studentMode} fixed />}
+        <nav style={{ position: 'sticky', top: 0, zIndex: 30, background: t.nav, borderBottom: `1px solid ${t.navBorder}`, backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 56 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <img src={(dark ? logoDarkUrl || logoUrl : logoUrl) || undefined} alt="" style={{ height: 32, width: 'auto' }} />
+          </Link>
+        </nav>
+        <EventPageView event={{ ...cohortEvent, host, after: { type: 'default' } }} more={[]} primaryColor={eventColor} shareUrl="" memberPanel={panel} />
+      </div>
+    );
+  }
+
   return (
     <div className="ff-pub" style={{ minHeight: '100vh', background: t.page, position: 'relative', transition: 'background 0.3s' }}>
       {studentMode && <StudentModeBanner context={studentMode} fixed />}
@@ -2103,429 +2298,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               );
             })()}
 
-            {config.eventDetails?.isEvent && (() => {
-              const ev = config.eventDetails;
-              // A repeating event is over only when no session is left (not when its first one has passed).
-              const nextDate = ev.date ? getNextScheduledSessionDate(form, eventLocalDate(ev.timezone)) : null;
-              const isPast = Boolean(ev.date) && !nextDate;
-              const shownDate = nextDate ?? ev.date;
-              const mapsUrl = ev.location ? `https://maps.google.com/?q=${encodeURIComponent(ev.location)}` : null;
-              const isVirtual = ev.eventType === 'virtual' && ev.meetingLink;
-              const evBtnBg = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
-              const evBtnBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-              return (
-                <>
-                  {/* Past event banner */}
-                  {isPast && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 13, fontWeight: 500, borderRadius: 10, marginBottom: 20, background: t.pastBg, color: t.pastText }}>
-                      <Calendar style={{ width: 15, height: 15, flexShrink: 0 }}/>
-                      This event has already taken place.
-                    </div>
-                  )}
-
-                  {/* -- Two-column layout --- */}
-                  {/* Cover image -- mobile only (always first) */}
-                  {config.coverImage && (
-                    <div className="block sm:hidden" style={{ borderRadius: 18, overflow: 'hidden', background: '#1a1a1a', aspectRatio: '4/3', marginBottom: 16 }}>
-                      <img src={resolveCoverUrl(config.coverImage)} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row gap-8 sm:gap-10 sm:items-start" style={{ marginBottom: 32 }}>
-
-                    {/* Left -- cover image (desktop only) + creator */}
-                    <div className="flex-shrink-0 w-full sm:w-[300px] order-2 sm:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {config.coverImage && (
-                        <div className="hidden sm:block" style={{ borderRadius: 18, overflow: 'hidden', background: '#1a1a1a', aspectRatio: '4/3' }}>
-                          <img src={resolveCoverUrl(config.coverImage)} alt="Cover"
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
-                        </div>
-                      )}
-
-                      {/* Hosted by -- with hover popup */}
-                      {creatorProfile && (() => {
-                        const socials = Object.entries((creatorProfile.social_links ?? {}) as Record<string, string>).filter(([, v]) => !!v);
-                        const iconColor = dark ? '#c0c0c0' : '#555';
-                        const socialIcons: Record<string, { label: string; path: string }> = {
-                          twitter:   { label: 'X', path: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.264 5.638L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z' },
-                          linkedin:  { label: 'LinkedIn', path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' },
-                          instagram: { label: 'Instagram', path: 'M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z' },
-                          facebook:  { label: 'Facebook', path: 'M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z' },
-                          youtube:   { label: 'YouTube', path: 'M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z' },
-                          github:    { label: 'GitHub', path: 'M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12' },
-                          website:   { label: 'Website', path: 'M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm-1-13v6l5 3-1 1.5-6-3.5V7h2z' },
-                        };
-                        return (
-                          <div>
-                            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.muted, marginBottom: 8 }}>Hosted by</p>
-                            <div style={{ position: 'relative' }}
-                              onMouseEnter={() => { if (profileHoverTimer.current) clearTimeout(profileHoverTimer.current); setProfilePopupOpen(true); }}
-                              onMouseLeave={() => { profileHoverTimer.current = setTimeout(() => setProfilePopupOpen(false), 180); }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                                <div style={{ width: 30, height: 30, borderRadius: creatorProfile.account_type === 'company' ? 7 : '50%', overflow: 'hidden', flexShrink: 0, background: dark ? '#1a3a24' : '#d4edda', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: dark ? '#ADEE66' : '#00bf63' }}>
-                                  {creatorProfile.avatar_url
-                                    ? <img src={creatorProfile.avatar_url} alt={creatorProfile.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                                    : (creatorProfile.name || creatorProfile.username || '?').slice(0, 2).toUpperCase()}
-                                </div>
-                                <span style={{ fontSize: 14, fontWeight: 600, color: t.body }}>{creatorProfile.name || creatorProfile.username}</span>
-                              </div>
-
-                              {/* Hover popup */}
-                              {profilePopupOpen && (
-                                <div
-                                  onMouseEnter={() => { if (profileHoverTimer.current) clearTimeout(profileHoverTimer.current); }}
-                                  onMouseLeave={() => { profileHoverTimer.current = setTimeout(() => setProfilePopupOpen(false), 180); }}
-                                  style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, zIndex: 50, width: 260, borderRadius: 16, padding: 16, background: dark ? '#1E1F26' : '#ffffff', boxShadow: dark ? '0 8px 32px rgba(0,0,0,0.6)' : '0 8px 32px rgba(0,0,0,0.14)', border: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
-                                  {/* Avatar + name */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                                    <div style={{ width: 44, height: 44, borderRadius: creatorProfile.account_type === 'company' ? 10 : '50%', overflow: 'hidden', flexShrink: 0, background: dark ? '#1a3a24' : '#d4edda', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: dark ? '#ADEE66' : '#00bf63' }}>
-                                      {creatorProfile.avatar_url
-                                        ? <img src={creatorProfile.avatar_url} alt={creatorProfile.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                                        : (creatorProfile.name || creatorProfile.username || '?').slice(0, 2).toUpperCase()}
-                                    </div>
-                                    <div style={{ minWidth: 0 }}>
-                                      <div style={{ fontSize: 14, fontWeight: 700, color: t.title, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{creatorProfile.name || creatorProfile.username}</div>
-                                      {creatorProfile.username && <div style={{ fontSize: 12, color: t.muted }}>@{creatorProfile.username}</div>}
-                                    </div>
-                                  </div>
-
-                                  {/* Bio */}
-                                  {creatorProfile.bio && (
-                                    <p style={{ fontSize: 12, lineHeight: 1.5, color: t.body, margin: '0 0 8px' }}>{creatorProfile.bio}</p>
-                                  )}
-
-                                  {/* Industry · Location */}
-                                  {(creatorProfile.industry || creatorProfile.location) && (
-                                    <div style={{ fontSize: 11, color: t.muted, display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-                                      {creatorProfile.industry && <span>{creatorProfile.industry}</span>}
-                                      {creatorProfile.industry && creatorProfile.location && <span>·</span>}
-                                      {creatorProfile.location && <span>{creatorProfile.location}</span>}
-                                    </div>
-                                  )}
-
-                                  {/* Socials */}
-                                  {socials.length > 0 && (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                                      {socials.slice(0, 6).map(([key, url]) => {
-                                        const s = socialIcons[key];
-                                        if (!s) return null;
-                                        const href = /^https?:\/\//i.test(url as string) ? url as string : `https://${url}`;
-                                        return (
-                                          <a key={key} href={href} target="_blank" rel="noopener noreferrer" title={s.label}
-                                            style={{ width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', flexShrink: 0 }}>
-                                            <svg viewBox="0 0 24 24" width="13" height="13" fill={iconColor}><path d={s.path}/></svg>
-                                          </a>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-
-                                  {/* View profile link */}
-                                  {creatorProfile.username && (
-                                    <div style={{ paddingTop: 10, borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
-                                      <a href={`/u/${creatorProfile.username}`} target="_blank" rel="noopener noreferrer"
-                                        style={{ fontSize: 12, fontWeight: 600, color: accentColor, textDecoration: 'none' }}>
-                                        View full profile
-                                      </a>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Speakers */}
-                      {(() => {
-                        const speakers: any[] = config.eventDetails?.speakers ?? [];
-                        if (!speakers.length) return null;
-                        return (
-                          <div style={{ marginTop: 20 }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.muted, marginBottom: 10 }}>Speakers</p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                              {speakers.map((sp: any) => (
-                                <div key={sp.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                  {/* Avatar */}
-                                  <div style={{ width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: dark ? '#1a3a24' : '#d4edda', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: dark ? '#ADEE66' : '#00bf63' }}>
-                                    {sp.avatar_url
-                                      ? <img src={sp.avatar_url} alt={sp.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      : (sp.name || '?').slice(0, 2).toUpperCase()}
-                                  </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontSize: 13, fontWeight: 700, color: t.title, margin: 0, lineHeight: 1.3 }}>{sp.name}</p>
-                                    {sp.title && <p style={{ fontSize: 11, color: t.muted, margin: '2px 0 0' }}>{sp.title}</p>}
-                                    {sp.bio && <p style={{ fontSize: 12, color: t.body, margin: '4px 0 0', lineHeight: 1.5 }}>{sp.bio}</p>}
-                                    {sp.linkedin_url && (
-                                      <a
-                                        href={sp.linkedin_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 5, fontSize: 11, fontWeight: 500, color: '#0A66C2', textDecoration: 'none' }}
-                                      >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                                        LinkedIn
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Right -- all event info + about (shown first on mobile) */}
-                    <div className="order-1 sm:order-2" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-                      {/* Private badge */}
-                      {config.eventDetails?.isPrivate && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 9999, fontSize: 12, fontWeight: 600, alignSelf: 'flex-start', background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', color: t.muted }}>
-                          🔒 Private
-                        </span>
-                      )}
-
-                      {/* Title */}
-                      <h2 style={{ fontSize: 28, fontWeight: 800, color: t.title, margin: 0, lineHeight: 1.2, transition: 'color 0.3s' }}>{config.title}</h2>
-
-                      {/* Date · Time · Timezone */}
-                      {(ev.date || ev.time) && (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                          <div style={{ flexShrink: 0, width: 48, height: 48, borderRadius: 12, overflow: 'hidden', border: `1px solid ${evBtnBorder}`, background: evBtnBg, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-                            <div style={{ height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', color: t.muted }}>
-                              {formatDateParts(shownDate)?.monthShort || 'DATE'}
-                            </div>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: t.title }}>
-                              {formatDateParts(shownDate)?.day || '--'}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 48 }}>
-                            <div style={{ fontSize: 15, fontWeight: 600, color: t.title }}>{formatDateParts(shownDate)?.fullDate || shownDate || 'Date TBD'}</div>
-                            {(ev.time || ev.timezone) && (
-                              <div style={{ fontSize: 13, marginTop: 2, color: t.body }}>{ev.time}{ev.timezone ? ` · ${ev.timezone}` : ''}</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Location / Meeting link */}
-                      {isVirtual ? (
-                        (() => {
-                          const platform = detectPlatform(ev.meetingLink);
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                              <div style={{ flexShrink: 0, width: 48, height: 48, borderRadius: 12, border: `1px solid ${evBtnBorder}`, background: platform ? platform.color + '18' : evBtnBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {platform?.icon ?? <ExternalLink style={{ width: 20, height: 20, color: t.muted }}/>}
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 48 }}>
-                                <div style={{ fontSize: 15, fontWeight: 600, color: t.title }}>{platform?.name ?? 'Virtual Event'}</div>
-                                <div style={{ fontSize: 13, marginTop: 2, color: t.body }}>{joinToken ? 'Link included in your invitation email' : 'Link sent to enrolled students'}</div>
-                              </div>
-                            </div>
-                          );
-                        })()
-                      ) : ev.location ? (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                          <div style={{ flexShrink: 0, width: 48, height: 48, borderRadius: 12, border: `1px solid ${evBtnBorder}`, background: evBtnBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <MapPin style={{ width: 20, height: 20, color: t.muted }}/>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 48 }}>
-                            <a href={mapsUrl!} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: 15, fontWeight: 600, color: accentColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {formatLocation(ev.location).main}
-                              <ExternalLink style={{ width: 12, height: 12, opacity: 0.7 }}/>
-                            </a>
-                            {formatLocation(ev.location).sub && (
-                              <div style={{ fontSize: 13, marginTop: 2, color: t.body }}>{formatLocation(ev.location).sub}</div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {/* Join link for cohort members (no registration required) */}
-                      {(joinToken || isCohortMember) && !isPast && ev.meetingLink && (() => {
-                        const platform = detectPlatform(ev.meetingLink);
-                        return (
-                          <>
-                            <button
-                              style={{ alignSelf: 'flex-start', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 12, fontWeight: 600, fontSize: 14, background: platform?.color ?? accentColor, color: 'white', border: 'none', cursor: 'pointer' }}
-                              onClick={async () => {
-                                setJoinErr('');
-                                if (joinToken) {
-                                  window.open(`/api/join?token=${joinToken}`, '_blank', 'noopener,noreferrer');
-                                  return;
-                                }
-                                // Opened now (still inside the click, so it is not blocked) and pointed at the link once it
-                                // arrives. 'noopener' would return no handle to the tab, so the opener is cut by hand.
-                                const win = window.open('', '_blank');
-                                if (win) win.opener = null;
-                                try {
-                                  const { data: { session } } = await supabase.auth.getSession();
-                                  if (session?.access_token) {
-                                    const res = await fetch('/api/event-register', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                                      body: JSON.stringify({ formId: form.id }),
-                                    });
-                                    const json = await res.json();
-                                    if (json.join_token) {
-                                      setJoinToken(json.join_token);
-                                      if (win) { win.location.href = `/api/join?token=${json.join_token}`; return; }
-                                    }
-                                  }
-                                } catch {}
-                                win?.close();
-                                setJoinErr('Could not get your join link. Please refresh and try again.');
-                              }}>
-                              Join Meeting <ExternalLink style={{ width: 14, height: 14 }}/>
-                            </button>
-                            {joinErr && (
-                              <p style={{ margin: 0, fontSize: 12, color: '#ef4444' }}>{joinErr}</p>
-                            )}
-                          </>
-                        );
-                      })()}
-
-                      {/* Add to calendar, for anyone with a seat (cohort members and registrants). */}
-                      {(joinToken || isCohortMember) && !isPast && ev.date && (() => {
-                const ev = config.eventDetails;
-                const isVirtual = ev.eventType === 'virtual';
-                // Absolute join link so a tap from the calendar reminder reaches /api/join and records attendance.
-                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                const joinHref = joinToken ? `${origin}/api/join?token=${joinToken}` : '';
-                const recurring = isRecurring(form.recurrence);
-                const { calLocation, calDescription } = buildCalendarFields({ isVirtual, joinUrl: joinHref, location: ev.location, description: config.description });
-                const googleUrl  = buildGoogleCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days);
-                // Outlook.com and Yahoo web links can't encode a recurrence -- only offer them for one-time events; the .ics carries the full series.
-                const outlookUrl = recurring ? null : buildOutlookCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
-                const yahooUrl   = recurring ? null : buildYahooCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
-                const GoogleIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
-                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.657 14.013 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-                    <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                );
-                const OutlookIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 21 21" style={{ flexShrink: 0 }}>
-                    <rect x="0" y="0" width="10" height="10" rx="1" fill="#f25022"/>
-                    <rect x="11" y="0" width="10" height="10" rx="1" fill="#7fba00"/>
-                    <rect x="0" y="11" width="10" height="10" rx="1" fill="#00a4ef"/>
-                    <rect x="11" y="11" width="10" height="10" rx="1" fill="#ffb900"/>
-                  </svg>
-                );
-                const YahooIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
-                    <path d="M0 4h8.6l7.4 11.2L23.4 4H32L18.6 22.4V32h-5.2V22.4z" fill="white"/>
-                  </svg>
-                );
-                const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', textDecoration: 'none', width: '100%', textAlign: 'left' as const };
-                // For virtual events without a token yet, register on demand so the calendar entry carries a tracked join link.
-                const openCal = async () => {
-                  setJoinErr('');
-                  let preparedToken = joinToken;
-                  if (isVirtual && !preparedToken) {
-                    setCalBusy(true);
-                    try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (session?.access_token) {
-                        const res = await fetch('/api/event-register', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                          body: JSON.stringify({ formId: form.id }),
-                        });
-                        const json = await res.json();
-                        if (json.join_token) {
-                          preparedToken = json.join_token;
-                          setJoinToken(json.join_token);
-                        }
-                      }
-                    } catch {}
-                    setCalBusy(false);
-                  }
-                  if (isVirtual && !preparedToken) {
-                    setJoinErr('Could not prepare your calendar link. Please refresh and try again.');
-                    return;
-                  }
-                  setCalPopupOpen(true);
-                };
-                return (
-                  <div style={{ display: 'flex' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-                      <button
-                        onClick={openCal}
-                        disabled={calBusy}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: `1px solid ${t.sectionBorder}`, background: t.sectionBg, color: t.label, cursor: calBusy ? 'default' : 'pointer', opacity: calBusy ? 0.65 : 1 }}
-                      >
-                        <Calendar style={{ width: 15, height: 15 }}/> {calBusy ? 'Preparing...' : 'Add to Calendar'}
-                      </button>
-                    </div>
-                    {calPopupOpen && (
-                      <>
-                        <div onClick={() => setCalPopupOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }} />
-                        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 101, background: dark ? '#18181b' : '#ffffff', borderRadius: 22, boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: 'min(340px, calc(100vw - 32px))', padding: '28px 20px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                          {/* Header */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-                            <div style={{ width: 56, height: 56, borderRadius: '50%', background: dark ? '#27272a' : '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Calendar style={{ width: 26, height: 26, color: accentColor }}/>
-                            </div>
-                            <div>
-                              <p style={{ fontWeight: 700, fontSize: 17, color: t.title, margin: 0 }}>Add to Calendar</p>
-                              <p style={{ fontSize: 13, color: t.body, marginTop: 6, lineHeight: 1.55 }}>{recurring ? 'Saves every session in the series to your calendar.' : 'Save this event to your preferred calendar app.'}</p>
-                            </div>
-                          </div>
-                          {/* Options */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {googleUrl && (
-                              <a href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: '#ffffff', color: '#3c4043', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
-                                <GoogleIcon/> Google Calendar
-                              </a>
-                            )}
-                            {yahooUrl && (
-                              <a href={yahooUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: '#6001D2', color: 'white' }}>
-                                <YahooIcon/> Yahoo Calendar
-                              </a>
-                            )}
-                            {outlookUrl && (
-                              <a href={outlookUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: dark ? '#1e3a5f' : '#e8f1fb', color: dark ? 'white' : '#0078D4' }}>
-                                <OutlookIcon/> Outlook.com
-                              </a>
-                            )}
-                            <button onClick={() => { downloadIcs(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days); setCalPopupOpen(false); }}
-                              style={{ ...btnBase, background: dark ? '#27272a' : '#f4f4f5', color: dark ? '#a1a1aa' : '#52525b' }}>
-                              <Download style={{ width: 18, height: 18, flexShrink: 0 }}/> iCal (Apple / Outlook)
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-                      })()}
-
-                      {/* Divider */}
-                      <div style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}`, marginTop: 8 }}/>
-
-                      {/* About this event */}
-                      {config.description && (
-                        <>
-                          <h3 style={{ fontSize: 15, fontWeight: 700, color: t.title, margin: 0, transition: 'color 0.3s' }}>About this event</h3>
-                          <div className="rich-preview" style={{ fontSize: 16, lineHeight: 1.6, color: t.body, transition: 'color 0.3s' }}
-                            dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) }}/>
-                        </>
-                      )}
-
-                    </div>
-                  </div>
-
-                </>
-              );
-            })()}
             <div style={!config.eventDetails?.isEvent ? { background: t.card, border: `1px solid ${t.cardBorder}`, borderRadius: 20, padding: 28, boxShadow: t.cardShadow, transition: 'background 0.3s' } : {}}>
 
               {!config.eventDetails?.isEvent && (

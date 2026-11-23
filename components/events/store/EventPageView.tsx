@@ -57,11 +57,14 @@ function Avatar({ src, size }: { src: string | null; size: number }) {
  *   body   the description on the page, one titled block per heading; speakers, the host and
  *          sharing in cards; then other upcoming events
  */
-export function EventPageView({ event, more, primaryColor, shareUrl }: {
+export function EventPageView({ event, more, primaryColor, shareUrl, memberPanel }: {
   event: PublicEventDetail;
   more: PublicEvent[];
   primaryColor: string;
   shareUrl: string;
+  /** The cohort page (/<slug>): this box (Join, Add to calendar) instead of the register box, and no
+   *  breadcrumb to /events or sharing, since the event is only for its cohort. */
+  memberPanel?: React.ReactNode;
 }) {
   const date = dateParts(displayDate(event));
   const time = displayTime(event.time);
@@ -83,10 +86,12 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
         <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=${font.googleFamily}&display=swap`} />
       )}
     <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-5 sm:pt-8 pb-16">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
-        <Link href="/events" className="font-medium hover:underline" style={{ color: 'var(--ev-body,#334155)' }}>Events</Link>
-        <ChevronRight className="w-3.5 h-3.5" /><span className="truncate">{event.title}</span>
-      </nav>
+      {!memberPanel && (
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
+          <Link href="/events" className="font-medium hover:underline" style={{ color: 'var(--ev-body,#334155)' }}>Events</Link>
+          <ChevronRight className="w-3.5 h-3.5" /><span className="truncate">{event.title}</span>
+        </nav>
+      )}
 
       <div className="mt-5 sm:mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-10 items-start">
         <div className="min-w-0 space-y-8">
@@ -119,7 +124,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
                   </>
                 ) : undefined} />
               {event.format === 'virtual' ? (
-                <Fact icon={<Video className="w-5 h-5" />} title="Online" sub="We email your join link once you register" />
+                <Fact icon={<Video className="w-5 h-5" />} title="Online" sub={memberPanel ? 'Join from this page' : 'We email your join link once you register'} />
               ) : (
                 <Fact icon={<MapPin className="w-5 h-5" />}
                   title={event.venue?.name ?? 'Venue to be announced'}
@@ -128,7 +133,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
                   label={event.venue ? `Open ${event.venue.name} in Google Maps` : undefined}
                   accent={primaryColor} />
               )}
-              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
+              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub={memberPanel ? undefined : 'One registration covers every session'} />}
               {event.capacity !== null && !event.isPast && (
                 <Fact icon={<Users className="w-5 h-5" />}
                   title={event.spotsLeft === 0 ? 'Full' : `${event.spotsLeft} of ${event.capacity} spots left`} />
@@ -138,7 +143,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {/* Phones: the register box straight after the facts. */}
           <div className="lg:hidden">
-            <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />
+            {memberPanel ?? <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />}
           </div>
 
           {/* The event details sit on the page itself, one block per heading; people and sharing get cards. */}
@@ -183,13 +188,15 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
             </section>
           )}
 
-          <section aria-label="Share" className={SECTION} style={SECTION_STYLE}>
-            <ShareButtons url={shareUrl} title={event.title} blurb={event.summary} />
-          </section>
+          {!memberPanel && (
+            <section aria-label="Share" className={SECTION} style={SECTION_STYLE}>
+              <ShareButtons url={shareUrl} title={event.title} blurb={event.summary} />
+            </section>
+          )}
         </div>
 
         <aside className="hidden lg:block lg:sticky lg:top-24">
-          <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />
+          {memberPanel ?? <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />}
         </aside>
       </div>
 
