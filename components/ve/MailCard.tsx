@@ -9,7 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowBendUpLeft, CaretDown, ChatTeardropDots, Checks, Clock, ListBullets, ListNumbers, PaperPlaneRight, Paperclip, ShieldCheck, Smiley, TextB, TextItalic, TextUnderline, Trash, Tray } from '@phosphor-icons/react';
+import { Archive, ArrowBendUpLeft, CaretDown, CaretLeft, ChatTeardropDots, Checks, ListBullets, ListNumbers, PaperPlaneRight, Paperclip, ShieldCheck, Smiley, Star, TextB, TextItalic, TextUnderline, Trash, Tray } from '@phosphor-icons/react';
 import {
   Person, PersonAvatar, MeAvatar, AttachmentCard, Chip, TypingDots,
   WorkplaceKeyframes, firstArrival, playArrivalChime, firstNameOf,
@@ -72,7 +72,7 @@ export function RichTextArea({
 
 export interface MailAttachment { name: string; url?: string; onClick?: () => void; subtitle?: string }
 
-/** The mail surface colours: a soft panel, with each message on the card colour. */
+/** Colours shared by the mail pieces: panel for soft fills, block for the card. */
 export function mailTones(isDark: boolean) {
   return {
     panel: isDark ? '#262626' : '#f5f6f8',
@@ -106,9 +106,9 @@ export function MailSignature({ isDark, sender, company }: { isDark: boolean; se
   );
 }
 
-/** One message in the mail panel, on the card colour. */
+/** One message in an email thread, set off from the one above by a line. */
 export function MailBlock({ isDark, children, style }: { isDark: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
-  return <div style={{ background: mailTones(isDark).block, borderRadius: 10, padding: '16px 22px 20px', ...style }}>{children}</div>;
+  return <div className="ve-mail-block" style={{ padding: '16px 22px 20px', borderTop: `1px solid ${mailTones(isDark).line}`, ...style }}>{children}</div>;
 }
 
 export function MailCard({
@@ -133,12 +133,12 @@ export function MailCard({
   signature?: boolean;
   /** Assessment emails keep upload/review controls inside the message, before the sign-off. */
   signatureAfterChildren?: boolean;
-  // Optional chat launcher in the header (e.g. "Chat with Sarah").
-  // attention pulses its dot until the chat has been opened once.
+  // Optional chat launcher in the action toolbar (e.g. "Chat with Sarah").
+  // attention shows a pulsing dot until the chat has been opened once.
   chatAction?: { label: string; onClick: () => void; attention?: boolean };
   /** The email folds to one line (sender and subject) once the thread below it has moved on. */
   collapsed?: boolean;
-  /** The children are already split into MailBlocks, one per message, instead of sharing one. */
+  /** The children are already split into MailBlocks, one per message, instead of sharing one area. */
   ownBlocks?: boolean;
   children?: React.ReactNode;
 }) {
@@ -192,43 +192,62 @@ export function MailCard({
     return () => clearTimeout(t);
   }, [isNew]);
 
-  const m = mailTones(isDark);
+  const winBg   = isDark ? '#1b1c20' : '#ffffff';
+  const barBg   = isDark ? '#202127' : '#f7f9f8';
+  const line    = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const tText   = isDark ? '#e8eaed' : '#202124';
+  const tMuted  = isDark ? '#9aa0a6' : '#5f6368';
+  const tFaint  = isDark ? '#6b7075' : '#9aa0a6';
+  const iconBtn: React.CSSProperties = { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: 'transparent', color: tMuted, opacity: 0.45, cursor: 'default' };
   const unread = !read && !done;
-  const role = [sender.title, company].filter(Boolean).join(', ');
-  const roleTag = role && (
-    <span style={{ fontSize: 11.5, fontWeight: 600, color: m.muted, background: m.panel, padding: '2px 8px', borderRadius: 99, whiteSpace: 'nowrap' }}>{role}</span>
-  );
-  const sign = signature && (sender.title || company) ? <MailSignature isDark={isDark} sender={sender} company={company} /> : null;
+  // The work clock is part of the story, so "how long ago" is too: steady for each email, a few
+  // minutes for one just in, and simply "earlier" once it has been dealt with.
+  const ago = done ? 'earlier' : `${3 + (Array.from(reqId).reduce((n, c) => n + c.charCodeAt(0), 0) % 27)} minutes ago`;
 
   return (
     <div ref={rootRef} className={isNew ? 've-mail-in' : undefined}
       onClick={() => { if (unread) setRead(true); }}
-      style={{ position: 'relative', background: m.panel, borderRadius: 14, padding: 6 }}>
+      style={{ position: 'relative', background: winBg, border: 'none', borderRadius: 20, overflow: 'hidden', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.065)' : '0 6px 22px rgba(15,23,42,0.06)' }}>
       <WorkplaceKeyframes />
 
-      {/* App bar: the inbox, how many are new, and the chat launcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 6px 10px 6px' }}>
-        <span style={{ width: 28, height: 28, borderRadius: 8, background: m.block, display: 'grid', placeItems: 'center', color: m.text, flexShrink: 0 }}>
-          <Tray weight="duotone" size={16} aria-hidden />
-        </span>
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: m.text }}>Inbox</span>
+      {/* App bar: mail identity */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: barBg, borderBottom: `1px solid ${line}` }}>
+        <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: accent, flexShrink: 0 }} />
+        <Tray weight="duotone" style={{ width: 15, height: 15, color: tMuted, flexShrink: 0 }} />
+        <span style={{ fontSize: 12.5, fontWeight: 750, color: tText }}>Work inbox</span>
         {unread && (
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: m.muted, background: m.block, padding: '2px 8px', borderRadius: 99 }}>1 new</span>
+          <span style={{ marginLeft: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#D93025', color: '#fff', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>1</span>
         )}
         <span style={{ flex: 1 }} />
+      </div>
+
+      {/* Action toolbar (decorative except the chat launcher: sells the client) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '4px 10px', borderBottom: `1px solid ${line}` }}>
+        <span aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={iconBtn}><CaretLeft weight="bold" size={16} /></span>
+          <span style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
+          <span style={iconBtn}><Archive weight="duotone" size={14} /></span>
+          <span style={iconBtn}><Trash weight="duotone" size={14} /></span>
+        </span>
         {chatAction && (
-          <button onClick={chatAction.onClick} title={chatAction.label}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, border: 'none', background: m.block, color: m.text, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
-            <ChatTeardropDots weight="bold" size={13} aria-hidden />
-            {chatAction.label}
-            <span className={chatAction.attention ? 've-pulse' : undefined} style={{ width: 7, height: 7, borderRadius: '50%', background: accent }} />
-          </button>
+          <>
+            <span aria-hidden style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
+            <button onClick={chatAction.onClick} title={chatAction.label}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 14, border: `1px solid ${accent}45`, background: `${accent}16`, color: accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <ChatTeardropDots weight="bold" size={13} />
+              {chatAction.label}
+              {chatAction.attention && (
+                <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: accent }} />
+              )}
+            </button>
+          </>
         )}
+        <span style={{ flex: 1 }} />
       </div>
 
       {/* New-mail toast */}
       {isNew && (
-        <div className="ve-toast-in" style={{ position: 'absolute', top: 50, right: 12, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 12, background: isDark ? '#2a2b31' : '#202124', color: '#fff', fontSize: 12, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,0.35)', pointerEvents: 'none' }}>
+        <div className="ve-toast-in" style={{ position: 'absolute', top: 44, right: 12, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 12, background: isDark ? '#2a2b31' : '#202124', color: '#fff', fontSize: 12, fontWeight: 600, boxShadow: '0 8px 24px rgba(0,0,0,0.35)', pointerEvents: 'none' }}>
           <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
           New message from {firstNameOf(sender.name)}
         </div>
@@ -237,93 +256,114 @@ export function MailCard({
       {folded ? (
         // The email, folded to one line: who sent it and what about. Opens again on a click.
         <button type="button" onClick={() => setExpanded(true)} aria-expanded={false}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 22px', borderRadius: 10, border: 'none', background: m.block, textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
-          <PersonAvatar {...sender} size={32} presence="active" isDark={isDark} />
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 22px', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
+          <PersonAvatar {...sender} size={34} presence="active" isDark={isDark} />
           <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <b style={{ fontSize: 13.5, fontWeight: 700, color: m.text }}>{sender.name}</b>{roleTag}
-            </span>
-            <span style={{ display: 'block', fontSize: 12.5, color: m.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject}</span>
+            <b style={{ display: 'block', fontSize: 14, fontWeight: 700, color: tText }}>{sender.name}</b>
+            <span style={{ display: 'block', fontSize: 12.5, color: tMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject}</span>
           </span>
-          <span style={{ fontSize: 12.5, color: m.faint, whiteSpace: 'nowrap' }}>{stamp.full}</span>
+          <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full}</span>
         </button>
-      ) : (
-      <div style={{ background: m.block, borderRadius: 10, padding: '20px 22px' }}>
-        <h3 style={{ fontSize: 19, fontWeight: 700, color: m.text, lineHeight: 1.35, margin: '0 0 16px' }}>{subject}</h3>
-
-        {/* Sender: name and role, then "to me" with its details pop-up; the time on the right. */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <PersonAvatar {...sender} size={40} presence="active" isDark={isDark} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', columnGap: 8, rowGap: 2, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: m.text }}>{sender.name}</span>
-              {roleTag}
-              <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: m.faint, whiteSpace: 'nowrap' }}>
-                <Clock weight="bold" size={12} aria-hidden /> {stamp.full}
-              </span>
-            </div>
-            <button ref={detailsBtnRef} type="button" onClick={e => { e.stopPropagation(); toggleDetails(); }} aria-expanded={showDetails} aria-haspopup="dialog"
-              aria-label={showDetails ? 'Hide details' : 'Show details'}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 2, margin: '2px 0 0', padding: '2px 4px 2px 0', background: 'none', border: 'none', font: 'inherit', fontSize: 12.5, color: m.faint, cursor: 'pointer' }}>
-              to me <CaretDown weight="bold" size={12} />
-            </button>
-            {detailsAt && createPortal(
-              <dl ref={detailsRef} role="dialog" aria-label="Message details"
-                style={{ position: 'fixed', left: detailsAt.left, top: detailsAt.top, width: detailsAt.width, zIndex: 1000, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 12, rowGap: 5, margin: 0, padding: '12px 14px', borderRadius: 12, background: isDark ? '#2a2b31' : '#ffffff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.08), 0 12px 32px rgba(0,0,0,0.5)' : '0 0 0 1px rgba(15,23,42,0.06), 0 12px 32px rgba(15,23,42,0.16)', fontSize: 12.5, lineHeight: 1.5 }}>
-                <dt style={{ color: m.faint }}>from:</dt>
-                <dd style={{ margin: 0, color: m.text, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{sender.name}</b>{sender.email ? ` (${sender.email})` : ''}</dd>
-                <dt style={{ color: m.faint }}>to:</dt>
-                <dd style={{ margin: 0, color: m.text, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{toName || 'me'}</b>{toEmail ? ` (${toEmail})` : ''}</dd>
-                <dt style={{ color: m.faint }}>date:</dt>
-                <dd style={{ margin: 0, color: m.text }}>{stamp.full}</dd>
-                <dt style={{ color: m.faint }}>subject:</dt>
-                <dd style={{ margin: 0, color: m.text, overflowWrap: 'anywhere' }}>{subject}</dd>
-              </dl>,
-              document.body,
-            )}
-          </div>
+      ) : (<>
+      {/* Subject */}
+      <div style={{ padding: '20px 22px 0', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        {unread && <span title="Unread" style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a73e8', marginTop: 9, flexShrink: 0 }} />}
+        <h3 style={{ fontSize: 18, fontWeight: 750, color: tText, lineHeight: 1.35, margin: 0, flex: 1, minWidth: 0 }}>{subject}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginTop: 2 }}>
+          <Chip isDark={isDark}>Inbox</Chip>
         </div>
-
-        {bodyHtml && (
-          <div
-            className="rich-content"
-            dangerouslySetInnerHTML={{ __html: bodyHtml }}
-            style={{ marginTop: 14, color: isDark ? '#e0e0e0' : '#1f1f1f', fontSize: 15, lineHeight: 1.65 }}
-          />
-        )}
-
-        {sign && !signatureAfterChildren && <div style={{ marginTop: 12 }}>{sign}</div>}
-
-        {/* Attachments */}
-        {!!attachments?.length && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <Paperclip weight="bold" size={12} style={{ color: m.faint }} />
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: m.muted }}>
-                {attachments.length} {attachments.length === 1 ? 'attachment' : 'attachments'}
-              </span>
-              <ShieldCheck weight="duotone" size={12} style={{ color: '#2BAC76' }} />
-              <span style={{ fontSize: 12, color: m.faint }}>Scanned{company ? ` by ${company} Mail` : ''}</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {attachments.map((att, i) => (
-                <AttachmentCard key={i} name={att.name} isDark={isDark} href={att.url} onClick={att.onClick} subtitle={att.subtitle} />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Sender row, laid out like Gmail: name, then "to me" with its details dropdown; the date
+          with how long ago, the star and the reply arrow on the right. */}
+      <div style={{ padding: '14px 22px 0', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <PersonAvatar {...sender} size={42} presence="active" isDark={isDark} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', columnGap: 10, rowGap: 2, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: tText, flex: '1 1 auto', minWidth: 0 }}>{sender.name}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full} ({ago})</span>
+              <Star weight="duotone" size={15} style={{ color: done ? '#f4b400' : tFaint, alignSelf: 'center' }} fill={done ? '#f4b400' : 'none'} aria-hidden />
+              <ArrowBendUpLeft weight="bold" size={14} style={{ color: tFaint, alignSelf: 'center' }} aria-hidden />
+            </span>
+          </div>
+          <button ref={detailsBtnRef} type="button" onClick={e => { e.stopPropagation(); toggleDetails(); }} aria-expanded={showDetails} aria-haspopup="dialog"
+            aria-label={showDetails ? 'Hide details' : 'Show details'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 2, margin: '2px 0 0', padding: '4px 4px 4px 0', background: 'none', border: 'none', font: 'inherit', fontSize: 12, color: tFaint, cursor: 'pointer' }}>
+            to me <CaretDown weight="bold" size={13} />
+          </button>
+          {detailsAt && createPortal(
+            <dl ref={detailsRef} role="dialog" aria-label="Message details"
+              style={{ position: 'fixed', left: detailsAt.left, top: detailsAt.top, width: detailsAt.width, zIndex: 1000, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 12, rowGap: 5, margin: 0, padding: '12px 14px', borderRadius: 12, background: isDark ? '#2a2b31' : '#ffffff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.08), 0 12px 32px rgba(0,0,0,0.5)' : '0 0 0 1px rgba(15,23,42,0.06), 0 12px 32px rgba(15,23,42,0.16)', fontSize: 12.5, lineHeight: 1.5 }}>
+              <dt style={{ color: tFaint }}>from:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{sender.name}</b>{sender.email ? ` (${sender.email})` : ''}</dd>
+              <dt style={{ color: tFaint }}>to:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{toName || 'me'}</b>{toEmail ? ` (${toEmail})` : ''}</dd>
+              <dt style={{ color: tFaint }}>date:</dt>
+              <dd style={{ margin: 0, color: tText }}>{stamp.full}</dd>
+              <dt style={{ color: tFaint }}>subject:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}>{subject}</dd>
+            </dl>,
+            document.body,
+          )}
+        </div>
+      </div>
+
+      {/* Body */}
+      {bodyHtml && (
+        <div
+          className="rich-content"
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          style={{ padding: '16px 22px 4px', color: isDark ? '#e0e0e0' : '#1f1f1f', fontSize: 14.5, lineHeight: 1.75 }}
+        />
       )}
 
-      {/* Interaction area (thread, suggested replies, composer...) */}
-      {children != null && (
-        <div id={`ve-zone-${reqId}`} style={ownBlocks
-          ? { marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }
-          : { marginTop: 6, background: m.block, borderRadius: 10 }}>
-          {children}
-          {sign && signatureAfterChildren && <div style={{ padding: '0 22px 18px' }}>{sign}</div>}
+      {/* Signature */}
+      {signature && !signatureAfterChildren && (sender.title || company) && (
+        <div style={{ padding: '10px 22px 4px' }}>
+          <p style={{ margin: 0, fontSize: 13, color: tMuted, lineHeight: 1.6 }}>
+            {sender.name}<br />
+            <span style={{ color: tFaint }}>{[sender.title, company].filter(Boolean).join(', ')}</span>
+          </p>
         </div>
       )}
+
+      {/* Attachments */}
+      {!!attachments?.length && (
+        <div style={{ padding: '14px 22px 6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <Paperclip weight="bold" size={12} style={{ color: tFaint }} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: tMuted }}>
+              {attachments.length} {attachments.length === 1 ? 'attachment' : 'attachments'}
+            </span>
+            <ShieldCheck weight="duotone" size={12} style={{ color: '#2BAC76' }} />
+            <span style={{ fontSize: 12, color: tFaint }}>Scanned{company ? ` by ${company} Mail` : ''}</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {attachments.map((att, i) => (
+              <AttachmentCard key={i} name={att.name} isDark={isDark} href={att.url} onClick={att.onClick} subtitle={att.subtitle} />
+            ))}
+          </div>
+        </div>
+      )}
+      </>)}
+
+      {/* Interaction area (thread, smart replies, composer...) */}
+      {children != null && (
+        // With ownBlocks each MailBlock draws its own dividing line, so the area adds none.
+        <div id={`ve-zone-${reqId}`} style={{ borderTop: ownBlocks ? undefined : `1px solid ${line}`, marginTop: folded ? 0 : 14 }}>
+          {children}
+        </div>
+      )}
+      {signature && signatureAfterChildren && (sender.title || company) && (
+        <div style={{ padding: '10px 22px 16px' }}>
+          <p style={{ margin: 0, fontSize: 13, color: tMuted, lineHeight: 1.6 }}>
+            {sender.name}<br />
+            <span style={{ color: tFaint }}>{[sender.title, company].filter(Boolean).join(', ')}</span>
+          </p>
+        </div>
+      )}
+      {children == null && <div style={{ height: 14 }} />}
     </div>
   );
 }
