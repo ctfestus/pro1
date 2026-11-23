@@ -1,35 +1,55 @@
-import { CalendarCheck2, ShieldCheck } from 'lucide-react';
+import { CalendarCheck, Receipt, ShieldCheck } from '@phosphor-icons/react';
 import { formatApplicationFeeAmount, type ApplicationFee } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
+/**
+ * The application's fee, drawn as a ticket with a stub: the fee's name, what it is for and when it
+ * is due on the left; a dashed tear line; the amount large on the stub. On phones the stub sits
+ * below the name, and when it is due comes after the amount. Under it,
+ * the note that no payment is taken here. Colours come from the form's theme (light and dark).
+ */
 export function ApplicationFeeTicket({ fee, C }: { fee: ApplicationFee; C: ThemeColors }) {
   const amount = formatApplicationFeeAmount(fee.amount);
-  const amountSize = amount === 'Set amount' ? 'text-2xl sm:text-3xl' : amount.length > 12 ? 'text-3xl sm:text-4xl' : amount.length > 7 ? 'text-4xl sm:text-5xl' : 'text-5xl sm:text-[4.5rem]';
+  const set = amount !== 'Set amount';
+  const chip = { background: C.pill, color: C.text };
+  const dash = `color-mix(in srgb, ${C.faint} 60%, transparent)`;
+  const terms = (
+    <div className="flex flex-wrap gap-2">
+      <span className="inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold" style={chip}>One-time</span>
+      {fee.due && (
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold" style={chip}>
+          <CalendarCheck className="h-3.5 w-3.5" weight="bold" /> Due: {fee.due}
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <section className="mt-5" aria-label={`${fee.name} details`}>
-      <div className="rounded-xl p-1.5" style={{ background: C.pill }}>
-        <div className="relative isolate overflow-hidden rounded-lg px-5 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5" style={{ background: 'linear-gradient(145deg, #151C29 0%, #090D15 75%)', color: '#FFFFFF' }}>
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at 75% -30%, color-mix(in srgb, ${C.cta} 55%, transparent), transparent 58%)`, opacity: 0.55 }} />
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.45) 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
-          <div className="relative grid min-w-0 gap-4 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1fr)] sm:items-center sm:gap-6">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">{fee.currency} / One-time</p>
-              <p className={`mt-1 min-w-0 break-all font-black leading-none tracking-[-0.075em] tabular-nums ${amountSize}`}>{amount}</p>
-            </div>
-            <div className="flex min-w-0 flex-col items-start gap-2 pb-1 pl-1 pr-2 sm:pl-3">
-              <div className="max-w-full self-end -rotate-1 bg-white px-2.5 py-1.5 text-[#111827]" style={{ boxShadow: `4px 4px 0 color-mix(in srgb, ${C.cta} 70%, #111827)` }}>
-                <p className="flex items-start gap-1.5 text-[10px] font-bold uppercase leading-4 tracking-wide"><CalendarCheck2 className="h-3.5 w-3.5 shrink-0" /> <span className="break-words">Due: {fee.due}</span></p>
-              </div>
-              <div className="max-w-full -rotate-1 bg-white px-3 py-1.5 text-[#0E1420]" style={{ boxShadow: `-6px 6px 0 ${C.cta}` }}>
-                <h2 className="break-words text-lg font-black uppercase leading-tight tracking-tight sm:text-xl">{fee.name}</h2>
-              </div>
-              {fee.description && <div className="max-w-full rotate-1 bg-white px-3 py-1.5 text-[#17202D]" style={{ boxShadow: `5px 5px 0 color-mix(in srgb, ${C.cta} 65%, #111827)` }}><p className="break-words text-[11px] font-medium leading-4">{fee.description}</p></div>}
-            </div>
+    <section className="mt-6" aria-label={`${fee.name} details`}>
+      <div className="flex flex-col overflow-hidden rounded-xl sm:flex-row" style={{ border: `1px solid ${C.divider}` }}>
+        <div className="flex min-w-0 flex-1 items-start gap-3.5 p-5 sm:p-6">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={chip}>
+            <Receipt className="h-6 w-6" weight="duotone" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="break-words text-base font-bold leading-6" style={{ color: C.text }}>{fee.name}</h2>
+            {fee.description && <p className="mt-0.5 break-words text-sm leading-5" style={{ color: C.muted }}>{fee.description}</p>}
+            <div className="mt-3 hidden sm:block">{terms}</div>
           </div>
-          <p className="relative mt-4 flex items-start gap-2 border-t border-white/15 pt-3 text-[11px] leading-4 text-white/70"><ShieldCheck className="h-4 w-4 shrink-0" /> No payment is collected through this application form.</p>
         </div>
+        {/* The stub, behind a dashed tear line (left of it on wide screens, above it on phones). */}
+        <div className="relative flex shrink-0 flex-col justify-center px-5 py-4 sm:min-w-[11rem] sm:px-6 sm:text-center" style={{ background: C.pill }}>
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[1.5px] sm:hidden" style={{ background: `repeating-linear-gradient(to right, ${dash} 0 6px, transparent 6px 11px)` }} />
+          <span aria-hidden="true" className="absolute inset-y-0 left-0 hidden w-[1.5px] sm:block" style={{ background: `repeating-linear-gradient(to bottom, ${dash} 0 6px, transparent 6px 11px)` }} />
+          {set && <p className="text-xs font-semibold" style={{ color: C.faint }}>{fee.currency}</p>}
+          <p className={`font-extrabold leading-none tabular-nums tracking-tight ${set ? 'mt-1 text-4xl sm:text-5xl' : 'text-2xl'}`} style={{ color: C.text }}>{amount}</p>
+        </div>
+        {/* Phones: when and how often, below the price. */}
+        <div className="px-5 py-3.5 sm:hidden">{terms}</div>
       </div>
+      <p className="mt-2.5 flex items-center gap-1.5 text-xs" style={{ color: C.faint }}>
+        <ShieldCheck className="h-4 w-4 shrink-0" weight="duotone" style={{ color: C.successText }} /> No payment is collected through this application form.
+      </p>
     </section>
   );
 }

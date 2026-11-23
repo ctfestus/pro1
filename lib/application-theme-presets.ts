@@ -39,7 +39,8 @@ export function applicationThemeColors(
   mode: ApplicationThemeMode = 'light',
 ): ThemeColors {
   const legacyColor = legacyTheme === 'custom' ? legacyCustom?.primary : LEGACY_THEME_COLORS[legacyTheme];
-  const color = validColor(themeColor) ? themeColor : validColor(legacyColor) ? legacyColor : base.cta;
+  // No colour chosen: the primary blue. The colour goes on buttons and selection only; the page stays neutral.
+  const color = validColor(themeColor) ? themeColor : validColor(legacyColor) ? legacyColor : '#3E93FF';
   if (mode === 'dark') {
     return {
       ...base,
@@ -71,14 +72,14 @@ export function applicationThemeColors(
   }
   return {
     ...base,
-    page: `color-mix(in srgb, ${color} 6%, #ffffff)`,
+    page: '#F1F3F6',
     nav: '#FFFFFF',
     navBorder: '#E1E4E9',
     card: '#FFFFFF',
     cardBorder: 'transparent',
     input: '#FFFFFF',
     inputBorder: '#DDE1E7',
-    pill: `color-mix(in srgb, ${color} 14%, #ffffff)`,
+    pill: '#F1F3F5',
     skeleton: '#F1F3F5',
     divider: '#E5E7EB',
     text: '#151515',
