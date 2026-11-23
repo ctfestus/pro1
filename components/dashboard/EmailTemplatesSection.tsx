@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { ArrowCounterClockwise, CaretRight, ClipboardText, CreditCard, Desktop, DeviceMobile, GraduationCap, ListBullets, LockSimple, MagnifyingGlass, PaperPlaneTilt, TextB, TextItalic, Trophy, UserPlus, type Icon } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, CaretRight, ClipboardText, CreditCard, Desktop, DeviceMobile, GraduationCap, ListBullets, LockSimple, MagnifyingGlass, PaperPlaneTilt, PencilSimple, TextB, TextItalic, Trophy, UserPlus, type Icon } from '@phosphor-icons/react';
 import { useTenant } from '@/components/TenantProvider';
 import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
@@ -324,26 +324,28 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
               </div>
             </div>
 
-            <div className="flex justify-center px-3 py-6 sm:px-5 sm:py-7" style={{ background: C.page }}>
+            {/* Desktop: the email fills the card under the bar. Phone: a phone-width frame on the page colour. */}
+            <div className={`flex justify-center ${device === 'phone' ? 'px-3 py-6 sm:px-5 sm:py-7' : 'pt-1'}`} style={{ background: device === 'phone' ? C.page : '#ffffff' }}>
               <div className="w-full transition-[max-width] duration-300" style={{ maxWidth: device === 'phone' ? 380 : 640 }}>
-                <div className="grid gap-1 rounded-t-2xl px-4 py-3.5 sm:px-5" style={{ background: C.card, borderBottom: `1px solid ${C.divider}` }}>
-                  <p className="truncate text-[13px]" style={{ color: C.muted }}><b style={{ color: C.text }}>{tenant.senderName || tenant.appName}</b>{tenant.supportEmail ? ` <${tenant.supportEmail}>` : ''}</p>
-                  <input value={subject} maxLength={200} onChange={event => setSubject(event.target.value)} aria-label="Subject"
-                    placeholder={system?.subject || 'Subject'}
-                    className="field-focus -mx-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[17px] font-bold outline-none"
-                    style={{ color: C.text }} />
-                  <p className="text-xs" style={{ color: C.faint }}>Click the subject to change it. Leave it empty to keep the system subject.</p>
-                </div>
-                <div className="rounded-b-2xl bg-white px-4 pb-6 pt-5 sm:px-6">
+                <div className="rounded-2xl bg-white px-4 pb-6 pt-5 sm:px-6">
+                  <p className="mb-4 truncate text-[13px]" style={{ color: '#6B7280' }}>From <b style={{ color: '#111827' }}>{tenant.senderName || tenant.appName}</b>{tenant.supportEmail ? ` <${tenant.supportEmail}>` : ''}</p>
+                  <label className="mb-1.5 block text-[13px] font-semibold" style={{ color: '#374151' }} htmlFor="email-subject">Subject</label>
+                  <div className="field-shell flex h-11 items-center gap-2 rounded-xl bg-white px-4" style={{ boxShadow: 'inset 0 0 0 1px #D1D9E4' }}>
+                    <input id="email-subject" value={subject} maxLength={200} onChange={event => setSubject(event.target.value)}
+                      placeholder={system?.subject || 'Subject'}
+                      className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-[#9CA3AF]" style={{ color: '#111827' }} />
+                    <PencilSimple size={16} weight="duotone" color="#9CA3AF" aria-hidden />
+                  </div>
+                  <p className="mb-5 mt-1.5 text-xs" style={{ color: '#9CA3AF' }}>Leave it empty to send the system subject.</p>
                   {selectedOverride?.composition_mode === 'legacy_replace' && <p className="mb-4 rounded-xl px-3 py-3 text-xs" style={{ background: '#FEF2F2', color: '#B91C1C' }}>This customisation was saved before the system email was protected. Save it again to keep the full system email.</p>}
-                  <div className="relative mb-5 rounded-xl px-3 pb-3 pt-4" style={{ outline: `2px dashed ${C.cta}`, background: 'rgba(62,147,255,0.05)' }}>
-                    <span className="absolute -top-2.5 left-3 rounded-full px-2 py-0.5 text-[11px] font-bold text-white" style={{ background: C.cta }}>Your message</span>
+                  <p className="mb-1.5 text-[13px] font-semibold" style={{ color: '#374151' }}>Your message</p>
+                  <div className="field-shell mb-5 rounded-xl bg-white" style={{ boxShadow: 'inset 0 0 0 1px #D1D9E4' }}>
                     <div ref={editorWrap} contentEditable suppressContentEditableWarning role="textbox" aria-multiline aria-label="Your message"
                       data-placeholder="Add a short note to learners. It appears here, above the email."
                       onInput={event => { const editor = event.currentTarget; setBody(editor.textContent?.trim() ? editor.innerHTML : ''); }}
-                      className="min-h-[72px] text-[15px] leading-relaxed outline-none empty:before:pointer-events-none empty:before:text-[#9CA3AF] empty:before:content-[attr(data-placeholder)] [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+                      className="min-h-[96px] px-4 py-3 text-[15px] leading-relaxed outline-none empty:before:pointer-events-none empty:before:text-[#9CA3AF] empty:before:content-[attr(data-placeholder)] [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
                       style={{ color: '#1F2937' }} />
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2.5" style={{ borderColor: '#E5E7EB' }}>
+                    <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2" style={{ borderColor: '#E5E7EB' }}>
                       {([['bold', 'Bold', TextB], ['italic', 'Italic', TextItalic], ['insertUnorderedList', 'Bullet list', ListBullets]] as const).map(([command, label, Glyph]) => (
                         <button key={command} type="button" title={label} aria-label={label} onMouseDown={event => event.preventDefault()}
                           onClick={() => { editorWrap.current?.focus(); document.execCommand(command); }}
