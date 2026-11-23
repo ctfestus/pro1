@@ -5,7 +5,7 @@
 
 export const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full-time', part_time: 'Part-time', student: 'Student',
-  nss: 'National Service (NSS)', unemployed: 'Unemployed', other: 'Other',
+  nss: 'National service or internship', unemployed: 'Unemployed', other: 'Other',
 };
 
 export const OBJECTIVE_LABELS: Record<string, string> = {

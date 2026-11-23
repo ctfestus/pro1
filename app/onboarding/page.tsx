@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { Briefcase, Clock, Compass, DotsThreeCircle, GraduationCap, Handshake, IdentificationBadge, Laptop, MagnifyingGlass, RocketLaunch, TrendUp, type Icon } from '@phosphor-icons/react';
+import { DARK_C } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { useC } from '@/lib/theme';
@@ -22,24 +23,24 @@ type Answers = Record<AnswerKey, string> & {
 type Option = {
   value: string;
   label: string;
-  emoji?: string;
+  icon?: Icon;
   brand?: 'linkedin' | 'facebook' | 'x' | 'whatsapp';
 };
 
 const EMPLOYMENT_OPTIONS: Option[] = [
-  { value: 'full_time', label: EMPLOYMENT_LABELS.full_time, emoji: '\u{1F4BC}' },
-  { value: 'part_time', label: EMPLOYMENT_LABELS.part_time, emoji: '\u{1F552}' },
-  { value: 'student', label: EMPLOYMENT_LABELS.student, emoji: '\u{1F393}' },
-  { value: 'nss', label: EMPLOYMENT_LABELS.nss, emoji: '\u{1F9D1}\u{200D}\u{1F4BC}' },
-  { value: 'unemployed', label: EMPLOYMENT_LABELS.unemployed, emoji: '\u{1F50E}' },
-  { value: 'other', label: EMPLOYMENT_LABELS.other, emoji: '\u{2728}' },
+  { value: 'full_time', label: EMPLOYMENT_LABELS.full_time, icon: Briefcase },
+  { value: 'part_time', label: EMPLOYMENT_LABELS.part_time, icon: Clock },
+  { value: 'student', label: EMPLOYMENT_LABELS.student, icon: GraduationCap },
+  { value: 'nss', label: EMPLOYMENT_LABELS.nss, icon: IdentificationBadge },
+  { value: 'unemployed', label: EMPLOYMENT_LABELS.unemployed, icon: MagnifyingGlass },
+  { value: 'other', label: EMPLOYMENT_LABELS.other, icon: DotsThreeCircle },
 ];
 
 const OBJECTIVE_OPTIONS: Option[] = [
-  { value: 'new_career', label: OBJECTIVE_LABELS.new_career, emoji: '\u{1F680}' },
-  { value: 'level_up', label: OBJECTIVE_LABELS.level_up, emoji: '\u{1F4C8}' },
-  { value: 'transition_to_tech', label: OBJECTIVE_LABELS.transition_to_tech, emoji: '\u{1F4BB}' },
-  { value: 'explore_skills', label: OBJECTIVE_LABELS.explore_skills, emoji: '\u{1F9ED}' },
+  { value: 'new_career', label: OBJECTIVE_LABELS.new_career, icon: RocketLaunch },
+  { value: 'level_up', label: OBJECTIVE_LABELS.level_up, icon: TrendUp },
+  { value: 'transition_to_tech', label: OBJECTIVE_LABELS.transition_to_tech, icon: Laptop },
+  { value: 'explore_skills', label: OBJECTIVE_LABELS.explore_skills, icon: Compass },
 ];
 
 const REFERRAL_OPTIONS: Option[] = [
@@ -47,8 +48,8 @@ const REFERRAL_OPTIONS: Option[] = [
   { value: 'facebook', label: REFERRAL_LABELS.facebook, brand: 'facebook' },
   { value: 'x', label: REFERRAL_LABELS.x, brand: 'x' },
   { value: 'whatsapp', label: REFERRAL_LABELS.whatsapp, brand: 'whatsapp' },
-  { value: 'friend', label: REFERRAL_LABELS.friend, emoji: '\u{1F91D}' },
-  { value: 'other', label: REFERRAL_LABELS.other, emoji: '\u{2728}' },
+  { value: 'friend', label: REFERRAL_LABELS.friend, icon: Handshake },
+  { value: 'other', label: REFERRAL_LABELS.other, icon: DotsThreeCircle },
 ];
 
 const QUESTION_STEPS: Array<{
@@ -107,7 +108,7 @@ function SocialBrandIcon({ brand }: { brand: NonNullable<Option['brand']> }) {
   }
 
   return (
-    <svg className="h-7 w-7 text-black" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117Z" />
     </svg>
   );
@@ -132,7 +133,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { appName } = useTenant();
   const C = useC();
-  const brand = C.cta;
+  // The primary blue on buttons, the progress bar and the chosen answer, as on the dashboard.
+  const brand = DARK_C.cta;
 
   const [step, setStep] = useState(0);
   const [userId, setUserId] = useState('');
@@ -314,11 +316,14 @@ export default function OnboardingPage() {
           ) : (
             <span className="h-10 w-10 shrink-0" aria-hidden="true" />
           )}
-          <div className="h-3 flex-1 overflow-hidden rounded-full" style={{ background: C.skeleton }}>
-            <div
-              className="h-full rounded-full transition-[width] duration-300 ease-out"
-              style={{ width: `${((step + 1) / 4) * 100}%`, background: brand }}
-            />
+          <div className="flex flex-1 items-center gap-3">
+            <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: C.skeleton }}>
+              <div
+                className="h-full rounded-full transition-[width] duration-300 ease-out"
+                style={{ width: `${((step + 1) / 4) * 100}%`, background: brand }}
+              />
+            </div>
+            <span className="shrink-0 text-sm font-semibold tabular-nums" style={{ color: C.muted }}>Step {step + 1} of 4</span>
           </div>
           <div className="shrink-0">
             <Logo appName={appName} />
@@ -329,7 +334,7 @@ export default function OnboardingPage() {
       <main className="flex items-start justify-center px-4 pb-32 pt-[calc(7rem+env(safe-area-inset-top))] sm:px-8 sm:pb-36">
         <div className="w-full max-w-4xl">
           <div className="mb-10 text-center">
-            <h1 className="text-2xl font-bold tracking-[-0.03em] sm:whitespace-nowrap sm:text-3xl">
+            <h1 className="text-2xl font-bold sm:text-[32px] sm:leading-10">
               {step === 0 ? 'What should we call you?' : question?.title}
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: C.muted }}>
@@ -340,7 +345,7 @@ export default function OnboardingPage() {
           </div>
 
           {step === 0 ? (
-            <div>
+            <div className="mx-auto w-full max-w-3xl">
               <label htmlFor="full-name" className="mb-2 block text-sm font-semibold" style={{ color: C.text }}>
                 Full name
               </label>
@@ -354,13 +359,12 @@ export default function OnboardingPage() {
                 placeholder="Enter your full name"
                 autoFocus={!name}
                 autoComplete="name"
-                className="h-16 w-full rounded-2xl border px-5 text-base font-medium outline-none transition-all placeholder:font-normal focus:ring-4"
+                className="h-16 w-full rounded-2xl border px-5 text-base font-medium field-focus outline-none transition-all placeholder:font-normal"
                 style={{
-                  background: C.input,
+                  background: C.card,
                   color: C.text,
                   borderColor: error ? C.errorText : C.inputBorder,
-                  '--tw-ring-color': `${brand}20`,
-                } as CSSProperties}
+                }}
               />
             </div>
           ) : (
@@ -376,20 +380,21 @@ export default function OnboardingPage() {
                       setError('');
                     }}
                     aria-pressed={selected}
-                    className="flex min-h-18 items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-base font-medium transition-all hover:shadow-sm"
-                    style={selected
-                      ? { borderColor: brand, borderWidth: 3, background: `${brand}08` }
-                      : { borderColor: C.cardBorder, background: C.card }}
+                    className="flex min-h-[72px] items-center gap-4 rounded-2xl px-5 py-4 text-left text-base font-semibold transition-all hover:-translate-y-0.5"
+                    style={{
+                      background: selected ? `color-mix(in srgb, ${brand} 8%, ${C.card})` : C.card,
+                      boxShadow: selected ? `inset 0 0 0 2px ${brand}` : `inset 0 0 0 1px ${C.cardBorder === 'transparent' ? C.divider : C.cardBorder}`,
+                      color: C.text,
+                    }}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center text-3xl" aria-hidden="true">
-                      {option.brand ? <SocialBrandIcon brand={option.brand} /> : option.emoji}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true" style={{ color: C.text }}>
+                      {option.brand ? <SocialBrandIcon brand={option.brand} /> : option.icon && createElement(option.icon, { className: 'h-7 w-7', weight: 'duotone' })}
                     </span>
                     <span className="flex-1">{option.label}</span>
-                    {selected && (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ background: brand, color: '#fff' }}>
-                        <Check className="h-3.5 w-3.5" />
-                      </span>
-                    )}
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors"
+                      style={selected ? { background: brand, color: '#fff' } : { boxShadow: `inset 0 0 0 1.5px ${C.faint}` }}>
+                      {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                    </span>
                   </button>
                 );
               })}
@@ -413,13 +418,12 @@ export default function OnboardingPage() {
                   setError('');
                 }}
                 placeholder={needsEmploymentDetails ? 'Enter your employment status' : 'Tell us where you heard about us'}
-                className="h-14 w-full rounded-xl border px-4 text-sm font-medium outline-none transition-all placeholder:font-normal focus:ring-4"
+                className="h-14 w-full rounded-xl border px-4 text-sm font-medium field-focus outline-none transition-all placeholder:font-normal"
                 style={{
-                  background: C.input,
+                  background: C.card,
                   color: C.text,
                   borderColor: C.inputBorder,
-                  '--tw-ring-color': `${brand}20`,
-                } as CSSProperties}
+                }}
               />
             </div>
           )}
