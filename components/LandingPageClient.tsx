@@ -11,6 +11,7 @@ import { ArrowRight, Pause, ChevronLeft, ChevronRight, BookOpen, Play } from 'lu
 import { HoverPreviewCard } from '@/components/student/shared';
 import { CataloguePreview, type CatalogueItem } from '@/components/CataloguePreview';
 import { MenuSelect } from '@/components/MenuSelect';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useHoverPreview } from '@/lib/use-hover-preview';
@@ -543,6 +544,21 @@ function levelIcon(level: string) {
   return LevelIcon;
 }
 
+/** A filter chip: the chosen one in the primary blue, with its category's icon. */
+function FilterChip({ label, on, icon = true, onClick, font, isDark, role }: {
+  label: string; on: boolean; icon?: boolean; onClick: () => void; font?: string; isDark?: boolean; role?: 'tab';
+}) {
+  const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
+  return (
+    <button type="button" role={role} aria-selected={role ? on : undefined} aria-pressed={role ? undefined : on} onClick={onClick}
+      className="flex-shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full transition-colors"
+      style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: font, ...(on ? { background: '#3E93FF', color: '#ffffff' } : quiet) }}>
+      {icon && <CategoryIcon name={label} />}
+      {label}
+    </button>
+  );
+}
+
 function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   courses: ProgrammeItem[]; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
 }) {
@@ -556,7 +572,6 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
   const shown = (current?.[1] ?? []).filter(c => level === 'all' || c.level === level);
   const { openHover, scheduleClose, portal } = useLandingPreview({ typeColor: buttonColor, buttonColor, user, isDark, font: hFont });
 
-  const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
 
   return (
     <div>
@@ -567,16 +582,9 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
       {/* A single category needs no tabs, so the chips only appear with two or more. */}
       {groups.length > 1 ? (
         <div className="flex w-full flex-wrap gap-2 min-w-0 sm:w-auto sm:flex-1 sm:flex-nowrap sm:overflow-x-auto" role="tablist" aria-label="Course categories" style={{ scrollbarWidth: 'none' }}>
-          {groups.map(([name]) => {
-            const on = name === current?.[0];
-            return (
-              <button key={name} type="button" role="tab" aria-selected={on} onClick={() => setChosen(name)}
-                className="flex-shrink-0 inline-flex items-center h-9 px-3.5 rounded-full transition-colors"
-                style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, ...(on ? { background: '#3E93FF', color: '#ffffff' } : quiet) }}>
-                {name}
-              </button>
-            );
-          })}
+          {groups.map(([name]) => (
+            <FilterChip key={name} role="tab" label={name} on={name === current?.[0]} onClick={() => setChosen(name)} font={bFont ?? hFont} isDark={isDark} />
+          ))}
         </div>
       ) : <div className="hidden sm:block sm:flex-1" />}
       {hasLevels && (
@@ -610,6 +618,57 @@ function CoursesGrid({ courses, buttonColor, user, hFont, bFont, isDark }: {
  * Virtual experiences and certifications: white cards, eight a page, four across on a large screen
  * and one on a phone, with previous and next once there is more than one page.
  */
+/** A row gets filters only once it has this many items: below it, a filter would offer one choice. */
+const MIN_TO_FILTER = 6;
+
+/**
+ * Virtual experiences and certifications: the carousel row, with chips for its groups (industry, or
+ * Career and Technology) and a level menu once it has enough to filter. Below that it is the plain
+ * row. Each filter only shows with two or more choices.
+ */
+function FilteredCarouselRow({ items, noun, ...row }: {
+  items: ProgrammeItem[]; noun: string; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
+}) {
+  const [group, setGroup] = useState('All');
+  const [level, setLevel] = useState<LevelFilter>('all');
+  const enough = items.length >= MIN_TO_FILTER;
+  const groups = [...new Set(items.map(item => item.category).filter((c): c is string => !!c))].sort();
+  const levels = new Set(items.map(item => item.level).filter(Boolean));
+  const showGroups = enough && groups.length > 1;
+  const showLevels = enough && levels.size > 1;
+  const shown = items.filter(item => (group === 'All' || item.category === group) && (level === 'all' || item.level === level));
+  const font = row.bFont ?? row.hFont;
+  return (
+    <div>
+      {(showGroups || showLevels) && (
+        <div className="flex flex-col items-start gap-3 mb-4 sm:flex-row sm:items-center sm:mb-5">
+          {showGroups ? (
+            <div className="flex w-full flex-wrap gap-2 min-w-0 sm:w-auto sm:flex-1" role="group" aria-label={`Filter ${noun}`}>
+              <FilterChip label="All" icon={false} on={group === 'All'} onClick={() => setGroup('All')} font={font} isDark={row.isDark} />
+              {groups.map(name => <FilterChip key={name} label={name} on={group === name} onClick={() => setGroup(name)} font={font} isDark={row.isDark} />)}
+            </div>
+          ) : <div className="hidden sm:block sm:flex-1" />}
+          {showLevels && (
+            <div className="flex-shrink-0">
+              <MenuSelect label="Filter by level" value={level} C={row.isDark ? DARK_C : LIGHT_C}
+                options={LEVEL_FILTER.map(v => ({ value: v, label: v === 'all' ? 'All levels' : v, icon: levelIcon(v) }))}
+                onChange={setLevel} />
+            </div>
+          )}
+        </div>
+      )}
+      {shown.length === 0 ? (
+        <p className="py-10 text-center" style={{ ...M3.bodyMedium, color: row.isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted }}>
+          No {noun} match these filters yet.
+        </p>
+      ) : (
+        // Keyed by the filters, so a new choice starts the row from its first page.
+        <LandingCarouselRow key={`${group}|${level}`} items={shown} {...row} />
+      )}
+    </div>
+  );
+}
+
 function LandingCarouselRow({ items, typeColor, buttonColor, user, hFont, bFont, isDark }: {
   items: ProgrammeItem[]; typeColor: string; buttonColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean;
 }) {
@@ -834,7 +893,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             {/* One row, not one per category. Grouping split a handful of experiences across
                 several near-empty rows, each with its own heading, so the section read as
                 fragmented rather than as a catalogue. */}
-            <LandingCarouselRow buttonColor={BLUE} items={ves} typeColor={GREEN}
+            <FilteredCarouselRow noun="virtual experiences" buttonColor={BLUE} items={ves} typeColor={GREEN}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
@@ -847,7 +906,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow buttonColor={BLUE} items={certs} typeColor={SLATE}
+            <FilteredCarouselRow noun="certifications" buttonColor={BLUE} items={certs} typeColor={SLATE}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
