@@ -1090,12 +1090,11 @@ export default function VirtualExperienceTaker({
                   </>
                 )}
 
-                {/* The manager closes a finished mission and points to the next one. */}
+                {/* A finished mission points to the next one, or finishes the project. */}
                 {!reviewMode && !showGateButton && allCurrentDone && missionSettled && (
-                  <MissionSignOff manager={manager} studentName={studentName} isDark={isDark} accentColor={accentColor} text={text}
+                  <MissionSignOff isDark={isDark} accentColor={accentColor}
                     nextTitle={nextMission?.title} onNext={goNext}
-                    canFinish={canComplete} finishing={saving} onFinish={handleComplete}
-                    readingOnly={currentLes.requirements.length === 0} />
+                    canFinish={canComplete} finishing={saving} onFinish={handleComplete} />
                 )}
 
               </div>{/* end unified card */}
@@ -1171,15 +1170,15 @@ export default function VirtualExperienceTaker({
               <div className="flex items-center justify-between pt-1 pb-16 gap-2">
                 {hasPrev ? (
                   <button onClick={goPrev}
-                    className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
-                    style={{ color: muted }}>
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[12.5px] font-semibold transition-opacity hover:opacity-80"
+                    style={{ color: text, background: isDark ? '#1e1e1e' : '#ffffff' }}>
                     <CaretLeft weight="bold" className="w-4 h-4" /> Previous mission
                   </button>
                 ) : <span />}
                 {navUnlocked && hasNext && (
                   <button onClick={goNext}
-                    className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
-                    style={{ color: muted }}>
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[12.5px] font-semibold transition-opacity hover:opacity-80"
+                    style={{ color: text, background: isDark ? '#1e1e1e' : '#ffffff' }}>
                     Next mission <CaretRight weight="bold" className="w-4 h-4" />
                   </button>
                 )}
