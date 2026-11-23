@@ -3,6 +3,7 @@
 // The admin Students page: the roster, account setup and progress. The details panel and the
 // Add student pop-up live in components/dashboard/students/.
 
+import { onboardingAnswers } from '@/lib/onboarding-answers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Download, ExternalLink, MoreHorizontal, Plus, Search, XCircle } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
@@ -47,7 +48,7 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
         // boundaries are only stable under a total order, and names are not unique.
         fetchAllRows<any>((from, to) => supabase
           .from('students')
-          .select('id, full_name, email, cohort_id, enrollment_model, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at', { count: 'exact' })
+          .select('id, full_name, email, cohort_id, enrollment_model, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at, onboarding_responses', { count: 'exact' })
           .eq('role', 'student')
           .order('full_name')
           .order('id')
@@ -90,14 +91,15 @@ export function StudentsSection({ C: theme }: { C: ThemeColors }) {
   };
 
   const exportCsv = () => reportExportCSV(
-    ['Name', 'Email', 'Cohort', 'Access Status', 'Account Created', 'Setup Email Sent', 'Setup Link Opened', 'Password Set', 'Onboarding Complete', 'Last Login', 'Content in Cohort', 'Completed'],
+    ['Name', 'Email', 'Cohort', 'Access Status', 'Account Created', 'Setup Email Sent', 'Setup Link Opened', 'Password Set', 'Onboarding Complete', 'Last Login', 'Content in Cohort', 'Completed', 'Employment', 'Main goal', 'Heard about us'],
     visible.map((s) => {
       const p = progress(s);
+      const a = onboardingAnswers(s.onboarding_responses);
       return [
         s.full_name || '', s.email || '', bootcampName(s) ?? 'On their own', accountStatus(s).label,
         dateTime(s.account_provisioned_at) ?? '', dateTime(s.setup_email_sent_at) ?? '', dateTime(s.password_setup_started_at) ?? '',
         dateTime(s.password_set_at) ?? '', dateTime(s.onboarding_completed_at) ?? '', dateTime(s.last_login_at) ?? '',
-        p?.total ?? '', p ? p.done : '',
+        p?.total ?? '', p ? p.done : '', a.employment, a.objective, a.referral,
       ];
     }),
     'students.csv',

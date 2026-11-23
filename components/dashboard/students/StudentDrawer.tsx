@@ -3,6 +3,7 @@
 // A learner's details, sliding in from the right: subscription, account setup as a timeline,
 // and their courses, assignments and virtual experiences.
 
+import { onboardingAnswers } from '@/lib/onboarding-answers';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Check, ExternalLink, X } from 'lucide-react';
 import type { ThemeColors } from '@/lib/theme';
@@ -138,6 +139,24 @@ export function StudentDrawer({ student, cohortName, onClose, C }: { student: an
               })}
             </ol>
           </Section>
+
+          {(() => {
+            // What they told us at onboarding; left out when they skipped every question.
+            const a = onboardingAnswers(student.onboarding_responses);
+            const rows = [['Employment', a.employment], ['Main goal', a.objective], ['Heard about us', a.referral]].filter(([, v]) => v);
+            return rows.length > 0 && (
+              <Section title="About them" C={C}>
+                <dl className="grid gap-2">
+                  {rows.map(([k, v]) => (
+                    <div key={k} className="flex items-baseline justify-between gap-4 text-sm">
+                      <dt style={{ color: C.muted }}>{k}</dt>
+                      <dd className="text-right font-semibold" style={{ color: C.text }}>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Section>
+            );
+          })()}
 
           {detailError ? (
             <div className="rounded-xl p-4 text-center" style={{ background: C.errorBg }}>

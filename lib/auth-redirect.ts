@@ -42,3 +42,28 @@ export function signInHref(next?: string | null): string {
   const target = safeNextPath(next);
   return target ? `/auth?next=${encodeURIComponent(target)}` : '/auth';
 }
+
+/**
+ * The page a visitor was sent to /auth from, kept across sign-up: the confirmation email and
+ * onboarding come in between, and neither carries the query string. Stored in this browser for a
+ * day; onboarding takes it when it finishes. Validated again on the way out.
+ */
+const REMEMBERED_NEXT = 'auth-next';
+const REMEMBER_FOR_MS = 24 * 60 * 60 * 1000;
+
+export function rememberNext(next: string | null): void {
+  if (!next) return;
+  try { window.localStorage.setItem(REMEMBERED_NEXT, JSON.stringify({ next, at: Date.now() })); } catch { /* storage off */ }
+}
+
+export function takeRememberedNext(): string | null {
+  try {
+    const raw = window.localStorage.getItem(REMEMBERED_NEXT);
+    window.localStorage.removeItem(REMEMBERED_NEXT);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (!saved || typeof saved.at !== 'number' || Date.now() - saved.at > REMEMBER_FOR_MS) return null;
+    return safeNextPath(saved.next);
+  } catch {
+    return null;
+  }
+}
