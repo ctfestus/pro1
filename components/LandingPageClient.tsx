@@ -23,6 +23,7 @@ import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
 import { M3, DISPLAY_CLASS, GUTTER, SECTION_Y, BUTTON_PAD } from '@/components/landing/type';
 import { PathCards } from '@/components/landing/PathCards';
+import { SectionHeading } from '@/components/landing/SectionHeading';
 import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
 
@@ -108,20 +109,6 @@ function LandingScrollProgress({ from, to }: { from: string; to: string }) {
 }
 
 // Animated section heading: title, growing accent underline, subtext
-function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: {
-  title: string; sub: string; color: string; subColor: string; accent: string; hFont?: string; bFont?: string;
-}) {
-  return (
-    <div className="mb-6">
-      <h2 style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
-      <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
-        initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
-      {sub && <p style={{ ...M3.bodyLarge, color: subColor, fontFamily: bFont ?? hFont, maxWidth: 640 }}>{sub}</p>}
-    </div>
-  );
-}
-
 // Stagger variants for the ad banner slide content
 const bannerStagger = { hide: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.12 } } };
 const bannerItem = {
@@ -439,7 +426,7 @@ function toPreviewItem(item: ProgrammeItem): CatalogueItem {
 const GRID_PAGE_SIZE = 8;
 
 /** The hover preview (Explore's), shared by the courses grid and the paged rows. */
-function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
+export function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
   typeColor: string; buttonColor: string; user: any; isDark?: boolean;
   /** The Site settings font, so the preview matches the cards it opens from. */
   font?: string;
@@ -481,7 +468,7 @@ function useLandingPreview({ typeColor, buttonColor, user, isDark, font }: {
  * One card: its own white card with a soft shadow, the cover edge to edge across its top, then
  * the title, partner, and the tags, level and tools.
  */
-function ProgrammeCard({ item, user, isDark, hFont }: {
+export function ProgrammeCard({ item, user, isDark, hFont }: {
   item: ProgrammeItem; user: any; isDark?: boolean; hFont?: string;
 }) {
   const text  = isDark ? 'white' : LAND_C.text;
@@ -526,11 +513,11 @@ function ProgrammeCard({ item, user, isDark, hFont }: {
  * its own white card, four across on a wide screen, three on a tablet and one on a phone.
  */
 /** The level filter's choices, in order; each option shows the course card's level bars. */
-const LEVEL_FILTER = ['all', 'Beginner', 'Intermediate', 'Advanced'] as const;
-type LevelFilter = typeof LEVEL_FILTER[number];
+export const LEVEL_FILTER = ['all', 'Beginner', 'Intermediate', 'Advanced'] as const;
+export type LevelFilter = typeof LEVEL_FILTER[number];
 
 /** The bars as a menu icon: MenuSelect sizes it with className and colours it with style.color. */
-function levelIcon(level: string) {
+export function levelIcon(level: string) {
   const filled = { Beginner: 1, Intermediate: 2, Advanced: 3 }[level] ?? 3;
   function LevelIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
     return (
@@ -545,7 +532,7 @@ function levelIcon(level: string) {
 }
 
 /** A filter chip: the chosen one in the primary blue, with its category's icon. */
-function FilterChip({ label, on, icon = true, onClick, font, isDark, role }: {
+export function FilterChip({ label, on, icon = true, onClick, font, isDark, role }: {
   label: string; on: boolean; icon?: boolean; onClick: () => void; font?: string; isDark?: boolean; role?: 'tab';
 }) {
   const quiet = { background: isDark ? 'transparent' : '#ffffff', color: isDark ? 'rgba(255,255,255,0.80)' : LAND_C.muted, boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.20)' : '#E3E7EC'}` };
@@ -848,9 +835,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {courses.length > 0 && (
         <section id="section-courses" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Courses" sub="Level up your skills with interactive and project-based courses."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Courses" seeAll="/courses" sub="Level up your skills with interactive and project-based courses."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             <CoursesGrid courses={courses} buttonColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
@@ -869,8 +855,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
           </>}
           <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Learning paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
-              color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Learning paths" seeAll="/learning-paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
+              color="white" subColor="rgba(255,255,255,0.85)" hFont={hFont} bFont={bFont} />
             {/* Site settings takes the colour as free text, so anything but #rrggbb falls back. */}
             <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont} hoverColor={AMBER}
               color={/^#[0-9a-fA-F]{6}$/.test(pathCardColor) ? pathCardColor : SITE_DEFAULTS.pathCardColor} />
@@ -887,9 +873,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {ves.length > 0 && (
         <section id="section-ves" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Virtual experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Virtual experiences" seeAll="/virtual-experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             {/* One row, not one per category. Grouping split a handful of experiences across
                 several near-empty rows, each with its own heading, so the section read as
                 fragmented rather than as a catalogue. */}
@@ -903,9 +888,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {certs.length > 0 && (
         <section id="section-certifications" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Certifications" seeAll="/certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             <FilteredCarouselRow noun="certifications" buttonColor={BLUE} items={certs} typeColor={SLATE}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>

@@ -6,11 +6,12 @@
  * Colours come in as props because the page can be light or dark.
  */
 import Link from 'next/link';
-import { ArrowRight, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { M3, GUTTER, SECTION_Y } from '@/components/landing/type';
 import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
+import { SectionHeading } from '@/components/landing/SectionHeading';
 
 export type LandingProduct = {
   id: string;
@@ -38,18 +39,9 @@ export function ProductsShowcase({ products, dark, hFont, bFont }: {
   return (
     <section id="section-products" className={SECTION_Y}>
       <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
-          <div>
-            <h2 style={{ ...M3.headlineSmall, fontWeight: 700, color: title, fontFamily: hFont }}>Digital products</h2>
-            <p className="mt-2 max-w-xl" style={{ ...M3.bodyLarge, color: muted, fontFamily: bFont }}>
-              Practical guides and resources you can download and keep. Read a free sample first.
-            </p>
-          </div>
-          <Link href="/products" className="inline-flex items-center gap-2 hover:opacity-70 transition-opacity" style={{ ...M3.labelLarge, fontWeight: 600, color: title, fontFamily: bFont }}>
-            See all products <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <SectionHeading title="Digital products" seeAll="/products" color={title} subColor={muted} hFont={hFont} bFont={bFont}
+          sub="Practical guides and resources you can download and keep. Many have a free sample to read first." />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {products.slice(0, 4).map(p => (
             // The course card's style: a white card, the cover edge to edge, then title, price, tags and level.
             <Link key={p.id} href={`/products/${p.slug}`} className={FRAMED_CARD} style={{ background: dark ? '#1E1F26' : '#ffffff' }}>

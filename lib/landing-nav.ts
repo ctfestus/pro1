@@ -120,10 +120,10 @@ function eventsGroup(events: NavBook[]): NavGroup | null {
 export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books: NavBook[] = [], events: NavBook[] = []): NavGroup[] {
   const byType = (type: ProgrammeItem['type']) => programmes.filter(item => item.type === type);
   const groups: Array<NavGroup | null> = [
-    { label: 'Courses',             anchor: 'section-courses',        items: byType('course') },
-    { label: 'Learning paths',      anchor: 'section-paths',          items: byType('path') },
-    { label: 'Virtual experiences', anchor: 'section-ves',            items: byType('ve') },
-    { label: 'Certifications',      anchor: 'section-certifications', items: byType('certification') },
+    { label: 'Courses',             anchor: '/courses',              items: byType('course') },
+    { label: 'Learning paths',      anchor: '/learning-paths',       items: byType('path') },
+    { label: 'Virtual experiences', anchor: '/virtual-experiences',  items: byType('ve') },
+    { label: 'Certifications',      anchor: '/certifications',       items: byType('certification') },
   ].map(({ label, anchor, items }) => (
     items.length ? { label, anchor, subGroups: subGroupsFor(items, user) } : null
   ));
