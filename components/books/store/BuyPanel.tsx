@@ -16,6 +16,11 @@ import Link from 'next/link';
 import { BookOpen, Download, ExternalLink, Eye, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { signInHref } from '@/lib/auth-redirect';
+import { MenuSelect } from '@/components/MenuSelect';
+import { LIGHT_C } from '@/lib/theme';
+
+/** The store is light: the shared dropdown in light colours with the primary blue. */
+const STORE_C = { ...LIGHT_C, cta: '#3E93FF' };
 import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
 import { formatMoney, getItLabel, longDate, opensInBrowser } from '@/lib/books/format';
@@ -174,10 +179,9 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
             </span>
           )}
           {prices.length > 1 && (
-            <select value={currency} onChange={e => { setCurrency(e.target.value); window.dispatchEvent(new CustomEvent(CURRENCY_CHANGED_EVENT, { detail: e.target.value })); }} aria-label="Currency"
-              className="rounded-xl px-3 py-2 text-sm outline-none" style={{ background: '#ffffff', color: '#334155' }}>
-              {prices.map(p => <option key={p.currency} value={p.currency}>{p.currency}</option>)}
-            </select>
+            <MenuSelect label="Currency" C={STORE_C} value={currency}
+              onChange={next => { setCurrency(next); window.dispatchEvent(new CustomEvent(CURRENCY_CHANGED_EVENT, { detail: next })); }}
+              options={prices.map(p => ({ value: p.currency, label: p.currency }))} />
           )}
         </div>
       ) : null}

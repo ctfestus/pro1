@@ -28,6 +28,8 @@ function PlayerLoading() {
 }
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { FormMenuSelect } from '@/components/FormMenuSelect';
+import { LIGHT_C } from '@/lib/theme';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { getFontById } from '@/lib/fonts';
@@ -1256,8 +1258,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     ? `@import url('https://fonts.googleapis.com/css2?family=${fontOption.googleFamily}&display=swap');`
     : '';
 
+  // The form's dropdowns in its own colours: see-through like the other fields, a solid list.
+  const formMenuC = { ...LIGHT_C, card: t.card, cardBorder: t.cardBorder, input: 'transparent', inputBorder: 'transparent', text: t.title, muted: t.body, faint: t.muted, pill: t.sectionBg, cta: accentColor };
   const inputBg = resolvedMode === 'light' ? 'bg-transparent text-zinc-900 placeholder:text-zinc-400' : 'bg-transparent text-white placeholder:text-zinc-600';
-  const selectOptionBg = resolvedMode === 'light' ? 'bg-white text-zinc-900' : 'bg-zinc-900 text-white';
 
   // -- Certification (full-screen, protected exam) ---
   // Certifications require login + cohort access (RLS), so the row only loads for an authed
@@ -2369,10 +2372,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                         {field.type === 'textarea' ? (
                           <textarea name={field.name} required={req} placeholder={field.placeholder} className={`w-full border-none outline-none px-4 py-3 min-h-[110px] resize-y text-sm ${inputBg}`} />
                         ) : field.type === 'select' ? (
-                          <select name={field.name} required={req} defaultValue="" className={`w-full border-none outline-none px-4 py-3 appearance-none cursor-pointer text-sm ${inputBg}`}>
-                            <option value="" disabled className={`${selectOptionBg}`}>{field.placeholder || 'Select an option...'}</option>
-                            {field.options?.map((opt: string) => <option key={opt} value={opt} className={selectOptionBg}>{opt}</option>)}
-                          </select>
+                          <FormMenuSelect label={field.label || field.name} name={field.name} required={req} options={field.options ?? []}
+                            placeholder={field.placeholder || 'Select an option'} C={formMenuC} />
                         ) : (
                           <input
                             name={field.name}

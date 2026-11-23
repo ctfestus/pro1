@@ -20,6 +20,8 @@ import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditorLazy';
 import { LayeredBadgeIcon } from '@/components/lesson/LayeredBadgeIcon';
 import { useLessonRuntime } from '@/components/lesson/LessonRuntimeContext';
 import { useTheme } from '@/components/ThemeProvider';
+import { MenuSelect } from '@/components/MenuSelect';
+import { useC } from '@/lib/theme';
 import { initSQLRuntime, executeQuery, previewSqlTables, type SQLResult, type SQLRuntime } from '@/lib/sql-engine';
 import { initPythonRuntime, runPython, previewDataFrames, type PythonResult, type PythonRuntime } from '@/lib/python-engine';
 
@@ -51,6 +53,7 @@ function playgroundTitle(language: string) {
 }
 
 function RunnableCodeView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
+  const C = useC();
   const language = (node.attrs.language as string) || 'sql';
   const code = (node.attrs.code as string) || '';
   const setupSql = (node.attrs.setupSql as string) || '';
@@ -77,14 +80,8 @@ function RunnableCodeView({ node, updateAttributes, editor, getPos }: NodeViewPr
             </span>
           </div>
           <span className="lesson-code__bar-right lesson-block-actions">
-            <select
-              className="lesson-code__lang"
-              value={language}
-              aria-label="Code language"
-              onChange={(e) => updateAttributes({ language: e.target.value })}
-            >
-              {LANGUAGES.map((l) => <option key={l} value={l}>{l === 'plaintext' ? 'Plain text' : l.toUpperCase()}</option>)}
-            </select>
+            <MenuSelect label="Code language" C={C} value={language} onChange={(value) => updateAttributes({ language: value })}
+              options={LANGUAGES.map((l) => ({ value: l, label: l === 'plaintext' ? 'Plain text' : l.toUpperCase() }))} />
             <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="code block" />
           </span>
         </div>

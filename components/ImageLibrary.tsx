@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Upload, Loader2, Images, Trash2 } from 'lucide-react';
 import { useC } from '@/lib/theme';
+import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinaryWithMeta } from '@/lib/uploadToCloudinary';
 
@@ -263,13 +264,7 @@ export function ImageLibrary({ onSelect, onClose, uploadFolder, initialFolder, r
                 style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 10, border: `1.5px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
-            <select
-              value={folder}
-              onChange={e => { setFolder(e.target.value); setSearch(''); }}
-              style={{ padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${C.cardBorder}`, background: C.input, color: C.text, fontSize: 13, outline: 'none', cursor: 'pointer', flexShrink: 0 }}
-            >
-              {FOLDERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
+            <MenuSelect label="Folder" C={C} value={folder} onChange={next => { setFolder(next); setSearch(''); }} options={FOLDERS} />
           </div>
         ) : (
           <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.divider}`, flexShrink: 0 }}>

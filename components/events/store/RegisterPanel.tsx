@@ -17,6 +17,8 @@ import { dateParts, type AfterRegistration, type PublicEvent } from '@/lib/event
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { Countdown } from '@/components/events/store/Countdown';
+import { FormMenuSelect } from '@/components/FormMenuSelect';
+import { LIGHT_C } from '@/lib/theme';
 
 type Props = {
   event: Pick<PublicEvent, 'id' | 'title' | 'summary' | 'format' | 'location' | 'startDate' | 'nextDate' | 'time' | 'timezone'
@@ -28,6 +30,12 @@ type Props = {
   /** The editor's "after registration" setting: a notice, a button, a redirect or suggestions. */
   after: AfterRegistration;
 };
+
+/** The shared dropdown in the event page's own colours (its light or dark mode, as CSS variables). */
+const eventMenuC = (cta: string) => ({
+  ...LIGHT_C, cta, card: 'var(--ev-surface,#ffffff)', cardBorder: 'var(--ev-line,#e2e8f0)', input: 'var(--ev-soft,#f1f5f9)', inputBorder: 'transparent',
+  text: 'var(--ev-text,#0f172a)', muted: 'var(--ev-muted,#64748b)', faint: 'var(--ev-faint,#94a3b8)', pill: 'var(--ev-soft,#f1f5f9)',
+});
 
 const inputClass = 'w-full h-11 rounded-xl px-3.5 text-sm outline-none transition-shadow focus:ring-2';
 const inputStyle = { background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' } as const;
@@ -204,10 +212,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }:
                 <textarea required={f.required} value={value} onChange={e => set(e.target.value)} maxLength={2000} rows={3}
                   placeholder={f.placeholder ?? undefined} className="mt-1 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2" style={ring} />
               ) : f.type === 'select' ? (
-                <select required={f.required} value={value} onChange={e => set(e.target.value)} className={`mt-1 ${inputClass}`} style={ring}>
-                  <option value="">Select an option</option>
-                  {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <div className="mt-1"><FormMenuSelect label={f.label} required={f.required} options={f.options} value={value} onChange={set} C={eventMenuC(primaryColor)} /></div>
               ) : (
                 <input required={f.required} value={value} onChange={e => set(e.target.value)} maxLength={300}
                   type={f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'phone' ? 'tel' : 'text'}
