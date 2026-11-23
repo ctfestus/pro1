@@ -22,7 +22,9 @@ export default function AiReviewWorkspaceHeader({ icon, title, description, acce
 
   return (
     <div className="flex items-start gap-3">
-      <span className={`mt-0.5 inline-flex flex-shrink-0 ${analyzing ? 'animate-pulse motion-reduce:animate-none' : ''}`} style={{ color: accentColor }}>
+      {/* A dark icon on a light tile of the accent: colour is kept for meaning, not icons. */}
+      <span className={`grid place-items-center flex-shrink-0 rounded-lg ${analyzing ? 'animate-pulse motion-reduce:animate-none' : ''}`}
+        style={{ width: 36, height: 36, background: `${accentColor}17`, color: text }}>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
