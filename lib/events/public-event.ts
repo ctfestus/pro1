@@ -207,6 +207,16 @@ export function eventIsOpenForRegistration(row: any, now: Date = new Date()): bo
  */
 export function toPublicEvent(row: any, taken: number, now: Date = new Date()): PublicEvent | null {
   if (!row || row.status !== 'published' || row.public_registration !== true) return null;
+  return toEventView(row, taken, now);
+}
+
+/**
+ * The same view of an events row without the public-registration check, for the cohort page
+ * (/<slug>), which its own access rules guard. Nothing private is added: no meeting link, cohort ids
+ * or owner id.
+ */
+export function toEventView(row: any, taken: number, now: Date = new Date()): PublicEvent | null {
+  if (!row) return null;
   const id = str(row.id, 64);
   const slug = str(row.slug, 200);
   if (!id || !slug) return null;
