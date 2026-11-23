@@ -2,6 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { ChevronDown, FastForward, Pause, Play, Rewind, Volume2, VolumeX } from 'lucide-react';
+import { MenuSelect } from '@/components/MenuSelect';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 
 interface LessonAudioPlayerProps {
   src: string;
@@ -123,9 +125,8 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
           <button type="button" className="lesson-audio-player__icon" aria-label={muted ? 'Unmute audio' : 'Mute audio'} onClick={toggleMute}>{muted || volume === 0 ? <VolumeX width={15} height={15} /> : <Volume2 width={15} height={15} />}</button>
           <input aria-label="Volume" className="lesson-audio-player__range lesson-audio-player__volume-range" type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} style={{ background: `linear-gradient(to right,var(--audio-accent) 0 ${(muted ? 0 : volume) * 100}%,var(--audio-track) ${(muted ? 0 : volume) * 100}% 100%)` }} />
         </div>
-        <select className="lesson-audio-player__speed" aria-label="Playback speed" value={speed} onChange={(event) => changeSpeed(Number(event.target.value))}>
-          {[0.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}x</option>)}
-        </select>
+        <MenuSelect label="Playback speed" C={{ ...(isDark ? DARK_C : LIGHT_C), cta: accentColor }} value={String(speed)} onChange={(value) => changeSpeed(Number(value))}
+          options={[0.75, 1, 1.25, 1.5, 2].map((value) => ({ value: String(value), label: `${value}x` }))} />
         {editorControls && <div className="lesson-audio-player__editor">{editorControls}</div>}
       </div>
       {title && <span className="lesson-audio-player__caption">{title}</span>}

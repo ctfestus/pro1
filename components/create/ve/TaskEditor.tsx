@@ -501,15 +501,8 @@ export function TaskEditor({ req, C, inp, sessionToken, accent, requestRichTextI
           </div>
           <div>
             <p className="text-xs font-semibold mb-2" style={{ color: C.muted }}>Language</p>
-            <select
-              value={req.reviewLanguage ?? ''}
-              onChange={e => update({ reviewLanguage: e.target.value || undefined })}
-              aria-label="Language for this code task"
-              className="outline-none text-[12px] px-3 py-2 rounded-lg"
-              style={{ background: C.input, color: C.text, border: '1.5px solid transparent' }}>
-              <option value="">Learner chooses</option>
-              {LOCKABLE_CODE_REVIEW_LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
-            </select>
+            <MenuSelect label="Language for this code task" C={C} value={req.reviewLanguage ?? ''} onChange={value => update({ reviewLanguage: value || undefined })}
+              options={[{ value: '', label: 'Learner chooses' }, ...LOCKABLE_CODE_REVIEW_LANGUAGES.map(lang => ({ value: lang, label: lang }))]} />
             <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will not be able to switch.</p>
           </div>
           <div>
@@ -580,9 +573,8 @@ export function TaskEditor({ req, C, inp, sessionToken, accent, requestRichTextI
               className="w-full resize-none outline-none text-[12px] px-3 py-3 rounded-lg" style={{ background: C.input, color: C.text, border: '1.5px solid transparent' }} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select value={req.documentReviewMode ?? 'ai_only'} onChange={e => update({ documentReviewMode: e.target.value as Requirement['documentReviewMode'] })} style={{ ...inp, width: 'auto', fontSize: 12 }}>
-              <option value="ai_only">AI review</option><option value="manual">Instructor review</option><option value="hybrid">AI + instructor review</option>
-            </select>
+            <MenuSelect<NonNullable<Requirement['documentReviewMode']>> label="Review" C={C} value={req.documentReviewMode ?? 'ai_only'} onChange={mode => update({ documentReviewMode: mode })}
+              options={[{ value: 'ai_only', label: 'AI review' }, { value: 'manual', label: 'Instructor review' }, { value: 'hybrid', label: 'AI + instructor review' }]} />
             {passMark("70", "Out of 100.")}
           </div>
           <RubricBuilder {...rubricProps} />
