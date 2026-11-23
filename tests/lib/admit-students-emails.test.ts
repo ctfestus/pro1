@@ -66,7 +66,7 @@ describe('admitStudents emails', () => {
     expect('error' in result).toBe(false);
     const [email] = mocks.send.mock.calls[0][0];
     expect(email.subject).toBe('Your Academy account is ready');
-    expect(email.html).toContain('Set Password');
+    expect(email.html).toContain('Set password');
     expect(mocks.generateLink).toHaveBeenCalledOnce();
     expect((result as any).admittedEmails).toEqual(['new@example.com']);
   });
@@ -77,10 +77,10 @@ describe('admitStudents emails', () => {
     await admitStudents(fakeDb(), 'cohort-1', [{ email: 'kofi@example.com', full_name: 'Kofi' }]);
     const [email] = mocks.send.mock.calls[0][0];
     expect(email.subject).toBe('You have been added to October Cohort');
-    expect(email.html).toContain('Sign In');
+    expect(email.html).toContain('Sign in');
     // The base URL is APP_URL when set, else the tenant's app URL; the path is what matters.
     expect(email.html).toMatch(/href="[^"]*\/student"/);
-    expect(email.html).not.toContain('Set Password');
+    expect(email.html).not.toContain('Set password');
     expect(mocks.generateLink).not.toHaveBeenCalled();
   });
 
@@ -122,7 +122,7 @@ describe('admitStudents emails', () => {
     mocks.students.set('yaw@example.com', { id: 'yaw', role: 'student', full_name: 'Yaw', account_provisioned_at: '2025-01-01', password_set_at: null });
     mocks.getUserById.mockResolvedValue({ data: { user: { last_sign_in_at: null } }, error: null });
     await admitStudents(fakeDb(), 'cohort-1', [{ email: 'yaw@example.com', full_name: 'Yaw' }]);
-    expect(mocks.send.mock.calls[0][0][0].html).toContain('Set Password');
+    expect(mocks.send.mock.calls[0][0][0].html).toContain('Set password');
     expect(mocks.generateLink).toHaveBeenCalledOnce();
   });
 });

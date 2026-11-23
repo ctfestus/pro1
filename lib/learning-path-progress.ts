@@ -95,7 +95,7 @@ export async function updateLearningPathProgress(
               if (completedItem && nextItem) {
                 const t    = await getTenantSettings();
                 const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-                const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+                const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
                 // Direct link for every type: a path item may not be listed in its own section
                 // until attempted, so the email must land on the item itself (VEs resolve at /{slug}).
                 const nextUrl = nextItem.isVE || nextItem.isCert
@@ -251,7 +251,7 @@ async function runPathCompletionEffects(
           try {
             const t    = await getTenantSettings();
             const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-            const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+            const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
             // Track-neutral, as for the cohort assignment email: core only, plus the specializations.
             const itemIds: string[] = requiredItemIds(nextPath, null);
             const [{ data: courseItems }, { data: veItems }, { data: certItems }] = itemIds.length
@@ -379,7 +379,7 @@ async function runPathCompletionEffects(
 
         const t    = await getTenantSettings();
         const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
         const certUrl  = `${t.appUrl}/certificate/${certResult.certId}`;
         const fallbackSubject = `Your Learning Path Certificate is ready: ${fullPath?.title ?? path.title}`;
         const fallbackHtml = learningPathCertificateEmail({

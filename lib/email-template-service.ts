@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { sanitizePlainText, sanitizeRichText } from '@/lib/sanitize';
 import { getEmailTemplateDefinition, type EmailTemplateKey } from '@/lib/email-template-registry';
+import { brandEmailColors } from '@/lib/email-templates';
 
 export type EmailTemplateOverride = {
   template_key: string;
@@ -20,6 +21,7 @@ export type EmailBrandingInput = {
   teamName?: string;
   appName?: string;
   appUrl?: string;
+  brandColor?: string;
 };
 
 const loadOverrides = unstable_cache(async (): Promise<EmailTemplateOverride[]> => {
@@ -131,7 +133,8 @@ export function disableEmailPreviewLinks(html: string) {
 }
 
 export function preserveSystemEmailContent(fallbackHtml: string, customBody: string, branding: EmailBrandingInput) {
-  const customBlock = customMessageHtml(customBody);
+  // The message box uses the stand-in blue like the templates, so it takes the brand colour too.
+  const customBlock = brandEmailColors(customMessageHtml(customBody), branding.brandColor);
   if (!customBlock) return fallbackHtml;
   if (fallbackHtml.includes(SYSTEM_EMAIL_CONTENT_MARKER)) {
     return fallbackHtml.replace(SYSTEM_EMAIL_CONTENT_MARKER, `${SYSTEM_EMAIL_CONTENT_MARKER}${customBlock}`);

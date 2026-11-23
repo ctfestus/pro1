@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   const t        = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
   // events.cohort_ids is the source of truth for who an event is assigned to. cohort_assignments is
   // a synced copy that can lag behind a re-assignment, so it is not read here at all.

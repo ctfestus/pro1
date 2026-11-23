@@ -67,7 +67,7 @@ export async function buildAnnouncementEmail(input: {
   if (!appUrl) throw new Error('Platform App URL is not configured.');
   const branding = {
     appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl,
-    emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName,
+    emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName, brandColor: tenant.brandColor,
   };
   const rendered = await applyEmailTemplate({
     key: 'product_announcement',

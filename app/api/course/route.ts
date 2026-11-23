@@ -418,7 +418,7 @@ function runCourseCertificateSideEffects(
       if (process.env.RESEND_API_KEY) {
         const t        = await getTenantSettings();
         const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
         const certUrl  = `${t.appUrl}/certificate/${cert_id}`;
         const formUrl  = courseRow.slug ? `${t.appUrl}/${courseRow.slug}` : `${t.appUrl}/${course_id}`;
         const fallbackSubject = `Congratulations! Your certificate for ${courseRow.title} is ready`;

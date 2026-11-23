@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   }
 
   const t        = await getTenantSettings();
-  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   // Fall back to the event's own date (not today) so the reminder is dated to the
   // actual session even when no sessionDate is supplied by the caller.

@@ -33,7 +33,7 @@ export async function sendIndividualStudentSetupEmail(
 
   if (!process.env.RESEND_API_KEY) throw new Error('Account created, but RESEND_API_KEY is not configured.');
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`;
-  const branding = { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const branding = { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName, brandColor: tenant.brandColor };
   const fallbackSubject = `Your ${tenant.appName} account is ready`;
   const fallbackHtml = studentAccountCreatedEmail({
       name: fullName || 'there',

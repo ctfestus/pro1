@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
   // -- 7. Build email batch --
   const t        = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
   type EmailPayload = Parameters<typeof resend.batch.send>[0][number];
   const emailBatch:   EmailPayload[] = [];

@@ -72,7 +72,7 @@ export async function sendAssignmentReminders(
 
   const t = await getTenantSettings();
   const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-  const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
   const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#assignments`;
   const due          = assignment.deadline_date;
   const daysLeft     = due ? Math.ceil((new Date(due).getTime() - Date.now()) / 86400000) : 0;

@@ -142,6 +142,7 @@ export async function sendIndividualLearnerWelcome(
       logoUrl: tenant.logoUrl,
       emailBannerUrl: tenant.emailBannerUrl,
       teamName: tenant.teamName,
+      brandColor: tenant.brandColor,
     };
     const fallbackSubject = `Your ${tenant.appName || 'learning'} account is ready`;
     const fallbackHtml = individualLearnerWelcomeEmail({

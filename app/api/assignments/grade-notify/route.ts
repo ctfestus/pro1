@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   try {
     const t        = await getTenantSettings();
     const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-    const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+    const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
     const passed   = sub.score != null && sub.score >= passMarkOf(assignmentRow?.config);
 
     const resend = new Resend(process.env.RESEND_API_KEY);

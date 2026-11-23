@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     teamName:      settings.teamName,
     appName:       settings.appName,
     appUrl:        settings.appUrl,
+    brandColor:    settings.brandColor,
   };
 
   const memberList = members.map((m: any) => ({

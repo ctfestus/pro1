@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   // 4. Tenant branding
   const t            = await getTenantSettings();
-  const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
   const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const dashboardUrl = `${t.appUrl}/dashboard`;
 
