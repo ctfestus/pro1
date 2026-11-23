@@ -24,7 +24,7 @@ export async function CataloguePage({ type, title, line, noun }: {
   const config = resolveConfig(site.config);
   const font = config.bodyFont ? `'${config.bodyFont}', sans-serif` : undefined;
   return (
-    <StoreChrome siteConfig={config} primaryColor={config.primaryColor || tenant.primaryColor} accentColor={config.accentColor || tenant.accentColor}
+    <StoreChrome siteConfig={config} primaryColor={config.primaryColor || tenant.primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <section className="mx-auto max-w-[1240px] px-4 pt-10 pb-16 sm:px-6 sm:pt-14 md:px-10">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: '#0f172a' }}>{title}</h1>

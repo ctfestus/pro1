@@ -57,7 +57,7 @@ export default async function BookStorePage({ params }: Params) {
   const more = books.filter(b => b.id !== book.id).slice(0, 4);
 
   return (
-    <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={accentColor}
+    <StoreChrome siteConfig={config} primaryColor={primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <ProductPageView book={book} more={more} primaryColor={primaryColor} appName={tenant.appName} shareUrl={shareUrl} />
     </StoreChrome>

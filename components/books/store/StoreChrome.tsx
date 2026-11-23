@@ -17,7 +17,6 @@ import type { SiteConfig } from '@/lib/site-templates';
 export interface StoreChromeProps {
   siteConfig: Partial<SiteConfig>;
   primaryColor: string;
-  accentColor: string;
   bodyFont?: string;
   programmes: ProgrammeItem[];
   navBooks: NavBook[];
@@ -28,7 +27,7 @@ export interface StoreChromeProps {
 
 const EMPTY: NavBook[] = [];
 
-export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, programmes, navBooks, navEvents = EMPTY, children }: StoreChromeProps) {
+export function StoreChrome({ siteConfig, primaryColor, bodyFont, programmes, navBooks, navEvents = EMPTY, children }: StoreChromeProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const [user, setUser] = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -59,7 +58,6 @@ export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, p
         profile={null}
         publicSignupEnabled={publicSignupEnabled}
         primaryColor={primaryColor}
-        accentColor={accentColor}
         fontFamily={bFont}
         navLinks={navGroups}
         navMenuLabel="Learn"

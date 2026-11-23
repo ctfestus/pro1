@@ -33,7 +33,7 @@ export default async function EventsPage() {
   const navEvents = toNavEvents(events.upcoming);
 
   return (
-    <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor || primaryColor}
+    <StoreChrome siteConfig={config} primaryColor={primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-10 sm:pt-14 pb-16">
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Events</h1>

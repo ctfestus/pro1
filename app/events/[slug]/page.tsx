@@ -56,7 +56,7 @@ export default async function EventPage({ params }: Params) {
   const jsonLd = JSON.stringify(eventJsonLd(event, tenant.appName, baseUrl)).replace(/</g, '\\u003c');
 
   return (
-    <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor || primaryColor}
+    <StoreChrome siteConfig={config} primaryColor={primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       {event.listed && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}
       {/* The event's own colour (its custom accent or theme, as the editor shows it), else the primary blue. */}

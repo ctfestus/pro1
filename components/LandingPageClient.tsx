@@ -811,7 +811,6 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
         profile={profile}
         publicSignupEnabled={publicSignupEnabled}
         primaryColor={primaryColor}
-        accentColor={accentColor}
         navLinks={NAV_LINKS}
         navMenuLabel="Learn"
       />

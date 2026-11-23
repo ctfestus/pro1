@@ -166,7 +166,6 @@ export function PricingPageClient(props: PricingPageClientProps) {
         profile={null}
         publicSignupEnabled={publicSignupEnabled}
         primaryColor={primaryColor}
-        accentColor={accentColor}
         fontFamily={bFont}
         navLinks={navGroups}
         navMenuLabel="Learn"
