@@ -24,8 +24,8 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
 }
 
 /**
- * The mission list: missions grouped under their modules, each with a status marker and a plain
- * status line. Locked missions say what unlocks them.
+ * The mission list: missions grouped under their modules, each with a status marker. The mission
+ * in progress says so, and locked missions say what unlocks them.
  */
 export function ProjectPlan({
   isDark, accentColor, text, muted, border, role, heading, modules, progress, currentLesId, isUnlocked, onOpen,
@@ -118,19 +118,20 @@ export function ProjectPlan({
                       <StatusMarker status={status} number={idx + 1} accentColor={accentColor} faint={faint} isDark={isDark} />
                     </span>
                     <span className={`flex-1 min-w-0 pt-2 ${hasNext ? 'pb-4' : 'pb-2'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
-                      <span className="block text-[13px] font-semibold leading-snug truncate"
+                      {/* As tall as the marker, so the title sits level with its circle on the timeline. */}
+                      <span className="flex items-center min-h-[26px] text-[13px] font-semibold leading-snug"
                         style={{ color: isCurr ? accentColor : locked ? faint : text, fontFamily: "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif" }}>
-                        {lesson.title}
+                        <span className="truncate">{lesson.title}</span>
                       </span>
-                      <span className="flex items-center gap-1 text-[11px] mt-px min-w-0"
-                        style={{ color: status === 'done' ? accentColor : status === 'progress' ? text : faint, fontWeight: status === 'progress' ? 600 : 400 }}>
-                        {status === 'done' && 'Done'}
-                        {status === 'progress' && 'In progress'}
-                        {status === 'ready' && 'Ready to start'}
-                        {status === 'locked' && (
-                          <span className="truncate">{unlocksAfter ? `Finish "${unlocksAfter}" first` : 'Locked'}</span>
-                        )}
-                      </span>
+                      {(status === 'progress' || status === 'locked') && (
+                        <span className="flex items-center gap-1 text-[11px] min-w-0"
+                          style={{ color: status === 'progress' ? text : faint, fontWeight: status === 'progress' ? 600 : 400 }}>
+                          {status === 'progress' && 'In progress'}
+                          {status === 'locked' && (
+                            <span className="truncate">{unlocksAfter ? `Finish "${unlocksAfter}" first` : 'Locked'}</span>
+                          )}
+                        </span>
+                      )}
                     </span>
                   </button>
                 );
