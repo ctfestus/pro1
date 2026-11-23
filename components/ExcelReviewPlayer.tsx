@@ -208,7 +208,6 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
       <div className="space-y-3">
         {!hideWorkspaceHeader && (<>
           <AiReviewWorkspaceHeader icon={<FileSpreadsheet className="w-5 h-5" />} title="Review your workbook" description="Upload the completed Excel workbook for an evidence-based review against the assignment rubric." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-          <AiReviewDisclaimer isDark={isDark} />
         </>)}
         {reviewSheetNames && reviewSheetNames.length > 0 && (
           <div className="px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.045)' : '#f8fafc', borderLeft: `3px solid ${accentColor}` }}>

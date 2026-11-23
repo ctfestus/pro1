@@ -346,10 +346,9 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
         message="Dashboard reviews are part of a paid plan. Upgrade to submit your screenshot and get element-level coaching."
       >
       <div className="space-y-3">
-      {!hideWorkspaceHeader && (<>
+      {!hideWorkspaceHeader && (
         <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
-        <AiReviewDisclaimer isDark={isDark} />
-      </>)}
+      )}
       <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<UploadIcon className="w-5 h-5" />}
         title="Drop your dashboard screenshot here" hint="PNG or JPG" fileName={pendingFile?.name}
         dragging={dragging} onDragChange={setDragging} onDropFile={handleDrop} onClick={() => inputRef.current?.click()}>
