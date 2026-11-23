@@ -563,21 +563,21 @@ export function LandingFooter({
   footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url, programmes,
 }: LandingFooterProps) {
   const { publicSignupEnabled } = useTenant();
-  // Section links work from any page that wears this footer: they go home and scroll.
-  // The home page leaves out a section with nothing in it, so a link to that section goes too.
-  // Any other link (a page of its own, another site) always shows.
+  // A link to a catalogue page (/courses) or a home page section (/#section-courses, as older saved
+  // settings have it) goes when there is nothing of that kind to show. Any other link always shows.
   const SECTION_TYPE: Record<string, ProgrammeItem['type']> = {
     'section-courses': 'course', 'section-paths': 'path', 'section-ves': 've', 'section-certifications': 'certification',
+    '/courses': 'course', '/learning-paths': 'path', '/virtual-experiences': 've', '/certifications': 'certification',
   };
   const leadsSomewhere = (href: string) => {
-    const type = SECTION_TYPE[href.split('#')[1] ?? ''];
+    const type = SECTION_TYPE[href.includes('#') ? href.split('#')[1] : href];
     return !type || programmes.some(p => p.type === type);
   };
   const learnLinks = [
-    [footerLink1Label || 'Courses',             footerLink1Url || '/#section-courses'],
-    [footerLink2Label || 'Learning paths',      footerLink2Url || '/#section-paths'],
-    [footerLink3Label || 'Virtual experiences', footerLink3Url || '/#section-ves'],
-    [footerLink4Label || 'Certifications',      footerLink4Url || '/#section-certifications'],
+    [footerLink1Label || 'Courses',             footerLink1Url || '/courses'],
+    [footerLink2Label || 'Learning paths',      footerLink2Url || '/learning-paths'],
+    [footerLink3Label || 'Virtual experiences', footerLink3Url || '/virtual-experiences'],
+    [footerLink4Label || 'Certifications',      footerLink4Url || '/certifications'],
   ].filter(([label, href]) => label && leadsSomewhere(href));
   // Sign up only while signups are open, as in the nav; Dashboard only for someone signed in.
   const accountLinks = [
