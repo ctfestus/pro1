@@ -8,7 +8,7 @@
 // Read-only reuse (instructor view via ReviewReportView) passes `completed` with a `savedResult`.
 
 import React, { useState } from 'react';
-import { Loader2, CheckCircle2, Zap, RotateCcw, PenLine, Download, TriangleAlert } from 'lucide-react';
+import { CircleNotch, CheckCircle, Sparkle, ArrowCounterClockwise, PencilSimpleLine, DownloadSimple, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { ReviewTarget } from '@/lib/review-target';
@@ -102,7 +102,6 @@ export default function WrittenResponsePlayer({
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const text   = isDark ? '#f0f0f0' : '#111';
   const muted  = isDark ? '#888' : '#666';
-  const inner  = isDark ? '#222' : '#f3f4f6';
 
   const words     = countWords(answer);
   const overBy    = limit > 0 ? Math.max(0, words - limit) : 0;
@@ -190,7 +189,7 @@ export default function WrittenResponsePlayer({
   if (!result && completed && shouldLock) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}25` }}>
-        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+        <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
         <p className="text-sm font-medium" style={{ color: accentColor }}>Written response already submitted for this question.</p>
       </div>
     );
@@ -200,7 +199,7 @@ export default function WrittenResponsePlayer({
     if (atLimit) {
       return (
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', border: `1px solid ${border}` }}>
-          <PenLine className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
+          <PencilSimpleLine weight="duotone" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: text }}>Review limit reached</p>
             <p className="text-xs mt-0.5" style={{ color: muted }}>You have used all {maxReviews} allowed review attempts for this question.</p>
@@ -222,18 +221,17 @@ export default function WrittenResponsePlayer({
       >
       <div className="space-y-3">
         <AiReviewWorkspaceHeader
-          icon={<PenLine className="w-5 h-5" />}
-          title="Write your response"
+          icon={<Sparkle weight="duotone" className="w-5 h-5" />}
+          title="Written answer, reviewed by AI"
           description={limit > 0
-            ? `Answer in your own words, in ${limit} words or fewer. You get structured feedback against the rubric.`
-            : 'Answer in your own words. You get structured feedback against the rubric.'}
+            ? `Answer in ${limit} words or fewer. You get feedback against the rubric.`
+            : 'You get feedback against the rubric.'}
           accentColor={accentColor}
           isDark={isDark}
           reviewsUsed={reviewsUsed}
           maxReviews={maxReviews}
           analyzing={analyzing}
         />
-        <AiReviewDisclaimer isDark={isDark} />
 
         <textarea
           id={`written-response-${reqId}`}
@@ -242,7 +240,7 @@ export default function WrittenResponsePlayer({
           onChange={e => { setAnswer(e.target.value); if (error) setError(''); }}
           placeholder="Type your response here..."
           className="w-full min-h-[220px] resize-y rounded-2xl px-4 py-3.5 text-sm leading-relaxed outline-none"
-          style={{ background: inner, color: text, border: `1px solid ${overBy > 0 ? '#ef4444' : border}`, fontFamily: 'inherit' }}
+          style={{ background: card, color: text, border: `1px solid ${overBy > 0 ? '#ef4444' : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)'}`, fontFamily: 'inherit' }}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -270,11 +268,11 @@ export default function WrittenResponsePlayer({
         )}
 
         <button onClick={handleSubmit} disabled={analyzing || !canSubmit || entitlement.exhausted}
-          className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
-          style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
+          className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed"
+          style={{ ...(canSubmit && !entitlement.exhausted ? { background: accentColor, color: '#fff' } : { background: isDark ? '#2a2b31' : '#eceef1', color: muted }), borderRadius: 12 }}>
           {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing...</>
-            : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
+            ? <><CircleNotch weight="bold" className="w-4 h-4 animate-spin" /> Reviewing...</>
+            : <><Sparkle weight="duotone" className="w-4 h-4" /> Submit for AI review</>}
         </button>
       </div>
       </AiReviewLockOverlay>
@@ -352,8 +350,8 @@ export default function WrittenResponsePlayer({
         isDark={isDark}
         passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
-          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
-          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}
+          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><DownloadSimple weight="bold" className="w-3.5 h-3.5" /> Export</button>
+          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><ArrowCounterClockwise weight="bold" className="w-3.5 h-3.5" /> Try again</button>}
         </>}
       />
 
@@ -361,7 +359,7 @@ export default function WrittenResponsePlayer({
 
       {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
+          <Warning weight="duotone" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
               Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
@@ -371,7 +369,7 @@ export default function WrittenResponsePlayer({
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+          <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
             Review complete | {(result.sections ?? []).length} note{(result.sections ?? []).length !== 1 ? 's' : ''} on your answer
           </p>

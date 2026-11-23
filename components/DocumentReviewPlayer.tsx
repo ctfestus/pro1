@@ -229,7 +229,6 @@ export default function DocumentReviewPlayer({
       <div className="space-y-3">
         {!hideWorkspaceHeader && (<>
           <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-          <AiReviewDisclaimer isDark={isDark} />
         </>)}
         <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<FileText className="w-5 h-5" />}
           title="Drop your document here" hint="PDF, DOCX, DOC or TXT" fileName={file?.name}

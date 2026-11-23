@@ -20,7 +20,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react';
+import { ArrowDown, ArrowUp, DotsSixVertical } from '@phosphor-icons/react';
 
 function SortableItem({ id, label, idx, count, accent, isDark, isChecking, onMove }: {
   id: string; label: string; idx: number; count: number; accent: string; isDark: boolean; isChecking: boolean;
@@ -54,12 +54,12 @@ function SortableItem({ id, label, idx, count, accent, isDark, isChecking, onMov
           <button type="button" onClick={() => onMove(-1)} disabled={idx === 0} aria-label={`Move ${label} up`}
             className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-20"
             style={{ color: isDark ? '#8b98a5' : '#71717a', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }}>
-            <ArrowUp className="w-3.5 h-3.5" />
+            <ArrowUp weight="bold" className="w-3.5 h-3.5" />
           </button>
           <button type="button" onClick={() => onMove(1)} disabled={idx === count - 1} aria-label={`Move ${label} down`}
             className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-20"
             style={{ color: isDark ? '#8b98a5' : '#71717a', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }}>
-            <ArrowDown className="w-3.5 h-3.5" />
+            <ArrowDown weight="bold" className="w-3.5 h-3.5" />
           </button>
           <span
             className="w-7 h-7 inline-flex items-center justify-center rounded-lg cursor-grab active:cursor-grabbing text-zinc-500 transition-colors"
@@ -68,7 +68,7 @@ function SortableItem({ id, label, idx, count, accent, isDark, isChecking, onMov
             {...attributes}
             {...listeners}
           >
-            <GripVertical className="w-4 h-4" />
+            <DotsSixVertical weight="bold" className="w-4 h-4" />
           </span>
         </span>
       )}

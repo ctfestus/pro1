@@ -221,7 +221,6 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
       <div className="space-y-3">
         {!hideWorkspaceHeader && (<>
           <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-          <AiReviewDisclaimer isDark={isDark} />
         </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
