@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useTenant } from '@/components/TenantProvider';
 import { motion } from 'motion/react';
-import { Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CircleNotch, ShieldCheck } from '@phosphor-icons/react';
 
 // --- Color utilities (mirror /auth) ---
 function hexToRgb(hex: string): [number, number, number] {
@@ -56,7 +56,7 @@ export default function ConfirmForm({ tokenHash, type }: { tokenHash: string; ty
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-[440px] rounded-2xl overflow-hidden"
-        style={{ background: t.cardBg }}
+        style={{ background: t.cardBg, boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}
       >
         <div className="px-8 py-8">
 
@@ -87,13 +87,13 @@ export default function ConfirmForm({ tokenHash, type }: { tokenHash: string; ty
               style={{ background: brand, color: btnText, opacity: submitting ? 0.6 : 1 }}
             >
               {submitting
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <>Continue <ArrowRight className="w-3.5 h-3.5" /></>}
+                ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                : <>Continue <ArrowRight weight="bold" className="w-3.5 h-3.5" /></>}
             </button>
           </form>
 
           <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed" style={{ color: t.sub }}>
-            <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <ShieldCheck weight="duotone" className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
             This link can only be used once, so we wait for you to continue before opening it.
           </p>
 

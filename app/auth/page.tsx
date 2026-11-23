@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { rememberNext, safeNextPath } from '@/lib/auth-redirect';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleNotch, EnvelopeSimple, Eye, EyeSlash, LockSimple } from '@phosphor-icons/react';
 
 // CAPTCHA SUSPENDED -- const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!;
 
@@ -261,7 +261,7 @@ export default function AuthPage() {
           {isForgot ? (
             <button type="button" onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(null); }}
               className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: t.accentText }}>
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
+              <ArrowLeft weight="bold" className="w-3.5 h-3.5" /> Back to sign in
             </button>
           ) : publicSignupEnabled && (
             <div role="tablist" aria-label="Sign in or create an account" className="mb-6 flex gap-1 p-1 rounded-xl" style={{ background: t.backdrop }}>
@@ -308,7 +308,7 @@ export default function AuthPage() {
                 Email address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.iconColor }} />
+                <EnvelopeSimple weight="duotone" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.iconColor }} />
                 <input
                   type="email"
                   required
@@ -357,7 +357,7 @@ export default function AuthPage() {
                   )}
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.iconColor }} />
+                  <LockSimple weight="duotone" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.iconColor }} />
                   <input
                     type={showPass ? 'text' : 'password'}
                     required
@@ -390,7 +390,7 @@ export default function AuthPage() {
                     onMouseEnter={e => (e.currentTarget.style.color = t.headingColor)}
                     onMouseLeave={e => (e.currentTarget.style.color = t.iconColor)}
                   >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPass ? <EyeSlash weight="bold" className="w-4 h-4" /> : <Eye weight="bold" className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -421,8 +421,8 @@ export default function AuthPage() {
               style={{ background: t.btnBg, color: t.btnText }}
             >
               {loading
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <>{isForgot ? (needsConfirm ? 'Resend confirmation' : 'Send reset link') : isLogin ? 'Sign in' : 'Create account'} <ArrowRight className="w-3.5 h-3.5" /></>}
+                ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                : <>{isForgot ? (needsConfirm ? 'Resend confirmation' : 'Send reset link') : isLogin ? 'Sign in' : 'Create account'} <ArrowRight weight="bold" className="w-3.5 h-3.5" /></>}
             </button>
 
             {canRetrySignup && (
@@ -432,7 +432,7 @@ export default function AuthPage() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold border transition-all hover:bg-gray-50"
                 style={{ borderColor: t.inputBorder, color: t.headingColor }}
               >
-                Retry account setup <ArrowRight className="w-3.5 h-3.5" />
+                Retry account setup <ArrowRight weight="bold" className="w-3.5 h-3.5" />
               </button>
             )}
           </form>

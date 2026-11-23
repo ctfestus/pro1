@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion } from 'motion/react';
-import { Loader2, Lock, Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CheckCircle, CircleNotch, Eye, EyeSlash, LockSimple } from '@phosphor-icons/react';
 
 // --- Color utilities (mirror /auth) ---
 function hexToRgb(hex: string): [number, number, number] {
@@ -98,7 +98,7 @@ export default function ResetPasswordForm({ error }: { error?: string }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-[440px] rounded-2xl overflow-hidden"
-        style={{ background: t.cardBg }}
+        style={{ background: t.cardBg, boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }}
       >
         <div className="px-8 py-8">
 
@@ -123,26 +123,26 @@ export default function ResetPasswordForm({ error }: { error?: string }) {
                 className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all hover:brightness-95 active:scale-[0.99]"
                 style={{ background: brand, color: btnText }}
               >
-                Request a new link <ArrowRight className="w-3.5 h-3.5" />
+                Request a new link <ArrowRight weight="bold" className="w-3.5 h-3.5" />
               </Link>
             </>
           ) : done ? (
             <div className="flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              Password updated! Redirecting you to sign in…
+              <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" />
+              Password updated. Taking you to sign in...
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold mb-1.5 tracking-wide" style={{ color: t.label }}>New password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.icon }} />
+                  <LockSimple weight="duotone" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.icon }} />
                   <input
                     type={showPass ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="At least 8 characters"
                     className="rp-input w-full rounded-lg pl-9 pr-10 py-2.5 text-sm outline-none transition-all"
                     style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.inputText }}
                     onFocus={e => {
@@ -164,7 +164,7 @@ export default function ResetPasswordForm({ error }: { error?: string }) {
                     onMouseEnter={e => (e.currentTarget.style.color = t.heading)}
                     onMouseLeave={e => (e.currentTarget.style.color = t.icon)}
                   >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPass ? <EyeSlash weight="bold" className="w-4 h-4" /> : <Eye weight="bold" className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -172,13 +172,13 @@ export default function ResetPasswordForm({ error }: { error?: string }) {
               <div>
                 <label className="block text-sm font-semibold mb-1.5 tracking-wide" style={{ color: t.label }}>Confirm password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.icon }} />
+                  <LockSimple weight="duotone" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: t.icon }} />
                   <input
                     type={showPass ? 'text' : 'password'}
                     required
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Type it again"
                     className="rp-input w-full rounded-lg pl-9 pr-4 py-2.5 text-sm outline-none transition-all"
                     style={{ background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.inputText }}
                     onFocus={e => {
@@ -208,8 +208,8 @@ export default function ResetPasswordForm({ error }: { error?: string }) {
                 style={{ background: brand, color: btnText }}
               >
                 {loading
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <>Update Password <ArrowRight className="w-3.5 h-3.5" /></>}
+                  ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
+                  : <>Update password <ArrowRight weight="bold" className="w-3.5 h-3.5" /></>}
               </button>
             </form>
           )}
