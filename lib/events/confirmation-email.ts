@@ -33,7 +33,7 @@ export async function sendPublicRegistrationEmail(opts: {
   const { to, name, joinToken, event } = opts;
   const t = await getTenantSettings();
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
   const online = event.event_type === 'virtual';
   // Same rule as the reminders: any event with a meeting link gets the tracked join link.
   const joinUrl = event.meeting_link ? `${t.appUrl}/api/join?token=${encodeURIComponent(joinToken)}` : undefined;

@@ -68,7 +68,7 @@ describe('a learning path added to a plan', () => {
   it('leaves the assignment version alone', () => {
     const html = learningPathAssignedEmail(base);
     expect(html).toContain('You have been enrolled in a new learning path');
-    expect(html).toContain('Start Learning Now');
+    expect(html).toContain('Start learning');
   });
 
   it('escapes the platform name rather than pasting it into the markup', () => {

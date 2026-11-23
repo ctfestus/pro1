@@ -1103,7 +1103,7 @@ export async function POST(req: NextRequest) {
             ]);
             if (!student?.email) return;
             const from = process.env.RESEND_FROM_EMAIL || `${settings.senderName} <${settings.supportEmail}>`;
-            const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl };
+            const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl , brandColor: settings.brandColor };
             const currency = (confirmation.subscription_payment_requests as any)?.currency || 'GHS';
             const approved = body.action === 'approve-subscription-confirmation';
             const dashboardUrl = `${(settings.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
@@ -1518,7 +1518,7 @@ export async function POST(req: NextRequest) {
               getTenantSettings(),
             ]);
             const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-            const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+            const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
             const studentName  = studentRow?.full_name || 'there';
             const studentEmail = enroll?.email || '';
             const currency     = enroll?.currency ?? 'GHS';
@@ -1579,7 +1579,7 @@ export async function POST(req: NextRequest) {
               getTenantSettings(),
             ]);
             const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-            const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+            const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
             const studentName  = studentRow?.full_name || 'there';
             const studentEmail = enroll?.email || '';
             const currency     = enroll?.currency ?? 'GHS';
@@ -1732,7 +1732,7 @@ export async function POST(req: NextRequest) {
         if (s?.full_name) studentName = s.full_name;
       }
       const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-      const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+      const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
       const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
       const fallbackSubject = 'Payment reminder - outstanding balance on your account';
       const fallbackHtml = overdueNotificationEmail({ name: studentName, dashboardUrl, branding });

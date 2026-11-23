@@ -219,7 +219,7 @@ export async function sendCohortAccessEmails(
     const { data: cohortRow } = await db.from('cohorts').select('name').eq('id', cohortId).maybeSingle();
     const cohortName = cohortRow?.name ?? 'your cohort';
     const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-    const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
+    const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, brandColor: t.brandColor };
 
     const messages = await Promise.all(ready.map(async ({ account, setupUrl }) => {
       if (setupUrl) {

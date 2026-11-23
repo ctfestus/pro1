@@ -3,17 +3,9 @@ import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { settleUnfinishedCheckout } from '@/lib/paystack-subscriptions';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { abandonedCheckoutEmail } from '@/lib/email-templates';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-function escapeHtml(value: unknown) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 /**
  * Nudges a learner who chose a plan and did not finish paying.
@@ -82,17 +74,19 @@ export async function sendPaystackCartReminders(
       const price = `${claim.currency} ${Number(claim.amount).toFixed(2)}`;
       const actionUrl = `${tenant.appUrl}/student#payments`;
       const fallbackSubject = `Still interested in ${String(claim.planName).replace(/[\r\n]/g, '')}?`;
-      const fallbackHtml = [
-          `<p>Hi ${escapeHtml((student.full_name || '').split(' ')[0] || 'there')},</p>`,
-          `<p>You started subscribing to <strong>${escapeHtml(claim.planName)}</strong> (${escapeHtml(months)}, ${escapeHtml(price)}) and did not finish. Your place is still here whenever you want it.</p>`,
-          // Deliberately the payments page rather than the stored Paystack link. A checkout
-          // session can time out, and mailing somebody a dead link days later is worse than not
-          // mailing at all. Coming back through the app runs the same recovery the Continue button
-          // does, which reuses a live link or replaces one Paystack has finished with.
-          `<p><a href="${escapeHtml(actionUrl)}">Finish your payment</a></p>`,
-          '<p>Nothing has been charged, and you owe nothing. If you have changed your mind you can ignore this.</p>',
-        ].join('');
-      const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+      const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName, brandColor: tenant.brandColor };
+      const fallbackHtml = abandonedCheckoutEmail({
+        name: (student.full_name || '').split(' ')[0] || 'there',
+        planName: String(claim.planName),
+        duration: months,
+        price,
+        // Deliberately the payments page rather than the stored Paystack link. A checkout
+        // session can time out, and mailing somebody a dead link days later is worse than not
+        // mailing at all. Coming back through the app runs the same recovery the Continue button
+        // does, which reuses a live link or replaces one Paystack has finished with.
+        actionUrl,
+        branding,
+      });
       const rendered = await applyEmailTemplate({ key: 'abandoned_checkout', fallbackSubject, fallbackHtml, variables: { student_name: (student.full_name || '').split(' ')[0] || 'there', plan_name: claim.planName, currency: claim.currency, amount: Number(claim.amount).toFixed(2), duration: months }, branding });
       const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `paystack-cart/${cart.reference}/${claim.reminderNumber}` });
       if (sendError) throw new Error(sendError.message);

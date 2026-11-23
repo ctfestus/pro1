@@ -53,7 +53,7 @@ export async function sendGroupSubmissionNotifications({
   if (!recipients.length) return { sent: 0 };
 
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
   const dashboardUrl = `${t.appUrl}/student#assignments`;
   const groupName = group?.name ?? 'your group';
   const emailType = 'group_submission_received';

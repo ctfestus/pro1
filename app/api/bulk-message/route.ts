@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         formTitle:  t.appName,
         formUrl:    `${t.appUrl}/student`,
         senderName: t.senderName || t.teamName || t.appName,
-        branding:   { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl },
+        branding:   { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl },
       });
       return { from: FROM, to: email, subject, html };
     });

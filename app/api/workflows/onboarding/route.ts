@@ -32,7 +32,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
     await context.run('send-welcome', async () => {
       const t        = await getTenantSettings();
       const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
       // Add to the Resend audience (backstop -- students are normally added at
       // admission time; this covers self-serve signups that skip provisioning).
@@ -52,7 +52,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
     await context.run('day3-checkin', async () => {
       const t        = await getTenantSettings();
       const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
       const { data: student } = await supabase
         .from('students')
@@ -93,7 +93,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
     await context.run('day7-encouragement', async () => {
       const t        = await getTenantSettings();
       const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+      const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
       const { data: attempts } = await supabase
         .from('course_attempts')

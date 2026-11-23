@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       for (const batch of batches) {
         const messages = await Promise.all(batch.map(async r => {
           const certUrl = absolutePath(appUrl, `/credential/${r.id}`);
-          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl };
+          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl };
           const fallbackSubject = `Your ${r.program_name} Certificate`;
           const fallbackHtml = openCertificateEmail({
             recipientName: r.recipient_name,

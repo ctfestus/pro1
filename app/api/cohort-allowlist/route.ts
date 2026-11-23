@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         const cohortName = cohort?.name ?? 'your cohort';
         const signupUrl  = process.env.APP_URL || t.appUrl || '';
         const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const branding   = { appName: t.appName, appUrl: signupUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
+        const branding   = { appName: t.appName, appUrl: signupUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, brandColor: t.brandColor };
 
         const messages = await Promise.all(inserted.map(async ({ email }) => {
           const fallbackSubject = `You've been invited to join ${t.appName || cohortName}`;

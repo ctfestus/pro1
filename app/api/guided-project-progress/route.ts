@@ -378,7 +378,7 @@ export async function POST(req: NextRequest) {
         if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           const t        = await getTenantSettings();
           const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
           // Resend reports most failures in the result rather than by throwing.
           const fallbackSubject = `Your instructor reviewed your work: ${ve.title}`;
           const fallbackHtml = veReviewedEmail({
@@ -487,7 +487,7 @@ export async function POST(req: NextRequest) {
 
           const t        = await getTenantSettings();
           const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
           const certUrl  = `${t.appUrl}/certificate/${cert.id}`;
           const formUrl  = `${t.appUrl}/${ve.slug ?? resolvedVeId}`;
 
@@ -713,7 +713,7 @@ export async function POST(req: NextRequest) {
 
         const t        = await getTenantSettings();
         const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+        const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl };
 
         const html = milestoneEmail({
           name:         studentName || studentProfile.full_name || 'there',

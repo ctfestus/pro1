@@ -582,7 +582,7 @@ export async function POST(req: NextRequest) {
             getTenantSettings(),
           ]);
           const from = process.env.RESEND_FROM_EMAIL || `${settings.senderName} <${settings.supportEmail}>`;
-          const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl };
+          const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl , brandColor: settings.brandColor };
           const name = student?.full_name || 'there';
           const currency = request?.currency || 'GHS';
           const dashboardUrl = `${(settings.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;

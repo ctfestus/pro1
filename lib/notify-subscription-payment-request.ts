@@ -70,7 +70,7 @@ export async function notifySubscriptionPaymentRequest(
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`.trim();
   if (from === '<>') throw new Error('RESEND_FROM_EMAIL or the platform sender name and support email must be configured.');
 
-  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName, brandColor: tenant.brandColor };
   const fallbackSubject = `Payment request for ${request.plan_name}`;
   const fallbackHtml = subscriptionPaymentAssignedEmail({
       name: student.full_name || 'there',

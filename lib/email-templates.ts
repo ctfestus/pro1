@@ -14,10 +14,39 @@ export interface EmailBranding {
   teamName?:       string;
   appName?:        string;
   appUrl?:         string;
+  /** The site's brand colour (Site Settings); buttons and links take it. */
+  brandColor?:     string;
 }
 
 // -- Shared shell ---
-function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boolean } & EmailBranding) {
+/** Relative luminance of a #rrggbb colour, to choose readable text on it. */
+function luminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map(c => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+
+/**
+ * The templates are written with one stand-in blue (#2563eb). Here it becomes the site's brand
+ * colour: filled buttons take the brand with readable text on it, and blue text takes the brand
+ * only when it is dark enough to read on white.
+ */
+export function brandEmailColors(html: string, brandColor?: string): string {
+  const brand = /^#[0-9a-f]{6}$/i.test(brandColor || '') ? brandColor! : '#2563eb';
+  if (brand.toLowerCase() === '#2563eb') return html;
+  const onBrand = luminance(brand) > 0.45 ? '#111827' : '#ffffff';
+  const textColor = luminance(brand) < 0.3 ? brand : '#111827';
+  return html
+    .replace(/background(-color)?:#2563eb;color:#ffffff/gi, (_m, dash) => `background${dash || ''}:${brand};color:${onBrand}`)
+    .replace(/border-left:4px solid #2563eb/gi, `border-left:4px solid ${brand}`)
+    .replace(/color:#2563eb/gi, `color:${textColor}`);
+}
+
+// signOff: false leaves out the name line under the sign-off, for emails that sign themselves.
+function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boolean; signOff?: boolean } & EmailBranding) {
   const bannerUrl = opts?.bannerUrl || opts?.emailBannerUrl;
   const logoUrl   = opts?.logoUrl || BANNER;
   const appName   = opts?.appName   || tenant.appName  || 'the platform';
@@ -34,7 +63,7 @@ function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boo
       </td></tr>`
     : '';
 
-  return `<!DOCTYPE html>
+  return brandEmailColors(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -51,7 +80,7 @@ function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boo
         <tr><td style="padding:20px;">
           <!-- PLATFORM_SYSTEM_EMAIL_CONTENT -->
           ${content}
-          ${teamName ? `<p style="color:#374151;font-size:14px;">${teamName}</p>` : ''}
+          ${opts?.signOff === false ? '' : `<p style="color:#374151;font-size:14px;margin-top:-4px;">${esc(teamName || appName)}</p>`}
 
           <!-- Footer -->
           <p style="font-size:12px;color:#a1a1aa;margin-top:24px;">
@@ -64,7 +93,7 @@ function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boo
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`, opts?.brandColor);
 }
 
 function cta(label: string, url: string) {
@@ -86,15 +115,15 @@ function platformName(url?: string): string {
   if (u.includes('meet.google.com')) return 'Google Meet';
   if (u.includes('zoom.us')) return 'Zoom';
   if (u.includes('teams.microsoft.com') || u.includes('teams.live.com')) return 'Microsoft Teams';
-  return 'Join Meeting';
+  return '';
 }
 function platformColor(url?: string): string {
-  if (!url) return '#1f1bc3';
+  if (!url) return '#2563eb';
   const u = url.toLowerCase();
   if (u.includes('meet.google.com')) return '#1a73e8';
   if (u.includes('zoom.us')) return '#2d8cff';
   if (u.includes('teams.microsoft.com') || u.includes('teams.live.com')) return '#6264a7';
-  return '#1f1bc3';
+  return '#2563eb';
 }
 
 function badgeBlock(badgeName: string, badgeImageUrl: string, badgesUrl: string) {
@@ -103,7 +132,7 @@ function badgeBlock(badgeName: string, badgeImageUrl: string, badgesUrl: string)
       <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:0.1em;">You Earned a Badge</p>
       <img src="${badgeImageUrl}" alt="${esc(badgeName)}" width="96" height="96" style="display:block;width:96px;height:96px;object-fit:contain;margin-bottom:8px;" />
       <p style="margin:0 0 12px;font-size:18px;font-weight:900;color:#111827;">${esc(badgeName)}</p>
-      <a href="${badgesUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 24px;border-radius:0;text-decoration:none;font-weight:800;font-size:13px;">View in Your Profile</a>
+      <a href="${badgesUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 24px;border-radius:0;text-decoration:none;font-weight:800;font-size:13px;">View in your profile</a>
     </div>
   `;
 }
@@ -130,8 +159,8 @@ export function confirmationEmail(data: {
 
   const meetingBlock = meetingLink ? `
     <div style="margin:16px 0;padding:16px;background:#f0f7ff;border-radius:0;border:1px solid #c5deff;text-align:center;">
-      <p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink)}</p>
-      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink)};color:white;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join Meeting</a>
+      ${platformName(meetingLink) ? `<p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink)}</p>` : ''}
+      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink)};color:#ffffff;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join meeting</a>
       <p style="margin:8px 0 0;font-size:12px;color:#888;">Keep this link. You will need it to attend.</p>
     </div>` : '';
 
@@ -139,14 +168,14 @@ export function confirmationEmail(data: {
     <p><b>Hi ${esc(name || 'there')},</b></p>
     <p>${customBody ? esc(customBody) : 'Your registration has been confirmed. We look forward to seeing you!'}</p>
 
-    <p style="font-size:18px;font-weight:bold;margin-top:16px;">${customTitle ? esc(customTitle) : 'Registration Confirmed ✓'}</p>
+    <p style="font-size:18px;font-weight:bold;margin-top:16px;">${customTitle ? esc(customTitle) : 'Registration confirmed'}</p>
     <p><b>${esc(eventTitle)}</b></p>
 
-    ${eventDate ? detailBlock('Date', [eventDate, eventTime, eventTimezone].filter(Boolean).join(' · ')) : ''}
+    ${eventDate ? detailBlock('Date', [eventDate, eventTime, eventTimezone].filter(Boolean).join(' | ')) : ''}
     ${eventLocation ? detailBlock('Location', eventLocation) : ''}
     ${meetingBlock}
 
-    ${cta('View Event', formUrl)}
+    ${cta('View event', formUrl)}
 
     <p>Keep this email for your records. You'll receive a reminder before the event starts.</p>
     <br>
@@ -178,8 +207,8 @@ export function reminderEmail(data: {
 
   const meetingBlock = meetingLink ? `
     <div style="margin:16px 0;padding:16px;background:#f0f7ff;border-radius:0;border:1px solid #c5deff;text-align:center;">
-      <p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink)}</p>
-      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink)};color:white;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join Meeting</a>
+      ${platformName(meetingLink) ? `<p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink)}</p>` : ''}
+      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink)};color:#ffffff;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join meeting</a>
     </div>` : '';
 
   const content = `
@@ -189,11 +218,11 @@ export function reminderEmail(data: {
     <p style="font-size:18px;font-weight:bold;margin-top:16px;">Event Reminder</p>
     <p><b>${esc(eventTitle)}</b></p>
 
-    ${eventDate ? detailBlock('Date', [eventDate, eventTime, eventTimezone].filter(Boolean).join(' · ')) : ''}
+    ${eventDate ? detailBlock('Date', [eventDate, eventTime, eventTimezone].filter(Boolean).join(' | ')) : ''}
     ${eventLocation ? detailBlock('Location', eventLocation) : ''}
     ${meetingBlock}
 
-    ${cta('View Event Details', formUrl)}
+    ${cta('View event details', formUrl)}
 
     <p>You can access your dashboard anytime to view your upcoming events.</p>
     <br>
@@ -234,7 +263,7 @@ export function courseResultEmail(data: {
         ${r.coverImage ? `
           <img src="${resolveCoverUrl(r.coverImage, IMG_EMAIL)}" width="100%" height="140" style="display:block;width:100%;height:140px;object-fit:cover;" />
         ` : `
-          <table width="100%" cellpadding="0" cellspacing="0"><tr><td height="140" style="background:#f0fdf4;text-align:center;vertical-align:middle;font-size:40px;">📘</td></tr></table>
+          <table width="100%" cellpadding="0" cellspacing="0"><tr><td height="140" style="background:#f0fdf4;text-align:center;vertical-align:middle;font-size:40px;"></td></tr></table>
         `}
         <div style="padding:14px 16px 16px;">
           <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111;line-height:1.3;">${esc(r.title)}</p>
@@ -277,10 +306,10 @@ export function courseResultEmail(data: {
     ${passed ? `
       <p style="color:#555;">You have successfully completed <b>${esc(courseTitle)}</b>. Your certificate is ready to view, download, and share.</p>
       ${resultsHtml}
-      ${certUrl ? cta('🎓 View Your Certificate', certUrl) : cta('View Course', formUrl)}
+      ${certUrl ? cta('View your certificate', certUrl) : cta('View course', formUrl)}
     ` : `
       <p>Thanks for completing <b>${esc(courseTitle)}</b>. Keep practising. You can retake it to improve your score.</p>
-      ${cta('Retake Course', formUrl)}
+      ${cta('Retake course', formUrl)}
     `}
 
     ${passed && badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student#badges`) : ''}
@@ -345,7 +374,7 @@ export function nudgeEmail(data: {
     <p>${intro}</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;">
-      <p style="margin:0 0 10px;font-weight:700;color:#15803d;font-size:15px;">Why upskilling matters 🚀</p>
+      <p style="margin:0 0 10px;font-weight:700;color:#15803d;font-size:15px;">Why upskilling matters</p>
       <p style="margin:0;color:#374151;font-size:14px;line-height:1.7;">
         In today's fast-moving world, the skills you build today directly shape the opportunities you unlock tomorrow.
         Every lesson you complete, every challenge you tackle puts you ahead, and the learning you do here is
@@ -371,7 +400,7 @@ export function nudgeEmail(data: {
     </p>`}
 
     <div style="margin:20px 0;padding:20px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0;">
-      <p style="margin:0 0 6px;font-weight:700;color:#92400e;font-size:14px;">Need support? We are here for you. 🤝</p>
+      <p style="margin:0 0 6px;font-weight:700;color:#92400e;font-size:14px;">Need support? We are here for you.</p>
       <p style="margin:0;color:#374151;font-size:14px;line-height:1.7;">
         If anything felt unclear, you got stuck, or life simply got in the way. Please do not hesitate to reach out.
         Our team is available to help you through any challenges. You are not on this journey alone.
@@ -381,9 +410,9 @@ export function nudgeEmail(data: {
     ${cta(ctaLabel, formUrl)}
 
     ${relatedAssignmentTitle ? `
-    <p style="margin:20px 0 10px;font-weight:700;color:#111827;font-size:14px;">📋 Related assignment waiting for you</p>
+    <p style="margin:20px 0 10px;font-weight:700;color:#111827;font-size:14px;">Related assignment waiting for you</p>
     <a href="${formUrl}" style="display:block;text-decoration:none;border-radius:0;overflow:hidden;border:1px solid #e5e7eb;margin-bottom:16px;">
-      ${coverImage ? `<img src="${resolveCoverUrl(coverImage, IMG_EMAIL)}" alt="${contentTitle}" style="display:block;width:100%;height:160px;object-fit:cover;" />` : `<div style="width:100%;height:120px;background:linear-gradient(135deg,#1e3a5f,#0f766e);display:flex;align-items:center;justify-content:center;"><span style="color:white;font-size:28px;">📚</span></div>`}
+      ${coverImage ? `<img src="${resolveCoverUrl(coverImage, IMG_EMAIL)}" alt="${contentTitle}" style="display:block;width:100%;height:160px;object-fit:cover;" />` : `<div style="width:100%;height:120px;background:linear-gradient(135deg,#1e3a5f,#0f766e);display:flex;align-items:center;justify-content:center;"></div>`}
       <div style="padding:14px 16px;background:#ffffff;">
         <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Continue Learning</p>
         <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${contentTitle}</p>
@@ -413,7 +442,7 @@ export function milestoneEmail(data: {
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>You are <b>80% of the way through</b> <b>${contentTitle}</b>. That is incredible progress! 🎉</p>
+    <p>You are <b>80% of the way through</b> <b>${contentTitle}</b>. That is incredible progress!</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;text-align:center;">
       <div style="font-size:40px;font-weight:900;color:#16a34a;">80%</div>
@@ -426,9 +455,9 @@ export function milestoneEmail(data: {
     </p>
 
     <div style="margin:20px 0;padding:16px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0;">
-      <p style="margin:0;font-weight:700;color:#92400e;font-size:14px;">💡 Did you know?</p>
+      <p style="margin:0;font-weight:700;color:#92400e;font-size:14px;">Did you know?</p>
       <p style="margin:8px 0 0;color:#374151;font-size:14px;line-height:1.7;">
-        Students who reach 80% completion are <b>3× more likely to finish</b>. You are already in that group.
+        Students who reach 80% completion are <b>3 times more likely to finish</b>. You are already in that group.
         One final push and you will have something to be genuinely proud of.
       </p>
     </div>
@@ -459,64 +488,64 @@ export function weeklyDigestEmail(data: {
   const completedRows = completed.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-        <span style="display:inline-block;width:20px;text-align:center;">✅</span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#22c55e;margin:0 10px 1px 2px;"></span>
         <b style="color:#111;">${item.title}</b>
-        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)}${item.score != null ? ` · Score: ${item.score}%` : ''}</span>
+        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)}${item.score != null ? ` | Score: ${item.score}%` : ''}</span>
       </td>
     </tr>`).join('');
 
   const inProgressRows = inProgress.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-        <span style="display:inline-block;width:20px;text-align:center;">📚</span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#3b82f6;margin:0 10px 1px 2px;"></span>
         <b style="color:#111;">${item.title}</b>
-        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)} · In progress</span>
+        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)} | In progress</span>
       </td>
     </tr>`).join('');
 
   const notStartedRows = notStarted.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-        <span style="display:inline-block;width:20px;text-align:center;">⏳</span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#9ca3af;margin:0 10px 1px 2px;"></span>
         <b style="color:#111;">${item.title}</b>
-        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)} · Not started</span>
+        <span style="margin-left:8px;font-size:12px;color:#6b7280;">${typeLabel(item.contentType)} | Not started</span>
       </td>
     </tr>`).join('');
 
   const missedRows = missedDeadlines.map(item => `
     <tr>
       <td style="padding:10px 0;border-bottom:1px solid #fee2e2;">
-        <span style="display:inline-block;width:20px;text-align:center;">⚠️</span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#ef4444;margin:0 10px 1px 2px;"></span>
         <b style="color:#111;">${item.title}</b>
-        <span style="margin-left:8px;font-size:12px;color:#ef4444;">${typeLabel(item.contentType)} · ${item.daysOverdue === 0 ? 'Due today' : `${item.daysOverdue} day${item.daysOverdue > 1 ? 's' : ''} overdue`}</span>
+        <span style="margin-left:8px;font-size:12px;color:#ef4444;">${typeLabel(item.contentType)} | ${item.daysOverdue === 0 ? 'Due today' : `${item.daysOverdue} day${item.daysOverdue > 1 ? 's' : ''} overdue`}</span>
       </td>
     </tr>`).join('');
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>Here's your weekly learning update. Stay consistent. Every lesson counts! 🚀</p>
+    <p>Here is your weekly learning update. Stay consistent. Every lesson counts.</p>
 
     ${completed.length > 0 ? `
-    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">✅ Completed this week</p>
+    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">Completed this week</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #f0f0f0;">
       ${completedRows}
     </table>` : ''}
 
     ${inProgress.length > 0 ? `
-    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">📚 Still in progress</p>
+    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">Still in progress</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #f0f0f0;">
       ${inProgressRows}
     </table>` : ''}
 
     ${missedDeadlines.length > 0 ? `
-    <p style="font-size:15px;font-weight:700;color:#dc2626;margin-top:24px;">⚠️ Overdue: action needed</p>
+    <p style="font-size:15px;font-weight:700;color:#dc2626;margin-top:24px;">Overdue: action needed</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #fee2e2;background:#fff5f5;border-radius:0;">
       ${missedRows}
     </table>
     <p style="font-size:13px;color:#6b7280;margin-top:8px;">These items have passed their deadline. Reach out to your instructor if you need an extension.</p>` : ''}
 
     ${notStarted.length > 0 ? `
-    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">⏳ Not started yet</p>
+    <p style="font-size:15px;font-weight:700;color:#111;margin-top:24px;">Not started yet</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #f0f0f0;">
       ${notStartedRows}
     </table>
@@ -555,7 +584,7 @@ export function deadlineReminderEmail(data: {
   const urgencyColor = daysLeft <= 0 ? '#ef4444' : daysLeft <= 1 ? '#dc2626' : '#f59e0b';
 
   const content = `
-    <h2 style="color:#111;font-size:22px;margin-bottom:8px;">⏰ ${urgency}</h2>
+    <h2 style="color:#111;font-size:22px;margin-bottom:8px;">${urgency}</h2>
     <p>Hi ${esc(name)},</p>
     <p>This is a reminder that your deadline for the following ${typeLabel} is approaching:</p>
     <div style="background:#f9fafb;border-left:4px solid ${urgencyColor};border-radius:0;padding:16px;margin:16px 0;">
@@ -564,9 +593,9 @@ export function deadlineReminderEmail(data: {
     </div>
     <p>Do not let your progress go to waste. Every skill you build today is an investment in your future career. Log in now and keep going.</p>
     <p style="background:#f0fdf4;border-radius:0;padding:12px;font-size:14px;color:#166534;">
-      💡 <b>Quick tip:</b> Even 15 minutes of focused learning counts. You can do this!
+      <b>Quick tip:</b> Even 15 minutes of focused learning counts. You can do this!
     </p>
-    ${cta('Complete Now', formUrl)}
+    ${cta('Complete now', formUrl)}
     <p>If you need any help or have questions, our team is always here for you. Just reply to this email.</p>
     <br>
     <p><b>Best regards,</b></p>
@@ -580,11 +609,11 @@ export function welcomeEmail(data: { name: string; studentUrl: string; branding?
   const { name, studentUrl, branding } = data;
   const appName = branding?.appName || tenant.appName;
   const content = `
-    <p><b>Welcome to ${appName}, ${esc(name)}! 🎉</b></p>
+    <p><b>Welcome to ${appName}, ${esc(name)}!</b></p>
     <p>We are thrilled to have you on board. You have just taken the first step toward building industry-relevant skills that will shape your career.</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;">
-      <p style="margin:0 0 10px;font-weight:700;color:#15803d;font-size:15px;">Here is what to expect 🚀</p>
+      <p style="margin:0 0 10px;font-weight:700;color:#15803d;font-size:15px;">Here is what to expect</p>
       <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">
         <li>Practical courses built around real African industry scenarios</li>
         <li>Hands-on assignments to apply what you learn</li>
@@ -595,7 +624,7 @@ export function welcomeEmail(data: { name: string; studentUrl: string; branding?
 
     <p style="color:#374151;">Your cohort and courses are already set up for you. Head to your dashboard and start your first course today.</p>
 
-    ${cta('Go to My Dashboard', studentUrl)}
+    ${cta('Go to my dashboard', studentUrl)}
 
     <br>
     <p><b>Welcome aboard,</b></p>
@@ -619,11 +648,11 @@ export function day3CheckInEmail(data: { name: string; studentUrl: string; cours
         <p style="margin:0;font-size:13px;color:#6b7280;">Start this course and take your first step toward a new skill.</p>
       </div>
       <div style="padding:12px 16px;background:#f9fafb;">
-        <a href="${courseUrl}" style="background:#22c55e;color:#fff;padding:10px 20px;border-radius:0;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">Start Course </a>
+        <a href="${courseUrl}" style="background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:0;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">Start course</a>
       </div>
     </div>` : `
     <p style="color:#374151;">Log in now and pick a course to get started. Even 15 minutes a day adds up fast.</p>
-    ${cta('Browse My Courses', studentUrl)}`}
+    ${cta('Browse my courses', studentUrl)}`}
 
     <br>
     <p><b>Cheering you on,</b></p>
@@ -637,20 +666,20 @@ export function day7EncouragementEmail(data: { name: string; studentUrl: string;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
     ${hasStarted && coursesCompleted > 0 ? `
-    <p>One week in and you have already completed <b>${coursesCompleted} course${coursesCompleted > 1 ? 's' : ''}</b>. That is outstanding progress! 🏆</p>
+    <p>One week in and you have already completed <b>${coursesCompleted} course${coursesCompleted > 1 ? 's' : ''}</b>. That is outstanding progress!</p>
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;text-align:center;">
       <div style="font-size:40px;font-weight:900;color:#16a34a;">${coursesCompleted}</div>
       <div style="font-size:14px;color:#15803d;font-weight:600;margin-top:4px;">Course${coursesCompleted > 1 ? 's' : ''} completed in your first week</div>
     </div>
     <p style="color:#374151;">Keep the momentum going. Every course you complete builds your profile and brings you closer to your career goals.</p>
     ` : hasStarted ? `
-    <p>You have started your learning journey, and that is great! The hardest part is always the beginning, and you have done it. 💪</p>
+    <p>You have started your learning journey, and that is great! The hardest part is always the beginning, and you have done it.</p>
     <p style="color:#374151;">Even if life got busy, come back and pick up where you left off. Your progress is saved.</p>
     ` : `
     <p>We noticed you have not started a course yet, and that is completely okay. Life gets busy. But we want to make sure you do not miss out.</p>
     <p style="color:#374151;">Your courses are waiting. It only takes a few minutes to begin, and the skills you build here are directly relevant to real jobs.</p>
     `}
-    ${cta('Continue Learning', studentUrl)}
+    ${cta('Continue learning', studentUrl)}
     <br>
     <p><b>Best,</b></p>
   `;
@@ -688,8 +717,8 @@ export function blastEmail(data: {
     <p>${esc(senderName || formTitle)}</p>`}
   `;
 
-  // blastEmail uses senderName as sign-off -- do not pass teamName to shell
-  return shell(content, { ...branding, bannerUrl: bannerUrl || undefined, neutralFooter, teamName: undefined });
+  // blastEmail signs with senderName itself, so the shell adds no name line of its own.
+  return shell(content, { ...branding, bannerUrl: bannerUrl || undefined, neutralFooter, signOff: false });
 }
 
 // -- 12. Learning Path Assignment ---
@@ -721,10 +750,10 @@ export function learningPathAssignedEmail(data: {
 
   const itemsHtml = visibleItems.map((item, idx) => {
     const isLast = idx === visibleItems.length - 1;
-    const circleColor = item.isVE ? '#6366f1' : '#22c55e';
-    const badgeColor  = item.isVE ? '#6366f1' : item.isCert ? '#15803d' : '#3b82f6';
+    const circleColor = item.isVE ? '#0f766e' : '#22c55e';
+    const badgeColor  = item.isVE ? '#0f766e' : item.isCert ? '#15803d' : '#3b82f6';
     const badgeLabel  = item.isVE ? 'Virtual Experience' : item.isCert ? 'Certification' : 'Course';
-    const emoji       = item.isVE ? '💼' : item.isCert ? '🎓' : '📘';
+    const initial     = esc((item.title || '').trim().charAt(0).toUpperCase());
 
     const circle = `
       <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;">
@@ -737,7 +766,7 @@ export function learningPathAssignedEmail(data: {
 
     const imageCell = item.coverImage
       ? `<td width="72" style="padding:0;vertical-align:top;"><img src="${resolveCoverUrl(item.coverImage, IMG_EMAIL_THUMB)}" width="72" height="72" style="display:block;width:72px;height:72px;object-fit:cover;border-radius:4px;" /></td>`
-      : `<td width="72" bgcolor="#1e3a5f" style="padding:0;vertical-align:top;text-align:center;height:72px;border-radius:4px;"><span style="font-size:24px;line-height:72px;">${emoji}</span></td>`;
+      : `<td width="72" bgcolor="#1e3a5f" style="padding:0;vertical-align:top;text-align:center;height:72px;border-radius:4px;"><span style="font-size:26px;line-height:72px;font-weight:700;color:#ffffff;">${initial}</span></td>`;
 
     return `
     <tr>
@@ -802,8 +831,8 @@ export function learningPathAssignedEmail(data: {
     </div>
 
     ${reason === 'plan'
-      ? `<p>Log in now to explore and start learning.</p>${cta('View Now', dashboardUrl)}`
-      : cta('Start Learning Now', dashboardUrl)}
+      ? `<p>Log in now to explore and start learning.</p>${cta('View now', dashboardUrl)}`
+      : cta('Start learning', dashboardUrl)}
 
     <br>
     <p><b>Best regards,</b></p>
@@ -831,7 +860,7 @@ export function recordingPublishedEmail(data: {
 
     <p><b>${weekLabel}</b> recordings for <b>${recordingTitle}</b> are now available. Log in to watch them and stay on track with your programme.</p>
 
-    ${cta('Watch Recordings', dashboardUrl)}
+    ${cta('Watch recordings', dashboardUrl)}
 
     <br>
     <p><b>Best regards,</b></p>
@@ -864,10 +893,10 @@ export function learningPathCertificateEmail(data: {
               <img src="${resolveCoverUrl(item.coverImage, IMG_EMAIL_THUMB)}" width="64" height="52" style="display:block;width:64px;height:52px;object-fit:cover;" />
             </td>` : `
             <td width="64" style="padding:0;vertical-align:middle;background:linear-gradient(135deg,#064e3b,#065f46);text-align:center;height:52px;">
-              <span style="font-size:20px;line-height:52px;">${item.isVE ? '💼' : item.isCert ? '🎓' : '📘'}</span>
+              <span style="font-size:20px;line-height:52px;font-weight:700;color:#ffffff;">${esc((item.title || '').trim().charAt(0).toUpperCase())}</span>
             </td>`}
             <td style="padding:10px 14px;vertical-align:middle;">
-              <p style="margin:0 0 2px;font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">${item.isVE ? 'Virtual Experience' : item.isCert ? 'Certification' : 'Course'} · Completed ✓</p>
+              <p style="margin:0 0 2px;font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">${item.isVE ? 'Virtual Experience' : item.isCert ? 'Certification' : 'Course'} | Completed</p>
               <p style="margin:0;font-size:13px;font-weight:700;color:#111827;">${item.title}</p>
             </td>
           </tr>
@@ -884,7 +913,7 @@ export function learningPathCertificateEmail(data: {
       <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.1em;">Learning Path Completed</p>
       <p style="margin:0 0 8px;font-size:22px;font-weight:900;color:#ffffff;line-height:1.2;">${pathTitle}</p>
       ${pathDescription ? `<div style="margin:0 0 16px;font-size:13px;color:#a7f3d0;line-height:1.5;">${pathDescription}</div>` : '<div style="margin-bottom:16px;"></div>'}
-      <a href="${certUrl}" style="display:inline-block;background:#ffffff;color:#064e3b;padding:12px 28px;border-radius:0;text-decoration:none;font-weight:800;font-size:14px;">🎓 View Your Certificate</a>
+      <a href="${certUrl}" style="display:inline-block;background:#ffffff;color:#064e3b;padding:12px 28px;border-radius:0;text-decoration:none;font-weight:800;font-size:14px;">View your certificate</a>
     </div>
 
     ${items.length > 0 ? `
@@ -902,7 +931,7 @@ export function learningPathCertificateEmail(data: {
 
     ${badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student#badges`) : ''}
 
-    ${cta('View & Download Certificate', certUrl)}
+    ${cta('View and download certificate', certUrl)}
 
     <br>
     <p><b>Best regards,</b></p>
@@ -927,14 +956,14 @@ export function courseCompletedNextUpEmail(data: {
   branding?: EmailBranding;
 }) {
   const { name, pathTitle, completedTitle, completedNumber, totalItems, nextTitle, nextUrl, nextCoverImage, nextIsVE, nextIsCert, nextDescription, branding } = data;
-  const emoji = nextIsVE ? '💼' : nextIsCert ? '🎓' : '📘';
+  const initial = esc((nextTitle || '').trim().charAt(0).toUpperCase());
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
     <p style="color:#374151;">You have completed item ${completedNumber} of ${totalItems} in <b>${pathTitle}</b>. Keep the momentum going!</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;">
-      <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Just Completed ✓</p>
+      <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Just completed</p>
       <p style="margin:0;font-size:15px;font-weight:700;color:#111827;">${completedTitle}</p>
     </div>
 
@@ -944,7 +973,7 @@ export function courseCompletedNextUpEmail(data: {
       <tr>
         ${nextCoverImage
           ? `<td width="72" style="padding:0;vertical-align:top;"><img src="${resolveCoverUrl(nextCoverImage, IMG_EMAIL_THUMB)}" width="72" height="72" style="display:block;width:72px;height:72px;object-fit:cover;border-radius:4px;" /></td>`
-          : `<td width="72" bgcolor="#1e3a5f" style="padding:0;vertical-align:top;text-align:center;height:72px;border-radius:4px;"><span style="font-size:24px;line-height:72px;">${emoji}</span></td>`}
+          : `<td width="72" bgcolor="#1e3a5f" style="padding:0;vertical-align:top;text-align:center;height:72px;border-radius:4px;"><span style="font-size:26px;line-height:72px;font-weight:700;color:#ffffff;">${initial}</span></td>`}
         <td style="padding:10px 14px;vertical-align:middle;">
           <p style="margin:0 0 3px;font-size:13px;font-weight:700;color:#111827;line-height:1.35;font-family:Arial,sans-serif;">${nextTitle}</p>
           ${nextDescription
@@ -957,7 +986,7 @@ export function courseCompletedNextUpEmail(data: {
       </tr>
     </table>
 
-    ${cta('Start Now', nextUrl)}
+    ${cta('Start now', nextUrl)}
 
     <br>
     <p><b>Keep going,</b></p>
@@ -1007,7 +1036,7 @@ export function assignmentGradedEmail(data: {
       : `<p style="color:#555;margin-top:20px;">Don't be discouraged. You can review the feedback and resubmit.</p>`
     }
 
-    ${cta('View Assignment', studentUrl)}
+    ${cta('View assignment', studentUrl)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1049,7 +1078,7 @@ export function veReviewedEmail(data: {
       ? `<p style="color:#555;margin-top:20px;">Your instructor also wrote ${reportCount === 1 ? 'a detailed report on your uploaded file' : `detailed reports on ${reportCount} of your uploaded files`}. Open the virtual experience on your dashboard to read ${reportCount === 1 ? 'it' : 'them'}.</p>`
       : `<p style="color:#555;margin-top:20px;">Open the virtual experience on your dashboard to see the review at any time.</p>`}
 
-    ${cta('View Dashboard', studentUrl)}
+    ${cta('View dashboard', studentUrl)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1123,7 +1152,7 @@ export function assignmentDueReminderEmail(data: {
 
     <p style="color:#374151;">Log in to your dashboard, open the assignment, and submit your work.</p>
 
-    ${cta('Open Assignment', dashboardUrl)}
+    ${cta('Open assignment', dashboardUrl)}
 
     <p style="color:#6b7280;font-size:13px;">If you have already submitted, you can ignore this message.</p>
 
@@ -1194,7 +1223,7 @@ export function paymentReceiptEmail(data: {
 
     <p style="color:#374151;">You can view your full payment history and outstanding balance on your dashboard.</p>
 
-    ${cta('View Payment History', dashboardUrl)}
+    ${cta('View payment history', dashboardUrl)}
 
     <p style="color:#6b7280;font-size:13px;">If you did not expect this payment record, please contact our support team.</p>
     <br><p><b>Best regards,</b></p>
@@ -1327,7 +1356,7 @@ export function subscriptionPaymentAssignedEmail(data: {
       </table>
     </div>
     <p style="color:#374151;">Open <b>My Plan</b> to view the available payment options and submit your confirmation. Access starts after your payment is approved.</p>
-    ${cta('View Payment Request', dashboardUrl)}
+    ${cta('View payment request', dashboardUrl)}
     <br><p><b>Best regards,</b></p>
   `;
   return shell(content, branding);
@@ -1409,7 +1438,7 @@ export function paymentConfirmationRejectedEmail(data: {
 
     <p style="color:#374151;">Please double-check your payment details and resubmit your confirmation, or contact our support team if you believe this is an error.</p>
 
-    ${cta('Resubmit Confirmation', dashboardUrl)}
+    ${cta('Resubmit confirmation', dashboardUrl)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1438,7 +1467,7 @@ export function adminPaymentConfirmationEmail(data: {
       </table>
     </div>
 
-    ${cta('Review Confirmation', adminUrl)}
+    ${cta('Review confirmation', adminUrl)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1459,7 +1488,7 @@ export function cohortInviteEmail(data: {
     <p>You have been invited to join <b>${esc(cohortName)}</b> on ${appName}.</p>
     <p>Click the button below to create your account and get started.</p>
 
-    ${cta('Accept Invitation', signupUrl)}
+    ${cta('Accept invitation', signupUrl)}
 
     <p style="color:#888;font-size:13px;">If you weren't expecting this invitation, you can safely ignore this email.</p>
     <br><p><b>Best regards,</b></p>
@@ -1483,7 +1512,7 @@ export function studentAccountCreatedEmail(data: {
     <p>Your student account for <b>${esc(cohortName)}</b> on ${esc(appName)} is ready.</p>
     <p>You do not need to create an account. Set your password with the button below to get started.</p>
 
-    ${cta('Set Password', setupUrl)}
+    ${cta('Set password', setupUrl)}
 
     <p style="color:#888;font-size:13px;">If you were not expecting this account, you can safely ignore this email.</p>
     <br><p><b>Best regards,</b></p>
@@ -1508,7 +1537,7 @@ export function studentAddedToCohortEmail(data: {
     <p>You have been added to <b>${esc(cohortName)}</b> on ${esc(appName)}.</p>
     <p>Sign in with your existing account to see your cohort and its content. Your password has not changed.</p>
 
-    ${cta('Sign In', signInUrl)}
+    ${cta('Sign in', signInUrl)}
 
     <p style="color:#888;font-size:13px;">If you were not expecting this, you can reply to this email and let us know.</p>
     <br><p><b>Best regards,</b></p>
@@ -1532,7 +1561,7 @@ export function submissionConfirmEmail(data: {
       <p style="margin:0;font-weight:600;color:#15803d;">Submission received</p>
       <p style="margin:4px 0 0;font-size:13px;color:#166534;">${esc(assignmentTitle)}</p>
     </div>
-    ${cta('View Submission', dashboardUrl)}
+    ${cta('View submission', dashboardUrl)}
     <p>Well done for submitting. Keep up the great work!</p>
     <br><p><b>Best regards,</b></p>
   `;
@@ -1567,7 +1596,7 @@ export function groupSubmissionReceivedEmail(data: {
       ${submittedByName ? detailBlock('Submitted by', esc(submittedByName)) : ''}
     </div>
     ${participantBlock}
-    ${cta('View Assignment', dashboardUrl)}
+    ${cta('View assignment', dashboardUrl)}
     <br><p><b>Best regards,</b></p>
   `;
 
@@ -1609,7 +1638,7 @@ export function atRiskDigestEmail(data: {
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    ${cta('Open Dashboard', dashboardUrl)}
+    ${cta('Open dashboard', dashboardUrl)}
     <p style="font-size:12px;color:#6b7280;">Sent every Monday. Students are flagged when inactive 7+ days, stalled on content, or have overdue payments.</p>
     <br><p><b>Best regards,</b></p>
   `;
@@ -1634,7 +1663,7 @@ export function badgeEarnedEmail(data: {
     <p style="color:#374151;">Congratulations on completing <b>${esc(contentTitle)}</b>! You have earned a new badge and your certificate is ready.</p>
     ${badgeBlock(badgeName, badgeImageUrl, badgesUrl)}
     <p style="color:#374151;">Head to your profile to download the badge, add it to LinkedIn, or share it with your network.</p>
-    ${cta('View Certificate', certUrl)}
+    ${cta('View certificate', certUrl)}
     <br>
     <p><b>Well done,</b></p>
   `;
@@ -1706,7 +1735,7 @@ export function attendanceReportEmail(data: {
       </tbody>
     </table>
 
-    ${cta('View Full Attendance Report', dashboardUrl)}
+    ${cta('View full attendance report', dashboardUrl)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1730,9 +1759,9 @@ export function missedSessionEmail(data: {
 
   const joinBlock = joinHref ? `
     <div style="margin:20px 0;padding:16px;background:#f0f7ff;border-left:4px solid ${platformColor(meetingLink || joinHref)};text-align:center;">
-      <p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink || joinHref)}</p>
-      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink || joinHref)};color:white;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join Next Session</a>
-    </div>` : cta('Go to Dashboard', dashboardUrl);
+      ${platformName(meetingLink || joinHref) ? `<p style="margin:0 0 10px;font-weight:600;color:#333;">${platformName(meetingLink || joinHref)}</p>` : ''}
+      <a href="${joinHref}" style="display:inline-block;padding:10px 24px;background:${platformColor(meetingLink || joinHref)};color:#ffffff;border-radius:0;text-decoration:none;font-weight:600;font-size:14px;">Join next session</a>
+    </div>` : cta('Go to dashboard', dashboardUrl);
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
@@ -1763,7 +1792,7 @@ export function openCertificateEmail(data: {
     ${detailBlock('Program', esc(programName))}
     ${detailBlock('Issued', esc(issuedDate))}
     <p style="color:#374151;margin-top:16px;">You can view, download, and share your certificate using the link below. It includes a button to add it directly to your LinkedIn profile.</p>
-    ${cta('View Certificate', certUrl)}
+    ${cta('View certificate', certUrl)}
     <br>
     <p><b>Congratulations,</b></p>
   `;
@@ -1795,7 +1824,7 @@ export function groupAssignedEmail(data: {
     <p style="font-weight:600;color:#374151;margin:16px 0 8px;">Group Members</p>
     <ul style="margin:0;padding-left:20px;">${memberRows}</ul>
     <p style="color:#374151;margin-top:16px;">Your group assignments will appear on your student dashboard. The group leader will complete and submit on behalf of the group.</p>
-    ${cta('Go to Dashboard', dashboardUrl)}
+    ${cta('Go to dashboard', dashboardUrl)}
     <br>
     <p><b>Good luck!</b></p>
   `;
@@ -1968,6 +1997,28 @@ export function subscriptionExpiringEmail(data: {
 
     ${cta('Go to my dashboard', `${dashboardUrl}/student`)}
 
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
+/** A learner started a subscription checkout and did not finish it. */
+export function abandonedCheckoutEmail(data: {
+  name: string;
+  planName: string;
+  /** For example "3 months" or "1 year". */
+  duration: string;
+  /** Currency and amount, for example "GHS 450.00". */
+  price: string;
+  actionUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, planName, duration, price, actionUrl, branding } = data;
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>You started subscribing to <b>${esc(planName)}</b> (${esc(duration)}, ${esc(price)}) and did not finish. Your place is still here whenever you want it.</p>
+    ${cta('Finish your payment', esc(actionUrl))}
+    <p style="font-size:13px;color:#6b7280;">Nothing has been charged, and you owe nothing. If you have changed your mind, you can ignore this email.</p>
     <br><p><b>Best regards,</b></p>
   `;
   return shell(content, branding);

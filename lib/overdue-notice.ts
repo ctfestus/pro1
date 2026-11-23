@@ -50,6 +50,7 @@ export interface OverdueNoticeSettings {
     teamName?: string;
     appName?: string;
     appUrl?: string;
+    brandColor?: string;
   };
 }
 
@@ -59,7 +60,7 @@ export async function loadOverdueNoticeSettings(): Promise<OverdueNoticeSettings
   return {
     from:         process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`,
     dashboardUrl: `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`,
-    branding:     { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl },
+    branding:     { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, brandColor: t.brandColor, appUrl: t.appUrl },
   };
 }
 

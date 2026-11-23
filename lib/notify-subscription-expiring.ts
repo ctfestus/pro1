@@ -63,7 +63,7 @@ export async function notifySubscriptionExpiring(
     Math.ceil((new Date(subscription.current_period_end).getTime() - Date.now()) / 86_400_000),
   );
 
-  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName, brandColor: tenant.brandColor };
   const fallbackSubject = `Your ${plan?.name ?? 'subscription'} access ends soon`;
   const fallbackHtml = subscriptionExpiringEmail({
       name: student.full_name || 'there',

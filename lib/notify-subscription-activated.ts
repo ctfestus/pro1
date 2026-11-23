@@ -95,6 +95,7 @@ async function mailContext() {
       logoUrl: tenant.logoUrl,
       emailBannerUrl: tenant.emailBannerUrl,
       teamName: tenant.teamName,
+      brandColor: tenant.brandColor,
     },
   };
 }
