@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowBendUpLeft, CheckCircle, Circle, CircleNotch, LinkSimple, PaperPlaneRight, Paperclip, Warning } from '@phosphor-icons/react';
+import { ArrowBendUpLeft, ChartBar, CheckCircle, Circle, CircleNotch, Code, FileText, FileXls, LinkSimple, MicrosoftExcelLogo, PaperPlaneRight, Paperclip, Warning } from '@phosphor-icons/react';
+import { ReviewInMailContext } from '@/components/AiStructuredReviewReport';
 import AiReviewUpgradePrompt, { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
-import { MailCard, MailThreadMsg, MailTypingRow, MailComposer, MailStatusChip, type MailAttachment } from '@/components/ve/MailCard';
+import { MailBlock, MailCard, MailSignature, MailThreadMsg, MailTypingRow, MailComposer, MailStatusChip, ReplyHeading, mailTones, type MailAttachment } from '@/components/ve/MailCard';
 import { AttachmentCard, firstNameOf, workStamp, anchorZone } from '@/components/ve/workplace';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { applyNameTags } from '@/lib/merge-tags';
@@ -40,13 +41,14 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
   const efSubject = req.label || 'Task Assignment';
   const efStamp = workStamp(flatIdx, qi, req.id);
   const efAttachments: MailAttachment[] = (req.attachments || []).map(a => ({ name: a.name, url: a.url }));
-  const efCard = (children: React.ReactNode) => (
+  const efCard = (children: React.ReactNode, thread?: { collapsed: boolean; ownBlocks: boolean }) => (
     <div style={rowStyle} className="px-4 sm:px-8 py-5">
       <MailCard isDark={isDark} accent={accentColor} reqId={req.id} subject={efSubject}
         sender={manager} toName={studentName} toEmail={meEmail} stamp={efStamp}
         bodyHtml={(req.emailBody || req.description) ? sanitizeEmailContent(applyNameTags(req.emailBody || req.description || '', studentName)) : undefined}
         attachments={efAttachments.length ? efAttachments : undefined}
-        company={config.company} done={done} muteArrival={reviewMode}>
+        company={config.company} done={done} muteArrival={reviewMode}
+        collapsed={thread?.collapsed} ownBlocks={thread?.ownBlocks}>
         {children}
       </MailCard>
     </div>
@@ -58,7 +60,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
     return efCard(
       !done ? (
         <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 4px' }}>Reply with your answer</p>
+          <ReplyHeading isDark={isDark} to={manager.name} />
           {mcqOptions.map((opt, oi) => (
             <TaskOption key={oi} t={t} letter={String.fromCharCode(65 + oi)}
               state={selectedAnswer === opt && isWrong ? 'missed' : 'idle'} note="Not this one. Try again."
@@ -356,8 +358,6 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
   if (req.type === 'upload' || req.type === 'task' || req.type === 'deliverable') {
     const fileUrl = progress[req.id]?.fileUrl || '';
     const linkUrl = progress[req.id]?.linkUrl || '';
-    const uploaded = !!(fileUrl || linkUrl);
-    const replyOpen = openReplies.has(req.id) || uploaded;
     const uploading = uploadingReq === req.id;
     const isTyping = efTyping[req.id];
     const showReply = !isTyping && (efReviewing[req.id] || done);
@@ -402,25 +402,26 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       !done && !isTyping && !efReviewing[req.id] ? (
         // Task: single "I am done" button -- no attachment needed
         isTask ? (
-          <div style={{ padding: '14px 22px' }}>
-            {!reviewMode && (
+          <div style={{ padding: '16px 22px 20px' }}>
+            {!reviewMode && (<>
+              <ReplyHeading isDark={isDark} to={manager.name} />
               <TaskButton t={t} onClick={handleEfSend}><CheckCircle weight="fill" className="w-4 h-4" /> I am done with this task</TaskButton>
-            )}
+            </>)}
           </div>
-        ) : !replyOpen ? (
-          // Upload / Deliverable: show open-compose button
-          <div style={{ padding: '14px 22px' }}>
-            {!reviewMode && (
-              <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Paperclip weight="bold" className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}</TaskButton>
-            )}
-          </div>
-        ) : (
-          // Compose: attach file / paste link
-          <div style={{ padding: '14px 22px 18px' }}>
+        ) : reviewMode ? null : (
+          // Attach a file or paste a link, then send
+          <div style={{ padding: '16px 22px 20px' }}>
+            <ReplyHeading isDark={isDark} to={manager.name} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label className="ve-file-label relative" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, background: t.soft, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13.5, color: t.muted }}>
-                {uploading ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip weight="bold" className="w-4 h-4" />}
-                <span>{uploading ? 'Uploading...' : fileUrl ? <b style={{ color: t.text, fontWeight: 600 }}>File attached. Choose another to replace it</b> : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> to attach</>}</span>
+              <label className="ve-file-label relative" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? '#363636' : '#e3e6ea'}`, cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: mailTones(isDark).panel, color: t.text, flexShrink: 0 }}>
+                  {uploading ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip weight="bold" className="w-4 h-4" />}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <b style={{ display: 'block', fontSize: 14, fontWeight: 700, color: t.text }}>{uploading ? 'Uploading...' : fileUrl ? 'File attached' : isDeliverable ? 'Attach your deliverable' : 'Attach your work'}</b>
+                  <span style={{ display: 'block', fontSize: 12.5, color: t.faint, marginTop: 2 }}>{fileUrl ? 'Choose another file to replace it' : 'A file, or paste a link below'}</span>
+                </span>
+                <span style={{ padding: '9px 16px', borderRadius: 10, background: accentColor, color: isDark ? '#111' : '#fff', fontSize: 13.5, fontWeight: 700, flexShrink: 0 }}>{fileUrl ? 'Replace' : 'Choose file'}</span>
                 <input type="file" accept={VE_SUBMISSION_ACCEPT} className="sr-only" disabled={uploading} onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
                   await handleFileUpload(req.id, file, true);
@@ -479,15 +480,68 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       setEfTyping(prev => { const n = { ...prev }; delete n[req.id]; return n; });
       setEfReviewing(prev => { const n = { ...prev }; delete n[req.id]; return n; });
     };
+    // Reviewed: the email folds to one line, then the learner's submission, then the manager's
+    // review, each its own message.
+    if (done) {
+      const m = mailTones(isDark);
+      const kindIcon = req.type === 'excel_review' ? <MicrosoftExcelLogo weight="duotone" style={{ color: isDark ? '#6fcf97' : '#1d6f42' }} />
+        : req.type === 'code_review' ? <Code weight="duotone" style={{ color: m.text }} />
+        : req.type === 'dashboard_critique' ? <ChartBar weight="duotone" style={{ color: m.text }} />
+        : <FileText weight="duotone" style={{ color: m.text }} />;
+      return efCard(
+        <>
+          <MailBlock isDark={isDark}>
+            <MailThreadMsg isDark={isDark} from="me" meName={studentName} time="Earlier" receipt={`Seen by ${firstNameOf(manager.name)}`}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 4, padding: '10px 14px 10px 10px', borderRadius: 12, background: m.panel }}>
+                <span style={{ width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', background: m.block, fontSize: 17 }}>
+                  {req.type === 'excel_review' ? <FileXls weight="duotone" style={{ color: isDark ? '#6fcf97' : '#1d6f42' }} /> : kindIcon}
+                </span>
+                <span>
+                  <b style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: m.text }}>Your {typeLabel}</b>
+                  <span style={{ display: 'block', fontSize: 12, color: m.faint }}>Sent for review</span>
+                </span>
+              </span>
+            </MailThreadMsg>
+          </MailBlock>
+          <MailBlock isDark={isDark}>
+            <MailThreadMsg isDark={isDark} from={manager}>
+              <p style={{ margin: '0 0 12px' }}>Hi {firstNameOf(studentName)}, thanks for the {typeLabel}. Here is my review.</p>
+              <ReviewInMailContext.Provider value={{ icon: kindIcon }}>
+                {req.type === 'dashboard_critique' && savedReport && (
+                  <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                    savedResult={savedReport as any} savedImageUrl={undefined} rubric={req.rubric} onComplete={() => {}} />
+                )}
+                {req.type === 'code_review' && savedReport && (
+                  <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                    savedResult={isFullReport('code_review', savedReport) ? savedReport as any : undefined}
+                    rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore} onComplete={() => {}} />
+                )}
+                {req.type === 'excel_review' && savedReport && (
+                  <ExcelReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                    savedResult={isFullReport('excel_review', savedReport) ? savedReport as any : undefined}
+                    context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
+                )}
+                {req.type === 'document_review' && savedReport && (
+                  <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                    savedResult={isFullReport('document_review', savedReport) ? savedReport as any : undefined}
+                    context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode} onComplete={() => {}} />
+                )}
+              </ReviewInMailContext.Provider>
+              <div style={{ marginTop: 10 }}><AiNote t={t} /></div>
+              <p style={{ margin: '14px 0 12px' }}>Let me know if anything is unclear.</p>
+              <MailSignature isDark={isDark} sender={manager} company={config.company} />
+            </MailThreadMsg>
+          </MailBlock>
+        </>,
+        { collapsed: true, ownBlocks: true },
+      );
+    }
     return efCard(
       <>
         {/* Compose: hidden once typing/reviewing starts */}
         {!done && !efTyping[req.id] && !efReviewing[req.id] && (
-          <div style={{ padding: '14px 22px 18px' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 10px' }}>
-              {req.type === 'dashboard_critique' ? 'Attach your dashboard for review' : req.type === 'code_review' ? 'Paste or upload your code' : req.type === 'excel_review' ? 'Upload your Excel file' : 'Upload your document'}
-            </p>
-            {!(req.type === 'document_review' && req.documentReviewMode === 'manual') && <div style={{ marginBottom: 10 }}><AiNote t={t} /></div>}
+          <div style={{ padding: '16px 22px 20px' }}>
+            <ReplyHeading isDark={isDark} to={manager.name} />
             {req.type === 'dashboard_critique' && (
               <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} savedImageUrl={undefined} rubric={req.rubric}
@@ -512,6 +566,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                 context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
                 onComplete={(result, passed) => markDone(buildReviewNotes('document_review', result, saved?.notes), passed)} />
             )}
+            {!(req.type === 'document_review' && req.documentReviewMode === 'manual') && <div style={{ marginTop: 12 }}><AiNote t={t} /></div>}
           </div>
         )}
         {/* Manager typing dots -- shows for 2-4s after student submits */}
@@ -525,8 +580,8 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             <MailTypingRow isDark={isDark} person={manager} />
           </div>
         )}
-        {/* Manager "received + reviewing" reply -- persists when done so both replies stay in thread */}
-        {!efTyping[req.id] && (efReviewing[req.id] || done) && (
+        {/* Manager "received + reviewing" reply while the review runs */}
+        {!efTyping[req.id] && efReviewing[req.id] && (
           <div style={{ padding: '16px 22px 20px' }}>
             <div style={{ marginBottom: 18 }}>
               <MailThreadMsg isDark={isDark} from="me" meName={studentName} time="Earlier"
@@ -536,45 +591,9 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             </div>
             <MailThreadMsg isDark={isDark} from={manager}>
               <p style={{ margin: '0 0 10px' }}>Thanks, {firstNameOf(studentName)} - I have received your {typeLabel} and it is currently under review. I will get back to you shortly.</p>
-              {!done && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isDark ? '#888' : '#999', fontSize: 12.5 }}>
-                  <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> AI is reviewing your {typeLabel}...
-                </div>
-              )}
-              {done && <MailStatusChip accent={accentColor}>Review complete</MailStatusChip>}
-            </MailThreadMsg>
-          </div>
-        )}
-        {/* Manager report -- appears below the received reply once AI finishes */}
-        {done && (
-          <div style={{ padding: '16px 22px 20px', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
-            <MailThreadMsg isDark={isDark} from={manager}>
-              <p style={{ margin: '0 0 4px' }}>Hi {firstNameOf(studentName)},</p>
-              <p style={{ margin: '0 0 18px' }}>Thanks for sending over your {typeLabel}. I have completed the review - please find my detailed feedback below.</p>
-              <div style={{ background: isDark ? '#111' : '#f8fafc', borderRadius: 10, padding: 16, border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
-                {req.type === 'dashboard_critique' && savedReport && (
-                  <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
-                    savedResult={savedReport as any} savedImageUrl={undefined} rubric={req.rubric} onComplete={() => {}} />
-                )}
-                {req.type === 'code_review' && savedReport && (
-                  <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
-                    savedResult={isFullReport('code_review', savedReport) ? savedReport as any : undefined}
-                    rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore} onComplete={() => {}} />
-                )}
-                {req.type === 'excel_review' && savedReport && (
-                  <ExcelReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
-                    savedResult={isFullReport('excel_review', savedReport) ? savedReport as any : undefined}
-                    context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
-                )}
-                {req.type === 'document_review' && savedReport && (
-                  <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
-                    savedResult={isFullReport('document_review', savedReport) ? savedReport as any : undefined}
-                    context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode} onComplete={() => {}} />
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isDark ? '#888' : '#999', fontSize: 12.5 }}>
+                <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> AI is reviewing your {typeLabel}...
               </div>
-              <div style={{ marginTop: 12 }}><AiNote t={t} /></div>
-              <p style={{ margin: '18px 0 0' }}>Let me know if anything is unclear.</p>
-              <p style={{ margin: '4px 0 0' }}>Best,<br />{firstNameOf(manager.name)}</p>
             </MailThreadMsg>
           </div>
         )}

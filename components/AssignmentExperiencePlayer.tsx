@@ -34,7 +34,7 @@ import {
   type MailAttachment,
 } from '@/components/ve/MailCard';
 import {
-  ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread, ChatDecisionButtons, channelFor,
+  ChatAckReactions, ChatCard, ChatMsg, ChatTypingMsg, ChatThread, ChatDecisionButtons, ackReply, channelFor,
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
 import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
@@ -799,8 +799,8 @@ export default function AssignmentExperiencePlayer({
                         // Scenario update - team chat surface
                         if (req.type === 'scenario_update') {
                           const subject = req.label || 'Project update';
-                          const acknowledge = () => {
-                            updateProgress(req.id, { completed: true });
+                          const acknowledge = (label: string) => {
+                            updateProgress(req.id, { completed: true, notes: label });
                             setTypingAcks(prev => new Set([...prev, req.id]));
                             startTypingSound(2200);
                             anchorZone(req.id);
@@ -815,13 +815,13 @@ export default function AssignmentExperiencePlayer({
                                 members={[manager]} unread={!isDone} muteArrival={readOnly}>
                                 <ChatMsg isDark={isDark} author={manager} time={stamp.time}
                                   reactions={
-                                    !isDone && !readOnly ? (
-                                      <ChatReaction isDark={isDark} accent={accent} emoji={'👍'} onClick={acknowledge} />
-                                    ) : isDone ? (
-                                      <ChatReaction isDark={isDark} accent={accent} emoji={'👍'} count={1} active disabled />
+                                    isDone || !readOnly ? (
+                                      <ChatAckReactions isDark={isDark} accent={accent}
+                                        picked={isDone ? (progress[req.id]?.notes || 'Got it') : undefined}
+                                        onPick={!readOnly ? acknowledge : undefined} />
                                     ) : null
                                   }>
-                                  <p style={{ margin: 0 }}>{subject}</p>
+                                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{subject}</p>
                                   {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
                                 </ChatMsg>
                                 {isDone && (
@@ -830,7 +830,7 @@ export default function AssignmentExperiencePlayer({
                                       ? <ChatTypingMsg isDark={isDark} author="me" meName={studentName} />
                                       : (
                                         <ChatMsg isDark={isDark} author="me" meName={studentName} time="Just now">
-                                          {'Got it, on it. 👍'}
+                                          {ackReply(progress[req.id]?.notes)}
                                         </ChatMsg>
                                       )}
                                   </ChatThread>
@@ -870,7 +870,7 @@ export default function AssignmentExperiencePlayer({
                                 } : undefined}>
                                 <div style={{ padding: '14px 22px 18px' }}>
                                   {!isDone && !readOnly ? (
-                                    <SmartReplies isDark={isDark} accent={accent}
+                                    <SmartReplies isDark={isDark} accent={accent} to={manager.name}
                                       options={['Got it, starting now', 'On it, will update you soon', 'Received, thank you']}
                                       onPick={acknowledge} />
                                   ) : isDone ? (

@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { ArrowUpRight, CaretDown, Check, CheckCircle, Lightbulb, Lightning, Minus, ShieldCheck, Warning } from '@phosphor-icons/react';
+
+/**
+ * Set by a virtual experience email around a review it shows, with the icon for the kind of work.
+ * The report then opens with the email's compact summary (a score ring, the verdict, the summary
+ * and the counts) instead of the full-width hero, and the players leave out their closing
+ * "Review complete" line, since the email itself says so.
+ */
+export const ReviewInMailContext = createContext<{ icon: ReactNode } | null>(null);
 
 export type ReviewFindingSeverity = 'error' | 'warning' | 'suggestion';
 
@@ -60,6 +68,8 @@ const SEVERITY_COLORS: Record<ReviewFindingSeverity, string> = {
   suggestion: '#3b82f6',
 };
 
+const RING = 2 * Math.PI * 34;
+
 function scoreColor(score: number) {
   if (score >= 80) return '#22c55e';
   if (score >= 60) return '#f59e0b';
@@ -87,6 +97,7 @@ export default function AiStructuredReviewReport({
   showCategoryDetails = false,
   uniformSurface = false,
 }: Props) {
+  const inMail = useContext(ReviewInMailContext);
   const [filter, setFilter] = useState<'all' | ReviewFindingSeverity>('all');
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set([0]));
   const card = isDark ? '#1a1a1a' : '#ffffff';
@@ -110,6 +121,19 @@ export default function AiStructuredReviewReport({
   const opportunities = categories.reduce((count, category) => count + category.gaps.length, 0);
   const rubricPassed = rubricGrades.filter(grade => grade.passed).length;
 
+  // The email summary sits on the mail surface's own panel and card colours.
+  const mailPanel = isDark ? '#262626' : '#f5f6f8';
+  const mailCard = isDark ? '#1e1e1e' : '#ffffff';
+  // Ring and verdict for the email summary: the brand colour for a strong result, the score band otherwise.
+  const ringColor = passed !== false && safeScore >= 80 ? accentColor : verdictColor;
+  const mailVerdict = passed === false ? 'Below the pass mark' : safeScore >= 80 ? 'Excellent' : safeScore >= 60 ? 'Solid foundation' : 'Needs another pass';
+  const metrics = [
+    { label: metricLabels.strengths ?? 'Strengths', mailLabel: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e', fromCategories: true },
+    { label: metricLabels.risks ?? 'Risks', mailLabel: metricLabels.risks ?? 'Risks found', value: errors.length + warnings.length, icon: Warning, color: '#f59e0b' },
+    { label: metricLabels.opportunities ?? 'Opportunities', mailLabel: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6', fromCategories: true },
+    { label: metricLabels.rubric ?? 'Rubric passed', mailLabel: metricLabels.rubric ?? 'Rubric checks passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle, color: accentColor },
+  ].filter(metric => categories.length > 0 || !metric.fromCategories);
+
   function toggleFinding(index: number) {
     setExpanded(current => {
       const next = new Set(current);
@@ -121,6 +145,39 @@ export default function AiStructuredReviewReport({
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
+      {inMail ? (
+        <section className="rounded-[16px] p-4" style={{ background: mailPanel }}>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-[17px]" style={{ background: mailCard }} aria-hidden="true">{inMail.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-bold" style={{ color: text }}>{reportLabel}</p>
+              {metadata && <p className="mt-0.5 text-[12px]" style={{ color: muted }}>{metadata}</p>}
+            </div>
+            {actions && <div className="flex items-center gap-2">{actions}</div>}
+          </div>
+          <div className="mt-3.5 flex items-center gap-[18px] rounded-[12px] p-4" style={{ background: mailCard }}>
+            <svg viewBox="0 0 80 80" className="h-[84px] w-[84px] shrink-0" role="img" aria-label={`${Math.round(safeScore)} out of 100`}>
+              <circle cx="40" cy="40" r="34" fill="none" strokeWidth="8" style={{ stroke: mailPanel }} />
+              <circle cx="40" cy="40" r="34" fill="none" strokeWidth="8" strokeLinecap="round" transform="rotate(-90 40 40)"
+                strokeDasharray={RING} strokeDashoffset={RING * (1 - safeScore / 100)} style={{ stroke: ringColor, transition: 'stroke-dashoffset 0.7s' }} />
+              <text x="40" y="47" textAnchor="middle" className="tabular-nums" style={{ fill: text, fontSize: 22, fontWeight: 700 }}>{Math.round(safeScore)}</text>
+            </svg>
+            <div className="min-w-0">
+              <span className="inline-block rounded-full px-2.5 py-[3px] text-[12px] font-bold" style={{ color: ringColor, background: mailCard, boxShadow: `inset 0 0 0 1px ${ringColor}33` }}>{mailVerdict}</span>
+              <p className="mt-2 text-[15px] font-semibold leading-snug" style={{ color: text }}>{summary}</p>
+              <p className="mt-0.5 text-[12.5px]" style={{ color: muted }}>{Math.round(safeScore)} out of 100</p>
+            </div>
+          </div>
+          <div className={`mt-2 grid grid-cols-2 gap-2 ${categories.length > 0 ? 'sm:grid-cols-4' : ''}`}>
+            {metrics.map(metric => (
+              <div key={metric.label} className="flex items-center gap-2.5 rounded-[12px] px-3.5 py-3" style={{ background: mailCard }}>
+                <metric.icon weight="duotone" className="h-[22px] w-[22px] shrink-0" style={{ color: metric.color }} />
+                <div className="min-w-0"><span className="block text-[17px] font-bold leading-tight tabular-nums" style={{ color: text }}>{metric.value}</span><span className="block truncate text-[12px]" style={{ color: muted }}>{metric.mailLabel}</span></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
       <section className="overflow-hidden rounded-[24px]" style={panel}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6" style={{ borderBottom: `1px solid ${border}` }}>
           <div className="flex items-center gap-2.5">
@@ -154,12 +211,7 @@ export default function AiStructuredReviewReport({
 
         {/* A rubric review has no quality categories, so the two tiles that count them are left out. */}
         <div className={`grid grid-cols-2 gap-px ${categories.length > 0 ? 'sm:grid-cols-4' : ''}`} style={{ background: border }}>
-          {[
-            { label: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e', fromCategories: true },
-            { label: metricLabels.risks ?? 'Risks', value: errors.length + warnings.length, icon: Warning, color: '#f59e0b' },
-            { label: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6', fromCategories: true },
-            { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle, color: accentColor },
-          ].filter(metric => categories.length > 0 || !metric.fromCategories).map(metric => (
+          {metrics.map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
               <metric.icon weight="duotone" className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
               <div className="min-w-0"><span className="block text-lg font-bold leading-none tabular-nums" style={{ color: text }}>{metric.value}</span><span className="mt-1 block truncate text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: muted }}>{metric.label}</span></div>
@@ -167,6 +219,7 @@ export default function AiStructuredReviewReport({
           ))}
         </div>
       </section>
+      )}
 
       {findings.length > 0 && (
         <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>

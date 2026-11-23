@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import { ArrowCounterClockwise, CheckCircle, DownloadSimple, FileText, Lightning, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
@@ -10,7 +10,7 @@ import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
-import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import AiStructuredReviewReport, { ReviewInMailContext } from '@/components/AiStructuredReviewReport';
 import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
@@ -70,6 +70,8 @@ export default function DocumentReviewPlayer({
   reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0,
   context, rubric, minScore, reviewTarget, maxReviews, documentReviewMode = 'ai_only', showAttemptCount, onComplete,
 }: Props) {
+  // Inside a virtual experience email the email says the review is done, so the closing line is left out.
+  const inMail = useContext(ReviewInMailContext) !== null;
   const isManual = documentReviewMode === 'manual';
   const isHybrid = documentReviewMode === 'hybrid';
   const atLimit     = maxReviews !== undefined && reviewsUsed >= maxReviews;
@@ -330,7 +332,7 @@ export default function DocumentReviewPlayer({
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your document, and submit another review.</p>
           </div>
         </div>
-      ) : (
+      ) : inMail ? null : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>

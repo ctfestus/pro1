@@ -1,6 +1,8 @@
 'use client';
 
+import { ChartBarHorizontal } from '@phosphor-icons/react';
 import { ChatCard, ChatMsg, ChatTypingMsg, ChatThread } from '@/components/ve/ChatCard';
+import { mailTones } from '@/components/ve/MailCard';
 import { firstNameOf, workStamp, startTypingSound, anchorZone, colleaguesFor, hashStr, type Person } from '@/components/ve/workplace';
 import type { RequirementProps } from './types';
 import { TaskOption, taskTheme } from './TaskCard';
@@ -19,6 +21,7 @@ export function DecisionRequirement({ req, qi, rowStyle, ctx }: RequirementProps
   const selectedIdx = selectedAnswer ? (req.options || []).findIndex(opt => opt === selectedAnswer) : -1;
   const selectedFeedback = selectedIdx >= 0 ? req.optionFeedback?.[selectedIdx] : '';
   const stamp = workStamp(flatIdx, qi, req.id);
+  const poll = mailTones(isDark);
   const colleague: Person = { name: colleaguesFor(config.company || teamChannel, 1)[0], color: '#E8912D' };
   const colleagueLine = ['Good call.', '+1, agreed.', 'Nice - that unblocks us.', 'Makes sense to me.'][hashStr(req.id) % 4];
   const chooseDecision = (opt: string) => {
@@ -41,13 +44,17 @@ export function DecisionRequirement({ req, qi, rowStyle, ctx }: RequirementProps
       <ChatCard isDark={isDark} reqId={req.id} company={config.company} channel={teamChannel}
         members={[manager]} unread={!done} muteArrival={reviewMode}>
         <ChatMsg isDark={isDark} author={manager} time={stamp.time}>
-          <p style={{ margin: 0 }}>{req.label}</p>
-          {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{req.label}</p>
+          {req.description && done && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
           {!done && (
-            // The same lettered options as a question card or a question sent by email.
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520 }}>
+            // A poll: the prompt, then the same lettered options as a question card, on the card
+            // colour inside a soft box.
+            <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: poll.panel, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 2px', fontSize: 12.5, fontWeight: 600, color: poll.muted }}>
+                <ChartBarHorizontal weight="duotone" size={14} aria-hidden /> {req.description || 'Pick one'}
+              </p>
               {options.map((opt, oi) => (
-                <TaskOption key={oi} t={taskTheme(isDark, accentColor)} letter={String.fromCharCode(65 + oi)}
+                <TaskOption key={oi} t={{ ...taskTheme(isDark, accentColor), soft: poll.block }} letter={String.fromCharCode(65 + oi)}
                   onClick={() => chooseDecision(opt)} disabled={reviewMode}>
                   {opt}
                 </TaskOption>

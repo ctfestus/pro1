@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import { ArrowCounterClockwise, CheckCircle, DownloadSimple, FileXls, Lightning, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
-import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import AiStructuredReviewReport, { ReviewInMailContext } from '@/components/AiStructuredReviewReport';
 import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
@@ -71,6 +71,8 @@ interface Props {
 
 
 export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, context, reviewSheetNames, reviewTarget, rubric, minScore, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+  // Inside a virtual experience email the email says the review is done, so the closing line is left out.
+  const inMail = useContext(ReviewInMailContext) !== null;
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
   // Offer Reset (try again) only while attempts remain. Once a submission is terminal -- completed
@@ -331,7 +333,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, update your workbook, and submit another review.</p>
           </div>
         </div>
-      ) : (
+      ) : inMail ? null : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>

@@ -1,8 +1,7 @@
 'use client';
 
-import { ThumbsUp } from '@phosphor-icons/react';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
-import { ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread } from '@/components/ve/ChatCard';
+import { ChatAckReactions, ChatCard, ChatMsg, ChatTypingMsg, ChatThread, ackReply } from '@/components/ve/ChatCard';
 import { MailCard, MailThreadMsg, MailStatusChip, SmartReplies, type MailAttachment } from '@/components/ve/MailCard';
 import { firstNameOf, workStamp, startTypingSound, anchorZone, quoteSnippet } from '@/components/ve/workplace';
 import { applyNameTags } from '@/lib/merge-tags';
@@ -44,13 +43,13 @@ export function BriefingRequirement({ req, qi, rowStyle, ctx }: RequirementProps
           members={[manager]} unread={!done} muteArrival={reviewMode}>
           <ChatMsg isDark={isDark} author={manager} time={stamp.time}
             reactions={
-              !done && !reviewMode ? (
-                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp weight="duotone" className="w-3.5 h-3.5" />} onClick={() => acknowledge()} />
-              ) : done ? (
-                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp weight="duotone" className="w-3.5 h-3.5" />} count={1} active disabled />
+              done || !reviewMode ? (
+                <ChatAckReactions isDark={isDark} accent={accentColor}
+                  picked={done ? (progress[req.id]?.notes || 'Got it') : undefined}
+                  onPick={!reviewMode ? label => acknowledge(label) : undefined} />
               ) : null
             }>
-            <p style={{ margin: 0 }}>{subject}</p>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{subject}</p>
             {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
           </ChatMsg>
           {done && (
@@ -59,7 +58,7 @@ export function BriefingRequirement({ req, qi, rowStyle, ctx }: RequirementProps
                 ? <ChatTypingMsg isDark={isDark} author="me" meName={studentName} />
                 : (
                   <ChatMsg isDark={isDark} author="me" meName={studentName} time="Just now">
-                    <>Got it, on it. <ThumbsUp weight="duotone" className="inline w-3.5 h-3.5 align-[-2px]" /></>
+                    {ackReply(progress[req.id]?.notes)}
                   </ChatMsg>
                 )}
             </ChatThread>
@@ -88,7 +87,7 @@ export function BriefingRequirement({ req, qi, rowStyle, ctx }: RequirementProps
         } : undefined}>
         <div style={{ padding: '14px 22px 18px' }}>
           {!done && !reviewMode ? (
-            <SmartReplies isDark={isDark} accent={accentColor}
+            <SmartReplies isDark={isDark} accent={accentColor} to={manager.name}
               options={['Got it, starting now', 'On it, will update you soon', 'Received, thank you']}
               onPick={text => acknowledge(text)} />
           ) : done ? (
