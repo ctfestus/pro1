@@ -24,20 +24,22 @@ import type { AssignmentSolution } from '@/lib/assignment-solutions';
 import { SolutionFilesList } from '@/components/SolutionFilesList';
 import { GroupForum } from '@/components/student/GroupForum';
 import { Sk, EmptyState, StatusBadge } from '@/components/student/shared';
+import { BriefSection, DetailsLine, DetailsPanel, IconTile, assignmentStatus, formatDueShort, type DetailRow } from '@/components/student/assignment-details';
+import { ClipboardList, Users } from 'lucide-react';
 import {
-  BookOpen, ClipboardList, Users, ChevronDown, X, CheckCircle, AlertCircle, Star,
-  ExternalLink, Loader2, FileText, Plus, ArrowLeft, Upload, RefreshCw, Check, ArrowRight, Clock3, Play,
-} from 'lucide-react';
+  ArrowLeft, ArrowRight, ArrowSquareOut, ArrowsClockwise, BookOpen, Briefcase, CalendarDots, Check, CheckCircle, CircleNotch,
+  ClipboardText, FileText, ListChecks, Medal, Megaphone, Paperclip, Plus, Star, Target, UploadSimple, WarningCircle, X,
+} from '@phosphor-icons/react';
 
 // --- Assignments section ---
 /** "Sun, Nov 29" for a plain YYYY-MM-DD date. */
 const formatDue = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-const CodeReviewPlayer        = dynamic(() => import('@/components/CodeReviewPlayer'),        { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
-const ExcelReviewPlayer       = dynamic(() => import('@/components/ExcelReviewPlayer'),       { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
-const DashboardCritiquePlayer = dynamic(() => import('@/components/DashboardCritiquePlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
-const DocumentReviewPlayer    = dynamic(() => import('@/components/DocumentReviewPlayer'),    { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
-const AssignmentExperiencePlayer = dynamic(() => import('@/components/AssignmentExperiencePlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
-const StandardAssignmentPlayer = dynamic(() => import('@/components/StandardAssignmentPlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const CodeReviewPlayer        = dynamic(() => import('@/components/CodeReviewPlayer'),        { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const ExcelReviewPlayer       = dynamic(() => import('@/components/ExcelReviewPlayer'),       { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const DashboardCritiquePlayer = dynamic(() => import('@/components/DashboardCritiquePlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const DocumentReviewPlayer    = dynamic(() => import('@/components/DocumentReviewPlayer'),    { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const AssignmentExperiencePlayer = dynamic(() => import('@/components/AssignmentExperiencePlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
+const StandardAssignmentPlayer = dynamic(() => import('@/components/StandardAssignmentPlayer'), { ssr: false, loading: () => <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div> });
 
 export function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, onBack }: { assignment: any; userId: string; studentName: string; studentEmail: string; C: typeof LIGHT_C; onBack: () => void }) {
   type ReadyFile = { name: string; url: string; status: 'uploading' | 'done' | 'error'; error?: string };
@@ -250,6 +252,11 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
     e.target.value = '';
+    await uploadFiles(files);
+  }
+
+  // Shared by the file picker and dropping files on the drop zone.
+  async function uploadFiles(files: File[]) {
     for (const file of files) {
       const dot = file.name.lastIndexOf('.');
       const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : '';
@@ -466,6 +473,17 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
   const isSubmitted = submission?.status === 'submitted' && isParticipant;
   const uploading = readyFiles.some(f => f.status === 'uploading');
   const hasContent = responseText.trim() || readyFiles.some(f => f.status === 'done') || links.some(l => l.trim()) || savedFiles.length > 0;
+  const paneled = !isScenarioStandard && !isVeType;
+  const pageStatus = assignmentStatus(isParticipant ? submission?.status : undefined, submission?.score);
+  const TYPE_LABEL: Record<string, string> = {
+    standard: 'Written submission', code_review: 'AI review, code', excel_review: 'AI review, Excel',
+    dashboard_critique: 'AI review, dashboard', document_review: 'AI review, document',
+  };
+  const detailRows: DetailRow[] = [
+    ...(assignment.deadline_date ? [{ icon: <CalendarDots weight="duotone" />, label: 'Deadline', value: formatDueShort(assignment.deadline_date) }] : []),
+    { icon: <Medal weight="duotone" />, label: 'Pass mark', value: `${passMark}%` },
+    { icon: <ClipboardText weight="duotone" />, label: 'Type', value: TYPE_LABEL[assignmentType] ?? 'Assignment' },
+  ];
 
   // Focused discussion: takes over the whole detail area so the forum is the only thing on screen -
   // no left detail pane, members strip, brief, or submission panel competing for attention.
@@ -485,40 +503,46 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
     // overrides .rich-content, which otherwise pins Inter via --font-sans.
     <div className={isScenarioStandard ? 'sa-scenario-font' : undefined} style={isScenarioStandard ? { fontFamily: "'Google Sans Text', 'Inter', sans-serif" } : undefined}>
       {isScenarioStandard && <style>{`.sa-scenario-font .rich-content { font-family: 'Google Sans Text', 'Inter', sans-serif; }`}</style>}
-      <div className="flex items-center justify-between gap-4 mb-5">
+      <div className="mb-4">
         <button type="button" onClick={onBack} className={btnSmClass} style={btnStyle('sec', C)}>
-          <ArrowLeft className="w-3.5 h-3.5"/> Assignments
+          <ArrowLeft weight="bold" className="w-3.5 h-3.5"/> Assignments
         </button>
-        {!isScenarioStandard && submission && isParticipant && (
-          <StatusBadge status={submission.status}/>
-        )}
       </div>
-      {/* Scenario-based standard assignments show the title inside the player's right pane. */}
-      {!isScenarioStandard && (
-        <div className="mb-5">
-          <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{assignment.title}</h1>
-          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: C.muted }}><Clock3 className="w-3.5 h-3.5"/> Due {formatDue(assignment.deadline_date)}</p>}
+
+      {/* Every type but scenarios (whose player draws its own) and virtual experiences (which need
+          the full width for their workplace) gets the details panel on the left; on a phone the
+          panel becomes one line above the brief. */}
+      <div className={paneled ? 'grid gap-[18px] min-[900px]:grid-cols-[260px_minmax(0,1fr)]' : undefined}>
+      {paneled && (
+        <div className="max-[899px]:hidden">
+          <DetailsPanel C={C} status={pageStatus} rows={detailRows} />
+        </div>
+      )}
+      <div className="min-w-0">
+      {paneled && (
+        <div className="min-[900px]:hidden">
+          <DetailsLine C={C} status={pageStatus} due={assignment.deadline_date} passMark={passMark} />
         </div>
       )}
 
       {/* Prominent entry to the group channel so students don't miss it. */}
       {isGroupAssignment && myGroupId && (
         <button onClick={() => setDiscussionOpen(true)}
-          className="w-full flex items-center gap-3 rounded-2xl px-4 py-3.5 mb-4 text-left"
-          style={{ background: `${C.green}12`, border: `1px solid ${C.green}40`, cursor: 'pointer' }}>
-          <span role="img" aria-label="Group channel" className="inline-flex items-center justify-center rounded-xl flex-shrink-0" style={{ width: 40, height: 40, background: `${C.green}18`, fontSize: 22, lineHeight: 1 }}>📣</span>
+          className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 mb-4 text-left"
+          style={{ background: C.card, cursor: 'pointer' }}>
+          <IconTile C={C} icon={<Megaphone weight="duotone" />} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold" style={{ color: C.text }}>Group channel</p>
             <p className="text-xs mt-0.5" style={{ color: C.muted }}>Chat, share links, and run polls with your group.{groupMembers.length ? ` ${groupMembers.length} members.` : ''}</p>
           </div>
-          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: DARK_C.cta, color: '#ffffff' }}>Open <ArrowRight className="w-3.5 h-3.5"/></span>
+          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: C.cta, color: C.ctaText }}>Open <ArrowRight weight="bold" className="w-3.5 h-3.5"/></span>
         </button>
       )}
 
       {submitSuccess && (
         <div className="flex items-center gap-3 rounded-2xl px-5 py-4 mb-5"
           style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
-          <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: '#10b981' }}/>
+          <CheckCircle weight="fill" className="w-5 h-5 flex-shrink-0" style={{ color: '#10b981' }}/>
           <div>
             <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Assignment submitted successfully!</p>
             <p className="text-xs mt-0.5" style={{ color: C.muted }}>Returning to assignments...</p>
@@ -526,12 +550,16 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
         </div>
       )}
 
-      {/* Assignment brief -- only render card if there is content to show. Scenario-based
-          standard assignments render cover / related course / resources in the player's panes
-          instead, so the legacy brief card is suppressed for them. */}
-      {!isScenarioStandard && (assignment.cover_image || (submission && isParticipant) || assignment._course_title || assignment.scenario || assignment.brief || assignment.tasks || assignment.requirements || resources.length > 0) && (
-      <div className="rounded-2xl mb-4 overflow-hidden" style={{ background: C.card }}>
-        {/* Cover image */}
+      {/* The brief: title, then each part on an icon tile. Scenario assignments draw their own
+          brief in the player; a virtual experience keeps its title above the player. */}
+      {isVeType && (
+        <div className="mb-5">
+          <h1 className="text-[28px] leading-9 font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{assignment.title}</h1>
+          {assignment.deadline_date && <p className="flex items-center gap-1.5 text-[13px] mt-1" style={{ color: C.muted }}><CalendarDots weight="duotone" className="w-3.5 h-3.5"/> Due {formatDueShort(assignment.deadline_date)}</p>}
+        </div>
+      )}
+      {paneled && (
+      <div className="rounded-xl mb-4 overflow-hidden" style={{ background: C.card }}>
         {assignment.cover_image && (
           <div className="px-4 pt-4">
             <img
@@ -543,116 +571,39 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             />
           </div>
         )}
-
-        {/* Status badge */}
-        {submission && isParticipant && (
-          <div className="px-6 pt-5 pb-4">
-            <StatusBadge status={submission.status}/>
-          </div>
-        )}
-
-        {/* Related course card */}
-        {assignment._course_title && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-4">
-              <p className="text-[13px] font-semibold mb-3" style={{ color: C.text }}>Related course</p>
-              <a
-                href={`/${assignment._course_slug || assignment.related_course}`}
-                className="flex items-center gap-3 no-underline transition-all hover:opacity-80"
-                style={theme === 'dark'
-                  ? { background: C.pill, borderRadius: 10 }
-                  : { background: '#fff', border: `1px solid ${C.divider}`, borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}
-              >
-                {/* Cover image with padding */}
-                <div className="flex-shrink-0 p-2">
-                  <div className="relative w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center" style={{ background: `${C.green}18` }}>
-                    <BookOpen className="w-6 h-6" style={{ color: C.green }}/>
-                    {assignment._course_cover && <img src={resolveCoverUrl(assignment._course_cover)} alt={assignment._course_title} className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />}
-                  </div>
-                </div>
-                {/* Text */}
-                <div className="flex-1 min-w-0 py-3">
-                  <p className="text-[11px] font-semibold mb-0.5" style={{ color: C.muted }}>Course</p>
-                  <p className="text-[13px] font-semibold leading-snug truncate" style={{ color: C.text }}>{assignment._course_title}</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Review course material before submitting</p>
-                </div>
-                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 mr-4" style={{ color: C.faint }}/>
+        <div className="px-4 sm:px-6 pt-5 pb-3">
+          <h1 className="text-[24px] leading-tight font-bold mb-3.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{assignment.title}</h1>
+          {[
+            assignment._course_title && { key: 'course', icon: <BookOpen weight="duotone" />, label: 'Related course', body: (
+              <a href={`/${assignment._course_slug || assignment.related_course}`} className="inline-flex items-center gap-1.5 font-semibold no-underline hover:underline" style={{ color: C.text }}>
+                {assignment._course_title} <ArrowSquareOut weight="bold" className="w-3.5 h-3.5" style={{ color: C.faint }}/>
               </a>
-            </div>
-          </>
-        )}
-
-        {assignment.scenario && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-4">
-              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Scenario</p>
-              <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.scenario) }}/>
-            </div>
-          </>
-        )}
-
-        {assignment.brief && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-4">
-              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Brief</p>
-              <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.brief) }}/>
-            </div>
-          </>
-        )}
-
-        {assignment.tasks && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-4">
-              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Tasks</p>
-              <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.tasks) }}/>
-            </div>
-          </>
-        )}
-
-        {assignment.requirements && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-4">
-              <p className="text-[15px] font-semibold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Requirements</p>
-              <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.requirements) }}/>
-            </div>
-          </>
-        )}
-
-        {resources.length > 0 && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.divider}` }}/>
-            <div className="px-6 py-5">
-              <p className="text-[15px] font-semibold mb-3" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Resources</p>
-              <div className="flex flex-col gap-2">
+            ) },
+            assignment.scenario && { key: 'scenario', icon: <Briefcase weight="duotone" />, label: 'Scenario', body: <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.scenario) }}/> },
+            assignment.brief && { key: 'brief', icon: <Target weight="duotone" />, label: 'Brief', body: <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.brief) }}/> },
+            assignment.tasks && { key: 'tasks', icon: <ListChecks weight="duotone" />, label: 'Tasks', body: <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.tasks) }}/> },
+            assignment.requirements && { key: 'req', icon: <ClipboardText weight="duotone" />, label: 'Requirements', body: <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(assignment.requirements) }}/> },
+            resources.length > 0 && { key: 'res', icon: <Paperclip weight="duotone" />, label: 'Resources', body: (
+              <div className="flex flex-col gap-2 mt-2">
                 {resources.map((r: any) => (
                   <a key={r.id} href={r.url} target="_blank" rel="noreferrer"
-                    className="group flex items-center gap-3 no-underline rounded-2xl px-4 py-3 transition-all"
-                    style={{ background: C.pill, border: `1px solid ${C.divider}` }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.page; (e.currentTarget as HTMLElement).style.borderColor = '#0e09dd33'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = C.pill; (e.currentTarget as HTMLElement).style.borderColor = C.divider; }}>
-                    <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
-                      style={{ background: r.resource_type === 'file' ? 'rgba(14,9,221,0.08)' : 'rgba(4,83,241,0.08)' }}>
-                      {r.resource_type === 'file'
-                        ? <FileText className="w-4 h-4" style={{ color: '#0e09dd' }}/>
-                        : <ExternalLink className="w-4 h-4" style={{ color: '#0453f1' }}/>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium truncate" style={{ color: C.text }}>{r.name || r.url}</p>
-                      {r.name && <p className="text-[11px] truncate mt-0.5" style={{ color: C.faint }}>{r.resource_type === 'file' ? 'File' : 'Link'}</p>}
-                    </div>
-                    <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}/>
+                    className="group flex items-center gap-3 no-underline rounded-[10px] px-3.5 py-2.5 transition-opacity hover:opacity-80"
+                    style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                    {r.resource_type === 'file'
+                      ? <FileText weight="duotone" className="w-4 h-4 flex-shrink-0" style={{ color: C.text }}/>
+                      : <ArrowSquareOut weight="bold" className="w-4 h-4 flex-shrink-0" style={{ color: C.text }}/>}
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] font-medium truncate" style={{ color: C.text }}>{r.name || r.url}</span>
+                      {r.name && <span className="block text-[11px] truncate" style={{ color: C.faint }}>{r.resource_type === 'file' ? 'File' : 'Link'}</span>}
+                    </span>
                   </a>
                 ))}
               </div>
-            </div>
-          </>
-        )}
-
+            ) },
+          ].filter(Boolean).map((sec: any, idx: number) => (
+            <BriefSection key={sec.key} C={C} icon={sec.icon} label={sec.label} first={idx === 0}>{sec.body}</BriefSection>
+          ))}
+        </div>
       </div>
       )}
 
@@ -696,7 +647,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                   {m.is_leader && (
                     <div className="absolute flex items-center justify-center z-10"
                       style={{ bottom: 0, right: 0, width: 17, height: 17, borderRadius: '9999px', background: '#f59e0b', boxShadow: `0 0 0 2px ${C.card}` }}>
-                      <Star className="w-2.5 h-2.5 fill-white" style={{ color: 'white' }}/>
+                      <Star weight="fill" className="w-2.5 h-2.5 fill-white" style={{ color: 'white' }}/>
                     </div>
                   )}
                   {/* Fixed-position profile popup - renders at viewport level, never clips */}
@@ -747,7 +698,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
         <div role="alert" className="rounded-2xl p-4 mb-4 flex flex-wrap items-center justify-between gap-3" style={{ background: C.card }}>
           <p className="text-sm" style={{ color: C.text }}>Could not load your submission. Check your connection and try again.</p>
           <button type="button" onClick={() => setSubReloadKey(k => k + 1)} className="text-sm font-semibold px-4 py-2 rounded-xl"
-            style={{ background: DARK_C.cta, color: '#ffffff' }}>Try again</button>
+            style={{ background: C.cta, color: C.ctaText }}>Try again</button>
         </div>
       )}
 
@@ -764,7 +715,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                   style={{ background: C.page, border: `1px solid ${C.divider}` }}>
                   <input type="checkbox" checked={selectedParticipants.includes(m.student_id)}
                     onChange={() => toggleParticipant(m.student_id)}
-                    style={{ width: 15, height: 15, accentColor: DARK_C.cta, cursor: 'pointer' }}/>
+                    style={{ width: 15, height: 15, accentColor: C.cta, cursor: 'pointer' }}/>
                   <span className="text-sm" style={{ color: C.text }}>{s.full_name}</span>
                   {m.is_leader && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>Leader</span>}
                 </label>
@@ -801,7 +752,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                       <button onClick={handleResubmit} disabled={submitting}
                         className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                         style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}>
-                        {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}
+                        {submitting ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin"/> : <ArrowsClockwise weight="bold" className="w-4 h-4"/>}
                         Resubmit assignment
                       </button>
                     )}
@@ -811,8 +762,10 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             </div>
           )}
 
+          <div className="rounded-xl p-5 sm:p-6" style={{ background: C.card }}>
+          <h2 className="text-[17px] font-bold mb-3.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{isGroupAssignment ? 'Group submission' : 'Your submission'}</h2>
           {isGroupAssignment && !isLeader && (
-            <p className="text-xs text-center py-2 px-4 rounded-xl mb-3" style={{ background: C.thumbBg, color: C.muted }}>
+            <p className="text-xs text-center py-2 px-4 rounded-xl mb-3" style={{ background: C.pill, color: C.muted }}>
               You can work through this assignment to prepare. Your group leader will submit for the group.
             </p>
           )}
@@ -820,7 +773,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <CodeReviewPlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
-              accentColor={C.green}
+              accentColor={C.cta}
               completed={isGraded || isSubmitted}
               savedResult={(() => { const rep = parseReviewNotes(submission?.response_text)?.report; return isFullReport('code_review', rep) ? rep : undefined; })()}
               rubric={assignment.config?.rubric}
@@ -833,7 +786,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <ExcelReviewPlayer
               reqId={assignment.id}
               isDark={isDark}
-              accentColor={C.green}
+              accentColor={C.cta}
               completed={isGraded || isSubmitted}
               savedResult={(() => { const rep = parseReviewNotes(submission?.response_text)?.report; return isFullReport('excel_review', rep) ? rep : undefined; })()}
               rubric={assignment.config?.rubric}
@@ -848,7 +801,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <DashboardCritiquePlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
-              accentColor={C.green}
+              accentColor={C.cta}
               completed={isGraded || isSubmitted}
               savedResult={parseReviewNotes(submission?.response_text)?.report}
               rubric={assignment.config?.rubric}
@@ -859,7 +812,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             <DocumentReviewPlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
-              accentColor={C.green}
+              accentColor={C.cta}
               completed={isGraded || isSubmitted}
               savedResult={(() => { if ((assignment.config?.documentReviewMode ?? 'ai_only') === 'manual') return undefined; const rep = parseReviewNotes(submission?.response_text)?.report; return isFullReport('document_review', rep) ? rep : undefined; })()}
               rubric={assignment.config?.rubric}
@@ -869,6 +822,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(assignment.config?.documentReviewMode === 'manual' ? null : reviewGate(result, assignment.config?.rubric?.length).score, buildReviewNotes('document_review', result, submission?.response_text, { documentReviewMode: assignment.config?.documentReviewMode ?? 'ai_only' }))}
             />
           )}
+          </div>
         </div>
       )}
 
@@ -889,7 +843,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               )}
             </div>
           )}
-          {veLoading && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>}
+          {veLoading && <div className="flex justify-center py-10"><CircleNotch weight="bold" className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>}
           {!veLoading && !veForm && <p className="text-sm text-center py-6" style={{ color: C.faint }}>Virtual Experience not found.</p>}
           {!veLoading && veForm && (
             <>
@@ -948,7 +902,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                   <button onClick={handleResubmit} disabled={submitting}
                     className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                     style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}>
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4"/>}
+                    {submitting ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin"/> : <ArrowsClockwise weight="bold" className="w-4 h-4"/>}
                     Resubmit assignment
                   </button>
                 )}
@@ -956,6 +910,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             );
           })()}
           <StandardAssignmentPlayer
+            passMark={passMark}
             assignmentId={assignment.id}
             config={assignment.config}
             userId={userId}
@@ -979,10 +934,10 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
 
       {/* Submission panel -- legacy standard type only (no scenarios) */}
       {assignmentType === 'standard' && !isScenarioStandard && !subLoadError && (
-      <div className="rounded-2xl p-6" style={{ background: C.card }}>
-        <h3 className="text-base font-semibold mb-4" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+      <div className="rounded-xl p-5 sm:p-6" style={{ background: C.card }}>
+        <h2 className="text-[17px] font-bold mb-4" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
           {isGroupAssignment ? 'Group submission' : 'Your submission'}
-        </h3>
+        </h2>
         {loadingSub ? (
           <div className="space-y-2"><Sk h={14} w="60%"/><Sk h={100}/></div>
         ) : isGroupAssignment && !isLeader && !isGraded ? (
@@ -1007,10 +962,10 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                         style={{ background: C.pill, border: `1px solid ${C.divider}` }}>
                         <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
                           style={{ background: f.file_name ? 'rgba(16,185,129,0.10)' : 'rgba(4,83,241,0.08)' }}>
-                          {f.file_name ? <FileText className="w-4 h-4" style={{ color: '#10b981' }}/> : <ExternalLink className="w-4 h-4" style={{ color: '#0453f1' }}/>}
+                          {f.file_name ? <FileText weight="duotone" className="w-4 h-4" style={{ color: '#10b981' }}/> : <ArrowSquareOut weight="bold" className="w-4 h-4" style={{ color: '#0453f1' }}/>}
                         </div>
                         <span className="text-[13px] font-medium flex-1 truncate" style={{ color: C.text }}>{f.file_name || f.file_url}</span>
-                        <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}/>
+                        <ArrowSquareOut weight="bold" className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}/>
                       </a>
                     ))}
                   </div>
@@ -1039,10 +994,10 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = C.pill; }}>
                     <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
                       style={{ background: f.file_name ? 'rgba(16,185,129,0.10)' : 'rgba(4,83,241,0.08)' }}>
-                      {f.file_name ? <FileText className="w-4 h-4" style={{ color: '#10b981' }}/> : <ExternalLink className="w-4 h-4" style={{ color: '#0453f1' }}/>}
+                      {f.file_name ? <FileText weight="duotone" className="w-4 h-4" style={{ color: '#10b981' }}/> : <ArrowSquareOut weight="bold" className="w-4 h-4" style={{ color: '#0453f1' }}/>}
                     </div>
                     <span className="text-[13px] font-medium flex-1 truncate" style={{ color: C.text }}>{f.file_name || f.file_url}</span>
-                    <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}/>
+                    <ArrowSquareOut weight="bold" className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}/>
                   </a>
                 ))}
               </div>
@@ -1076,7 +1031,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                       className="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                       style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.25)' }}
                     >
-                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      {submitting ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" /> : <ArrowsClockwise weight="bold" className="w-4 h-4" />}
                       Resubmit assignment
                     </button>
                   )}
@@ -1094,7 +1049,9 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
 
             {/* Response text */}
             <div className="mb-4">
-              <RichTextEditor value={responseText} onChange={setResponseText} placeholder="Write your response here" images="upload" imageFolder="submission-images" />
+              <div className="rounded-[10px] overflow-hidden" style={{ boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                <RichTextEditor value={responseText} onChange={setResponseText} placeholder="Write your response here" images="upload" imageFolder="submission-images" bgOverride={C.card} />
+              </div>
             </div>
 
             {/* Saved attachments (editable) */}
@@ -1103,19 +1060,16 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                 <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Saved attachments</p>
                 <div className="flex flex-col gap-2">
                   {savedFiles.map(f => (
-                    <div key={f.id} className="flex items-center gap-3 rounded-2xl px-4 py-3"
-                      style={{ background: C.pill, border: `1px solid ${C.divider}` }}>
-                      <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
-                        style={{ background: f.file_name ? 'rgba(16,185,129,0.10)' : 'rgba(4,83,241,0.08)' }}>
-                        {f.file_name ? <FileText className="w-4 h-4" style={{ color: '#10b981' }}/> : <ExternalLink className="w-4 h-4" style={{ color: '#0453f1' }}/>}
-                      </div>
+                    <div key={f.id} className="flex items-center gap-3 rounded-[10px] px-3.5 py-2.5"
+                      style={{ background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}` }}>
+                      {f.file_name ? <FileText weight="duotone" className="w-4 h-4 flex-shrink-0" style={{ color: C.text }}/> : <ArrowSquareOut weight="bold" className="w-4 h-4 flex-shrink-0" style={{ color: C.text }}/>}
                       <a href={f.file_url} target="_blank" rel="noreferrer"
                         className="flex-1 truncate text-[13px] font-medium hover:underline"
                         style={{ color: C.text }}>{f.file_name || f.file_url}</a>
                       <button onClick={() => removeSavedFile(f.id)}
                         className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-colors"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint }}>
-                        <X className="w-3.5 h-3.5"/>
+                        <X weight="bold" className="w-3.5 h-3.5"/>
                       </button>
                     </div>
                   ))}
@@ -1132,11 +1086,11 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                     <input
                       type="url" value={link} onChange={e => setLinks(prev => prev.map((l, idx) => idx === i ? e.target.value : l))}
                       placeholder="https://github.com/your-repo"
-                      style={{ flex: 1, height: 40, padding: '0 12px', borderRadius: 12, background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.text, fontSize: 13, outline: 'none' }}
+                      style={{ flex: 1, height: 40, padding: '0 12px', borderRadius: 10, background: C.card, boxShadow: `inset 0 0 0 1px ${C.divider}`, color: C.text, fontSize: 13, outline: 'none' }}
                     />
                     {links.length > 1 && (
                       <button onClick={() => removeLink(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint }}>
-                        <X className="w-4 h-4"/>
+                        <X weight="bold" className="w-4 h-4"/>
                       </button>
                     )}
                   </div>
@@ -1144,8 +1098,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               </div>
               <button onClick={() => setLinks(prev => [...prev, ''])}
                 className="mt-2 text-xs font-semibold flex items-center gap-1"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.text, padding: 0 }}>
-                <Plus className="w-3.5 h-3.5"/> Add another link
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.cta, padding: 0 }}>
+                <Plus weight="bold" className="w-3.5 h-3.5"/> Add another link
               </button>
             </div>
 
@@ -1154,23 +1108,28 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               <p className="text-[13px] font-semibold mb-2" style={{ color: C.text }}>Files</p>
               <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
               <button type="button" onClick={() => fileInputRef.current?.click()}
-                className={btnClass} style={btnStyle('sec', C)}>
-                <Upload className="w-4 h-4"/> Choose files
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); void uploadFiles(Array.from(e.dataTransfer.files)); }}
+                className="w-full flex flex-col items-center gap-0.5 rounded-[10px] px-4 py-4 text-[13px]"
+                style={{ border: `1.5px dashed ${C.cta}59`, background: isDark ? C.card : `${C.cta}08`, color: C.muted, cursor: 'pointer' }}>
+                <UploadSimple weight="bold" className="w-5 h-5" style={{ color: C.muted }}/>
+                <b style={{ color: C.text }}>Choose files</b>
+                <span className="text-[12.5px]" style={{ color: C.faint }}>or drop them here</span>
               </button>
               {readyFiles.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {readyFiles.map((f, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
                       style={{ background: f.status === 'done' ? 'rgba(16,185,129,0.08)' : f.status === 'error' ? 'rgba(239,68,68,0.08)' : C.page, border: `1px solid ${f.status === 'done' ? 'rgba(16,185,129,0.25)' : f.status === 'error' ? 'rgba(239,68,68,0.25)' : C.divider}` }}>
-                      {f.status === 'uploading' && <Loader2 className="w-3.5 h-3.5 flex-shrink-0 animate-spin" style={{ color: C.faint }}/>}
-                      {f.status === 'done' && <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#10b981' }}/>}
-                      {f.status === 'error' && <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#ef4444' }}/>}
+                      {f.status === 'uploading' && <CircleNotch weight="bold" className="w-3.5 h-3.5 flex-shrink-0 animate-spin" style={{ color: C.faint }}/>}
+                      {f.status === 'done' && <CheckCircle weight="fill" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#10b981' }}/>}
+                      {f.status === 'error' && <WarningCircle weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#ef4444' }}/>}
                       <span className="flex-1 truncate" style={{ color: f.status === 'done' ? '#10b981' : f.status === 'error' ? '#ef4444' : C.muted }}>
                         {f.name}{f.status === 'uploading' ? ' - uploading...' : f.status === 'done' ? ' - uploaded' : ` - failed: ${f.error}`}
                       </span>
                       {f.status !== 'uploading' && (
                         <button type="button" onClick={() => removeReadyFile(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint, padding: 0 }}>
-                          <X className="w-3 h-3"/>
+                          <X weight="bold" className="w-3 h-3"/>
                         </button>
                       )}
                     </div>
@@ -1191,7 +1150,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                     Save draft
                   </button>
                   <button onClick={() => handleSubmit(false)} disabled={submitting || uploading || !hasContent}
-                    className={btnClass} style={{ background: DARK_C.cta, color: '#ffffff' }}>
+                    className={`${btnClass} disabled:opacity-100`}
+                    style={submitting || uploading || !hasContent ? { background: C.pill, color: C.muted } : { background: C.cta, color: C.ctaText }}>
                     {submitting ? 'Submitting...' : uploading ? 'Uploading...' : isSubmitted ? 'Resubmit' : 'Submit'}
                   </button>
                 </div>
@@ -1216,6 +1176,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
           <SolutionFilesList solutions={solutions} C={C}/>
         </div>
       )}
+      </div>
+      </div>
     </div>
   );
 }
