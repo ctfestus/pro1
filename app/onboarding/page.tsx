@@ -9,6 +9,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { useC } from '@/lib/theme';
 import { sanitizePlainText } from '@/lib/sanitize';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
+import { EMPLOYMENT_LABELS, OBJECTIVE_LABELS, REFERRAL_LABELS } from '@/lib/onboarding-answers';
 import { takeRememberedNext } from '@/lib/auth-redirect';
 
 type AnswerKey = 'employment_status' | 'learning_objective' | 'referral_source';
@@ -26,28 +27,28 @@ type Option = {
 };
 
 const EMPLOYMENT_OPTIONS: Option[] = [
-  { value: 'full_time', label: 'Full-time', emoji: '\u{1F4BC}' },
-  { value: 'part_time', label: 'Part-time', emoji: '\u{1F552}' },
-  { value: 'student', label: 'Student', emoji: '\u{1F393}' },
-  { value: 'nss', label: 'National Service (NSS)', emoji: '\u{1F9D1}\u{200D}\u{1F4BC}' },
-  { value: 'unemployed', label: 'Unemployed', emoji: '\u{1F50E}' },
-  { value: 'other', label: 'Other', emoji: '\u{2728}' },
+  { value: 'full_time', label: EMPLOYMENT_LABELS.full_time, emoji: '\u{1F4BC}' },
+  { value: 'part_time', label: EMPLOYMENT_LABELS.part_time, emoji: '\u{1F552}' },
+  { value: 'student', label: EMPLOYMENT_LABELS.student, emoji: '\u{1F393}' },
+  { value: 'nss', label: EMPLOYMENT_LABELS.nss, emoji: '\u{1F9D1}\u{200D}\u{1F4BC}' },
+  { value: 'unemployed', label: EMPLOYMENT_LABELS.unemployed, emoji: '\u{1F50E}' },
+  { value: 'other', label: EMPLOYMENT_LABELS.other, emoji: '\u{2728}' },
 ];
 
 const OBJECTIVE_OPTIONS: Option[] = [
-  { value: 'new_career', label: 'Start a new career', emoji: '\u{1F680}' },
-  { value: 'level_up', label: 'Level up in my current role', emoji: '\u{1F4C8}' },
-  { value: 'transition_to_tech', label: 'Transition into tech', emoji: '\u{1F4BB}' },
-  { value: 'explore_skills', label: 'Explore new skills', emoji: '\u{1F9ED}' },
+  { value: 'new_career', label: OBJECTIVE_LABELS.new_career, emoji: '\u{1F680}' },
+  { value: 'level_up', label: OBJECTIVE_LABELS.level_up, emoji: '\u{1F4C8}' },
+  { value: 'transition_to_tech', label: OBJECTIVE_LABELS.transition_to_tech, emoji: '\u{1F4BB}' },
+  { value: 'explore_skills', label: OBJECTIVE_LABELS.explore_skills, emoji: '\u{1F9ED}' },
 ];
 
 const REFERRAL_OPTIONS: Option[] = [
-  { value: 'linkedin', label: 'LinkedIn', brand: 'linkedin' },
-  { value: 'facebook', label: 'Facebook', brand: 'facebook' },
-  { value: 'x', label: 'X', brand: 'x' },
-  { value: 'whatsapp', label: 'WhatsApp', brand: 'whatsapp' },
-  { value: 'friend', label: 'A friend or colleague', emoji: '\u{1F91D}' },
-  { value: 'other', label: 'Other', emoji: '\u{2728}' },
+  { value: 'linkedin', label: REFERRAL_LABELS.linkedin, brand: 'linkedin' },
+  { value: 'facebook', label: REFERRAL_LABELS.facebook, brand: 'facebook' },
+  { value: 'x', label: REFERRAL_LABELS.x, brand: 'x' },
+  { value: 'whatsapp', label: REFERRAL_LABELS.whatsapp, brand: 'whatsapp' },
+  { value: 'friend', label: REFERRAL_LABELS.friend, emoji: '\u{1F91D}' },
+  { value: 'other', label: REFERRAL_LABELS.other, emoji: '\u{2728}' },
 ];
 
 const QUESTION_STEPS: Array<{
