@@ -9,6 +9,8 @@
 // without pulling the editor bundle into a server context. TipTap-dependent helpers
 // (e.g. `lessonHtmlToDoc`) live in components/lesson/extensions.ts instead.
 
+import { normalizeSheets, sheetsPlainText } from '@/lib/excel-sheet';
+
 /**
  * Structural shape of a ProseMirror document node. This is intentionally a
  * minimal structural type rather than a re-export of TipTap's `JSONContent`,
@@ -204,6 +206,8 @@ export function lessonPlainText(
         if (isCheck && ANSWER_ATTRS.has(key)) continue;
         if (TEXT_ATTRS.has(key)) push(value);
       }
+      // A workbook's values and formulas, so the tutor can talk about the sheet.
+      if (node.type === 'excelSheet') push(sheetsPlainText(String(node.attrs.title ?? ''), normalizeSheets(node.attrs.sheets)));
       if (includeCode && node.type === 'runnableCode') {
         pushCode(node.attrs.code);
         pushCode(node.attrs.setupSql, sqlSchemaOnly);
