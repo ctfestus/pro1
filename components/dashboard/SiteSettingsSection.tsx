@@ -235,13 +235,19 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
     );
   };
 
-  const fontPicker = (key: string, label: string, fallback: string) => (
+  // Headings default to Lato (the code's heading font), so the heading picker offers Lato in place
+  // of Inter and shows the saved default, Inter, as Lato.
+  const fontPicker = (key: string, label: string, fallback: string) => {
+    const options = key === 'headingFont' ? ['Lato', ...FONT_OPTIONS.filter(f => f !== 'Inter')] : FONT_OPTIONS;
+    const value = view[key] || fallback;
+    return (
     <div>
       <Label C={C}>{label}</Label>
-      <MenuSelect field label={label} value={view[key] || fallback} options={FONT_OPTIONS.map(f => ({ value: f, label: f }))}
+      <MenuSelect field label={label} value={key === 'headingFont' && value === 'Inter' ? 'Lato' : value} options={options.map(f => ({ value: f, label: f }))}
         onChange={v => set(key, v)} C={C} />
     </div>
-  );
+    );
+  };
 
   // Visibility toggle -- '1' means hidden
   const Vis = (key: string) => (
@@ -376,7 +382,7 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
         {Sec('type', 'Typography',
           <></>,
           <>
-            {fontPicker('headingFont', 'Heading font', 'Inter')}
+            {fontPicker('headingFont', 'Heading font', 'Lato')}
             {fontPicker('bodyFont', 'Body font', 'Inter')}
           </>
         )}

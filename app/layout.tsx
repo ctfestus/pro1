@@ -110,9 +110,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     selectedFontUrl(branding.headingFont),
     selectedFontUrl(branding.bodyFont),
   ].filter((value): value is string => Boolean(value)))];
+  // A heading font picked in Site settings replaces Lato everywhere the code uses --font-display.
+  // Inter is the saved default and Lato is the code's own, so either (or nothing) keeps Lato.
+  const pickedHeadingFont = branding.headingFont.replace(/[;'"\\]/g, '').trim();
   const platformFontStyle = {
     '--platform-heading-font': selectedFontFamily(branding.headingFont),
     '--platform-body-font': selectedFontFamily(branding.bodyFont),
+    ...(pickedHeadingFont && pickedHeadingFont !== 'Inter' && pickedHeadingFont !== 'Lato' ? { '--font-display': selectedFontFamily(pickedHeadingFont) } : {}),
   } as CSSProperties;
 
   return (
@@ -122,7 +126,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
         {selectedFontUrls.map(url => <link key={url} rel="stylesheet" href={url} />)}
       </head>
-      <body nonce={nonce} style={platformFontStyle} suppressHydrationWarning>
+      <body nonce={nonce} className="platform-font-scope" style={platformFontStyle} suppressHydrationWarning>
         <GoogleAnalytics measurementId={tenantSettings.googleAnalyticsId} nonce={nonce} />
         <NavigationProgress />
         <TenantProvider initialSettings={branding}>
