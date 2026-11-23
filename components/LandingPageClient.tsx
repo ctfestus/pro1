@@ -110,16 +110,17 @@ function LandingScrollProgress({ from, to }: { from: string; to: string }) {
 // Animated section heading: title, growing accent underline, subtext
 function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont, seeAll }: {
   title: string; sub: string; color: string; subColor: string; accent: string; hFont?: string; bFont?: string;
-  /** The section's own catalogue page (/courses...), linked as "See all" beside the title. */
+  /** The section's own catalogue page (/courses...), as a rounded "See all" button beside the title. */
   seeAll?: string;
 }) {
   return (
     <div className="mb-6">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <h2 style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
         {seeAll && (
-          <Link href={seeAll} className="inline-flex flex-shrink-0 items-center gap-1" style={{ ...M3.labelLarge, fontWeight: 600, color, fontFamily: bFont ?? hFont }}>
-            See all <ChevronRight className="h-4 w-4" />
+          <Link href={seeAll} className="group inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-2 transition-colors"
+            style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, color, boxShadow: `inset 0 0 0 1px ${color === 'white' ? 'rgba(255,255,255,0.45)' : '#D5DAE1'}` }}>
+            See all <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         )}
       </div>
