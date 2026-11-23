@@ -37,7 +37,6 @@ export default async function TermsPage() {
       })}
       siteConfig={config}
       primaryColor={config.primaryColor || tenant.primaryColor}
-      accentColor={config.accentColor || tenant.accentColor}
       headingFont={config.headingFont}
       bodyFont={config.bodyFont}
       programmes={programmes}

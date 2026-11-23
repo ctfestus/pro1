@@ -35,7 +35,7 @@ export default async function ProductPreviewPage({ params }: Params) {
   const navBooks = books.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));
 
   return (
-    <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={accentColor}
+    <StoreChrome siteConfig={config} primaryColor={primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <ProductPreview id={id} more={books.slice(0, 5)} primaryColor={primaryColor} appName={tenant.appName} />
     </StoreChrome>

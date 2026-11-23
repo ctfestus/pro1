@@ -70,7 +70,6 @@ export interface LegalPageClientProps {
   /** The resolved site settings, so the shared chrome renders exactly as it does on the landing page. */
   siteConfig: Partial<SiteConfig>;
   primaryColor: string;
-  accentColor: string;
   headingFont?: string;
   bodyFont?: string;
   /** Only for the shared nav's Learn menu, so it matches the landing page's. */
@@ -81,7 +80,7 @@ export interface LegalPageClientProps {
 }
 
 export function LegalPageClient({
-  doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes, navBooks, navEvents,
+  doc, siteConfig, primaryColor, headingFont, bodyFont, programmes, navBooks, navEvents,
 }: LegalPageClientProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const { theme } = useTheme();
@@ -202,7 +201,6 @@ export function LegalPageClient({
           profile={null}
           publicSignupEnabled={publicSignupEnabled}
           primaryColor={primaryColor}
-          accentColor={accentColor}
           fontFamily={bFont}
           navLinks={navGroups}
           navMenuLabel="Learn"

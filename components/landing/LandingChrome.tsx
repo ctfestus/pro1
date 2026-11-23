@@ -9,12 +9,16 @@
  * heading; anywhere else those headings do not exist, so a caller passes navLinkHref and they
  * become ordinary links home.
  */
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { ChevronDown, ChevronRight, Menu, X, GraduationCap } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Briefcase, CalendarDots, Certificate, MonitorPlay, Package, Signpost, type Icon } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import type { NavSubGroup } from '@/lib/landing-nav';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
@@ -86,7 +90,6 @@ export interface LandingNavProps {
   profile: any;
   publicSignupEnabled: boolean;
   primaryColor?: string;
-  accentColor?: string;
   fontFamily?: string;
   navLinks: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
   /** Supply to turn the section links into ordinary links, for pages without those sections. */
@@ -124,11 +127,66 @@ export interface LandingFooterProps {
  * on the first type rather than empty, and the trigger toggles on click as well as hover, which
  * is what makes it usable on a tablet, where the bar is visible but hover is not.
  */
-function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFamily }: {
+/** Each kind of content in the Learn menu, by the page it links to: its icon and one line. */
+const TYPE_META: Record<string, { icon: Icon; line: string }> = {
+  '/courses': { icon: MonitorPlay, line: 'Interactive, project-based courses.' },
+  '/learning-paths': { icon: Signpost, line: 'Guided routes from first steps to job-ready.' },
+  '/virtual-experiences': { icon: Briefcase, line: 'Work on real business problems and build a portfolio.' },
+  '/certifications': { icon: Certificate, line: 'Timed exams that end in a credential you can share.' },
+  '/products': { icon: Package, line: 'Guides and resources to download and keep.' },
+  '/events': { icon: CalendarDots, line: 'Live sessions, workshops and meetups.' },
+};
+
+type MenuGroup = { label: string; anchor: string; subGroups?: NavSubGroup[] };
+
+/** A kind's icon, plain (no tile), in the row's own text colour. */
+function TypeTile({ anchor, size = 20 }: { anchor: string; size?: number }) {
+  const glyph = TYPE_META[anchor]?.icon;
+  return glyph ? createElement(glyph, { className: 'flex-shrink-0', style: { width: size, height: size }, weight: 'duotone', 'aria-hidden': true }) : null;
+}
+
+/** A grouping chip (AI, Fintech...) with its icon, the chosen one in the primary blue. */
+function GroupChip({ label, on, onClick, inset, muted, onMouseEnter }: { label: string; on: boolean; onClick: () => void; inset: string; muted: string; onMouseEnter?: () => void }) {
+  return (
+    <button type="button" onClick={onClick} onMouseEnter={onMouseEnter} aria-pressed={on}
+      className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+      style={{ background: on ? '#3E93FF' : inset, color: on ? '#ffffff' : muted }}>
+      <CategoryIcon name={label} className="h-3.5 w-3.5" />{label}
+    </button>
+  );
+}
+
+/** A small item card: the cover (16:9) and the title. */
+function MenuItemCard({ item, onClick, strong, muted, inset }: { item: { id: string; title: string; imageUrl?: string; href: string }; onClick: () => void; strong: string; muted: string; inset: string }) {
+  return (
+    <Link href={item.href} onClick={onClick} className="group block rounded-xl p-1.5 transition-colors hover:bg-[var(--menu-hover)]" style={{ ['--menu-hover' as string]: inset }}>
+      <span className="grid aspect-video w-full place-items-center overflow-hidden rounded-lg" style={{ background: inset }}>
+        {item.imageUrl
+          ? <img src={item.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
+          : <GraduationCap className="h-5 w-5" style={{ color: muted }} />}
+      </span>
+      <span className="mt-2 block px-0.5 text-[13px] font-semibold leading-snug line-clamp-2" style={{ color: strong }}>{item.title}</span>
+    </Link>
+  );
+}
+
+/** "See all courses", as the rounded button the home page sections use. */
+function SeeAllButton({ group, hrefFor, onNavigate, strong, line }: { group: MenuGroup; hrefFor?: (anchor: string) => string; onNavigate: () => void; strong: string; line: string }) {
+  return (
+    <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={onNavigate}
+      className="group inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold"
+      style={{ color: strong, boxShadow: `inset 0 0 0 1px ${line}` }}>
+      See all {group.label.toLowerCase()}
+      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+    </NavSectionLink>
+  );
+}
+
+function NavLearnMenu({ label, groups, hrefFor, isPageDark, fontFamily }: {
   label: string;
   groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
   hrefFor?: (anchor: string) => string;
-  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+  isPageDark?: boolean; fontFamily?: string;
 }) {
   const [open, setOpen]     = useState(false);
   const [active, setActive] = useState(0);
@@ -166,6 +224,9 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
 
   const typeColRef = useRef<HTMLDivElement>(null);
   const subColRef  = useRef<HTMLDivElement>(null);
+  // On one of the menu's own pages (/courses, /products...), the trigger shows you are there.
+  const pathname = usePathname() ?? '';
+  const here = groups.some(group => group.anchor.startsWith('/') && pathname.startsWith(group.anchor));
 
   const current   = groups[Math.min(active, groups.length - 1)];
   const subGroups = current?.subGroups ?? [];
@@ -180,14 +241,11 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
       onMouseEnter={() => { cancelClose(); setOpen(true); }}
       onMouseLeave={scheduleClose}>
       <button type="button" onClick={() => setOpen(v => !v)}
-        aria-expanded={open} aria-haspopup="true"
-        className="group relative flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors"
-        style={{ color: text, fontFamily }}>
+        aria-expanded={open} aria-haspopup="true" aria-current={here ? 'page' : undefined}
+        className="group relative flex items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors"
+        style={{ color: open || here ? strong : text, background: open || here ? inset : 'transparent', fontWeight: here ? 600 : undefined, fontFamily }}>
         {label}
         <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        <span aria-hidden="true"
-          className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left transition-transform duration-300"
-          style={{ background: accentColor, transform: open ? 'scaleX(1)' : 'scaleX(0)' }} />
       </button>
 
       <AnimatePresence>
@@ -202,7 +260,7 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
               // The panel hangs from the trigger, which sits roughly 200px in past the logo, so
               // the viewport subtraction has to cover that offset or a narrow window pushes the
               // right-hand edge off screen.
-              width: 'min(1060px, calc(100vw - 220px))', background: panel, border: hair,
+              width: 'min(920px, calc(100vw - 220px))', background: panel, border: hair,
               // A generous floor, so the short first column leaves space under it rather than
               // squashing the panel -- but it yields on a short screen. min-height beats
               // max-height in CSS, so a fixed 420 here would have won and pushed the bottom of
@@ -215,86 +273,52 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
               fontFamily,
             }}>
 
-            {/* Left: the content types. Hover selects for a mouse; the arrow keys do it for a
-                keyboard, and only the selected row is tabbable so Tab moves on into its items. */}
+            {/* Left: each kind of content, with its icon tile and how many there are. Hover selects
+                for a mouse; the arrow keys do it for a keyboard, and only the selected row is
+                tabbable so Tab moves on into its items. */}
             <div ref={typeColRef}
               onKeyDown={e => handleRovingKeys(e, typeColRef, groups.length, active, selectType)}
-              className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 246, background: inset }}>
+              className="flex-shrink-0 space-y-1 overflow-y-auto p-3" style={{ width: 252, borderRight: hair }}>
               {groups.map((group, i) => (
                 <div key={group.anchor} data-roving-row onMouseEnter={() => selectType(i)}>
                   <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
                     tabIndex={i === active ? 0 : -1}
-                    className="w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                    style={{
-                      color: i === active ? strong : muted,
-                      background: i === active ? panel : 'transparent',
-                    }}>
-                    <span className="flex-1">{group.label}</span>
-                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.4 }} />
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors"
+                    style={{ background: i === active ? inset : 'transparent', color: i === active ? strong : muted }}>
+                    <TypeTile anchor={group.anchor} />
+                    <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold" style={{ color: strong }}>{group.label}</span>
+                    <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.35 }} />
                   </NavSectionLink>
                 </div>
               ))}
             </div>
 
-            {/* The selected type's own grouping: tools for courses, industry for an experience,
-                Career or Technology for a certification. Hovering one swaps the items. */}
-            {showSubs && (
-              <div ref={subColRef}
-                onKeyDown={e => handleRovingKeys(e, subColRef, subGroups.length, activeSub, setActiveSub)}
-                className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 218, borderRight: hair }}>
-                {subGroups.map((group, i) => (
-                  <button key={group.label || i} type="button" data-roving-row
-                    tabIndex={i === activeSub ? 0 : -1}
-                    onMouseEnter={() => setActiveSub(i)}
-                    onClick={() => setActiveSub(i)}
-                    className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors"
-                    style={{
-                      color: i === activeSub ? strong : muted,
-                      background: i === activeSub ? inset : 'transparent',
-                    }}>
-                    <span className="flex-1 min-w-0 truncate">{group.label}</span>
-                    <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ opacity: i === activeSub ? 1 : 0.35 }} />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Right: what the selected section actually holds */}
-            <div className="flex-1 min-w-0 p-5 overflow-y-auto">
+            {/* Right: the chosen kind: what it is, its groupings as chips, a few of its items as
+                cards, and the way to all of them. */}
+            <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-6">
+              <p className="text-[17px] font-bold" style={{ color: strong }}>{current?.label}</p>
+              {current && TYPE_META[current.anchor] && <p className="mt-0.5 text-[13px]" style={{ color: muted }}>{TYPE_META[current.anchor].line}</p>}
+              {showSubs && (
+                <div ref={subColRef} className="mt-4 flex flex-wrap gap-1.5">
+                  {subGroups.map((group, i) => (
+                    <GroupChip key={group.label || i} label={group.label} on={i === activeSub} inset={inset} muted={muted}
+                      onClick={() => setActiveSub(i)} onMouseEnter={() => setActiveSub(i)} />
+                  ))}
+                </div>
+              )}
               {items.length === 0 ? (
-                <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
+                <p className="mt-5 text-sm" style={{ color: muted }}>Nothing published here yet.</p>
               ) : (
-                <>
-                  {/* Two across once there is room. Between lg and xl the first two columns leave
-                      the items about 340px, which is one readable column, not two. */}
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                    {items.map(item => (
-                      <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
-                        className="flex items-center gap-3 p-2 rounded-xl transition-colors"
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = inset; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                        {/* Not every item has a cover. Without a mark in its place the row reads
-                            as a thumbnail that failed to load rather than one that never existed. */}
-                        <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center" style={{ width: 76, height: 50, background: inset }}>
-                          {item.imageUrl
-                            ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-                            : <GraduationCap className="w-5 h-5" style={{ color: muted }} />}
-                        </span>
-                        <span className="text-[13px] font-semibold leading-snug line-clamp-3" style={{ color: strong }}>
-                          {item.title}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                  {/* Plain text colour, not the accent: the accent is the tenant's secondary and
-                      reads as a coloured call to action competing with the items above it. */}
-                  <NavSectionLink anchor={current.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
-                    className="inline-flex items-center gap-1 mt-4 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
-                    style={{ color: strong }}>
-                    See all {current.label.toLowerCase()}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </NavSectionLink>
-                </>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {items.slice(0, 6).map(item => (
+                    <MenuItemCard key={item.id} item={item} onClick={() => setOpen(false)} strong={strong} muted={muted} inset={inset} />
+                  ))}
+                </div>
+              )}
+              {current && (
+                <div className="mt-auto pt-5">
+                  <SeeAllButton group={current} hrefFor={hrefFor} onNavigate={() => setOpen(false)} strong={strong} line={isPageDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
+                </div>
               )}
             </div>
           </motion.div>
@@ -311,21 +335,17 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
  * to open it, its groupings appear as chips, and the items sit under the selected chip. Pricing
  * lives in here too -- the bar only has room for the logo, this trigger and the account buttons.
  */
-function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, user, publicSignupEnabled }: {
+function NavMobileMenu({ groups, hrefFor, isPageDark, fontFamily, user, publicSignupEnabled }: {
   groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
   hrefFor?: (anchor: string) => string;
-  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+  isPageDark?: boolean; fontFamily?: string;
   user: any; publicSignupEnabled: boolean;
 }) {
   const [open, setOpen]         = useState(false);
-  const [openType, setOpenType] = useState<number | null>(0);
+  const [openType, setOpenType] = useState<number | null>(null);
   const [activeSub, setActiveSub] = useState(0);
   const reduced = useReducedMotion();
 
-  const toggleType = (i: number) => {
-    setOpenType(current => (current === i ? null : i));
-    setActiveSub(0);
-  };
 
   useEffect(() => {
     if (!open) return;
@@ -361,71 +381,66 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, u
               background: panel, borderTop: hair, maxHeight: 'calc(100vh - 64px)', fontFamily,
               boxShadow: '0 24px 40px -20px rgba(0,0,0,0.35)',
             }}>
-            <div className="px-5 py-3">
-              {groups.map((group, i) => {
-                const subGroups = group.subGroups ?? [];
-                const showSubs  = subGroups.some(g => g.label);
-                const items     = subGroups[Math.min(activeSub, Math.max(0, subGroups.length - 1))]?.items ?? [];
-                const isOpen    = openType === i;
-                return (
-                  <div key={group.anchor} style={{ borderBottom: hair }}>
-                    <button type="button" onClick={() => toggleType(i)} aria-expanded={isOpen}
-                      className="w-full flex items-center justify-between py-3.5 text-[15px] font-bold"
-                      style={{ color: isOpen ? strong : muted }}>
-                      {group.label}
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isOpen && (
-                      <div className="pb-4">
-                        {showSubs && (
-                          <div className="flex flex-wrap gap-1.5 mb-3">
-                            {subGroups.map((sub, si) => (
-                              <button key={sub.label || si} type="button" onClick={() => setActiveSub(si)}
-                                aria-pressed={si === activeSub}
-                                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-                                style={{
-                                  background: si === activeSub ? strong : inset,
-                                  color: si === activeSub ? panel : muted,
-                                }}>
-                                {sub.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="space-y-1">
-                          {items.map(item => (
-                            <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
-                              className="flex items-center gap-3 py-2 rounded-xl">
-                              <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center"
-                                style={{ width: 64, height: 42, background: inset }}>
-                                {item.imageUrl
-                                  ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-                                  : <GraduationCap className="w-4 h-4" style={{ color: muted }} />}
-                              </span>
-                              <span className="text-[13px] font-semibold leading-snug line-clamp-2" style={{ color: strong }}>
-                                {item.title}
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                        <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
-                          className="inline-flex items-center gap-1 mt-3 text-[13px] font-bold"
-                          style={{ color: strong }}>
-                          See all {group.label.toLowerCase()}
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </NavSectionLink>
-                      </div>
-                    )}
+            {openType === null ? (
+              // First screen: each kind as a row (icon tile, name, how many), then Pricing.
+              <div className="px-4 py-3">
+                {groups.map((group, i) => (
+                  <button key={group.anchor} type="button" onClick={() => { setOpenType(i); setActiveSub(0); }}
+                    className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left">
+                    <TypeTile anchor={group.anchor} size={22} />
+                    <span className="min-w-0 flex-1 text-[15px] font-bold" style={{ color: strong }}>{group.label}</span>
+                    <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: muted }} />
+                  </button>
+                ))}
+                <div className="mx-2 my-2" style={{ borderTop: hair }} />
+                <Link href="/pricing" onClick={() => setOpen(false)}
+                  className="block rounded-xl px-2 py-3 text-[15px] font-bold" style={{ color: strong }}>
+                  Pricing
+                </Link>
+              </div>
+            ) : (() => {
+              // Second screen: one kind, its groupings as chips, its items, and See all.
+              const group = groups[Math.min(openType, groups.length - 1)];
+              const subGroups = group.subGroups ?? [];
+              const showSubs  = subGroups.some(g => g.label);
+              const items     = subGroups[Math.min(activeSub, Math.max(0, subGroups.length - 1))]?.items ?? [];
+              return (
+                <div className="px-5 pt-3 pb-5">
+                  <button type="button" onClick={() => setOpenType(null)} className="-ml-1 flex items-center gap-1.5 py-1.5 text-sm font-semibold" style={{ color: muted }}>
+                    <ArrowLeft className="h-4 w-4" /> All
+                  </button>
+                  <div className="mt-2 flex items-center gap-3">
+                    <TypeTile anchor={group.anchor} size={26} />
+                    <div className="min-w-0">
+                      <p className="text-lg font-bold" style={{ color: strong }}>{group.label}</p>
+                      {TYPE_META[group.anchor] && <p className="text-[13px]" style={{ color: muted }}>{TYPE_META[group.anchor].line}</p>}
+                    </div>
                   </div>
-                );
-              })}
-
-              <Link href="/pricing" onClick={() => setOpen(false)}
-                className="block py-3.5 text-[15px] font-bold" style={{ color: muted }}>
-                Pricing
-              </Link>
-            </div>
+                  {showSubs && (
+                    <div className="-mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5" style={{ scrollbarWidth: 'none' }}>
+                      {subGroups.map((sub, si) => (
+                        <GroupChip key={sub.label || si} label={sub.label} on={si === activeSub} inset={inset} muted={muted} onClick={() => setActiveSub(si)} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 space-y-1">
+                    {items.map(item => (
+                      <Link key={item.id} href={item.href} onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-xl py-2">
+                        <span className="grid flex-shrink-0 place-items-center overflow-hidden rounded-lg" style={{ width: 72, height: 40, background: inset }}>
+                          {item.imageUrl
+                            ? <img src={item.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                            : <GraduationCap className="h-4 w-4" style={{ color: muted }} />}
+                        </span>
+                        <span className="text-[13px] font-semibold leading-snug line-clamp-2" style={{ color: strong }}>{item.title}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <SeeAllButton group={group} hrefFor={hrefFor} onNavigate={() => setOpen(false)} strong={strong} line={isPageDark ? 'rgba(255,255,255,0.25)' : '#D5DAE1'} />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Sticks to the bottom of the sheet as it scrolls, so the two actions a visitor
                 without an account came for stay in reach however far down the list they are.
@@ -434,15 +449,18 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, u
             {!user && (
               <div className="sticky bottom-0 flex gap-2 px-5 py-4"
                 style={{ background: panel, borderTop: hair }}>
+                {/* The main action in the primary blue: Sign up while signups are open, else Log in. */}
                 <Link href="/auth" onClick={() => setOpen(false)}
                   className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
-                  style={{ border: `2px solid ${isPageDark ? 'rgba(255,255,255,0.20)' : '#E8EBEF'}`, color: strong }}>
+                  style={publicSignupEnabled
+                    ? { border: `2px solid ${isPageDark ? 'rgba(255,255,255,0.20)' : '#E8EBEF'}`, color: strong }
+                    : { background: '#3E93FF', color: '#ffffff' }}>
                   Log in
                 </Link>
                 {publicSignupEnabled && (
                   <Link href="/auth?mode=signup" onClick={() => setOpen(false)}
                     className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
-                    style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
+                    style={{ background: '#3E93FF', color: '#ffffff' }}>
                     Sign up
                   </Link>
                 )}
@@ -457,14 +475,13 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, u
 
 export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
-  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
+  publicSignupEnabled, primaryColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
 }: LandingNavProps) {
   // When the sheet exists it carries Pricing and, signed out, the auth buttons -- so the bar drops
   // them below md rather than crowding the logo off the screen.
   const hasMobileSheet = Boolean(navMenuLabel && navLinks.length > 0);
   const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
-  const AMBER = accentColor  || '#FF9933';
   return (
       <motion.nav
         initial={false} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.55, ease: EASE_OUT }}
@@ -479,7 +496,7 @@ export function LandingNav({
         <div className={`max-w-[1240px] mx-auto ${GUTTER} h-16 flex items-center`}>
           <div className="flex items-center gap-2.5 mr-8 flex-shrink-0">
             {logoUrl || logoDarkUrl
-              ? <img src={(isPageDark ? (logoDarkUrl || logoUrl) : (logoUrl || logoDarkUrl)) ?? undefined} alt={appName} className="h-8 w-auto" />
+              ? <img src={(isPageDark ? (logoDarkUrl || logoUrl) : (logoUrl || logoDarkUrl)) ?? undefined} alt={appName} className="h-10 w-auto" />
               : <>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                     style={{ background: BLUE }}>
@@ -494,26 +511,20 @@ export function LandingNav({
           <div className="hidden lg:flex items-center gap-1 flex-1">
             {navMenuLabel && navLinks.length > 0 ? (
               <NavLearnMenu label={navMenuLabel} groups={navLinks} hrefFor={navLinkHref}
-                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
+                isPageDark={isPageDark} fontFamily={fontFamily} />
             ) : navLinks.map(nl => (
               <NavSectionLink key={nl.anchor} anchor={nl.anchor} hrefFor={navLinkHref}
-                className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
+                className={`relative rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${isPageDark ? 'hover:bg-white/10' : 'hover:bg-[#F4F7F9]'}`}
                 style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
                 {nl.label}
-                <span aria-hidden="true"
-                  className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
-                  style={{ background: AMBER }} />
               </NavSectionLink>
             ))}
             {/* Sits with the section navigation rather than beside the account controls, and is
                 styled as a nav link so it matches what it now stands next to. */}
             <Link href="/pricing"
-              className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
+              className={`relative rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${isPageDark ? 'hover:bg-white/10' : 'hover:bg-[#F4F7F9]'}`}
               style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
               Pricing
-              <span aria-hidden="true"
-                className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
-                style={{ background: AMBER }} />
             </Link>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
@@ -521,7 +532,7 @@ export function LandingNav({
               /* Carries Pricing and the signed-out auth buttons itself, because the bar has room
                  for the logo, this trigger and nothing else once Sign up is enabled. */
               <NavMobileMenu groups={navLinks} hrefFor={navLinkHref}
-                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily}
+                isPageDark={isPageDark} fontFamily={fontFamily}
                 user={user} publicSignupEnabled={publicSignupEnabled} />
             ) : (
               /* No mobile sheet on pages that pass flat links, so Pricing stays in the bar there
