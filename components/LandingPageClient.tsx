@@ -23,6 +23,7 @@ import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
 import { M3, DISPLAY_CLASS, GUTTER, SECTION_Y, BUTTON_PAD } from '@/components/landing/type';
 import { PathCards } from '@/components/landing/PathCards';
+import { SectionHeading } from '@/components/landing/SectionHeading';
 import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
 
@@ -108,30 +109,6 @@ function LandingScrollProgress({ from, to }: { from: string; to: string }) {
 }
 
 // Animated section heading: title, growing accent underline, subtext
-function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont, seeAll }: {
-  title: string; sub: string; color: string; subColor: string; accent: string; hFont?: string; bFont?: string;
-  /** The section's own catalogue page (/courses...), as a rounded "See all" button beside the title. */
-  seeAll?: string;
-}) {
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 style={{ ...M3.headlineSmall, fontWeight: 700, fontFamily: hFont, color }}>{title}</h2>
-        {seeAll && (
-          <Link href={seeAll} className="group inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-2 transition-colors"
-            style={{ ...M3.labelLarge, fontWeight: 600, fontFamily: bFont ?? hFont, color, boxShadow: `inset 0 0 0 1px ${color === 'white' ? 'rgba(255,255,255,0.45)' : '#D5DAE1'}` }}>
-            See all <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-          </Link>
-        )}
-      </div>
-      <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-2 mb-2" style={{ background: accent }}
-        initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
-      {sub && <p style={{ ...M3.bodyLarge, color: subColor, fontFamily: bFont ?? hFont, maxWidth: 640 }}>{sub}</p>}
-    </div>
-  );
-}
-
 // Stagger variants for the ad banner slide content
 const bannerStagger = { hide: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.12 } } };
 const bannerItem = {
@@ -858,9 +835,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {courses.length > 0 && (
         <section id="section-courses" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Courses" seeAll="/courses" sub="Level up your skills with interactive and project-based courses."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Courses" seeAll="/courses" sub="Level up your skills with interactive and project-based courses."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             <CoursesGrid courses={courses} buttonColor={BLUE} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
         </section>
@@ -879,8 +855,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
           </>}
           <div className={`relative z-10 max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Learning paths" seeAll="/learning-paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
-              color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Learning paths" seeAll="/learning-paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
+              color="white" subColor="rgba(255,255,255,0.85)" hFont={hFont} bFont={bFont} />
             {/* Site settings takes the colour as free text, so anything but #rrggbb falls back. */}
             <PathCards paths={paths} user={user} hFont={hFont} bFont={bFont} hoverColor={AMBER}
               color={/^#[0-9a-fA-F]{6}$/.test(pathCardColor) ? pathCardColor : SITE_DEFAULTS.pathCardColor} />
@@ -897,9 +873,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {ves.length > 0 && (
         <section id="section-ves" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Virtual experiences" seeAll="/virtual-experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Virtual experiences" seeAll="/virtual-experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             {/* One row, not one per category. Grouping split a handful of experiences across
                 several near-empty rows, each with its own heading, so the section read as
                 fragmented rather than as a catalogue. */}
@@ -913,9 +888,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       {certs.length > 0 && (
         <section id="section-certifications" className={SECTION_Y}>
           <div className={`max-w-[1240px] mx-auto ${GUTTER}`}>
-            <MSectionHeading title="Certifications" seeAll="/certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
-              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
-              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <SectionHeading title="Certifications" seeAll="/certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted} hFont={hFont} bFont={bFont} />
             <FilteredCarouselRow noun="certifications" buttonColor={BLUE} items={certs} typeColor={SLATE}
               user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} />
           </div>
