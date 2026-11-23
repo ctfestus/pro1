@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { safeNextPath, signInHref } from '@/lib/auth-redirect';
+import { safeNextPath, signInHref, rememberNext, takeRememberedNext } from '@/lib/auth-redirect';
 
 describe('safeNextPath', () => {
   it('keeps a path on this site', () => {
@@ -75,5 +75,36 @@ describe('signInHref', () => {
     expect(signInHref(null)).toBe('/auth');
     expect(signInHref('https://evil.example')).toBe('/auth');
     expect(signInHref('/auth')).toBe('/auth');
+  });
+});
+
+describe('the page kept across sign-up and onboarding', () => {
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    (globalThis as any).window = { localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+    } };
+  });
+  afterEach(() => { delete (globalThis as any).window; vi.useRealTimers(); });
+
+  it('gives back the remembered page once', () => {
+    rememberNext('/some-course?catalogueType=course');
+    expect(takeRememberedNext()).toBe('/some-course?catalogueType=course');
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('forgets it after a day', () => {
+    vi.useFakeTimers();
+    rememberNext('/some-course');
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('never returns a stored page that is not on this site', () => {
+    store.set('auth-next', JSON.stringify({ next: 'https://example.com', at: Date.now() }));
+    expect(takeRememberedNext()).toBeNull();
   });
 });

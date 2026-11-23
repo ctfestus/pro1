@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'; // useRef -- CAPTCHA SUSPENDED
 import { toUserFacingError } from '@/lib/user-facing-error';
 // CAPTCHA SUSPENDED -- import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/lib/supabase';
-import { safeNextPath } from '@/lib/auth-redirect';
+import { rememberNext, safeNextPath } from '@/lib/auth-redirect';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -86,6 +86,10 @@ export default function AuthPage() {
   const [needsConfirm, setNeedsConfirm] = useState(false);
   // CAPTCHA SUSPENDED -- const [captchaToken, setCaptchaToken] = useState('');
   // CAPTCHA SUSPENDED -- const turnstileRef = useRef<TurnstileInstance>(null);
+
+  // A new account reaches the page it came from only after confirming its email and onboarding,
+  // which drop the query string, so the page is kept in this browser until onboarding ends.
+  useEffect(() => { rememberNext(safeNextPath(new URLSearchParams(window.location.search).get('next'))); }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

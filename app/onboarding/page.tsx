@@ -9,6 +9,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { useC } from '@/lib/theme';
 import { sanitizePlainText } from '@/lib/sanitize';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
+import { takeRememberedNext } from '@/lib/auth-redirect';
 
 type AnswerKey = 'employment_status' | 'learning_objective' | 'referral_source';
 
@@ -231,11 +232,8 @@ export default function OnboardingPage() {
       }).catch(() => {});
     }
 
-    router.replace(
-      role === 'student' || role === 'staff'
-        ? '/student#learning_paths'
-        : '/dashboard',
-    );
+    // Back to the page they signed up from (a course, an event), else their dashboard.
+    router.replace(takeRememberedNext() ?? (role === 'student' || role === 'staff' ? '/student#learning_paths' : '/dashboard'));
   };
 
   const advance = async () => {
@@ -249,7 +247,8 @@ export default function OnboardingPage() {
         setSaving(false);
       }
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : 'Something went wrong. Please try again.');
+      console.error('[onboarding] save failed', caught);
+      setError('Could not save your answer. Check your connection and try again.');
       setSaving(false);
     }
   };
@@ -435,9 +434,7 @@ export default function OnboardingPage() {
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-sm" style={{ background: C.nav, borderColor: C.navBorder }}>
         <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:gap-4 sm:px-10 sm:py-6 lg:px-16">
           <div className="min-w-0">
-            {step === 0 ? (
-              <span className="hidden text-sm sm:inline" style={{ color: C.faint }}>Your profile can be completed later.</span>
-            ) : (
+            {step === 0 ? null : (
               <button
                 type="button"
                 onClick={advance}
