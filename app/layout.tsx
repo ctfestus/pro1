@@ -110,9 +110,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     selectedFontUrl(branding.headingFont),
     selectedFontUrl(branding.bodyFont),
   ].filter((value): value is string => Boolean(value)))];
+  // A heading font picked in Site settings replaces Lato everywhere the code uses --font-display.
+  // Inter is the saved default and Lato is the code's own, so either (or nothing) keeps Lato.
+  const pickedHeadingFont = branding.headingFont.replace(/[;'"\\]/g, '').trim();
   const platformFontStyle = {
     '--platform-heading-font': selectedFontFamily(branding.headingFont),
     '--platform-body-font': selectedFontFamily(branding.bodyFont),
+    ...(pickedHeadingFont && pickedHeadingFont !== 'Inter' && pickedHeadingFont !== 'Lato' ? { '--font-display': selectedFontFamily(pickedHeadingFont) } : {}),
   } as CSSProperties;
 
   return (
