@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import { ArrowCounterClockwise, CheckCircle, Code, DownloadSimple, FileCode, Lightning, Lock, UploadSimple, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { ReviewTarget } from '@/lib/review-target';
-import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import AiStructuredReviewReport, { ReviewInMailContext } from '@/components/AiStructuredReviewReport';
 import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import type { RubricGrade } from '@/lib/review-gate';
 import { downloadCodeReviewPdf } from '@/lib/downloadReviewPdf';
@@ -73,6 +73,8 @@ interface Props {
 
 
 export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewTarget, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+  // Inside a virtual experience email the email says the review is done, so the closing line is left out.
+  const inMail = useContext(ReviewInMailContext) !== null;
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   // Lock the "already completed" views only when: no per-question limit (VE/assignment), at limit,
   // or state was lost on page reload (no saved report and no further attempts).
@@ -411,7 +413,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your code, and submit another review.</p>
           </div>
         </div>
-      ) : (
+      ) : inMail ? null : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
