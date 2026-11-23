@@ -86,7 +86,7 @@ export function ProfileMenu({ user, profile, onSignOut, dark, fontFamily }: {
               {!role && item('/dashboard', SquaresFour, 'Dashboard')}
               {item('/student#courses', PlayCircle, 'My learning')}
               {item('/student#certificates', Certificate, 'My certificates')}
-              {username && item(teaches ? `/u/${username}` : `/s/${username}`, UserCircle, 'View public profile', true)}
+              {username && item(`/s/${username}`, UserCircle, 'View public profile', true)}
               {item('/settings', GearSix, 'Settings')}
             </div>
             <div className="p-2" style={{ borderTop: `1px solid ${C.divider}` }}>
