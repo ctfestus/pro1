@@ -126,7 +126,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
         {selectedFontUrls.map(url => <link key={url} rel="stylesheet" href={url} />)}
       </head>
-      <body nonce={nonce} style={platformFontStyle} suppressHydrationWarning>
+      <body nonce={nonce} className="platform-font-scope" style={platformFontStyle} suppressHydrationWarning>
         <GoogleAnalytics measurementId={tenantSettings.googleAnalyticsId} nonce={nonce} />
         <NavigationProgress />
         <TenantProvider initialSettings={branding}>

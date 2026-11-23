@@ -167,6 +167,14 @@ body {
   font-family: var(--platform-heading-font, var(--platform-body-font, var(--font-sans), sans-serif));
 }
 
+/* <body> carries platform-font-scope, so every page follows Site settings. A course, event or
+   certificate that sets its own font (inline font-family, or .ff-pub on the course page) keeps
+   it for its headings too. */
+[style*="font-family"] :where(h1, h2, h3, h4, h5, h6),
+.ff-pub :where(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+}
+
 /* Balance multi-line headings so the last line isn't a lone orphan word.
    Only affects headings that wrap; single-line headings are untouched. */
 h1, h2, h3, h4 {
