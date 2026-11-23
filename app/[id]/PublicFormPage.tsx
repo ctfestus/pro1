@@ -32,6 +32,7 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
+import { eventLocalDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
@@ -207,12 +208,13 @@ const DARK_P = {
 const formatDateParts = (dateString?: string) => {
   if (!dateString) return null;
   try {
-    const date = new Date(dateString);
+    // A "YYYY-MM-DD" date is a calendar day: read and shown in UTC so it never shifts a day.
+    const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateString) ? `${dateString}T00:00:00Z` : dateString);
     if (isNaN(date.getTime())) return null;
 
-    const monthShort = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    const day = date.toLocaleDateString('en-US', { day: 'numeric' });
-    const fullDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const monthShort = date.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase();
+    const day = date.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
+    const fullDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
     return { monthShort, day, fullDate };
   } catch (e) {
@@ -730,7 +732,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
   const [relatedForms, setRelatedForms] = useState<any[]>([]);
   const [relatedAssignment, setRelatedAssignment] = useState<{ id: string; title: string } | null>(null);
   const [certificateId, setCertificateId] = useState<string | null>(null);
-  const [attendeeCount, setAttendeeCount] = useState<number | null>(null);
   // Virtual experience flow
   const [projectStarted,      setProjectStarted]      = useState(false);
   const [projectStudentName,  setProjectStudentName]  = useState('');
@@ -952,8 +953,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           });
         }
         if (data.config?.eventDetails?.isEvent) {
-          const { data: count } = await supabase.rpc('get_response_count', { p_form_id: data.id });
-          if (count !== null) setAttendeeCount(Number(count));
           // Fetch join token and cohort membership for the logged-in student
           if (user && effectiveUserId) {
             const [{ data: reg }, { data: student }] = await Promise.all([
@@ -1114,12 +1113,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     // (anon RLS may allow INSERT but not SELECT on responses table)
     const responseId = crypto.randomUUID();
 
-    if (form.config?.eventDetails?.isEvent) {
-      // Events are pre-enrolled via cohort assignment -- no form submission needed.
-      setSubmitting(false);
-      setSuccess(true);
-      return;
-    } else if (!form.config?.isCourse) {
+    if (!form.config?.isCourse) {
       // Pure registration forms only -- courses track state in course_attempts
       const { error } = await supabase.from('responses').insert({
         id: responseId,
@@ -1136,17 +1130,13 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
     setSubmitting(false);
     setSuccess(true);
-    setAttendeeCount(c => c !== null ? c + 1 : 1);
       const cfg = form.config;
 
       // -- Auto-issue certificate + send one combined email --
       const recipientEmail = data.email;
       const validEmail = recipientEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail);
 
-      if (cfg.eventDetails?.isEvent) {
-        // Confirmation email is now sent server-side inside /api/event-register.
-        // Nothing to do here.
-      } else if (cfg.isCourse && data.score !== undefined) {
+      if (cfg.isCourse && data.score !== undefined) {
         // Issue certificate first (if passed), then send one email with cert link
         let certUrl: string | undefined;
 
@@ -1924,170 +1914,15 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   <h2 style={{ fontSize: 22, fontWeight: 700, color: t.title, transition: 'color 0.3s' }}>
                     {config.postSubmission?.type === 'redirect'
                       ? 'Redirecting you...'
-                      : config.eventDetails?.isEvent
-                        ? "You're enrolled!"
-                        : 'Successfully Submitted!'}
+                      : 'Successfully Submitted!'}
                   </h2>
                   <p style={{ fontSize: 14, marginTop: 4, color: t.body, transition: 'color 0.3s' }}>
                     {config.postSubmission?.type === 'redirect'
                       ? 'You will be redirected in a moment.'
-                      : config.eventDetails?.isEvent && config.eventDetails.date
-                        ? `See you on ${formatDateParts(config.eventDetails.date)?.fullDate ?? config.eventDetails.date}${config.eventDetails.time ? ' at ' + config.eventDetails.time : ''}.`
-                        : 'Your response has been recorded.'}
+                      : 'Your response has been recorded.'}
                   </p>
                 </div>
               </div>
-              {/* Meeting link / address on success for events */}
-              {config.eventDetails?.isEvent && config.postSubmission?.type !== 'redirect' && (() => {
-                const ev = config.eventDetails;
-                if (ev.eventType === 'virtual' && joinToken) {
-                  const platform = detectPlatform(ev.meetingLink ?? '');
-                  return (
-                    <div style={{ marginBottom: 20, padding: '16px 20px', borderRadius: 14, background: dark ? 'rgba(16,185,129,0.06)' : '#edf7f1', border: `1px solid ${dark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.2)'}`, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {platform?.icon}
-                        <span style={{ fontSize: 13, fontWeight: 600, color: t.title }}>{platform?.name ?? 'Meeting Link'}</span>
-                      </div>
-                      <a href={`/api/join?token=${joinToken}`} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: platform?.color ?? accentColor, color: 'white', textDecoration: 'none' }}>
-                        Join Meeting <ExternalLink style={{ width: 13, height: 13 }}/>
-                      </a>
-                    </div>
-                  );
-                }
-                if (ev.eventType !== 'virtual' && ev.location) {
-                  return (
-                    <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 14, background: t.sectionBg, border: `1px solid ${t.sectionBorder}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <MapPin style={{ width: 16, height: 16, color: t.muted, flexShrink: 0 }}/>
-                      <span style={{ fontSize: 13, color: t.body }}>{ev.location}</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-
-              {/* Add to calendar on success for events */}
-              {config.eventDetails?.isEvent && config.eventDetails.date && config.postSubmission?.type !== 'redirect' && (() => {
-                const ev = config.eventDetails;
-                const isVirtual = ev.eventType === 'virtual';
-                // Absolute join link so a tap from the calendar reminder reaches /api/join and records attendance.
-                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                const joinHref = joinToken ? `${origin}/api/join?token=${joinToken}` : '';
-                const recurring = isRecurring(form.recurrence);
-                const { calLocation, calDescription } = buildCalendarFields({ isVirtual, joinUrl: joinHref, location: ev.location, description: config.description });
-                const googleUrl  = buildGoogleCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days);
-                // Outlook.com and Yahoo web links can't encode a recurrence -- only offer them for one-time events; the .ics carries the full series.
-                const outlookUrl = recurring ? null : buildOutlookCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
-                const yahooUrl   = recurring ? null : buildYahooCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
-                const GoogleIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
-                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.657 14.013 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-                    <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                );
-                const OutlookIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 21 21" style={{ flexShrink: 0 }}>
-                    <rect x="0" y="0" width="10" height="10" rx="1" fill="#f25022"/>
-                    <rect x="11" y="0" width="10" height="10" rx="1" fill="#7fba00"/>
-                    <rect x="0" y="11" width="10" height="10" rx="1" fill="#00a4ef"/>
-                    <rect x="11" y="11" width="10" height="10" rx="1" fill="#ffb900"/>
-                  </svg>
-                );
-                const YahooIcon = () => (
-                  <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
-                    <path d="M0 4h8.6l7.4 11.2L23.4 4H32L18.6 22.4V32h-5.2V22.4z" fill="white"/>
-                  </svg>
-                );
-                const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', textDecoration: 'none', width: '100%', textAlign: 'left' as const };
-                // For virtual events without a token yet, register on demand so the calendar entry carries a tracked join link.
-                const openCal = async () => {
-                  setJoinErr('');
-                  let preparedToken = joinToken;
-                  if (isVirtual && !preparedToken) {
-                    setCalBusy(true);
-                    try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (session?.access_token) {
-                        const res = await fetch('/api/event-register', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                          body: JSON.stringify({ formId: form.id }),
-                        });
-                        const json = await res.json();
-                        if (json.join_token) {
-                          preparedToken = json.join_token;
-                          setJoinToken(json.join_token);
-                        }
-                      }
-                    } catch {}
-                    setCalBusy(false);
-                  }
-                  if (isVirtual && !preparedToken) {
-                    setJoinErr('Could not prepare your calendar link. Please refresh and try again.');
-                    return;
-                  }
-                  setCalPopupOpen(true);
-                };
-                return (
-                  <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 24 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <button
-                        onClick={openCal}
-                        disabled={calBusy}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: `1px solid ${t.sectionBorder}`, background: t.sectionBg, color: t.label, cursor: calBusy ? 'default' : 'pointer', opacity: calBusy ? 0.65 : 1 }}
-                      >
-                        <Calendar style={{ width: 15, height: 15 }}/> {calBusy ? 'Preparing...' : 'Add to Calendar'}
-                      </button>
-                      {joinErr && <p style={{ margin: 0, fontSize: 12, color: '#ef4444', textAlign: 'center' }}>{joinErr}</p>}
-                    </div>
-                    {calPopupOpen && (
-                      <>
-                        <div onClick={() => setCalPopupOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }} />
-                        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 101, background: dark ? '#18181b' : '#ffffff', borderRadius: 22, boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: 'min(340px, calc(100vw - 32px))', padding: '28px 20px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                          {/* Header */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-                            <div style={{ width: 56, height: 56, borderRadius: '50%', background: dark ? '#27272a' : '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Calendar style={{ width: 26, height: 26, color: accentColor }}/>
-                            </div>
-                            <div>
-                              <p style={{ fontWeight: 700, fontSize: 17, color: t.title, margin: 0 }}>Add to Calendar</p>
-                              <p style={{ fontSize: 13, color: t.body, marginTop: 6, lineHeight: 1.55 }}>{recurring ? 'Saves every session in the series to your calendar.' : 'Save this event to your preferred calendar app.'}</p>
-                            </div>
-                          </div>
-                          {/* Options */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {googleUrl && (
-                              <a href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: '#ffffff', color: '#3c4043', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
-                                <GoogleIcon/> Google Calendar
-                              </a>
-                            )}
-                            {yahooUrl && (
-                              <a href={yahooUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: '#6001D2', color: 'white' }}>
-                                <YahooIcon/> Yahoo Calendar
-                              </a>
-                            )}
-                            {outlookUrl && (
-                              <a href={outlookUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
-                                style={{ ...btnBase, background: dark ? '#1e3a5f' : '#e8f1fb', color: dark ? 'white' : '#0078D4' }}>
-                                <OutlookIcon/> Outlook.com
-                              </a>
-                            )}
-                            <button onClick={() => { downloadIcs(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days); setCalPopupOpen(false); }}
-                              style={{ ...btnBase, background: dark ? '#27272a' : '#f4f4f5', color: dark ? '#a1a1aa' : '#52525b' }}>
-                              <Download style={{ width: 18, height: 18, flexShrink: 0 }}/> iCal (Apple / Outlook)
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-
               {/* CTA Button */}
               {config.postSubmission?.type === 'button' && config.postSubmission.buttonUrl && (
                 <a href={config.postSubmission.buttonUrl} target="_blank" rel="noopener noreferrer"
@@ -2270,16 +2105,14 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {config.eventDetails?.isEvent && (() => {
               const ev = config.eventDetails;
-              const _today = new Date(); _today.setHours(0, 0, 0, 0);
-              const _recurrenceEnd = form.recurrence_end_date ? new Date(form.recurrence_end_date) : null;
-              const isPast = ev.date
-                ? new Date(ev.date) < _today && (!_recurrenceEnd || _recurrenceEnd < _today)
-                : false;
+              // A repeating event is over only when no session is left (not when its first one has passed).
+              const nextDate = ev.date ? getNextScheduledSessionDate(form, eventLocalDate(ev.timezone)) : null;
+              const isPast = Boolean(ev.date) && !nextDate;
+              const shownDate = nextDate ?? ev.date;
               const mapsUrl = ev.location ? `https://maps.google.com/?q=${encodeURIComponent(ev.location)}` : null;
               const isVirtual = ev.eventType === 'virtual' && ev.meetingLink;
               const evBtnBg = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
               const evBtnBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-              const cap = ev.capacity as number | undefined;
               return (
                 <>
                   {/* Past event banner */}
@@ -2461,14 +2294,14 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                           <div style={{ flexShrink: 0, width: 48, height: 48, borderRadius: 12, overflow: 'hidden', border: `1px solid ${evBtnBorder}`, background: evBtnBg, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
                             <div style={{ height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', color: t.muted }}>
-                              {formatDateParts(ev.date)?.monthShort || 'DATE'}
+                              {formatDateParts(shownDate)?.monthShort || 'DATE'}
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: t.title }}>
-                              {formatDateParts(ev.date)?.day || '--'}
+                              {formatDateParts(shownDate)?.day || '--'}
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 48 }}>
-                            <div style={{ fontSize: 15, fontWeight: 600, color: t.title }}>{formatDateParts(ev.date)?.fullDate || ev.date || 'Date TBD'}</div>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: t.title }}>{formatDateParts(shownDate)?.fullDate || shownDate || 'Date TBD'}</div>
                             {(ev.time || ev.timezone) && (
                               <div style={{ fontSize: 13, marginTop: 2, color: t.body }}>{ev.time}{ev.timezone ? ` · ${ev.timezone}` : ''}</div>
                             )}
@@ -2510,16 +2343,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                         </div>
                       ) : null}
 
-                      {/* Spots left */}
-                      {attendeeCount !== null && cap && (() => {
-                        const spotsLeft = cap - attendeeCount;
-                        return (
-                          <span style={{ alignSelf: 'flex-start', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: spotsLeft <= 0 ? 'rgba(239,68,68,0.1)' : spotsLeft <= 10 ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: spotsLeft <= 0 ? '#ef4444' : spotsLeft <= 10 ? '#d97706' : '#10b981' }}>
-                            {spotsLeft <= 0 ? 'Sold out' : `${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left`}
-                          </span>
-                        );
-                      })()}
-
                       {/* Join link for cohort members (no registration required) */}
                       {(joinToken || isCohortMember) && !isPast && ev.meetingLink && (() => {
                         const platform = detectPlatform(ev.meetingLink);
@@ -2533,7 +2356,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                                   window.open(`/api/join?token=${joinToken}`, '_blank', 'noopener,noreferrer');
                                   return;
                                 }
-                                const win = window.open('', '_blank', 'noopener,noreferrer');
+                                // Opened now (still inside the click, so it is not blocked) and pointed at the link once it
+                                // arrives. 'noopener' would return no handle to the tab, so the opener is cut by hand.
+                                const win = window.open('', '_blank');
+                                if (win) win.opener = null;
                                 try {
                                   const { data: { session } } = await supabase.auth.getSession();
                                   if (session?.access_token) {
@@ -2559,6 +2385,127 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                             )}
                           </>
                         );
+                      })()}
+
+                      {/* Add to calendar, for anyone with a seat (cohort members and registrants). */}
+                      {(joinToken || isCohortMember) && !isPast && ev.date && (() => {
+                const ev = config.eventDetails;
+                const isVirtual = ev.eventType === 'virtual';
+                // Absolute join link so a tap from the calendar reminder reaches /api/join and records attendance.
+                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                const joinHref = joinToken ? `${origin}/api/join?token=${joinToken}` : '';
+                const recurring = isRecurring(form.recurrence);
+                const { calLocation, calDescription } = buildCalendarFields({ isVirtual, joinUrl: joinHref, location: ev.location, description: config.description });
+                const googleUrl  = buildGoogleCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days);
+                // Outlook.com and Yahoo web links can't encode a recurrence -- only offer them for one-time events; the .ics carries the full series.
+                const outlookUrl = recurring ? null : buildOutlookCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
+                const yahooUrl   = recurring ? null : buildYahooCalUrl(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription);
+                const GoogleIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.657 14.013 17.64 11.71 17.64 9.2z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                  </svg>
+                );
+                const OutlookIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 21 21" style={{ flexShrink: 0 }}>
+                    <rect x="0" y="0" width="10" height="10" rx="1" fill="#f25022"/>
+                    <rect x="11" y="0" width="10" height="10" rx="1" fill="#7fba00"/>
+                    <rect x="0" y="11" width="10" height="10" rx="1" fill="#00a4ef"/>
+                    <rect x="11" y="11" width="10" height="10" rx="1" fill="#ffb900"/>
+                  </svg>
+                );
+                const YahooIcon = () => (
+                  <svg width="18" height="18" viewBox="0 0 32 32" style={{ flexShrink: 0 }}>
+                    <path d="M0 4h8.6l7.4 11.2L23.4 4H32L18.6 22.4V32h-5.2V22.4z" fill="white"/>
+                  </svg>
+                );
+                const btnBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', textDecoration: 'none', width: '100%', textAlign: 'left' as const };
+                // For virtual events without a token yet, register on demand so the calendar entry carries a tracked join link.
+                const openCal = async () => {
+                  setJoinErr('');
+                  let preparedToken = joinToken;
+                  if (isVirtual && !preparedToken) {
+                    setCalBusy(true);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (session?.access_token) {
+                        const res = await fetch('/api/event-register', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                          body: JSON.stringify({ formId: form.id }),
+                        });
+                        const json = await res.json();
+                        if (json.join_token) {
+                          preparedToken = json.join_token;
+                          setJoinToken(json.join_token);
+                        }
+                      }
+                    } catch {}
+                    setCalBusy(false);
+                  }
+                  if (isVirtual && !preparedToken) {
+                    setJoinErr('Could not prepare your calendar link. Please refresh and try again.');
+                    return;
+                  }
+                  setCalPopupOpen(true);
+                };
+                return (
+                  <div style={{ display: 'flex' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+                      <button
+                        onClick={openCal}
+                        disabled={calBusy}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, border: `1px solid ${t.sectionBorder}`, background: t.sectionBg, color: t.label, cursor: calBusy ? 'default' : 'pointer', opacity: calBusy ? 0.65 : 1 }}
+                      >
+                        <Calendar style={{ width: 15, height: 15 }}/> {calBusy ? 'Preparing...' : 'Add to Calendar'}
+                      </button>
+                    </div>
+                    {calPopupOpen && (
+                      <>
+                        <div onClick={() => setCalPopupOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }} />
+                        <div style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 101, background: dark ? '#18181b' : '#ffffff', borderRadius: 22, boxShadow: '0 24px 64px rgba(0,0,0,0.28)', width: 'min(340px, calc(100vw - 32px))', padding: '28px 20px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                          {/* Header */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+                            <div style={{ width: 56, height: 56, borderRadius: '50%', background: dark ? '#27272a' : '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Calendar style={{ width: 26, height: 26, color: accentColor }}/>
+                            </div>
+                            <div>
+                              <p style={{ fontWeight: 700, fontSize: 17, color: t.title, margin: 0 }}>Add to Calendar</p>
+                              <p style={{ fontSize: 13, color: t.body, marginTop: 6, lineHeight: 1.55 }}>{recurring ? 'Saves every session in the series to your calendar.' : 'Save this event to your preferred calendar app.'}</p>
+                            </div>
+                          </div>
+                          {/* Options */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {googleUrl && (
+                              <a href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: '#ffffff', color: '#3c4043', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                                <GoogleIcon/> Google Calendar
+                              </a>
+                            )}
+                            {yahooUrl && (
+                              <a href={yahooUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: '#6001D2', color: 'white' }}>
+                                <YahooIcon/> Yahoo Calendar
+                              </a>
+                            )}
+                            {outlookUrl && (
+                              <a href={outlookUrl} target="_blank" rel="noopener noreferrer" onClick={() => setCalPopupOpen(false)}
+                                style={{ ...btnBase, background: dark ? '#1e3a5f' : '#e8f1fb', color: dark ? 'white' : '#0078D4' }}>
+                                <OutlookIcon/> Outlook.com
+                              </a>
+                            )}
+                            <button onClick={() => { downloadIcs(config.title, ev.date, ev.time, ev.timezone, calLocation, calDescription, form.recurrence, form.recurrence_end_date, form.recurrence_days); setCalPopupOpen(false); }}
+                              style={{ ...btnBase, background: dark ? '#27272a' : '#f4f4f5', color: dark ? '#a1a1aa' : '#52525b' }}>
+                              <Download style={{ width: 18, height: 18, flexShrink: 0 }}/> iCal (Apple / Outlook)
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
                       })()}
 
                       {/* Divider */}
