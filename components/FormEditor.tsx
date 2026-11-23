@@ -79,6 +79,13 @@ const DEFAULT_POINTS: PointsSystem = {
 };
 
 // --- Constants ---
+/** The languages a code block or code review question can use. */
+const CODE_LANGUAGES = [
+  { value: 'javascript', label: 'JavaScript' }, { value: 'python', label: 'Python' }, { value: 'typescript', label: 'TypeScript' },
+  { value: 'java', label: 'Java' }, { value: 'c', label: 'C' }, { value: 'cpp', label: 'C++' },
+  { value: 'go', label: 'Go' }, { value: 'rust', label: 'Rust' }, { value: 'sql', label: 'SQL' },
+];
+
 /** The event time zones. The value is what events store (lib/event-sessions.ts reads the offset). */
 const TIMEZONE_OPTIONS = [
   { value: 'GMT+0 (Accra)', label: 'GMT+0 - Accra' },
@@ -3090,10 +3097,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                                   </span>
                                   <span className="text-xs font-semibold" style={{ color: FE.muted }}>Code snippet</span>
                                 </div>
-                                <select value={q.codeLanguage || 'javascript'} onChange={e => handleUpdateQuestion(q.id, { codeLanguage: e.target.value })}
-                                  className="rounded-md border-0 px-2 py-1 text-[11px] font-mono outline-none" style={{ background: FE.input, color: FE.text }}>
-                                  {['javascript', 'python', 'typescript', 'java', 'c', 'cpp', 'go', 'rust', 'sql'].map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                                </select>
+                                <MenuSelect label="Code language" C={DC} value={q.codeLanguage || 'javascript'} onChange={codeLanguage => handleUpdateQuestion(q.id, { codeLanguage })}
+                                  options={CODE_LANGUAGES} />
                               </div>
                               <AiTextarea
                                 value={q.codeSnippet || ''}
@@ -3321,16 +3326,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                               {qType === 'code_review' && (
                                 <div>
                                   <label className={labelCls} style={labelStyle}>Language</label>
-                                  <select
-                                    value={q.reviewLanguage || 'javascript'}
-                                    onChange={e => handleUpdateQuestion(q.id, { reviewLanguage: e.target.value })}
-                                    className={`${inputCls} py-2`}
-                                    style={inputStyle}
-                                  >
-                                    {['javascript', 'python', 'typescript', 'java', 'c', 'cpp', 'go', 'rust', 'sql', 'r'].map(lang => (
-                                      <option key={lang} value={lang}>{lang}</option>
-                                    ))}
-                                  </select>
+                                  <MenuSelect label="Review language" field C={DC} value={q.reviewLanguage || 'javascript'} onChange={reviewLanguage => handleUpdateQuestion(q.id, { reviewLanguage })}
+                                    options={[...CODE_LANGUAGES, { value: 'r', label: 'R' }]} />
                                 </div>
                               )}
 
@@ -3404,16 +3401,12 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                               {qType === 'document_review' && (
                                 <div>
                                   <label className={labelCls} style={labelStyle}>Review mode</label>
-                                  <select
-                                    value={(q as any).documentReviewMode || 'ai_only'}
-                                    onChange={e => handleUpdateQuestion(q.id, { documentReviewMode: e.target.value as any })}
-                                    className={`${inputCls} py-2`}
-                                    style={inputStyle}
-                                  >
-                                    <option value="ai_only">AI only: the AI reviews and grades</option>
-                                    <option value="manual">Manual: you review and grade</option>
-                                    <option value="hybrid">Hybrid: the AI reviews, you can change the grade</option>
-                                  </select>
+                                  <MenuSelect label="Review mode" field C={DC} value={(q as any).documentReviewMode || 'ai_only'} onChange={mode => handleUpdateQuestion(q.id, { documentReviewMode: mode as any })}
+                                    options={[
+                                      { value: 'ai_only', label: 'AI only: the AI reviews and grades' },
+                                      { value: 'manual', label: 'Manual: you review and grade' },
+                                      { value: 'hybrid', label: 'Hybrid: the AI reviews, you can change the grade' },
+                                    ]} />
                                 </div>
                               )}
 
@@ -4045,11 +4038,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                         style={inputStyle}
                       />
                     )}
-                    <select value={newFieldType} onChange={e => { setNewFieldType(e.target.value as FieldType); }} className={inputCls} style={inputStyle}>
-                      {(Object.entries(FIELD_TYPE_LABELS) as [FieldType, string][]).map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
-                      ))}
-                    </select>
+                    <MenuSelect<FieldType> label="Field type" field C={DC} value={newFieldType} onChange={setNewFieldType}
+                      options={(Object.entries(FIELD_TYPE_LABELS) as [FieldType, string][]).map(([value, label]) => ({ value, label }))} />
 
                     {newFieldType === 'select' && (
                       <input type="text" placeholder="Options: Yes, No, Maybe" value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)} className={inputCls} style={inputStyle} />
@@ -4599,29 +4589,13 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls} style={labelStyle}>Style</label>
-                    <select
-                      value={aiDescriptionStyle}
-                      onChange={e => setAiDescriptionStyle(e.target.value as 'professional' | 'casual' | 'friendly')}
-                      className={`${inputCls} py-2`}
-                      style={inputStyle}
-                    >
-                      <option value="professional">Professional</option>
-                      <option value="casual">Casual</option>
-                      <option value="friendly">Friendly</option>
-                    </select>
+                    <MenuSelect<'professional' | 'casual' | 'friendly'> label="Style" field C={DC} value={aiDescriptionStyle} onChange={setAiDescriptionStyle}
+                      options={[{ value: 'professional', label: 'Professional' }, { value: 'casual', label: 'Casual' }, { value: 'friendly', label: 'Friendly' }]} />
                   </div>
                   <div>
                     <label className={labelCls} style={labelStyle}>Length</label>
-                    <select
-                      value={aiDescriptionLength}
-                      onChange={e => setAiDescriptionLength(e.target.value as 'short' | 'medium' | 'long')}
-                      className={`${inputCls} py-2`}
-                      style={inputStyle}
-                    >
-                      <option value="short">Short</option>
-                      <option value="medium">Medium</option>
-                      <option value="long">Long</option>
-                    </select>
+                    <MenuSelect<'short' | 'medium' | 'long'> label="Length" field C={DC} value={aiDescriptionLength} onChange={setAiDescriptionLength}
+                      options={[{ value: 'short', label: 'Short' }, { value: 'medium', label: 'Medium' }, { value: 'long', label: 'Long' }]} />
                   </div>
                 </div>
                 <div>
@@ -4732,18 +4706,14 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelCls} style={labelStyle}>Question type</label>
-                    <select
-                      value={aiQuestionType}
-                      onChange={e => setAiQuestionType(e.target.value as 'multiple_choice' | 'fill_blank' | 'arrange' | 'sql_exercise' | 'python_exercise')}
-                      className={`${inputCls} py-2`}
-                      style={inputStyle}
-                    >
-                      <option value="multiple_choice">Multiple Choice</option>
-                      <option value="fill_blank">Fill in the Blank</option>
-                      <option value="arrange">Arrange / Order</option>
-                      <option value="sql_exercise">SQL Exercise</option>
-                      <option value="python_exercise">Python Exercise</option>
-                    </select>
+                    <MenuSelect<'multiple_choice' | 'fill_blank' | 'arrange' | 'sql_exercise' | 'python_exercise'> label="Question type" field C={DC} value={aiQuestionType} onChange={setAiQuestionType}
+                      options={[
+                        { value: 'multiple_choice', label: 'Multiple choice' },
+                        { value: 'fill_blank', label: 'Fill in the blank' },
+                        { value: 'arrange', label: 'Arrange in order' },
+                        { value: 'sql_exercise', label: 'SQL exercise' },
+                        { value: 'python_exercise', label: 'Python exercise' },
+                      ]} />
                   </div>
                   <div>
                     <label className={labelCls} style={labelStyle}>Count</label>
