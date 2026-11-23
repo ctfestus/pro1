@@ -1,6 +1,6 @@
 'use client';
 
-import { Package, MessageCircle, Paperclip, Check, Pencil, RotateCcw } from 'lucide-react';
+import { ArrowCounterClockwise, ChatCircle, Check, Package, Paperclip, PencilSimple } from '@phosphor-icons/react';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { REQ_META, type RequirementProps } from './types';
@@ -23,11 +23,11 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
     const attachments = req.attachments || [];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-        <TaskHeader t={t} icon={<Package className="w-3.5 h-3.5" />}
+        <TaskHeader t={t} icon={<Package weight="duotone" className="w-3.5 h-3.5" />}
           label="Deliverable" title={req.label}
           description={!req.descriptionDoc && req.descriptionFormat !== 'rich' ? req.description : undefined}
           done={done ? 'Complete' : null}
-          doneAction={!reviewMode && <TaskIconButton t={t} label="Undo" icon={<RotateCcw className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
+          doneAction={!reviewMode && <TaskIconButton t={t} label="Undo" icon={<ArrowCounterClockwise weight="bold" className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
 
         {req.descriptionDoc ? (
           // Scoped so guided steps inside a deliverable read as a plain numbered list: the card has
@@ -46,7 +46,7 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
               <a key={`${a.url}-${i}`} href={a.url} target="_blank" rel="noreferrer"
                 className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold hover:opacity-80"
                 style={{ background: t.soft, color: t.text }}>
-                <Paperclip className="h-3.5 w-3.5 flex-shrink-0" style={{ color: t.muted }} />
+                <Paperclip weight="bold" className="h-3.5 w-3.5 flex-shrink-0" style={{ color: t.muted }} />
                 <span className="truncate">{a.name || 'Open resource'}</span>
               </a>
             ))}
@@ -55,7 +55,7 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
 
         {!reviewMode && !done && (
           <div className="flex items-center gap-3 pt-1">
-            <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> Mark deliverable complete</TaskButton>
+            <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check weight="bold" className="w-4 h-4" /> Mark deliverable complete</TaskButton>
           </div>
         )}
       </div>
@@ -68,9 +68,9 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const meta = REQ_META[req.type] || REQ_META.reflection;
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <TaskHeader t={t} icon={<MessageCircle className="w-3.5 h-3.5" />} label={meta.label} title={req.label}
+      <TaskHeader t={t} icon={<ChatCircle weight="duotone" className="w-3.5 h-3.5" />} label={meta.label} title={req.label}
         description={req.description} done={done ? 'Saved' : null}
-        doneAction={!reviewMode && <TaskIconButton t={t} label="Edit" icon={<Pencil className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
+        doneAction={!reviewMode && <TaskIconButton t={t} label="Edit" icon={<PencilSimple weight="bold" className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
       {done ? (
         noteVal.trim() ? (
           <p className="whitespace-pre-wrap rounded-[10px] px-3 py-2.5 text-[14px]" style={{ background: t.soft, color: t.text }}>{noteVal}</p>

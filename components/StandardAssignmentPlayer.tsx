@@ -22,11 +22,7 @@ import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
-import {
-  CheckCircle, CheckCircle2, Circle, Upload as UploadIcon, Loader2, X, FileText, AlertCircle, Check,
-  Calendar, BookOpen, Layers, ListChecks, Download, ExternalLink, PenLine, Code2,
-  FileSpreadsheet, LayoutDashboard,
-} from 'lucide-react';
+import { ArrowSquareOut, BookOpen, Calendar, Check, CheckCircle, Circle, CircleNotch, Code, DownloadSimple, FileText, FileXls, ListChecks, PencilSimpleLine, SquaresFour, Stack, UploadSimple, WarningCircle, X } from '@phosphor-icons/react';
 import {
   type ScenarioConfig, type AssignmentTask, type RawTaskAnswer, type TaskGradeMap,
   TASK_TYPE_LABEL, isAiTaskType, flattenTasks, parseSubmissionRecord, isAllowedUpload, hasRichText,
@@ -230,7 +226,7 @@ export default function StandardAssignmentPlayer({
             <button key={i} type="button" disabled={readOnly}
               onClick={() => patch(task.id, { selectedOption: opt })}
               style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '11px 14px', borderRadius: 10, border: `1.5px solid ${ring}`, background: selected ? scenarioAccentSoft : C.input, color: C.text, fontSize: 14, cursor: readOnly ? 'default' : 'pointer' }}>
-              {selected ? <CheckCircle2 style={{ width: 18, height: 18, color: ring, flexShrink: 0 }} /> : <Circle style={{ width: 18, height: 18, color: C.faint, flexShrink: 0 }} />}
+              {selected ? <CheckCircle weight="fill" style={{ width: 18, height: 18, color: ring, flexShrink: 0 }} /> : <Circle weight="bold" style={{ width: 18, height: 18, color: C.faint, flexShrink: 0 }} />}
               <span style={{ flex: 1 }}>{opt}</span>
             </button>
           );
@@ -246,11 +242,11 @@ export default function StandardAssignmentPlayer({
       <div>
         {a.fileUrl ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', borderRadius: 12, background: scenarioAccentSoft, border: `1px solid ${isDark ? C.divider : 'rgba(0,191,99,.22)'}` }}>
-            <span style={{ width: 32, height: 32, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 9, background: C.card, color: scenarioAccent }}><FileText style={{ width: 16, height: 16 }} /></span>
+            <span style={{ width: 32, height: 32, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 9, background: C.card, color: scenarioAccent }}><FileText weight="duotone" style={{ width: 16, height: 16 }} /></span>
             <a href={a.fileUrl} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 13, fontWeight: 500, color: C.text, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.fileName || 'Uploaded file'}</a>
             {!readOnly && (
               <button type="button" onClick={() => patch(task.id, { fileUrl: undefined, fileName: undefined })}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint }}><X style={{ width: 15, height: 15 }} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.faint }}><X weight="bold" style={{ width: 15, height: 15 }} /></button>
             )}
           </div>
         ) : readOnly ? (
@@ -260,7 +256,7 @@ export default function StandardAssignmentPlayer({
             <input ref={el => { fileRefs.current[task.id] = el; }} type="file" style={{ display: 'none' }} onChange={e => handleUpload(task, e)} />
             <button type="button" onClick={() => fileRefs.current[task.id]?.click()} disabled={busy}
               style={{ width: '100%', minHeight: 62, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '12px 16px', borderRadius: 12, border: `1px dashed ${isDark ? C.divider : 'rgba(0,191,99,.35)'}`, background: C.input, color: scenarioAccentText, fontSize: 13, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}>
-              {busy ? <Loader2 style={{ width: 17, height: 17 }} className="animate-spin" /> : <UploadIcon style={{ width: 17, height: 17 }} />}
+              {busy ? <CircleNotch weight="bold" style={{ width: 17, height: 17 }} className="animate-spin" /> : <UploadSimple weight="bold" style={{ width: 17, height: 17 }} />}
               {busy ? 'Uploading...' : 'Choose a file to submit'}
             </button>
           </>
@@ -380,13 +376,13 @@ export default function StandardAssignmentPlayer({
     </div>
   );
   const taskTypeIcon = (type: AssignmentTask['type']) => {
-    if (type === 'text') return <PenLine style={{ width: 18, height: 18 }} />;
-    if (type === 'upload') return <UploadIcon style={{ width: 18, height: 18 }} />;
-    if (type === 'mcq') return <ListChecks style={{ width: 18, height: 18 }} />;
-    if (type === 'code_review') return <Code2 style={{ width: 18, height: 18 }} />;
-    if (type === 'excel_review') return <FileSpreadsheet style={{ width: 18, height: 18 }} />;
-    if (type === 'dashboard_critique') return <LayoutDashboard style={{ width: 18, height: 18 }} />;
-    return <FileText style={{ width: 18, height: 18 }} />;
+    if (type === 'text') return <PencilSimpleLine weight="duotone" style={{ width: 18, height: 18 }} />;
+    if (type === 'upload') return <UploadSimple weight="bold" style={{ width: 18, height: 18 }} />;
+    if (type === 'mcq') return <ListChecks weight="duotone" style={{ width: 18, height: 18 }} />;
+    if (type === 'code_review') return <Code weight="bold" style={{ width: 18, height: 18 }} />;
+    if (type === 'excel_review') return <FileXls weight="duotone" style={{ width: 18, height: 18 }} />;
+    if (type === 'dashboard_critique') return <SquaresFour weight="duotone" style={{ width: 18, height: 18 }} />;
+    return <FileText weight="duotone" style={{ width: 18, height: 18 }} />;
   };
   const renderScenarioBody = (scenario: ScenarioConfig['scenarios'][number]) => (
     <>
@@ -410,8 +406,8 @@ export default function StandardAssignmentPlayer({
                 </span>
                 <span aria-label={done ? 'Task completed' : 'Task not completed'} style={{ flexShrink: 0, display: 'grid', placeItems: 'center' }}>
                   {done
-                    ? <motion.span initial={reduceMotion ? false : { scale: 0 }} animate={{ scale: 1 }}><CheckCircle2 style={{ width: 20, height: 20, color: scenarioAccent }} /></motion.span>
-                    : <Circle style={{ width: 20, height: 20, color: C.faint }} />}
+                    ? <motion.span initial={reduceMotion ? false : { scale: 0 }} animate={{ scale: 1 }}><CheckCircle weight="fill" style={{ width: 20, height: 20, color: scenarioAccent }} /></motion.span>
+                    : <Circle weight="bold" style={{ width: 20, height: 20, color: C.faint }} />}
                 </span>
               </div>
               {(task.doc || task.description) && (
@@ -449,11 +445,11 @@ export default function StandardAssignmentPlayer({
               <span style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 999, background: status.bg, color: status.color }}>{status.label}</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.faint, margin: 0 }}>Detail</p>
-                {deadline && detailRow(<Calendar style={{ width: 15, height: 15 }} />, 'Deadline', new Date(deadline).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }))}
-                {courseTitle && detailRow(<BookOpen style={{ width: 15, height: 15 }} />, 'Related course', courseHref ? <a href={courseHref} style={{ color: scenarioAccent, textDecoration: 'none' }}>{courseTitle}</a> : courseTitle)}
-                {detailRow(<Layers style={{ width: 15, height: 15 }} />, 'Scenarios', scenarioCount)}
-                {detailRow(<ListChecks style={{ width: 15, height: 15 }} />, 'Tasks', totalTasks)}
-                {!readOnly && detailRow(<CheckCircle style={{ width: 15, height: 15 }} />, 'Answered', `${answeredCount} / ${totalTasks}`)}
+                {deadline && detailRow(<Calendar weight="duotone" style={{ width: 15, height: 15 }} />, 'Deadline', new Date(deadline).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }))}
+                {courseTitle && detailRow(<BookOpen weight="duotone" style={{ width: 15, height: 15 }} />, 'Related course', courseHref ? <a href={courseHref} style={{ color: scenarioAccent, textDecoration: 'none' }}>{courseTitle}</a> : courseTitle)}
+                {detailRow(<Stack weight="duotone" style={{ width: 15, height: 15 }} />, 'Scenarios', scenarioCount)}
+                {detailRow(<ListChecks weight="duotone" style={{ width: 15, height: 15 }} />, 'Tasks', totalTasks)}
+                {!readOnly && detailRow(<CheckCircle weight="fill" style={{ width: 15, height: 15 }} />, 'Answered', `${answeredCount} / ${totalTasks}`)}
               </div>
             </div>
           </div>
@@ -481,10 +477,10 @@ export default function StandardAssignmentPlayer({
                       transition={{ duration: reduceMotion ? 0 : .2 }}
                       style={{ position: 'relative', flexShrink: 0, minHeight: 42, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', border: 'none', borderRadius: 12, cursor: 'pointer', fontSize: 13.5, fontWeight: active ? 750 : 650 }}>
                       {step.isResources ? (
-                        <Download style={{ width: 15, height: 15 }} />
+                        <DownloadSimple weight="bold" style={{ width: 15, height: 15 }} />
                       ) : step.done ? (
                         <motion.span initial={reduceMotion ? false : { scale: 0 }} animate={{ scale: 1 }}>
-                          <CheckCircle2 style={{ width: 16, height: 16, color: scenarioAccent }} />
+                          <CheckCircle weight="fill" style={{ width: 16, height: 16, color: scenarioAccent }} />
                         </motion.span>
                       ) : (
                         <span style={{ position: 'relative', width: 16, height: 16, display: 'grid', placeItems: 'center' }}>
@@ -509,10 +505,10 @@ export default function StandardAssignmentPlayer({
               {resources.map(r => (
                 <a key={r.id} href={r.url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'transparent', border: cardBorder, textDecoration: 'none' }}>
                   <span style={{ width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.pill, flexShrink: 0 }}>
-                    {r.resource_type === 'file' ? <FileText style={{ width: 16, height: 16, color: scenarioAccent }} /> : <ExternalLink style={{ width: 16, height: 16, color: scenarioAccent }} />}
+                    {r.resource_type === 'file' ? <FileText weight="duotone" style={{ width: 16, height: 16, color: scenarioAccent }} /> : <ArrowSquareOut weight="bold" style={{ width: 16, height: 16, color: scenarioAccent }} />}
                   </span>
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: C.text }}>{r.name || r.url}</span>
-                  <Download style={{ width: 15, height: 15, color: C.faint }} />
+                  <DownloadSimple weight="bold" style={{ width: 15, height: 15, color: C.faint }} />
                 </a>
               ))}
             </div>
@@ -534,7 +530,7 @@ export default function StandardAssignmentPlayer({
             <div style={{ marginTop: 6 }}>
               {submitError && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: '#ef4444' }}>
-                  <AlertCircle style={{ width: 15, height: 15 }} /> {submitError}
+                  <WarningCircle weight="duotone" style={{ width: 15, height: 15 }} /> {submitError}
                 </div>
               )}
               {previewMode ? (
@@ -550,14 +546,14 @@ export default function StandardAssignmentPlayer({
                   )}
                   {justSubmitted ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                      <Check style={{ width: 18, height: 18, color: '#10b981' }} />
+                      <Check weight="bold" style={{ width: 18, height: 18, color: '#10b981' }} />
                       <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>Submitted for review.</span>
                     </div>
                   ) : (
                     <>
                       {isLastStep && confirmIncomplete && unansweredCount > 0 && (
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)' }}>
-                          <AlertCircle style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
+                          <WarningCircle weight="duotone" style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0, marginTop: 1 }} />
                           <span style={{ fontSize: 13, color: C.text }}>{unansweredCount} of {flat.length} {unansweredCount === 1 ? 'task is' : 'tasks are'} not answered. Go back and complete {unansweredCount === 1 ? 'it' : 'them'}, or submit anyway.</span>
                         </div>
                       )}
@@ -565,7 +561,7 @@ export default function StandardAssignmentPlayer({
                         {onSaveDraft && !submitted && !alreadyFinal && (
                           <button type="button" onClick={handleSaveDraft} disabled={savingDraft || submitting || anyUploading}
                             style={{ padding: '12px 18px', borderRadius: 12, border: cardBorder, background: C.pill, color: C.muted, fontSize: 14, fontWeight: 700, cursor: (savingDraft || submitting || anyUploading) ? 'not-allowed' : 'pointer', opacity: (savingDraft || submitting || anyUploading) ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                            {savingDraft ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> : null}
+                            {savingDraft ? <CircleNotch weight="bold" style={{ width: 16, height: 16 }} className="animate-spin" /> : null}
                             {savingDraft ? 'Saving...' : draftSaved ? 'Saved' : 'Save and continue'}
                           </button>
                         )}
@@ -579,7 +575,7 @@ export default function StandardAssignmentPlayer({
                             onClick={() => { if (unansweredCount > 0 && !confirmIncomplete) { setConfirmIncomplete(true); return; } handleSubmit(); }}
                             disabled={submitting || anyUploading}
                             style={{ padding: '12px 26px', borderRadius: 12, border: 'none', background: scenarioAction, color: C.ctaText, fontSize: 15, fontWeight: 700, cursor: (submitting || anyUploading) ? 'not-allowed' : 'pointer', opacity: (submitting || anyUploading) ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                            {submitting ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> : null}
+                            {submitting ? <CircleNotch weight="bold" style={{ width: 16, height: 16 }} className="animate-spin" /> : null}
                             {submitting ? 'Submitting...' : (confirmIncomplete && unansweredCount > 0) ? 'Submit anyway' : submitted ? 'Resubmit for review' : 'Submit for review'}
                           </button>
                         )}

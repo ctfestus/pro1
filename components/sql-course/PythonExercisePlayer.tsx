@@ -1,18 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import {
-  CheckCircle2,
-  ChevronRight,
-  Code2,
-  Loader2,
-  Lightbulb,
-  Play,
-  RotateCcw,
-  Sparkles,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { ArrowCounterClockwise, CaretRight, CheckCircle, CircleNotch, Code, Lightbulb, Play, Sparkle, X, XCircle } from '@phosphor-icons/react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { acceptCompletion, autocompletion, completionKeymap, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
@@ -625,7 +614,7 @@ export default function PythonExercisePlayer({
           <div className="relative w-12 h-12 mx-auto mb-5">
             <div className="absolute inset-0 rounded-full border-2" style={{ borderColor: accentColor, opacity: 0.15 }} />
             <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: accentColor }} />
-            <Code2 className="absolute inset-0 m-auto w-5 h-5" style={{ color: accentColor }} />
+            <Code weight="bold" className="absolute inset-0 m-auto w-5 h-5" style={{ color: accentColor }} />
           </div>
           <p className="font-semibold text-[14px] mb-1">Loading Python environment</p>
           <p className="text-[12px]" style={{ color: muted }}>This may take a moment on first load</p>
@@ -714,7 +703,7 @@ export default function PythonExercisePlayer({
                   onClick={() => { setLeftTab('hint'); if (!hintShown) { setHintShown(true); onHintUsed(); } }}
                   className="flex-shrink-0 h-8 px-3 rounded-lg text-[12px] font-bold transition-colors"
                   style={{ background: leftTab === 'hint' ? subtle : 'transparent', color: leftTab === 'hint' ? text : muted }}>
-                  <span className="inline-flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Hint</span>{hintPenalty && !hintShown ? <span className="ml-1 text-[10px] font-semibold" style={{ color: isDark ? '#fca5a5' : '#dc2626' }}>-{hintPenalty} pts</span> : null}
+                  <span className="inline-flex items-center gap-1.5"><Lightbulb weight="duotone" className="w-3.5 h-3.5" /> Hint</span>{hintPenalty && !hintShown ? <span className="ml-1 text-[10px] font-semibold" style={{ color: isDark ? '#fca5a5' : '#dc2626' }}>-{hintPenalty} pts</span> : null}
                 </button>
               )}
             </div>
@@ -752,7 +741,7 @@ export default function PythonExercisePlayer({
                 <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: accentColor }}>Hints</p>
                 {(question.pythonHints ?? []).filter(Boolean).map((hint: string, i: number) => (
                   <div key={i} className="mb-3 flex items-start gap-3 p-3 rounded-xl" style={{ background: subtle }}>
-                    <span className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg" style={{ color: isDark ? '#fcd34d' : '#a16207', background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb' }}><Lightbulb className="w-3.5 h-3.5" /></span>
+                    <span className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg" style={{ color: isDark ? '#fcd34d' : '#a16207', background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb' }}><Lightbulb weight="duotone" className="w-3.5 h-3.5" /></span>
                     <p className="text-[13px] leading-relaxed flex-1" style={{ color: text }}
                       dangerouslySetInnerHTML={{ __html: renderRichText(hint) }} />
                   </div>
@@ -785,7 +774,7 @@ export default function PythonExercisePlayer({
                       className="w-8 h-8 grid place-items-center rounded-lg transition-opacity hover:opacity-70 flex-shrink-0"
                       style={{ background: subtle, color: muted }}
                       title={leftOpen ? 'Collapse lesson' : 'Expand lesson'}>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${leftOpen ? '' : 'rotate-180'}`} />
+                      <CaretRight weight="bold" className={`w-3.5 h-3.5 transition-transform ${leftOpen ? '' : 'rotate-180'}`} />
                     </button>
                   )}
                   <div className="flex items-center gap-1 min-w-0">
@@ -808,7 +797,7 @@ export default function PythonExercisePlayer({
                     onClick={() => { setCode(starterCode); setOutput(''); setPlots([]); setError(''); setFeedback(null); }}
                     className="w-8 h-8 grid place-items-center rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
                     style={{ background: subtle, color: muted }} title="Reset">
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <ArrowCounterClockwise weight="bold" className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
@@ -852,7 +841,7 @@ export default function PythonExercisePlayer({
                     <button type="button" onClick={doRevealSolution} disabled={solutionLoading}
                       className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-50 hover:opacity-80"
                       style={{ color: '#34d399', background: 'rgba(52,211,153,0.13)' }}>
-                      {solutionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      {solutionLoading ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : null}
                       View Solution
                       {solutionPenalty ? <span className="ml-1 text-[10px] font-semibold opacity-70">-{solutionPenalty} XP</span> : null}
                     </button>
@@ -860,14 +849,14 @@ export default function PythonExercisePlayer({
                   <button type="button" onClick={runCode} disabled={running || checking || !pyRuntimeRef.current}
                     className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-40 hover:opacity-80"
                     style={{ background: subtle, color: text }}>
-                    {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                    {running ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : <Play weight="fill" className="w-3.5 h-3.5 fill-current" />}
                     Run Code
                   </button>
                   {hasChecker && !completed && !solutionRevealed && (
                     <button type="button" onClick={checkAnswer} disabled={running || checking || !pyRuntimeRef.current}
                       className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-40"
                       style={{ background: accentColor, color: '#ffffff' }}>
-                      {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      {checking ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : null}
                       Submit Answer
                     </button>
                   )}
@@ -875,7 +864,7 @@ export default function PythonExercisePlayer({
                     <button type="button" onClick={continueIncorrect}
                       className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-80"
                       style={{ background: accentColor, color: '#ffffff' }}>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <CaretRight weight="bold" className="w-3.5 h-3.5" />
                       {isLastQuestion ? 'Finish Course' : 'Continue'}
                     </button>
                   )}
@@ -883,7 +872,7 @@ export default function PythonExercisePlayer({
                     <button type="button" onClick={continueIncorrect}
                       className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity hover:opacity-80"
                       style={{ background: accentColor, color: '#ffffff' }}>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <CaretRight weight="bold" className="w-3.5 h-3.5" />
                       {isLastQuestion ? 'Finish Course' : 'Continue'}
                     </button>
                   )}
@@ -892,7 +881,7 @@ export default function PythonExercisePlayer({
                       className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold"
                       style={{ background: accentColor, color: '#ffffff' }}>
                       {isLastQuestion ? 'Finish Course' : 'Next'}
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <CaretRight weight="bold" className="w-3.5 h-3.5" />
                     </button>
                   )}
                   {solutionError && <p className="text-[11.5px] text-red-400">{solutionError}</p>}
@@ -956,7 +945,7 @@ export default function PythonExercisePlayer({
                     <div className="flex-1 min-h-0 overflow-auto">
                       {isLoading && (
                         <div className="flex items-center gap-2 px-4 py-4">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#6b7a89' }} />
+                          <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: '#6b7a89' }} />
                           <span className="text-[12px]" style={{ color: '#6b7a89' }}>Loading {varName}...</span>
                         </div>
                       )}
@@ -998,8 +987,8 @@ export default function PythonExercisePlayer({
                   <div className="flex-shrink-0 px-4 py-3 flex items-start gap-3"
                     style={{ background: feedback.passed ? 'rgba(16,185,129,0.12)' : 'rgba(244,63,94,0.12)', borderTop: `1px solid ${feedback.passed ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)'}` }}>
                     {feedback.passed
-                      ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
-                      : <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f43f5e' }} />}
+                      ? <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
+                      : <XCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f43f5e' }} />}
                     <div className="flex-1 min-w-0">
                       <p className="text-[12.5px] font-semibold" style={{ color: feedback.passed ? '#10b981' : '#f43f5e' }}>
                         {feedback.passed ? 'Correct!' : 'Not quite right'}
@@ -1010,7 +999,7 @@ export default function PythonExercisePlayer({
                         </pre>
                       )}
                     </div>
-                    <button type="button" onClick={() => setFeedbackDismissed(true)}><X className="w-3.5 h-3.5" style={{ color: muted }} /></button>
+                    <button type="button" onClick={() => setFeedbackDismissed(true)}><X weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} /></button>
                   </div>
                 )}
               </div>

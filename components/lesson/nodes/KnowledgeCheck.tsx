@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
+import { ArrowCounterClockwise, Brain, Check, CheckCircle, CircleNotch, Lightning, PencilSimpleLine, Plus, Sparkle, X, XCircle } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewPassed } from '@/lib/review-gate';
 import { AiReviewUpgradeNote, aiReviewResetWording, aiReviewAllowanceWording } from '@/components/AiReviewUpgradePrompt';
@@ -27,7 +27,8 @@ import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
-import { LayeredBadgeIcon } from '@/components/lesson/LayeredBadgeIcon';
+
+const wordCount = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
 
 type CheckFormat = 'choice' | 'fill' | 'written';
 type WrittenGrading = 'manual' | 'ai';
@@ -54,15 +55,6 @@ interface BriefReview {
   rubricScore?: number | null;
   executiveSummary: string;
   rubricGrades?: { criterion: string; passed: boolean; comment: string }[];
-}
-
-function KnowledgeVerificationIcon() {
-  return (
-    <LayeredBadgeIcon>
-      <path d="m6.5 12.7 1.7 1.8 3.2-3.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.3 11.2h3.1M13.3 14.6h3.1" stroke="#fff" strokeWidth="1.65" strokeLinecap="round" opacity="0.92" />
-    </LayeredBadgeIcon>
-  );
 }
 
 /** Answer comparison for the fill-in format: case, surrounding space, and inner run-length insensitive. */
@@ -181,7 +173,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => updateAttributes({ [attr]: values.filter((_, j) => j !== i) })}
               >
-                <X width={12} height={12} />
+                <X weight="bold" width={12} height={12} />
               </button>
             )}
           </div>
@@ -193,7 +185,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => updateAttributes({ [attr]: [...values, ''] })}
       >
-        <Plus width={13} height={13} /> {addLabel}
+        <Plus weight="bold" width={13} height={13} /> {addLabel}
       </button>
     </>
   );
@@ -203,7 +195,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
       <NodeViewWrapper className={`lesson-check ${accent.className}`.trim()} data-editing="true" contentEditable={false} style={wrapperStyle}>
         <div className="lesson-check__bar">
           <div className="lesson-check__identity">
-            <span className="lesson-check__identity-icon"><KnowledgeVerificationIcon /></span>
+            <span className="lesson-check__identity-icon"><Lightning weight="duotone" width={20} height={20} aria-hidden="true" /></span>
             <span><strong>Knowledge check</strong><small>Ungraded practice</small></span>
           </div>
           <span className="lesson-block-actions">
@@ -245,7 +237,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => updateAttributes({ correctIndex: i })}
                   >
-                    {i === correctIndex ? <Check width={12} height={12} /> : null}
+                    {i === correctIndex ? <Check weight="bold" width={12} height={12} /> : null}
                   </button>
                   <NodeTextInput
                     className="lesson-check__opt-input"
@@ -262,7 +254,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => removeOption(i)}
                     >
-                      <X width={12} height={12} />
+                      <X weight="bold" width={12} height={12} />
                     </button>
                   )}
                 </div>
@@ -274,7 +266,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
               onMouseDown={(event) => event.preventDefault()}
               onClick={addOption}
             >
-              <Plus width={13} height={13} /> Add option
+              <Plus weight="bold" width={13} height={13} /> Add option
             </button>
           </>
         )}
@@ -409,7 +401,18 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
   return (
     <NodeViewWrapper className={`lesson-check ${accent.className}`.trim()} data-state={state} contentEditable={false} style={wrapperStyle}>
       {format === 'written' && <span className="lesson-check__instruction">{instruction}</span>}
-      {question && <p className="lesson-check__question">{question}</p>}
+      {question && (
+        <div className="lesson-check__head">
+          <span className="lesson-check__tile" aria-hidden="true">
+            {format === 'written' ? <Brain weight="duotone" /> : format === 'fill' ? <PencilSimpleLine weight="duotone" /> : <Lightning weight="duotone" />}
+          </span>
+          <p className="lesson-check__question">{question}</p>
+        </div>
+      )}
+      {/* A small burst from the right answer; CSS draws and fades it, and it plays once per answer. */}
+      {state === 'correct' && format !== 'written' && (
+        <span className="lesson-check__burst" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</span>
+      )}
 
       {format === 'choice' && (
         <div className="lesson-check__options" role="group" aria-label={question || 'Knowledge check answers'}>
@@ -433,7 +436,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                 <span className="lesson-check__letter" aria-hidden="true">{letter}</span>
                 <span className="lesson-check__opt-text">{opt}</span>
                 {showWrong && <span className="lesson-check__miss">Not this one</span>}
-                {showCorrect && <span className="lesson-check__option-end" aria-hidden="true"><Check width={14} height={14} /></span>}
+                {showCorrect && <span className="lesson-check__option-end" aria-hidden="true"><Check weight="bold" width={14} height={14} /></span>}
               </button>
             );
           })}
@@ -471,6 +474,9 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             aria-label={question || 'Your response'}
             onChange={(e) => setTyped(e.target.value)}
           />
+          {!answered && (
+            <span className="lesson-check__words">{wordCount(typed)} word{wordCount(typed) === 1 ? '' : 's'}</span>
+          )}
           {/* Not part of this plan at all. Said before they write, not after they submit. */}
           {!answered && entitlement.locked && (
             <p className="lesson-check__error" role="status">
@@ -487,8 +493,8 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
           {!answered && (
             <button type="button" className="lesson-check__submit" disabled={!typed.trim() || reviewing || entitlement.exhausted || entitlement.locked} onClick={submitWritten}>
               {reviewing
-                ? <><Loader2 width={13} height={13} className="lesson-check__spin" /> Reviewing...</>
-                : <><Sparkles width={13} height={13} /> Check my answer</>}
+                ? <><CircleNotch weight="bold" width={13} height={13} className="lesson-check__spin" /> Reviewing...</>
+                : <><Sparkle weight="duotone" width={13} height={13} /> Check my answer</>}
             </button>
           )}
           {reviewError && <p className="lesson-check__error" role="status">{reviewError}</p>}
@@ -501,12 +507,12 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
       {answered && format !== 'written' && (
         state === 'incorrect' ? (
           <p className="lesson-check__line" data-kind="incorrect" role="status" aria-live="polite">
-            <XCircle width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
+            <XCircle weight="fill" width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
             <button type="button" className="lesson-check__line-retry" onClick={retryAnswer}>Try again</button>
           </p>
         ) : (
           <p className="lesson-check__line" data-kind="correct" role="status" aria-live="polite">
-            <Check width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
+            <Check weight="bold" width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
           </p>
         )
       )}
@@ -514,7 +520,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
       {answered && format === 'written' && (
         <div className="lesson-check__feedback" data-kind={state === 'idle' ? 'correct' : state} role="status" aria-live="polite">
           <span className="lesson-check__feedback-icon" aria-hidden="true">
-            {state === 'incorrect' ? <XCircle width={18} height={18} /> : <CheckCircle2 width={18} height={18} />}
+            {state === 'incorrect' ? <XCircle weight="fill" width={18} height={18} /> : <CheckCircle weight="fill" width={18} height={18} />}
           </span>
           <div className="lesson-check__feedback-copy">
             <p className="lesson-check__verdict">
@@ -533,7 +539,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                 {review.rubricGrades.map((grade, i) => (
                   <li key={i} data-passed={grade.passed ? 'true' : 'false'}>
                     <span className="lesson-check__rubric-icon" aria-hidden="true">
-                      {grade.passed ? <Check width={11} height={11} /> : <X width={11} height={11} />}
+                      {grade.passed ? <Check weight="bold" width={11} height={11} /> : <X weight="bold" width={11} height={11} />}
                     </span>
                     <span><strong>{grade.criterion}</strong>{grade.comment ? ` -- ${grade.comment}` : ''}</span>
                   </li>
@@ -542,7 +548,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             )}
           </div>
           <button type="button" className="lesson-check__retry" onClick={retryAnswer}>
-            <RotateCcw width={13} height={13} aria-hidden="true" /> Try again
+            <ArrowCounterClockwise weight="bold" width={13} height={13} aria-hidden="true" /> Try again
           </button>
         </div>
       )}

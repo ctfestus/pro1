@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, Copy, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Plus, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -99,16 +99,16 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
           {editable && (
             <div className="lesson-step-card__controls">
               <button type="button" className="lesson-step-card__action" aria-label="Move step card up" title="Move up" disabled={!canMoveUp} onMouseDown={(event) => { event.preventDefault(); moveSelf(-1); }}>
-                <ArrowUp width={13} height={13} />
+                <ArrowUp weight="bold" width={13} height={13} />
               </button>
               <button type="button" className="lesson-step-card__action" aria-label="Move step card down" title="Move down" disabled={!canMoveDown} onMouseDown={(event) => { event.preventDefault(); moveSelf(1); }}>
-                <ArrowDown width={13} height={13} />
+                <ArrowDown weight="bold" width={13} height={13} />
               </button>
               <button type="button" className="lesson-step-card__action" aria-label="Duplicate step card" title="Duplicate" onMouseDown={(event) => { event.preventDefault(); duplicateSelf(); }}>
-                <Copy width={13} height={13} />
+                <Copy weight="bold" width={13} height={13} />
               </button>
               <button type="button" className="lesson-step-card__action lesson-step-card__remove" aria-label="Remove step card" title="Remove" onMouseDown={(event) => { event.preventDefault(); removeSelf(); }}>
-                <X width={13} height={13} />
+                <X weight="bold" width={13} height={13} />
               </button>
             </div>
           )}
@@ -118,7 +118,7 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
 
         {editable && !showGuidance && (
           <button type="button" className="lesson-step-card__add-guidance" contentEditable={false} onMouseDown={(event) => { event.preventDefault(); setGuidanceOpen(true); }}>
-            <Plus width={12} height={12} /> Add guidance
+            <Plus weight="bold" width={12} height={12} /> Add guidance
           </button>
         )}
 
@@ -127,7 +127,7 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
             {editable ? (
               <>
                 <button type="button" className="lesson-step-card__remove-guidance" aria-label="Remove guidance" title="Remove guidance" onMouseDown={(event) => { event.preventDefault(); removeGuidance(); }}>
-                  <X width={12} height={12} />
+                  <X weight="bold" width={12} height={12} />
                 </button>
                 <NodeTextInput
                   className="lesson-step-card__highlight-title-input"
@@ -182,7 +182,7 @@ function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps
         <div className="lesson-block-footer" contentEditable={false}>
           {count < MAX_STEP_CARDS && (
             <button type="button" className="lesson-step-cards__add" onMouseDown={(event) => { event.preventDefault(); addCard(); }}>
-              <Plus width={13} height={13} /> Add step card
+              <Plus weight="bold" width={13} height={13} /> Add step card
             </button>
           )}
           {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a

@@ -3,11 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MenuIcon } from '@/components/MenuIcon';
 import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
-import {
-  CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
-  X, Loader2, Trophy, BookOpen, Download, Award, Star,
-  Link as LinkIcon, Eye, SkipForward, MessageSquare,
-} from 'lucide-react';
+import { BookOpen, CaretDown, CaretLeft, CaretRight, ChatTeardrop, CheckCircle, Circle, CircleNotch, DownloadSimple, Eye, LinkSimple, Medal, SkipForward, Star, Trophy, X } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { useSessionToken } from '@/lib/use-session-token';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
@@ -647,7 +643,7 @@ export default function VirtualExperienceTaker({
         {previewMode && (
           <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold flex-shrink-0"
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
-            <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+            <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Preview. This is the completion screen a student sees. Nothing was recorded and no certificate is issued.</span>
           </div>
         )}
@@ -668,7 +664,7 @@ export default function VirtualExperienceTaker({
             {/* Badge */}
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest"
               style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(6px)' }}>
-              <Trophy className="w-3.5 h-3.5" /> Virtual Experience Complete
+              <Trophy weight="duotone" className="w-3.5 h-3.5" /> Virtual Experience Complete
             </div>
             {/* Name */}
             <h1 className="text-4xl sm:text-5xl font-bold leading-tight" style={{ color: '#fff', fontFamily: VE_DISPLAY_FONT }}>
@@ -705,7 +701,7 @@ export default function VirtualExperienceTaker({
               style={{ background: isDark ? '#1c1c1c' : '#fff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.06)' }}>
               <div className="px-5 py-4 border-b flex items-center gap-2"
                 style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                <Star className="w-4 h-4" style={{ color: accentColor }} fill={accentColor} />
+                <Star weight="duotone" className="w-4 h-4" style={{ color: accentColor }} fill={accentColor} />
                 <p className="text-[15px] font-semibold" style={{ color: text, fontFamily: VE_DISPLAY_FONT }}>Skills demonstrated</p>
               </div>
               <div className="px-5 py-4 space-y-3">
@@ -713,7 +709,7 @@ export default function VirtualExperienceTaker({
                   <div key={i} className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                       style={{ background: `${accentColor}18` }}>
-                      <CheckCircle2 className="w-3 h-3" style={{ color: accentColor }} />
+                      <CheckCircle weight="fill" className="w-3 h-3" style={{ color: accentColor }} />
                     </div>
                     <p className="text-[14px] leading-snug" style={{ color: isDark ? '#ccc' : '#333' }}>{o}</p>
                   </div>
@@ -748,7 +744,7 @@ export default function VirtualExperienceTaker({
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-[14px] border transition-all hover:opacity-70"
                   style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'}`, color: muted, background: 'transparent' }}
                 >
-                  <Award className="w-4 h-4" /> View Certificate
+                  <Medal weight="duotone" className="w-4 h-4" /> View Certificate
                 </a>
               </div>
             ) : previewMode ? (
@@ -756,7 +752,7 @@ export default function VirtualExperienceTaker({
               // returns straight away. Say what a student would get here instead.
               <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[13.5px] font-semibold"
                 style={{ background: `${accentColor}12`, color: accentColor }}>
-                <Eye className="w-4 h-4 flex-shrink-0" />
+                <Eye weight="duotone" className="w-4 h-4 flex-shrink-0" />
                 A student claims their certificate here. Preview issues none.
               </div>
             ) : (
@@ -764,7 +760,7 @@ export default function VirtualExperienceTaker({
                 <button onClick={handleGetCertificate} disabled={certLoading}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-[15px] transition-all hover:opacity-90 disabled:opacity-60"
                   style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-                  {certLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Award className="w-5 h-5" />}
+                  {certLoading ? <CircleNotch weight="bold" className="w-5 h-5 animate-spin" /> : <Medal weight="duotone" className="w-5 h-5" />}
                   {certLoading ? 'Generating Certificate…' : 'Get Certificate'}
                 </button>
                 {certError && (
@@ -775,7 +771,7 @@ export default function VirtualExperienceTaker({
             <button onClick={() => { setReviewMode(true); setCurrentModId(modules[0]?.id || ''); setCurrentLesId(modules[0]?.lessons[0]?.id || ''); }}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-[14px] border transition-all hover:opacity-70"
               style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'}`, color: muted, background: 'transparent' }}>
-              <BookOpen className="w-4 h-4" /> Review Experience
+              <BookOpen weight="duotone" className="w-4 h-4" /> Review Experience
             </button>
             <a href={`/${formSlug}`}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-medium text-[13px] transition-all hover:opacity-70"
@@ -863,7 +859,7 @@ export default function VirtualExperienceTaker({
           <div className="flex items-center justify-between gap-3 px-4 py-2 text-xs font-semibold flex-shrink-0"
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
             <span className="flex items-center gap-2">
-              {previewMode && <Eye className="w-3.5 h-3.5 flex-shrink-0" />}
+              {previewMode && <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" />}
               {previewMode
                 ? 'Reviewing the preview. Nothing here was saved.'
                 : 'Review Mode. Your progress is saved and will not be changed'}
@@ -878,7 +874,7 @@ export default function VirtualExperienceTaker({
         {previewMode && !reviewMode && (
           <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold flex-shrink-0"
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
-            <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+            <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.</span>
           </div>
         )}
@@ -887,7 +883,7 @@ export default function VirtualExperienceTaker({
         {!previewMode && hasInstructorReview(review) && !bannerHidden && (
           <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
             style={{ background: `${accentColor}12`, borderBottom: `1px solid ${accentColor}25` }}>
-            <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+            <ChatTeardrop weight="duotone" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
             <span className="flex-1 min-w-0 text-[13px] font-medium truncate" style={{ color: text }}>
               Your instructor reviewed your work{review.score !== undefined ? ` - ${review.score}/100` : ''}
             </span>
@@ -898,7 +894,7 @@ export default function VirtualExperienceTaker({
             </button>
             <button onClick={closeBanner} aria-label="Close review banner" title="Close"
               className="flex-shrink-0 p-1.5 -mr-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
-              <X className="w-4 h-4" />
+              <X weight="bold" className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -910,7 +906,7 @@ export default function VirtualExperienceTaker({
               {/* Pinned, so the way out is always visible however far the review is scrolled. */}
               <div className="sticky top-0 z-10 flex justify-end pt-3 pb-1 -mr-2" style={{ background: isDark ? '#1c1c1c' : '#fff' }}>
                 <button onClick={() => setReviewOpen(false)} aria-label="Close" className="grid h-11 w-11 place-items-center rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
-                  <X className="w-5 h-5" />
+                  <X weight="bold" className="w-5 h-5" />
                 </button>
               </div>
               <VeInstructorReview review={review} modules={modules} progress={progress}
@@ -929,14 +925,14 @@ export default function VirtualExperienceTaker({
           )}
           {!currentLes && modules.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <BookOpen className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
+              <BookOpen weight="duotone" className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
               <p className="text-sm font-medium" style={{ color: muted }}>No content yet</p>
               <p className="text-xs mt-1 opacity-60" style={{ color: muted }}>This virtual experience has no modules.</p>
             </div>
           )}
           {!currentLes && modules.length > 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <BookOpen className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
+              <BookOpen weight="duotone" className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
               <p className="text-sm font-medium" style={{ color: muted }}>Select a mission from the sidebar</p>
             </div>
           )}
@@ -1012,7 +1008,7 @@ export default function VirtualExperienceTaker({
                         <div style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}>
                           <button onClick={() => toggleContentExpanded(currentLes.id)}
                             className="w-full flex items-center gap-2 px-4 sm:px-8 py-3 text-left hover:opacity-70 transition-opacity">
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" style={{ color: muted }} /> : <ChevronRight className="w-3.5 h-3.5" style={{ color: muted }} />}
+                            {isExpanded ? <CaretDown weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} /> : <CaretRight weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} />}
                             <span className="text-[12.5px] font-semibold" style={{ color: accentColor }}>
                               {isExpanded ? 'Hide the brief' : 'Read the brief again'}
                             </span>
@@ -1030,7 +1026,7 @@ export default function VirtualExperienceTaker({
                         <button onClick={() => continueToTasks(currentLes.id)}
                           className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-[14px] transition-all hover:opacity-90"
                           style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-                          Start the work <ChevronRight className="w-4 h-4" />
+                          Start the work <CaretRight weight="bold" className="w-4 h-4" />
                         </button>
                         <span className="text-[12px]" style={{ color: muted }}>Your tasks arrive below once you start.</span>
                       </div>
@@ -1084,7 +1080,7 @@ export default function VirtualExperienceTaker({
                         <button onClick={() => skipReqInPreview(nextBlockingReq.id)}
                           className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold transition-all hover:opacity-80"
                           style={{ background: `${accentColor}18`, color: accentColor }}>
-                          <SkipForward className="w-3.5 h-3.5" /> Skip this step
+                          <SkipForward weight="fill" className="w-3.5 h-3.5" /> Skip this step
                         </button>
                         <span className="text-[12px]" style={{ color: muted }}>
                           Preview only. Skipping reveals what a student sees next and is not saved.
@@ -1130,7 +1126,7 @@ export default function VirtualExperienceTaker({
                       <div className="px-6 py-5 flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                           style={{ background: `${accentColor}18` }}>
-                          <Download className="w-5 h-5" style={{ color: accentColor }} />
+                          <DownloadSimple weight="bold" className="w-5 h-5" style={{ color: accentColor }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold truncate" style={{ color: isDark ? '#f0f0f0' : '#111' }}>
@@ -1141,7 +1137,7 @@ export default function VirtualExperienceTaker({
                         <a href={solUrl} target="_blank" rel="noreferrer"
                           className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold flex-shrink-0 transition-all hover:opacity-80"
                           style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-                          <LinkIcon className="w-3.5 h-3.5" /> Open
+                          <LinkSimple weight="bold" className="w-3.5 h-3.5" /> Open
                         </a>
                       </div>
                     ) : (
@@ -1160,7 +1156,7 @@ export default function VirtualExperienceTaker({
               {!reviewMode && !allCurrentDone && missionLeft > 0 && (
                 <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
                   style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
-                  <Circle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />
+                  <Circle weight="bold" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />
                   <p className="text-[12.5px] font-semibold" style={{ color: accentColor }}>
                     {missionLeft === 1 ? '1 thing left' : `${missionLeft} things left`} before {firstNameOf(manager.name)} can sign this off.
                   </p>
@@ -1177,21 +1173,21 @@ export default function VirtualExperienceTaker({
                   <button onClick={goPrev}
                     className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
                     style={{ color: muted }}>
-                    <ChevronLeft className="w-4 h-4" /> Previous mission
+                    <CaretLeft weight="bold" className="w-4 h-4" /> Previous mission
                   </button>
                 ) : <span />}
                 {navUnlocked && hasNext && (
                   <button onClick={goNext}
                     className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
                     style={{ color: muted }}>
-                    Next mission <ChevronRight className="w-4 h-4" />
+                    Next mission <CaretRight weight="bold" className="w-4 h-4" />
                   </button>
                 )}
                 {reviewMode && !hasNext && (
                   <button onClick={() => setReviewMode(false)}
                     className="inline-flex items-center gap-1.5 px-1 py-1.5 text-[12.5px] font-semibold transition-opacity hover:opacity-70"
                     style={{ color: accentColor }}>
-                    <Trophy className="w-4 h-4" /> Back to summary
+                    <Trophy weight="duotone" className="w-4 h-4" /> Back to summary
                   </button>
                 )}
               </div>

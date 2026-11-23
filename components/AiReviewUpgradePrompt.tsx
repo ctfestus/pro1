@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpRight, Clock, LockKeyhole } from 'lucide-react';
+import { ArrowUpRight, Clock, LockKey } from '@phosphor-icons/react';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 
 interface Props {
@@ -76,7 +76,7 @@ export function AiReviewDailyLimitNotice({
       className="flex items-start gap-2 rounded-xl p-3"
       style={{ background: isDark ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.12)' }}
     >
-      <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: muted }} />
+      <Clock weight="duotone" className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: muted }} />
       <div className="min-w-0">
         <p className="text-[13px] font-bold" style={{ color: muted }}>No AI reviews left for this today</p>
         <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>
@@ -116,7 +116,7 @@ export function AiReviewUpgradeNote({
       className="mt-1 inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
       style={{ color: accentColor }}
     >
-      {priceLabel ? `Upgrade for ${priceLabel}` : 'Upgrade'} <ArrowUpRight className="h-3 w-3" />
+      {priceLabel ? `Upgrade for ${priceLabel}` : 'Upgrade'} <ArrowUpRight weight="bold" className="h-3 w-3" />
     </a>
   );
 }
@@ -151,7 +151,7 @@ export default function AiReviewUpgradePrompt({
   // being unlocked stays visible behind it rather than being covered by a card.
   return (
     <div className="flex max-w-sm flex-col items-center gap-3 px-5 py-6 text-center">
-      <LockKeyhole className="h-6 w-6" style={{ color: muted }} />
+      <LockKey weight="duotone" className="h-6 w-6" style={{ color: muted }} />
       <div>
         <p className="text-sm font-semibold" style={{ color: text }}>{heading}</p>
         <p className="mt-1.5 text-xs leading-relaxed" style={{ color: muted }}>{body}</p>
@@ -167,7 +167,7 @@ export default function AiReviewUpgradePrompt({
         className="mt-1 inline-flex min-h-11 max-w-full items-center justify-center gap-2 text-balance rounded-xl px-5 py-2.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
         style={{ background: accentColor, color: '#ffffff' }}
       >
-        {label} <ArrowUpRight className="h-4 w-4" />
+        {label} <ArrowUpRight weight="bold" className="h-4 w-4" />
       </a>
       )}
     </div>

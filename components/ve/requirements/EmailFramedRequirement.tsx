@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Circle, Loader2, Paperclip, Send, Reply, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { ArrowBendUpLeft, CheckCircle, Circle, CircleNotch, LinkSimple, PaperPlaneRight, Paperclip, Warning } from '@phosphor-icons/react';
 import AiReviewUpgradePrompt, { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
@@ -228,7 +228,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             <MailThreadMsg isDark={isDark} from={manager} time="Earlier">
               <div style={{ borderRadius: 10, padding: '12px 16px', background: r.passed ? `${accentColor}12` : `${t.bad}12`, border: `1px solid ${r.passed ? `${accentColor}40` : `${t.bad}40`}` }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: r.passed ? accentColor : t.bad, marginBottom: 8 }}>
-                  {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  {r.passed ? <CheckCircle weight="fill" className="w-4 h-4" /> : <Circle weight="bold" className="w-4 h-4" />}
                   {r.passed ? 'Correct' : 'Incorrect'}
                 </div>
                 <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{r.feedback}</p>
@@ -254,7 +254,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             <MailThreadMsg isDark={isDark} from={manager}>
               <p style={{ margin: '0 0 10px' }}>Thanks for your response, {firstNameOf(studentName)}. Let me review what you have written.</p>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: evaluating ? (isDark ? '#2a2a2a' : '#f0f0f0') : `${accentColor}12`, color: evaluating ? (isDark ? '#888' : '#666') : accentColor, border: `1px solid ${evaluating ? 'transparent' : accentColor + '30'}`, fontSize: 12.5 }}>
-                {evaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ display: 'inline' }} /> : fbErrored ? <AlertTriangle className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <CheckCircle2 className="w-3.5 h-3.5" style={{ display: 'inline' }} />}
+                {evaluating ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ display: 'inline' }} /> : fbErrored ? <Warning weight="duotone" className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <CheckCircle weight="fill" className="w-3.5 h-3.5" style={{ display: 'inline' }} />}
                 {evaluating ? 'Reviewing your answer...' : fbErrored ? 'Could not review' : 'Reviewed'}
               </div>
             </MailThreadMsg>
@@ -273,7 +273,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                 ) : (
                   <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
-                      {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                      {fbErrored ? <Warning weight="duotone" className="w-4 h-4" /> : feedback.passed ? <CheckCircle weight="fill" className="w-4 h-4" /> : <Circle weight="bold" className="w-4 h-4" />}
                       {fbTone.label}
                     </div>
                     <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
@@ -301,7 +301,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                     setOpenReplies(prev => new Set([...prev, req.id]));
                   }}
                   style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: isDark ? '#ddd' : '#444', cursor: 'pointer' }}>
-                  <Reply className="w-4 h-4" /> {fbErrored ? 'Try again' : 'Reply'}
+                  <ArrowBendUpLeft weight="bold" className="w-4 h-4" /> {fbErrored ? 'Try again' : 'Reply'}
                 </button>
               )}
             </div>
@@ -316,7 +316,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       ) : !replyOpen ? (
         <div style={{ padding: '14px 22px' }}>
           {!reviewMode && (
-            <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Reply className="w-4 h-4" /> Reply</TaskButton>
+            <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><ArrowBendUpLeft weight="bold" className="w-4 h-4" /> Reply</TaskButton>
           )}
         </div>
       ) : (
@@ -373,14 +373,14 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
         <MailThreadMsg isDark={isDark} from="me" meName={studentName}
           receipt={showReply ? `Seen by ${firstNameOf(manager.name)} just now` : undefined}>
           {isTask
-            ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155' }}><CheckCircle2 className="w-3 h-3" /> Task marked as done</div>
+            ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155' }}><CheckCircle weight="fill" className="w-3 h-3" /> Task marked as done</div>
             : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {fileUrl && (
                   <AttachmentCard isDark={isDark} href={repairVeSubmissionUrl(fileUrl)}
                     name={(() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || (isDeliverable ? 'Deliverable' : 'Attachment')} />
                 )}
-                {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155', textDecoration: 'none' }}><LinkIcon className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
+                {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155', textDecoration: 'none' }}><LinkSimple weight="bold" className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
               </div>
             )
           }
@@ -404,14 +404,14 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
         isTask ? (
           <div style={{ padding: '14px 22px' }}>
             {!reviewMode && (
-              <TaskButton t={t} onClick={handleEfSend}><CheckCircle2 className="w-4 h-4" /> I am done with this task</TaskButton>
+              <TaskButton t={t} onClick={handleEfSend}><CheckCircle weight="fill" className="w-4 h-4" /> I am done with this task</TaskButton>
             )}
           </div>
         ) : !replyOpen ? (
           // Upload / Deliverable: show open-compose button
           <div style={{ padding: '14px 22px' }}>
             {!reviewMode && (
-              <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Paperclip className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}</TaskButton>
+              <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Paperclip weight="bold" className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}</TaskButton>
             )}
           </div>
         ) : (
@@ -419,7 +419,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
           <div style={{ padding: '14px 22px 18px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <label className="ve-file-label relative" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, background: t.soft, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13.5, color: t.muted }}>
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip className="w-4 h-4" />}
+                {uploading ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip weight="bold" className="w-4 h-4" />}
                 <span>{uploading ? 'Uploading...' : fileUrl ? <b style={{ color: t.text, fontWeight: 600 }}>File attached. Choose another to replace it</b> : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> to attach</>}</span>
                 <input type="file" accept={VE_SUBMISSION_ACCEPT} className="sr-only" disabled={uploading} onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
@@ -429,13 +429,13 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               </label>
               {uploadErrors[req.id] && <p role="alert" style={{ margin: 0, color: t.bad, fontSize: 12.5 }}>{uploadErrors[req.id]}</p>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderRadius: 10, background: t.soft }}>
-                <LinkIcon className="w-3.5 h-3.5" style={{ color: t.faint, flexShrink: 0 }} />
+                <LinkSimple weight="bold" className="w-3.5 h-3.5" style={{ color: t.faint, flexShrink: 0 }} />
                 <input type="url" value={linkUrl} onChange={e => setProgress(prev => ({ ...prev, [req.id]: { ...prev[req.id], linkUrl: e.target.value } }))}
                   placeholder="Or paste a link (Google Drive, GitHub...)" aria-label="Or paste a link"
                   style={{ flex: 1, minWidth: 0, padding: '10px 0', border: 'none', background: 'transparent', color: t.text, fontSize: 13.5, outline: 'none' }} />
               </div>
               <div>
-                <TaskButton t={t} onClick={handleEfSend} disabled={!(fileUrl || linkUrl)}><Send className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Send'}</TaskButton>
+                <TaskButton t={t} onClick={handleEfSend} disabled={!(fileUrl || linkUrl)}><PaperPlaneRight weight="duotone" className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Send'}</TaskButton>
               </div>
             </div>
           </div>
@@ -538,7 +538,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               <p style={{ margin: '0 0 10px' }}>Thanks, {firstNameOf(studentName)} - I have received your {typeLabel} and it is currently under review. I will get back to you shortly.</p>
               {!done && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isDark ? '#888' : '#999', fontSize: 12.5 }}>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> AI is reviewing your {typeLabel}...
+                  <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> AI is reviewing your {typeLabel}...
                 </div>
               )}
               {done && <MailStatusChip accent={accentColor}>Review complete</MailStatusChip>}

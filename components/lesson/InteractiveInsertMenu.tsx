@@ -1,13 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import {
-  Blocks, BookOpenCheck, Braces, ChevronsUpDown, ChevronDown, GalleryHorizontal,
-  HelpCircle, History, Info, Layers, LayoutGrid, ListChecks, MessageSquareCode,
-  PanelsTopLeft, Search, Terminal,
-} from 'lucide-react';
+import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, type Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { insertStepCards } from '@/lib/lesson-step-cards';
 
 type InsertCategory = 'Organize' | 'Engage' | 'Practice';
@@ -17,30 +13,30 @@ interface InsertItem {
   label: string;
   description: string;
   category: InsertCategory;
-  Icon: ComponentType<{ width?: number; height?: number; className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+  Icon: PhosphorIcon;
   content?: Record<string, unknown>;
   action?: (editor: Editor) => void;
 }
 
 const ITEMS: InsertItem[] = [
-  { id: 'accordion', label: 'Collapsible sections', description: 'Reveal supporting details on demand.', category: 'Organize', Icon: ChevronsUpDown, content: { type: 'accordion', content: [{ type: 'accordionItem', attrs: { title: '', open: false }, content: [{ type: 'paragraph' }] }] } },
-  { id: 'tabs', label: 'Tabs', description: 'Organize related content into focused views.', category: 'Organize', Icon: LayoutGrid, content: { type: 'tabs', content: [{ type: 'tabPanel', attrs: { label: 'Tab 1' }, content: [{ type: 'paragraph' }] }, { type: 'tabPanel', attrs: { label: 'Tab 2' }, content: [{ type: 'paragraph' }] }] } },
-  { id: 'carousel', label: 'Carousel', description: 'Guide learners through a sequence of slides.', category: 'Organize', Icon: GalleryHorizontal, content: { type: 'carousel', content: [{ type: 'carouselSlide', content: [{ type: 'paragraph' }] }, { type: 'carouselSlide', content: [{ type: 'paragraph' }] }] } },
-  { id: 'step-cards', label: 'Step cards', description: 'Show scan-friendly numbered instructions.', category: 'Organize', Icon: PanelsTopLeft, action: insertStepCards },
+  { id: 'accordion', label: 'Collapsible sections', description: 'Reveal supporting details on demand.', category: 'Organize', Icon: CaretUpDown, content: { type: 'accordion', content: [{ type: 'accordionItem', attrs: { title: '', open: false }, content: [{ type: 'paragraph' }] }] } },
+  { id: 'tabs', label: 'Tabs', description: 'Organize related content into focused views.', category: 'Organize', Icon: SquaresFour, content: { type: 'tabs', content: [{ type: 'tabPanel', attrs: { label: 'Tab 1' }, content: [{ type: 'paragraph' }] }, { type: 'tabPanel', attrs: { label: 'Tab 2' }, content: [{ type: 'paragraph' }] }] } },
+  { id: 'carousel', label: 'Carousel', description: 'Guide learners through a sequence of slides.', category: 'Organize', Icon: Slideshow, content: { type: 'carousel', content: [{ type: 'carouselSlide', content: [{ type: 'paragraph' }] }, { type: 'carouselSlide', content: [{ type: 'paragraph' }] }] } },
+  { id: 'step-cards', label: 'Step cards', description: 'Show scan-friendly numbered instructions.', category: 'Organize', Icon: Layout, action: insertStepCards },
   { id: 'guided-steps', label: 'Guided steps', description: 'Reveal a process one step at a time.', category: 'Organize', Icon: ListChecks, content: { type: 'stepper', content: [{ type: 'step', attrs: { title: '' }, content: [{ type: 'paragraph' }] }, { type: 'step', attrs: { title: '' }, content: [{ type: 'paragraph' }] }] } },
-  { id: 'timeline', label: 'Timeline', description: 'Present milestones in chronological order.', category: 'Organize', Icon: History, content: { type: 'timeline', content: [{ type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }, { type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }] } },
+  { id: 'timeline', label: 'Timeline', description: 'Present milestones in chronological order.', category: 'Organize', Icon: ClockCounterClockwise, content: { type: 'timeline', content: [{ type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }, { type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }] } },
   { id: 'callout', label: 'Callout', description: 'Highlight a note, tip, warning, or insight.', category: 'Engage', Icon: Info, content: { type: 'callout', attrs: { variant: 'note' }, content: [{ type: 'paragraph' }] } },
-  { id: 'flip-cards', label: 'Flip cards', description: 'Create tap-to-reveal terms and answers.', category: 'Engage', Icon: Layers, content: { type: 'flipCardDeck', content: [{ type: 'flipCard', attrs: { front: '', back: '' } }, { type: 'flipCard', attrs: { front: '', back: '' } }] } },
-  { id: 'prompt', label: 'AI prompt', description: 'Let learners copy or launch a prepared prompt.', category: 'Engage', Icon: MessageSquareCode, content: { type: 'promptBlock', attrs: { title: 'Try this prompt', prompt: '', showChatGpt: true, showClaude: true } } },
-  { id: 'knowledge-check', label: 'Knowledge check', description: 'Add ungraded practice: multiple choice, fill in, or a written response.', category: 'Practice', Icon: HelpCircle, content: { type: 'knowledgeCheck', attrs: { question: '', format: 'choice', options: ['', ''], correctIndex: 0, explanation: '' } } },
-  { id: 'sql', label: 'SQL playground', description: 'Add executable SQL with optional sample data.', category: 'Practice', Icon: Terminal, content: { type: 'runnableCode', attrs: { language: 'sql', code: '', setupSql: '', setupPython: '' } } },
-  { id: 'python', label: 'Python playground', description: 'Add executable Python directly in the lesson.', category: 'Practice', Icon: Braces, content: { type: 'runnableCode', attrs: { language: 'python', code: '', setupSql: '', setupPython: '' } } },
+  { id: 'flip-cards', label: 'Flip cards', description: 'Create tap-to-reveal terms and answers.', category: 'Engage', Icon: Stack, content: { type: 'flipCardDeck', content: [{ type: 'flipCard', attrs: { front: '', back: '' } }, { type: 'flipCard', attrs: { front: '', back: '' } }] } },
+  { id: 'prompt', label: 'AI prompt', description: 'Let learners copy or launch a prepared prompt.', category: 'Engage', Icon: ChatTeardropText, content: { type: 'promptBlock', attrs: { title: 'Try this prompt', prompt: '', showChatGpt: true, showClaude: true } } },
+  { id: 'knowledge-check', label: 'Knowledge check', description: 'Add ungraded practice: multiple choice, fill in, or a written response.', category: 'Practice', Icon: Question, content: { type: 'knowledgeCheck', attrs: { question: '', format: 'choice', options: ['', ''], correctIndex: 0, explanation: '' } } },
+  { id: 'sql', label: 'SQL playground', description: 'Add executable SQL with optional sample data.', category: 'Practice', Icon: TerminalWindow, content: { type: 'runnableCode', attrs: { language: 'sql', code: '', setupSql: '', setupPython: '' } } },
+  { id: 'python', label: 'Python playground', description: 'Add executable Python directly in the lesson.', category: 'Practice', Icon: BracketsCurly, content: { type: 'runnableCode', attrs: { language: 'python', code: '', setupSql: '', setupPython: '' } } },
 ];
 
-const CATEGORY_META: Record<InsertCategory, { label: string; Icon: typeof Blocks }> = {
-  Organize: { label: 'Organize content', Icon: Blocks },
-  Engage: { label: 'Engage learners', Icon: BookOpenCheck },
-  Practice: { label: 'Practice & apply', Icon: HelpCircle },
+const CATEGORY_META: Record<InsertCategory, { label: string; Icon: typeof Cube }> = {
+  Organize: { label: 'Organize content', Icon: Cube },
+  Engage: { label: 'Engage learners', Icon: BookOpenText },
+  Practice: { label: 'Practice & apply', Icon: Question },
 };
 
 function insertAtSelectionOrEnd(editor: Editor, content: Record<string, unknown>) {
@@ -139,9 +135,9 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
         onMouseDown={(event) => event.preventDefault()}
         onClick={toggle}
       >
-        <Blocks width={14} height={14} aria-hidden="true" />
+        <Cube weight="duotone" width={14} height={14} aria-hidden="true" />
         <span>Add interactive</span>
-        <ChevronDown width={13} height={13} aria-hidden="true" />
+        <CaretDown weight="bold" width={13} height={13} aria-hidden="true" />
       </button>
       {open && position && createPortal(
         <div
@@ -159,7 +155,7 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
             </div>
           </div>
           <label className="lesson-insert-menu__search">
-            <Search width={14} height={14} aria-hidden="true" />
+            <MagnifyingGlass weight="bold" width={14} height={14} aria-hidden="true" />
             <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search interactions..." aria-label="Search interactive content" />
           </label>
           <div className="lesson-insert-menu__results">
@@ -167,13 +163,13 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
               const MetaIcon = CATEGORY_META[category].Icon;
               return (
                 <section key={category} className="lesson-insert-menu__group">
-                  <div className="lesson-insert-menu__group-label"><MetaIcon width={12} height={12} aria-hidden="true" /> {CATEGORY_META[category].label}</div>
+                  <div className="lesson-insert-menu__group-label"><MetaIcon weight="duotone" width={12} height={12} aria-hidden="true" /> {CATEGORY_META[category].label}</div>
                   <div className="lesson-insert-menu__grid">
                     {items.map((item) => {
                       const ItemIcon = item.Icon;
                       return (
                         <button key={item.id} type="button" className="lesson-insert-menu__item" onMouseDown={(event) => event.preventDefault()} onClick={() => insert(item)}>
-                          <span className="lesson-insert-menu__icon"><ItemIcon width={17} height={17} aria-hidden="true" /></span>
+                          <span className="lesson-insert-menu__icon"><ItemIcon weight="duotone" width={17} height={17} aria-hidden="true" /></span>
                           <span className="lesson-insert-menu__copy"><strong>{item.label}</strong><small>{item.description}</small></span>
                         </button>
                       );

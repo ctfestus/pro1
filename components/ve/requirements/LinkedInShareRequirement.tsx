@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Loader2, AlertTriangle, Eye, Check, Link as LinkIcon } from 'lucide-react';
+import { Check, CheckCircle, CircleNotch, Eye, LinkSimple, Warning } from '@phosphor-icons/react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
@@ -48,7 +48,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
           <div className="min-w-0">
             <p className="text-[15px] font-bold leading-tight flex items-center gap-1.5"
               style={{ color: t.accent }}>
-              <Check className="w-4 h-4 flex-shrink-0" strokeWidth={3} />
+              <Check weight="bold" className="w-4 h-4 flex-shrink-0" />
               LinkedIn share verified
             </p>
             <p className="text-[12px] leading-snug mt-0.5" style={{ color: isDark ? '#aaa' : '#555' }}>
@@ -72,7 +72,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
       ) : (
         <div className="flex items-center gap-2 rounded-lg px-3 py-2.5"
           style={{ background: `${accentColor}10` }}>
-          <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />
+          <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />
           <p className="text-[12px] leading-snug" style={{ color: isDark ? '#aaa' : '#555' }}>
             Real work, shared publicly. This is the part hiring managers actually see.
           </p>
@@ -114,7 +114,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
         <p className="text-[12.5px] font-medium" style={{ color: isDark ? '#888' : '#666' }}>Paste the link to your post</p>
         <div className="flex flex-col sm:flex-row gap-2">
           <div className={`${TASK_SHELL} flex flex-1 min-w-0 items-center gap-2 rounded-[10px] px-3`} style={fieldStyle(t, error ? 'bad' : claimed ? 'done' : 'normal')}>
-            <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: t.faint }} />
+            <LinkSimple weight="bold" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: t.faint }} />
             <input
               type="url" inputMode="url" value={draft} readOnly={reviewMode}
               onChange={e => {
@@ -128,7 +128,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
           </div>
           {!reviewMode && (
             <TaskButton t={t} onClick={() => submitShareLink(req.id)} disabled={saving || !draft.trim() || draft.trim() === claimed}>
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : claimed ? 'Update' : 'Submit'}
+              {saving ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : claimed ? 'Update' : 'Submit'}
             </TaskButton>
           )}
         </div>
@@ -153,12 +153,12 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
                 style={{ ...fieldStyle(t, profileError ? 'bad' : 'normal'), background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff' }}
               />
               <TaskButton t={t} onClick={() => saveProfileAndRetry(req.id)} disabled={profileSaving || !profileDraft.trim()}>
-                {profileSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save and submit'}
+                {profileSaving ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : 'Save and submit'}
               </TaskButton>
             </div>
             {profileError && (
               <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: t.bad }}>
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {profileError}
+                <Warning weight="duotone" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {profileError}
               </p>
             )}
           </div>
@@ -166,13 +166,13 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
 
         {error && (
           <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: t.bad }}>
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {error}
+            <Warning weight="duotone" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {error}
           </p>
         )}
         {!error && claimed && (
           <a href={claimed} target="_blank" rel="noreferrer"
             className="text-[12px] font-semibold flex items-center gap-1.5 hover:underline" style={{ color: t.accent }}>
-            <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> Verified. View your post
+            <CheckCircle weight="fill" className="w-3.5 h-3.5 flex-shrink-0" /> Verified. View your post
           </a>
         )}
         {!error && !claimed && (

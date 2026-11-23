@@ -1,6 +1,6 @@
 'use client';
 
-import { Briefcase, FolderOpen, ListChecks, MessageSquare } from 'lucide-react';
+import { Briefcase, ChatTeardrop, FolderOpen, ListChecks } from '@phosphor-icons/react';
 
 export type PhoneTab = 'work' | 'missions' | 'files' | 'ask';
 
@@ -23,7 +23,7 @@ export function PhoneTabBar({ active, onSelect, askLabel, canAsk, filesNew, isDa
     { id: 'work', label: 'Work', Icon: Briefcase },
     { id: 'missions', label: 'Missions', Icon: ListChecks },
     { id: 'files', label: 'Files', Icon: FolderOpen },
-    { id: 'ask', label: askLabel, Icon: MessageSquare, disabled: !canAsk },
+    { id: 'ask', label: askLabel, Icon: ChatTeardrop, disabled: !canAsk },
   ];
   return (
     <nav aria-label="Sections" className="sm:hidden relative z-[75] flex-shrink-0 grid grid-cols-4"
@@ -39,7 +39,7 @@ export function PhoneTabBar({ active, onSelect, askLabel, canAsk, filesNew, isDa
             className="flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-semibold disabled:opacity-40 truncate"
             style={{ color: on ? accentColor : muted }}>
             <span className="relative">
-              <Icon className="w-5 h-5" />
+              <Icon weight="duotone" className="w-5 h-5" />
               {id === 'files' && filesNew && (
                 <span className="absolute -top-0.5 -right-1 flex h-2.5 w-2.5" aria-label="New files">
                   <span className="absolute inline-flex h-full w-full rounded-full animate-ping motion-reduce:animate-none" style={{ background: '#D93025', opacity: 0.6 }} />

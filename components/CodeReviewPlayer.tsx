@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCode, Lock, TriangleAlert } from 'lucide-react';
+import { ArrowCounterClockwise, CheckCircle, Code, DownloadSimple, FileCode, Lightning, Lock, UploadSimple, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { ReviewTarget } from '@/lib/review-target';
@@ -185,7 +185,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
   if (!result && completed && shouldLock) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}25` }}>
-        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+        <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
         <p className="text-sm font-medium" style={{ color: accentColor }}>
           Code review already submitted for this question.
         </p>
@@ -198,7 +198,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
     if (atLimit) {
       return (
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', border: `1px solid ${border}` }}>
-          <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
+          <Lock weight="duotone" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: text }}>Review limit reached</p>
             <p className="text-xs mt-0.5" style={{ color: muted }}>You have used all {maxReviews} allowed review attempts for this question.</p>
@@ -220,7 +220,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
       >
       <div className="space-y-3">
         {!hideWorkspaceHeader && (<>
-          <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewWorkspaceHeader icon={<FileCode weight="duotone" className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
@@ -266,7 +266,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         <div className="focus-frame" style={{ border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, borderRadius: 16, overflow: 'hidden', background: isDark ? '#111' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)', ['--focus-frame' as string]: accentColor, ['--focus-frame-ring' as string]: `${accentColor}29` }}>
           <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ background: inner, borderColor: border }}>
             <div className="flex items-center gap-2">
-              <Code2 className="w-3.5 h-3.5" style={{ color: muted }} />
+              <Code weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} />
               <span className="text-xs font-semibold" style={{ color: muted }}>
                 {language}{language === 'SQL' ? ` | ${dialect}` : ''}
               </span>
@@ -281,7 +281,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
                     color: inputMode === mode ? text : muted,
                     boxShadow: inputMode === mode ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
                   }}>
-                  {mode === 'paste' ? <><Code2 className="w-3 h-3" />Paste</> : <><Upload className="w-3 h-3" />Upload</>}
+                  {mode === 'paste' ? <><Code weight="bold" className="w-3 h-3" />Paste</> : <><UploadSimple weight="bold" className="w-3 h-3" />Upload</>}
                 </button>
               ))}
             </div>
@@ -309,7 +309,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
                 <>
                   <div style={{ width: 44, height: 44, borderRadius: 10, background: `${accentColor}18`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FileCode className="w-5 h-5" style={{ color: accentColor }} />
+                    <FileCode weight="duotone" className="w-5 h-5" style={{ color: accentColor }} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold" style={{ color: text }}>{uploadedFileName}</p>
@@ -322,7 +322,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
                 <>
                   <div style={{ width: 44, height: 44, borderRadius: 10, background: isDark ? '#1e1e1e' : '#f3f4f6',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px dashed ${border}` }}>
-                    <Upload className="w-5 h-5" style={{ color: muted }} />
+                    <UploadSimple weight="bold" className="w-5 h-5" style={{ color: muted }} />
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold" style={{ color: text }}>Click to upload your file</p>
@@ -340,7 +340,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!code.trim()} busy={analyzing} onClick={handleSubmit}>
-          <Zap className="w-4 h-4" /> Submit for AI review
+          <Lightning weight="duotone" className="w-4 h-4" /> Submit for AI review
         </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
@@ -395,15 +395,15 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         isDark={isDark}
         passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
-          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="h-3.5 w-3.5" /> Export</button>
-          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="h-3.5 w-3.5" /> Try again</button>}
+          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><DownloadSimple weight="bold" className="h-3.5 w-3.5" /> Export</button>
+          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><ArrowCounterClockwise weight="bold" className="h-3.5 w-3.5" /> Try again</button>}
         </>}
       />
 
       {/* Completion / gate */}
       {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
+          <Warning weight="duotone" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
               Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
@@ -413,7 +413,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+          <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
             Review complete | {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
           </p>

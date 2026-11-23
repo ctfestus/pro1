@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Lock, X } from 'lucide-react';
+import { Check, Lock, X } from '@phosphor-icons/react';
 import { lessonCompletionPct } from '@/lib/ve-completion';
 import type { Module, Progress } from '@/components/ve/requirements/types';
 
@@ -12,10 +12,10 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
 }) {
   const base = 'w-[26px] h-[26px] rounded-full flex items-center justify-center flex-shrink-0 text-[11.5px] font-bold tabular-nums';
   if (status === 'done') {
-    return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}><Check className="w-3.5 h-3.5" strokeWidth={3} /></span>;
+    return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}><Check weight="bold" className="w-3.5 h-3.5" /></span>;
   }
   if (status === 'locked') {
-    return <span className={base} style={{ background: `${faint}26`, color: faint }}><Lock className="w-3 h-3" /></span>;
+    return <span className={base} style={{ background: `${faint}26`, color: faint }}><Lock weight="duotone" className="w-3 h-3" /></span>;
   }
   if (status === 'progress') {
     return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{number}</span>;
@@ -69,7 +69,7 @@ export function ProjectPlan({
         </div>
         <div className="relative group ml-2 flex-shrink-0">
           <button onClick={onCollapse} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Collapse mission list">
-            <X className="w-4 h-4" strokeWidth={2.5} />
+            <X weight="bold" className="w-4 h-4" />
           </button>
           {/* Tooltip below: aside has overflow:hidden so left direction is clipped */}
           <span className="pointer-events-none absolute top-full mt-1 right-0 z-50 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white">

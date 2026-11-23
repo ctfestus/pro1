@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { FolderOpen, Loader2, MessageSquare } from 'lucide-react';
+import { ChatTeardrop, CircleNotch, FolderOpen } from '@phosphor-icons/react';
 import { PersonAvatar, firstNameOf, localDayTime, type Person } from '@/components/ve/workplace';
 
 // A clock store that changes once a minute, on the minute.
@@ -95,12 +95,12 @@ export function WorkplaceTopBar({
 
       {/* Right: saving, files (desktop), manager, progress */}
       <div className="flex items-center justify-end gap-1 sm:gap-1.5 flex-1">
-        {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" style={{ color: muted }} />}
+        {saving && <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin mr-1" style={{ color: muted }} />}
         <button onClick={onOpenFiles}
           className="hidden sm:inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80 flex-shrink-0"
           style={{ background: isDark ? '#1e1e1e' : '#ffffff', color: text }}
           title="Everything shared with you and everything you sent">
-          <FolderOpen className="w-3.5 h-3.5" style={{ color: muted }} /> Files
+          <FolderOpen weight="duotone" className="w-3.5 h-3.5" style={{ color: muted }} /> Files
           {filesCount > 0 && (
             <span className="relative flex">
               {filesNew && (
@@ -115,7 +115,7 @@ export function WorkplaceTopBar({
           <button onClick={onAsk}
             className="hidden sm:inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80 flex-shrink-0"
             style={{ background: `${accentColor}14`, color: accentColor }}>
-            <MessageSquare className="w-3.5 h-3.5" /> Ask {firstNameOf(manager.name)}
+            <ChatTeardrop weight="duotone" className="w-3.5 h-3.5" /> Ask {firstNameOf(manager.name)}
           </button>
         )}
         <div className="px-1 flex-shrink-0">

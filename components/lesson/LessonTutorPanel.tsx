@@ -4,15 +4,7 @@
 // calm, full-width conversation: no avatars, chat bubbles, or alternating alignment.
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ArrowUp,
-  BrainCircuit,
-  Lightbulb,
-  ListTree,
-  MessagesSquare,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
+import { ArrowUp, Brain, ChatsCircle, Lightbulb, ShieldCheck, TreeStructure, X } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { parseTutorMarkdown } from '@/lib/tutor-markdown';
 
@@ -22,9 +14,9 @@ const MAX_QUESTION_CHARS = 500;
 
 const QUICK_ACTIONS = [
   { icon: Lightbulb, label: 'Explain simply', question: 'Explain this topic in simple terms' },
-  { icon: ListTree, label: 'Summarize', question: 'Give me a summary' },
-  { icon: BrainCircuit, label: 'Practice', question: 'Give me practice questions' },
-  { icon: MessagesSquare, label: 'Real examples', question: 'Give me real-life examples' },
+  { icon: TreeStructure, label: 'Summarize', question: 'Give me a summary' },
+  { icon: Brain, label: 'Practice', question: 'Give me practice questions' },
+  { icon: ChatsCircle, label: 'Real examples', question: 'Give me real-life examples' },
 ];
 
 // One living point, colored by the course theme. The soft expanding signal gives it presence
@@ -281,7 +273,7 @@ export function LessonTutorPanel({ isDark, accent, courseId, slideId, open, onOp
               </div>
             </div>
             <button onClick={() => onOpenChange(false)} className="lesson-tutor-close" title="Close tutor" aria-label="Close tutor">
-              <X size={16} />
+              <X weight="bold" size={16} />
             </button>
           </div>
         </div>
@@ -300,14 +292,14 @@ export function LessonTutorPanel({ isDark, accent, courseId, slideId, open, onOp
                   const Icon = action.icon;
                   return (
                     <button key={action.label} onClick={() => ask(action.question)} className="lesson-tutor-quick">
-                      <Icon size={15} aria-hidden="true" />
+                      <Icon weight="duotone" size={15} aria-hidden="true" />
                       <span>{action.label}</span>
                     </button>
                   );
                 })}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 18, color: faint, fontSize: '.69rem', lineHeight: 1.45 }}>
-                <ShieldCheck size={14} style={{ flex: '0 0 auto' }} aria-hidden="true" />
+                <ShieldCheck weight="duotone" size={14} style={{ flex: '0 0 auto' }} aria-hidden="true" />
                 <span>Grounded in the open lesson. Knowledge-check answers stay protected.</span>
               </div>
             </section>
@@ -359,7 +351,7 @@ export function LessonTutorPanel({ isDark, accent, courseId, slideId, open, onOp
               aria-label="Ask about this lesson"
             />
             <button onClick={() => ask(input)} disabled={!input.trim() || waiting} className="lesson-tutor-send" title="Send" aria-label="Send question">
-              <ArrowUp size={17} strokeWidth={2.4} />
+              <ArrowUp weight="bold" size={17} />
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '8px 3px 0', color: faint, fontSize: '.64rem', lineHeight: 1.35 }}>

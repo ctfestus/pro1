@@ -9,27 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Archive,
-  Trash2,
-  Star,
-  ChevronDown,
-  Reply,
-  ChevronLeft,
-  CornerUpLeft,
-  Paperclip,
-  Smile,
-  Send,
-  Bold,
-  Italic,
-  Underline,
-  List,
-  ListOrdered,
-  CheckCheck,
-  ShieldCheck,
-  Inbox,
-  MessageSquare,
-} from 'lucide-react';
+import { Archive, ArrowBendUpLeft, CaretDown, CaretLeft, ChatTeardrop, Checks, ListBullets, ListNumbers, PaperPlaneRight, Paperclip, ShieldCheck, Smiley, Star, TextB, TextItalic, TextUnderline, Trash, Tray } from '@phosphor-icons/react';
 import {
   Person, PersonAvatar, MeAvatar, AttachmentCard, Chip, TypingDots,
   WorkplaceKeyframes, firstArrival, playArrivalChime, firstNameOf,
@@ -64,12 +44,12 @@ export function RichTextArea({
     <div className={noBorder ? undefined : 'focus-frame'} style={noBorder ? { background: isDark ? 'rgba(255,255,255,0.02)' : '#fff' } : { border: `1.5px solid ${bd}`, borderRadius: 10, overflow: 'hidden', background: isDark ? 'rgba(255,255,255,0.055)' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
       {!readOnly && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 10px', background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderBottom: `1px solid ${bd}` }}>
-          <button onClick={() => exec('bold')} style={tb} title="Bold"><Bold size={14} /></button>
-          <button onClick={() => exec('italic')} style={tb} title="Italic"><Italic size={14} /></button>
-          <button onClick={() => exec('underline')} style={tb} title="Underline"><Underline size={14} /></button>
+          <button onClick={() => exec('bold')} style={tb} title="Bold"><TextB weight="bold" size={14} /></button>
+          <button onClick={() => exec('italic')} style={tb} title="Italic"><TextItalic weight="bold" size={14} /></button>
+          <button onClick={() => exec('underline')} style={tb} title="Underline"><TextUnderline weight="bold" size={14} /></button>
           <span style={{ width: 1, height: 16, background: bd, margin: '0 4px', flexShrink: 0 }} />
-          <button onClick={() => exec('insertUnorderedList')} style={tb} title="Bullet list"><List size={14} /></button>
-          <button onClick={() => exec('insertOrderedList')} style={tb} title="Numbered list"><ListOrdered size={14} /></button>
+          <button onClick={() => exec('insertUnorderedList')} style={tb} title="Bullet list"><ListBullets weight="bold" size={14} /></button>
+          <button onClick={() => exec('insertOrderedList')} style={tb} title="Numbered list"><ListNumbers weight="bold" size={14} /></button>
         </div>
       )}
       <div style={{ position: 'relative', minHeight }}>
@@ -187,7 +167,7 @@ export function MailCard({
       {/* App bar: mail identity */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: barBg, borderBottom: `1px solid ${line}` }}>
         <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: accent, flexShrink: 0 }} />
-        <Inbox style={{ width: 15, height: 15, color: tMuted, flexShrink: 0 }} />
+        <Tray weight="duotone" style={{ width: 15, height: 15, color: tMuted, flexShrink: 0 }} />
         <span style={{ fontSize: 12.5, fontWeight: 750, color: tText }}>Work inbox</span>
         {unread && (
           <span style={{ marginLeft: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#D93025', color: '#fff', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>1</span>
@@ -198,17 +178,17 @@ export function MailCard({
       {/* Action toolbar (decorative except the chat launcher: sells the client) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '4px 10px', borderBottom: `1px solid ${line}` }}>
         <span aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <span style={iconBtn}><ChevronLeft size={16} /></span>
+          <span style={iconBtn}><CaretLeft weight="bold" size={16} /></span>
           <span style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
-          <span style={iconBtn}><Archive size={14} /></span>
-          <span style={iconBtn}><Trash2 size={14} /></span>
+          <span style={iconBtn}><Archive weight="duotone" size={14} /></span>
+          <span style={iconBtn}><Trash weight="duotone" size={14} /></span>
         </span>
         {chatAction && (
           <>
             <span aria-hidden style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
             <button onClick={chatAction.onClick} title={chatAction.label}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 14, border: `1px solid ${accent}45`, background: `${accent}16`, color: accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              <MessageSquare size={13} />
+              <ChatTeardrop weight="duotone" size={13} />
               {chatAction.label}
               {chatAction.attention && (
                 <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: accent }} />
@@ -245,14 +225,14 @@ export function MailCard({
             <span style={{ fontSize: 14, fontWeight: 700, color: tText, flex: '1 1 auto', minWidth: 0 }}>{sender.name}</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full} ({ago})</span>
-              <Star size={15} style={{ color: done ? '#f4b400' : tFaint, alignSelf: 'center' }} fill={done ? '#f4b400' : 'none'} aria-hidden />
-              <Reply size={14} style={{ color: tFaint, alignSelf: 'center' }} aria-hidden />
+              <Star weight="duotone" size={15} style={{ color: done ? '#f4b400' : tFaint, alignSelf: 'center' }} fill={done ? '#f4b400' : 'none'} aria-hidden />
+              <ArrowBendUpLeft weight="bold" size={14} style={{ color: tFaint, alignSelf: 'center' }} aria-hidden />
             </span>
           </div>
           <button ref={detailsBtnRef} type="button" onClick={e => { e.stopPropagation(); toggleDetails(); }} aria-expanded={showDetails} aria-haspopup="dialog"
             aria-label={showDetails ? 'Hide details' : 'Show details'}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 2, margin: '2px 0 0', padding: '4px 4px 4px 0', background: 'none', border: 'none', font: 'inherit', fontSize: 12, color: tFaint, cursor: 'pointer' }}>
-            to me <ChevronDown size={13} />
+            to me <CaretDown weight="bold" size={13} />
           </button>
           {detailsAt && createPortal(
             <dl ref={detailsRef} role="dialog" aria-label="Message details"
@@ -294,11 +274,11 @@ export function MailCard({
       {!!attachments?.length && (
         <div style={{ padding: '14px 22px 6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <Paperclip size={12} style={{ color: tFaint }} />
+            <Paperclip weight="bold" size={12} style={{ color: tFaint }} />
             <span style={{ fontSize: 12.5, fontWeight: 600, color: tMuted }}>
               {attachments.length} {attachments.length === 1 ? 'attachment' : 'attachments'}
             </span>
-            <ShieldCheck size={12} style={{ color: '#2BAC76' }} />
+            <ShieldCheck weight="duotone" size={12} style={{ color: '#2BAC76' }} />
             <span style={{ fontSize: 12, color: tFaint }}>Scanned{company ? ` by ${company} Mail` : ''}</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -360,7 +340,7 @@ export function MailThreadMsg({ isDark, from, meName, time = 'Just now', receipt
         )}
         {receipt && (
           <p style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0 0', fontSize: 12, color: tFaint }}>
-            <CheckCheck size={12} style={{ color: '#1a73e8' }} /> {receipt}
+            <Checks weight="bold" size={12} style={{ color: '#1a73e8' }} /> {receipt}
           </p>
         )}
       </div>
@@ -441,7 +421,7 @@ export function MailComposer({
       {/* To / Subject headers */}
       <div style={{ padding: '10px 14px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${line}` }}>
-          <CornerUpLeft size={13} style={{ color: tFaint, flexShrink: 0 }} />
+          <ArrowBendUpLeft weight="bold" size={13} style={{ color: tFaint, flexShrink: 0 }} />
           <span style={{ fontSize: 13, color: tMuted }}>To:</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 10px 2px 3px', borderRadius: 14, background: isDark ? 'rgba(255,255,255,0.07)' : '#f1f3f4' }}>
             <PersonAvatar {...to} size={18} isDark={isDark} />
@@ -467,10 +447,10 @@ export function MailComposer({
             fontSize: 13.5, fontWeight: 700, border: 'none',
             cursor: sendable ? 'pointer' : 'not-allowed', transition: 'all 0.2s',
           }}>
-          <Send size={14} /> {sending ? 'Sending...' : sendLabel}
+          <PaperPlaneRight weight="duotone" size={14} /> {sending ? 'Sending...' : sendLabel}
         </button>
-        <Paperclip size={15} style={{ color: tFaint }} aria-hidden />
-        <Smile size={15} style={{ color: tFaint }} aria-hidden />
+        <Paperclip weight="bold" size={15} style={{ color: tFaint }} aria-hidden />
+        <Smiley weight="duotone" size={15} style={{ color: tFaint }} aria-hidden />
         <span style={{ flex: 1 }} />
         {maxChars != null && (
           <span style={{ fontSize: 12, fontWeight: 600, color: overLimit ? '#ef4444' : plainLen >= maxChars * 0.96 ? '#ef4444' : tFaint }}>
@@ -480,7 +460,7 @@ export function MailComposer({
         {onDiscard && (
           <button onClick={onDiscard} title="Discard draft"
             style={{ border: 'none', background: 'transparent', color: tFaint, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            <Trash2 size={15} />
+            <Trash weight="duotone" size={15} />
           </button>
         )}
       </div>
@@ -492,7 +472,7 @@ export function MailComposer({
 export function MailStatusChip({ accent, children }: { accent: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: `${accent}12`, color: accent, border: `1px solid ${accent}30`, fontSize: 12.5, fontWeight: 600 }}>
-      <CheckCheck size={14} /> {children}
+      <Checks weight="bold" size={14} /> {children}
     </div>
   );
 }

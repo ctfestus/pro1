@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Loader2 } from 'lucide-react';
+import { CircleNotch } from '@phosphor-icons/react';
 
 /**
  * The upload zone and submit button every AI review shares (workbook, document, dashboard, code),
@@ -71,7 +71,7 @@ export function AiReviewSubmitButton({ isDark, accentColor, disabled, busy, busy
       style={off
         ? { background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9', color: isDark ? '#6f6f6f' : '#8a929e' }
         : { background: accentColor, color: '#fff', opacity: busy ? 0.8 : 1 }}>
-      {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> {busyLabel}</> : children}
+      {busy ? <><CircleNotch weight="bold" className="h-4 w-4 animate-spin" /> {busyLabel}</> : children}
     </button>
   );
 }

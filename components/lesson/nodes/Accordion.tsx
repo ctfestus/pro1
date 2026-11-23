@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ImagePlus, Plus, X, ChevronDown } from 'lucide-react';
+import { ImageSquare, Plus, X } from '@phosphor-icons/react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { BrandfetchLogoPicker } from '@/components/BrandfetchLogoPicker';
 import { BRANDFETCH_CLIENT_ID, resolveBrandLogoUrl } from '@/lib/brandfetch';
@@ -71,7 +71,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
   };
   const toggleIcon = (
     <span className="lesson-accordion__toggle-icon" aria-hidden="true">
-      <ChevronDown className="lesson-accordion__chevron" width={17} height={17} />
+      <Plus weight="bold" className="lesson-accordion__chevron" width={15} height={15} />
     </span>
   );
 
@@ -93,7 +93,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => (BRANDFETCH_CLIENT_ID ? setShowBrandPicker(true) : setShowLibrary(true))}
             >
-              {logoImage ?? <ImagePlus width={15} height={15} aria-hidden="true" />}
+              {logoImage ?? <ImageSquare weight="duotone" width={15} height={15} aria-hidden="true" />}
             </button>
             {logoUrl && (
               <button
@@ -104,7 +104,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setLogo('')}
               >
-                <X width={11} height={11} aria-hidden="true" />
+                <X weight="bold" width={11} height={11} aria-hidden="true" />
               </button>
             )}
           </span>
@@ -130,7 +130,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
           </button>
           {canRemove && (
             <button type="button" className="lesson-accordion__remove" aria-label="Remove section" title="Remove section" onMouseDown={(event) => event.preventDefault()} onClick={removeSelf}>
-              <X width={12} height={12} aria-hidden="true" />
+              <X weight="bold" width={12} height={12} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -217,7 +217,7 @@ function AccordionView({ node, editor, getPos, updateAttributes }: NodeViewProps
           contentEditable={false}
           onMouseDown={(e) => { e.preventDefault(); addSection(); }}
         >
-          <Plus width={13} height={13} /> Add section
+          <Plus weight="bold" width={13} height={13} /> Add section
         </button>
       )}
     </NodeViewWrapper>

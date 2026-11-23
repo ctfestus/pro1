@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Fragment } from '@tiptap/pm/model';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { Plus, Check, ChevronDown, ChevronUp, Copy, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowCounterClockwise, CaretDown, CaretUp, Check, Copy, Plus, Trash } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -84,7 +84,7 @@ function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
     <NodeViewWrapper className="lesson-step" data-step-index={index}>
       <div className="lesson-step__marker" contentEditable={false}>
         <span className="lesson-step__num">{index + 1}</span>
-        <Check className="lesson-step__check" width={15} height={15} aria-hidden="true" />
+        <Check weight="bold" className="lesson-step__check" width={15} height={15} aria-hidden="true" />
       </div>
       <div className="lesson-step__main">
         {(editable || title) && (
@@ -96,10 +96,10 @@ function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
             )}
             {editable && (
               <div className="lesson-step__controls" aria-label={`Step ${index + 1} controls`}>
-                <button type="button" className="lesson-step__control" disabled={index === 0} aria-label={`Move step ${index + 1} up`} title="Move step up" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(-1)}><ChevronUp width={14} height={14} /></button>
-                <button type="button" className="lesson-step__control" disabled={index >= siblingCount - 1} aria-label={`Move step ${index + 1} down`} title="Move step down" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(1)}><ChevronDown width={14} height={14} /></button>
-                <button type="button" className="lesson-step__control" disabled={siblingCount >= MAX_STEPS} aria-label={`Duplicate step ${index + 1}`} title="Duplicate step" onMouseDown={(e) => e.preventDefault()} onClick={duplicateSelf}><Copy width={13} height={13} /></button>
-                <button type="button" className="lesson-step__control lesson-step__remove" disabled={siblingCount <= 1} aria-label={`Delete step ${index + 1}`} title="Delete step" onMouseDown={(e) => e.preventDefault()} onClick={removeSelf}><Trash2 width={13} height={13} /></button>
+                <button type="button" className="lesson-step__control" disabled={index === 0} aria-label={`Move step ${index + 1} up`} title="Move step up" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(-1)}><CaretUp weight="bold" width={14} height={14} /></button>
+                <button type="button" className="lesson-step__control" disabled={index >= siblingCount - 1} aria-label={`Move step ${index + 1} down`} title="Move step down" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(1)}><CaretDown weight="bold" width={14} height={14} /></button>
+                <button type="button" className="lesson-step__control" disabled={siblingCount >= MAX_STEPS} aria-label={`Duplicate step ${index + 1}`} title="Duplicate step" onMouseDown={(e) => e.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
+                <button type="button" className="lesson-step__control lesson-step__remove" disabled={siblingCount <= 1} aria-label={`Delete step ${index + 1}`} title="Delete step" onMouseDown={(e) => e.preventDefault()} onClick={removeSelf}><Trash weight="duotone" width={13} height={13} /></button>
               </div>
             )}
           </div>
@@ -137,27 +137,33 @@ function StepperView({ node, editor, getPos, updateAttributes }: NodeViewProps) 
     // numbers-become-checks rules). In 'all' mode every step keeps its number, which is the
     // point: the rail is reference instructions, not progress.
     <NodeViewWrapper className={`lesson-stepper ${accent.className}`.trim()} style={accent.style} data-revealed={shown} data-reveal={revealMode} data-complete={sequential && shown >= count ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
+      {/* One segment per step, filled up to the step the learner has reached. */}
+      {sequential && count > 1 && (
+        <div className="lesson-stepper__bar" aria-hidden="true">
+          {Array.from({ length: count }, (_, i) => <i key={i} data-on={i < shown ? 'true' : 'false'} />)}
+        </div>
+      )}
       <NodeViewContent className="lesson-stepper__steps" />
       {sequential && shown < count && (
         <div className="lesson-stepper__next-row">
           <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
             <span>Continue</span>
-            <ChevronDown width={15} height={15} aria-hidden="true" />
+            <CaretDown weight="bold" width={15} height={15} aria-hidden="true" />
           </button>
           <span className="lesson-stepper__progress">Step {shown} of {count}</span>
         </div>
       )}
       {sequential && shown >= count && count > 1 && (
         <div className="lesson-stepper__done">
-          <span className="lesson-stepper__done-label" role="status"><span className="lesson-stepper__done-icon"><Check width={14} height={14} /></span> All steps complete</span>
-          <button type="button" className="lesson-stepper__restart" onClick={() => setRevealed(1)}><RotateCcw width={13} height={13} aria-hidden="true" /> Restart</button>
+          <span className="lesson-stepper__done-label" role="status"><span className="lesson-stepper__done-icon"><Check weight="bold" width={14} height={14} /></span> All steps complete</span>
+          <button type="button" className="lesson-stepper__restart" onClick={() => setRevealed(1)}><ArrowCounterClockwise weight="bold" width={13} height={13} aria-hidden="true" /> Restart</button>
         </div>
       )}
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
           {count < MAX_STEPS && (
             <button type="button" className="lesson-stepper__add" onMouseDown={(e) => e.preventDefault()} onClick={addStep}>
-              <Plus width={13} height={13} /> Add step
+              <Plus weight="bold" width={13} height={13} /> Add step
             </button>
           )}
           {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a

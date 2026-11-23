@@ -10,7 +10,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send } from 'lucide-react';
+import { PaperPlaneRight, X } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { Person, PersonAvatar, TypingDots, WorkplaceKeyframes, firstNameOf } from './workplace';
 
@@ -147,7 +147,7 @@ export function BriefAskThread({ isDark, accent, manager, studentName, veId, req
         </div>
         <button onClick={() => onOpenChange(false)} title="Close chat" aria-label="Close chat"
           style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: 'transparent', color: tFaint, cursor: 'pointer' }}>
-          <X size={16} />
+          <X weight="bold" size={16} />
         </button>
       </div>
 
@@ -182,7 +182,7 @@ export function BriefAskThread({ isDark, accent, manager, studentName, veId, req
             style={{ flex: 1, padding: '9px 14px', borderRadius: 18, border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, background: isDark ? 'rgba(255,255,255,0.055)' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)', color: tText, fontSize: 13.5, outline: 'none' }} />
           <button onClick={send} disabled={!input.trim() || waiting} title="Send" aria-label="Send"
             style={{ width: 34, height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: input.trim() && !waiting ? accent : (isDark ? '#333' : '#e0e0e0'), color: input.trim() && !waiting ? '#fff' : (isDark ? '#666' : '#aaa'), cursor: input.trim() && !waiting ? 'pointer' : 'not-allowed' }}>
-            <Send size={14} />
+            <PaperPlaneRight weight="duotone" size={14} />
           </button>
         </div>
         <p style={{ margin: '6px 2px 0', fontSize: 10.5, color: tFaint }}>

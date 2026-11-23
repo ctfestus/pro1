@@ -4,7 +4,7 @@
 // Presentational only: all interaction logic stays in the calling player.
 
 import React from 'react';
-import { Star, ChevronDown } from 'lucide-react';
+import { CaretDown, Star } from '@phosphor-icons/react';
 import { Person, PersonAvatar, MeAvatar, TypingDots, WorkplaceKeyframes, colleaguesFor, slugify, firstArrival, playArrivalChime } from './workplace';
 
 export function channelFor(role?: string, fallback = 'project-war-room'): string {
@@ -62,7 +62,7 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
         <span style={{ fontSize: 12.5, fontWeight: 700, color: p.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {company || 'Workspace'}
         </span>
-        <ChevronDown size={12} style={{ color: p.faint, flexShrink: 0 }} aria-hidden />
+        <CaretDown weight="bold" size={12} style={{ color: p.faint, flexShrink: 0 }} aria-hidden />
         <span style={{ flex: 1 }} />
 
       </div>
@@ -71,7 +71,7 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 16px', borderBottom: `1px solid ${p.line}` }}>
         <span style={{ fontSize: 16, fontWeight: 900, color: p.muted, lineHeight: 1 }}>#</span>
         <span style={{ fontSize: 14, fontWeight: 750, color: p.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel}</span>
-        <Star size={12} style={{ color: p.faint, flexShrink: 0 }} aria-hidden />
+        <Star weight="duotone" size={12} style={{ color: p.faint, flexShrink: 0 }} aria-hidden />
         {unread && (
           <span style={{ marginLeft: 2, background: '#CD2553', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px', lineHeight: '15px', flexShrink: 0 }}>1</span>
         )}
@@ -91,7 +91,7 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px 2px' }} aria-hidden>
         <span style={{ flex: 1, height: 1, background: p.line }} />
         <span style={{ fontSize: 12, fontWeight: 700, color: p.muted, border: `1px solid ${p.line}`, borderRadius: 20, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          Today <ChevronDown size={10} />
+          Today <CaretDown weight="bold" size={10} />
         </span>
         <span style={{ flex: 1, height: 1, background: p.line }} />
       </div>

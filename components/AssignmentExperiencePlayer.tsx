@@ -1,11 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import {
-  CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
-  Loader2, Lock, Upload as UploadIcon, Link as LinkIcon, CheckCircle, Download, Eye,
-  Paperclip, Send, Reply, X, AlertTriangle, Check, SkipForward,
-} from 'lucide-react';
+import { ArrowBendUpLeft, CaretDown, CaretLeft, CaretRight, CaretUp, Check, CheckCircle, Circle, CircleNotch, DownloadSimple, Eye, LinkSimple, Lock, PaperPlaneRight, Paperclip, SkipForward, UploadSimple, Warning, X } from '@phosphor-icons/react';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
@@ -499,7 +495,7 @@ export default function AssignmentExperiencePlayer({
   if (graded && !reviewMode) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(14,9,221,0.06)' }}>
-        <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
+        <CheckCircle weight="fill" className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: accent }}>Experience Complete!</p>
         <p className="text-sm" style={{ color: muted }}>
           {canSubmit
@@ -521,7 +517,7 @@ export default function AssignmentExperiencePlayer({
   // shared rather than living inside the main return alone.
   const previewBanner = previewMode && !reviewMode ? (
     <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-      <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }} />
+      <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }} />
       <span className="text-xs font-semibold" style={{ color: accent }}>
         Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.
       </span>
@@ -533,7 +529,7 @@ export default function AssignmentExperiencePlayer({
   if (previewMode && previewSubmitted) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
-        <Eye className="w-8 h-8 mx-auto mb-3" style={{ color: accent }} />
+        <Eye weight="duotone" className="w-8 h-8 mx-auto mb-3" style={{ color: accent }} />
         <p className="text-base font-bold mb-1" style={{ color: text }}>End of the preview</p>
         <p className="text-sm mb-5" style={{ color: muted }}>
           A student pressing Submit here sends their work to the instructor for grading. Nothing was submitted in preview.
@@ -551,7 +547,7 @@ export default function AssignmentExperiencePlayer({
   if (!graded && done) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(14,9,221,0.06)' }}>
-        <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
+        <CheckCircle weight="fill" className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: accent }}>Experience Complete!</p>
         <p className="text-sm" style={{ color: muted }}>All missions finished. Your assignment has been submitted.</p>
       </div>
@@ -561,7 +557,7 @@ export default function AssignmentExperiencePlayer({
   if (shouldShowGroupReadyScreen({ graded, canSubmit, overallPct, reviewBeforeSubmit })) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(14,9,221,0.06)' }}>
-        <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
+        <CheckCircle weight="fill" className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: accent }}>Ready for Group Submission</p>
         <p className="text-sm mb-5" style={{ color: muted }}>You have completed your preparation. Your group leader will submit the final work.</p>
         <button onClick={() => setReviewBeforeSubmit(true)}
@@ -580,7 +576,7 @@ export default function AssignmentExperiencePlayer({
       <div className="space-y-4">
       {previewBanner}
       <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
-        <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
+        <CheckCircle weight="fill" className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: text }}>All missions complete</p>
         <p className="text-sm mb-5" style={{ color: muted }}>Submit your assignment to send it to your instructor for grading.</p>
         {completeError && <p className="text-sm mb-3" style={{ color: '#ef4444' }}>{completeError}</p>}
@@ -588,7 +584,7 @@ export default function AssignmentExperiencePlayer({
           <button onClick={submitAssignment} disabled={saving}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
             style={{ background: '#10b981', color: 'white', border: 'none', cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4"/>} Submit assignment
+            {saving ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin"/> : <CheckCircle weight="fill" className="w-4 h-4"/>} Submit assignment
           </button>
           <button onClick={() => setReviewBeforeSubmit(true)} disabled={saving}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-50"
@@ -639,7 +635,7 @@ export default function AssignmentExperiencePlayer({
             <button onClick={downloadDataset}
               className="flex items-center gap-2 text-xs font-semibold py-2 px-3 rounded-xl transition-all hover:opacity-80"
               style={{ background: `${accent}12`, color: accent }}>
-              <Download className="w-3.5 h-3.5 flex-shrink-0"/>
+              <DownloadSimple weight="bold" className="w-3.5 h-3.5 flex-shrink-0"/>
               <span className="truncate">{config.dataset.filename || 'Download dataset'}</span>
             </button>
             {config.dataset.description && (
@@ -669,10 +665,10 @@ export default function AssignmentExperiencePlayer({
                 >
                   <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: modDone ? `${accent}15` : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }}>
-                    {modDone ? <CheckCircle2 style={{ width: 14, height: 14, color: accent }}/> : <span className="text-[9px] font-bold" style={{ color: faint }}>{mi + 1}</span>}
+                    {modDone ? <CheckCircle weight="fill" style={{ width: 14, height: 14, color: accent }}/> : <span className="text-[9px] font-bold" style={{ color: faint }}>{mi + 1}</span>}
                   </div>
                   <span className="flex-1 text-[13px] font-semibold leading-snug" style={{ color: text }}>{mod.title}</span>
-                  {expanded ? <ChevronUp style={{ width: 14, height: 14, color: faint }}/> : <ChevronDown style={{ width: 14, height: 14, color: faint }}/>}
+                  {expanded ? <CaretUp weight="bold" style={{ width: 14, height: 14, color: faint }}/> : <CaretDown weight="bold" style={{ width: 14, height: 14, color: faint }}/>}
                 </button>
 
                 {/* Lessons */}
@@ -691,10 +687,10 @@ export default function AssignmentExperiencePlayer({
                         >
                           <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
                             {locked
-                              ? <Lock style={{ width: 11, height: 11, color: faint }}/>
+                              ? <Lock weight="duotone" style={{ width: 11, height: 11, color: faint }}/>
                               : pct === 100
-                              ? <CheckCircle2 style={{ width: 13, height: 13, color: accent }}/>
-                              : <Circle style={{ width: 13, height: 13, color: isDark ? '#555' : '#ccc' }}/>}
+                              ? <CheckCircle weight="fill" style={{ width: 13, height: 13, color: accent }}/>
+                              : <Circle weight="bold" style={{ width: 13, height: 13, color: isDark ? '#555' : '#ccc' }}/>}
                           </div>
                           <span className="flex-1 text-[12.5px] leading-snug truncate" style={{ color: locked ? faint : isActive ? accent : muted, fontWeight: isActive ? 600 : 400 }}>{les.title}</span>
                           {!locked && pct > 0 && pct < 100 && (
@@ -760,7 +756,7 @@ export default function AssignmentExperiencePlayer({
                   <div style={{ borderTop: `1px solid ${divider}` }}>
                     <button onClick={() => toggleContentExpanded(currentLes.id)}
                       className="w-full flex items-center gap-2 px-6 py-3 text-left hover:opacity-70 transition-opacity">
-                      {isContentExpanded ? <ChevronDown className="w-3.5 h-3.5" style={{ color: faint }} /> : <ChevronRight className="w-3.5 h-3.5" style={{ color: faint }} />}
+                      {isContentExpanded ? <CaretDown weight="bold" className="w-3.5 h-3.5" style={{ color: faint }} /> : <CaretRight weight="bold" className="w-3.5 h-3.5" style={{ color: faint }} />}
                       <span className="text-[11px] font-semibold" style={{ color: faint }}>
                         Mission content{!isContentExpanded ? ' (click to reread)' : ''}
                       </span>
@@ -777,7 +773,7 @@ export default function AssignmentExperiencePlayer({
                   <button onClick={() => continueToTasks(currentLes.id)}
                     className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-[14px] transition-all hover:opacity-90"
                     style={{ background: accent, color: 'white' }}>
-                    Continue to Tasks <ChevronRight className="w-4 h-4" />
+                    Continue to Tasks <CaretRight weight="bold" className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -974,7 +970,7 @@ export default function AssignmentExperiencePlayer({
                                         <button
                                           onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
                                           style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${border}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: text, cursor: 'pointer' }}>
-                                          <Reply className="w-4 h-4" /> Reply
+                                          <ArrowBendUpLeft weight="bold" className="w-4 h-4" /> Reply
                                         </button>
                                       )}
                                     </div>
@@ -1045,7 +1041,7 @@ export default function AssignmentExperiencePlayer({
                                   })}
                                   {isWrong && (
                                     <p style={{ fontSize: 12.5, color: '#ef4444', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                      <X className="w-3.5 h-3.5" /> That is not the right answer. Try again.
+                                      <X weight="bold" className="w-3.5 h-3.5" /> That is not the right answer. Try again.
                                     </p>
                                   )}
                                 </div>
@@ -1192,7 +1188,7 @@ export default function AssignmentExperiencePlayer({
                                     <MailThreadMsg isDark={isDark} from={manager} time="Earlier">
                                       <div style={{ borderRadius: 10, padding: '12px 16px', background: r.passed ? (isDark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.06)') : (isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)'), border: `1px solid ${r.passed ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: r.passed ? '#10b981' : '#f59e0b', marginBottom: 8 }}>
-                                          {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                          {r.passed ? <CheckCircle weight="fill" className="w-4 h-4" /> : <Circle weight="bold" className="w-4 h-4" />}
                                           {r.passed ? 'Correct' : 'Incorrect'}
                                         </div>
                                         <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{r.feedback}</p>
@@ -1217,7 +1213,7 @@ export default function AssignmentExperiencePlayer({
                                     <MailThreadMsg isDark={isDark} from={manager}>
                                       <p style={{ margin: '0 0 10px' }}>Thanks for your response, {firstNameOf(studentName)}. Let me review what you have written.</p>
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: evaluating ? subtle : `${accent}12`, color: evaluating ? faint : accent, border: `1px solid ${evaluating ? 'transparent' : accent + '30'}`, fontSize: 12.5 }}>
-                                        {evaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ display: 'inline' }} /> : fbErrored ? <AlertTriangle className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <CheckCircle2 className="w-3.5 h-3.5" style={{ display: 'inline' }} />}
+                                        {evaluating ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ display: 'inline' }} /> : fbErrored ? <Warning weight="duotone" className="w-3.5 h-3.5" style={{ display: 'inline' }} /> : <CheckCircle weight="fill" className="w-3.5 h-3.5" style={{ display: 'inline' }} />}
                                         {evaluating ? 'Reviewing your answer...' : fbErrored ? 'Could not review' : 'Reviewed'}
                                       </div>
                                     </MailThreadMsg>
@@ -1235,7 +1231,7 @@ export default function AssignmentExperiencePlayer({
                                         ) : (
                                           <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
                                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: fbTone.color, marginBottom: 8 }}>
-                                              {fbErrored ? <AlertTriangle className="w-4 h-4" /> : feedback.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                              {fbErrored ? <Warning weight="duotone" className="w-4 h-4" /> : feedback.passed ? <CheckCircle weight="fill" className="w-4 h-4" /> : <Circle weight="bold" className="w-4 h-4" />}
                                               {fbTone.label}
                                             </div>
                                             <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
@@ -1261,7 +1257,7 @@ export default function AssignmentExperiencePlayer({
                                             setOpenReplies(prev => new Set([...prev, req.id]));
                                           }}
                                           style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${border}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: text, cursor: 'pointer' }}>
-                                          <Reply className="w-4 h-4" /> {fbErrored ? 'Try again' : 'Reply'}
+                                          <ArrowBendUpLeft weight="bold" className="w-4 h-4" /> {fbErrored ? 'Try again' : 'Reply'}
                                         </button>
                                       )}
                                     </div>
@@ -1277,7 +1273,7 @@ export default function AssignmentExperiencePlayer({
                                   {!readOnly && (
                                     <button onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
                                       style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${border}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: text, cursor: 'pointer' }}>
-                                      <Reply className="w-4 h-4" /> Reply
+                                      <ArrowBendUpLeft weight="bold" className="w-4 h-4" /> Reply
                                     </button>
                                   )}
                                 </div>
@@ -1337,14 +1333,14 @@ export default function AssignmentExperiencePlayer({
                                     <MailThreadMsg isDark={isDark} from="me" meName={studentName}
                                       receipt={showReply ? `Seen by ${firstNameOf(manager.name)} just now` : undefined}>
                                       {isTask
-                                        ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: subtle, border: `1px solid ${border}`, fontSize: 12.5, color: text }}><CheckCircle2 className="w-3 h-3" /> Task marked as done</div>
+                                        ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, background: subtle, border: `1px solid ${border}`, fontSize: 12.5, color: text }}><CheckCircle weight="fill" className="w-3 h-3" /> Task marked as done</div>
                                         : (
                                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                             {fileUrl && (
                                               <AttachmentCard isDark={isDark} href={repairVeSubmissionUrl(fileUrl)}
                                                 name={(() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || (isDeliverable ? 'Deliverable' : 'Attachment')} />
                                             )}
-                                            {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: subtle, border: `1px solid ${border}`, fontSize: 12.5, color: text, textDecoration: 'none' }}><LinkIcon className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
+                                            {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: subtle, border: `1px solid ${border}`, fontSize: 12.5, color: text, textDecoration: 'none' }}><LinkSimple weight="bold" className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
                                           </div>
                                         )
                                       }
@@ -1369,7 +1365,7 @@ export default function AssignmentExperiencePlayer({
                                       {!readOnly && (
                                         <button onClick={handleEfSend}
                                           style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 20px', borderRadius: 6, border: `1px solid ${accent}`, background: `${accent}12`, fontSize: 13.5, fontWeight: 600, color: accent, cursor: 'pointer' }}>
-                                          <CheckCircle2 className="w-4 h-4" /> I am done with this task
+                                          <CheckCircle weight="fill" className="w-4 h-4" /> I am done with this task
                                         </button>
                                       )}
                                     </div>
@@ -1379,7 +1375,7 @@ export default function AssignmentExperiencePlayer({
                                       {!readOnly && (
                                         <button onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
                                           style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 6, border: `1px solid ${border}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: text, cursor: 'pointer' }}>
-                                          <Paperclip className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}
+                                          <Paperclip weight="bold" className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}
                                         </button>
                                       )}
                                     </div>
@@ -1392,7 +1388,7 @@ export default function AssignmentExperiencePlayer({
                                         </div>
                                         <div style={{ padding: '14px 16px', background: bg, display: 'flex', flexDirection: 'column', gap: 10 }}>
                                           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accent}80` : fieldBorder}`, background: fileUrl ? `${accent}08` : fieldBg, boxShadow: fieldShadow, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13, color: fileUrl ? accent : muted }}>
-                                            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                                            {uploading ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" /> : <Paperclip weight="bold" className="w-4 h-4" />}
                                             {uploading ? 'Uploading...' : (fileUrl ? 'Replace file' : 'Attach file')}
                                             <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; await handleFileUpload(req.id, file, true); e.target.value = ''; }} />
                                           </label>
@@ -1404,7 +1400,7 @@ export default function AssignmentExperiencePlayer({
                                           {(fileUrl || linkUrl) && (
                                             <button onClick={handleEfSend}
                                               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 20px', borderRadius: 6, background: accent, color: '#fff', fontSize: 13.5, fontWeight: 600, border: 'none', cursor: 'pointer', alignSelf: 'flex-start' }}>
-                                              <Send className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Submit'}
+                                              <PaperPlaneRight weight="duotone" className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Submit'}
                                             </button>
                                           )}
                                         </div>
@@ -1510,7 +1506,7 @@ export default function AssignmentExperiencePlayer({
                                       <p style={{ margin: '0 0 10px' }}>Thanks, {firstNameOf(studentName)} - I have received your {typeLabel} and it is currently under review. I will get back to you shortly.</p>
                                       {!isDone && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: muted, fontSize: 12.5 }}>
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: accent }} /> AI is reviewing your {typeLabel}...
+                                          <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: accent }} /> AI is reviewing your {typeLabel}...
                                         </div>
                                       )}
                                       {isDone && <MailStatusChip accent={accent}>Review complete</MailStatusChip>}
@@ -1565,7 +1561,7 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 ml-auto" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5 ml-auto" style={{ color: accent }}/>}
                               </div>
                               <div className="space-y-2">
                                 {/* Unused option slots are saved empty; skip them. */}
@@ -1613,7 +1609,7 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
                               <textarea
                                 value={val}
@@ -1657,7 +1653,7 @@ export default function AssignmentExperiencePlayer({
                                   </p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: accent }}/>}
                               </div>
 
                               {/* Three states, and the claimed one deliberately names NO amount.
@@ -1675,7 +1671,7 @@ export default function AssignmentExperiencePlayer({
                                   <div className="min-w-0">
                                     <p className="text-[15px] font-bold leading-tight flex items-center gap-1.5"
                                       style={{ color: '#10b981' }}>
-                                      <Check className="w-4 h-4 flex-shrink-0" strokeWidth={3} />
+                                      <Check weight="bold" className="w-4 h-4 flex-shrink-0" />
                                       LinkedIn share verified
                                     </p>
                                     <p className="text-[12px] leading-snug mt-0.5" style={{ color: muted }}>
@@ -1699,7 +1695,7 @@ export default function AssignmentExperiencePlayer({
                               ) : (
                                 <div className="flex items-center gap-2 rounded-xl px-3 py-2.5"
                                   style={{ background: `${accent}10` }}>
-                                  <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }}/>
+                                  <Eye weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }}/>
                                   <p className="text-[12px] leading-snug" style={{ color: muted }}>
                                     Real work, shared publicly. This is the part hiring managers actually see.
                                   </p>
@@ -1739,7 +1735,7 @@ export default function AssignmentExperiencePlayer({
                                       the input) follows its rounded corners instead of drawing a sharp
                                       rectangle inside a bordered wrapper. */}
                                   <div className="flex-1 min-w-0 relative">
-                                    <LinkIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: isDark ? '#8a8a8a' : '#64748b' }}/>
+                                    <LinkSimple weight="bold" className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: isDark ? '#8a8a8a' : '#64748b' }}/>
                                     <input type="url" inputMode="url" value={draft} readOnly={readOnly}
                                       placeholder="https://www.linkedin.com/posts/..."
                                       className="w-full min-w-0 pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
@@ -1761,7 +1757,7 @@ export default function AssignmentExperiencePlayer({
                                       disabled={saving || !draft.trim() || draft.trim() === claimed}
                                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-45"
                                       style={{ background: accent, color: '#fff' }}>
-                                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : claimed ? 'Update' : 'Submit'}
+                                      {saving ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin"/> : claimed ? 'Update' : 'Submit'}
                                     </button>
                                   )}
                                 </div>
@@ -1791,12 +1787,12 @@ export default function AssignmentExperiencePlayer({
                                         className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-45"
                                         style={{ background: accent, color: '#fff' }}
                                       >
-                                        {profileSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : 'Save and submit'}
+                                        {profileSaving ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin"/> : 'Save and submit'}
                                       </button>
                                     </div>
                                     {profileError && (
                                       <p className="text-[11.5px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
-                                        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0"/> {profileError}
+                                        <Warning weight="duotone" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0"/> {profileError}
                                       </p>
                                     )}
                                   </div>
@@ -1804,13 +1800,13 @@ export default function AssignmentExperiencePlayer({
 
                                 {error && (
                                   <p className="text-[11.5px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
-                                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0"/> {error}
+                                    <Warning weight="duotone" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0"/> {error}
                                   </p>
                                 )}
                                 {!error && claimed && (
                                   <a href={claimed} target="_blank" rel="noreferrer"
                                     className="text-[11.5px] font-semibold flex items-center gap-1.5 hover:underline" style={{ color: '#10b981' }}>
-                                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0"/> Verified. View your post
+                                    <CheckCircle weight="fill" className="w-3.5 h-3.5 flex-shrink-0"/> Verified. View your post
                                   </a>
                                 )}
                                 {!error && !claimed && (
@@ -1838,25 +1834,25 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
                               <label className="flex flex-col items-center gap-2 rounded-xl py-6 transition-all"
                                 style={{ border: `1.5px dashed ${fileUrl ? `${accent}80` : fieldBorder}`, background: fileUrl ? `${accent}08` : fieldBg, boxShadow: fieldShadow, cursor: readOnly ? 'default' : 'pointer' }}>
                                 {uploading
-                                  ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: accent }}/>
+                                  ? <CircleNotch weight="bold" className="w-5 h-5 animate-spin" style={{ color: accent }}/>
                                   : fileUrl
-                                  ? <CheckCircle2 className="w-5 h-5" style={{ color: accent }}/>
-                                  : <UploadIcon className="w-5 h-5" style={{ color: faint }}/>}
+                                  ? <CheckCircle weight="fill" className="w-5 h-5" style={{ color: accent }}/>
+                                  : <UploadSimple weight="bold" className="w-5 h-5" style={{ color: faint }}/>}
                                 <p className="text-xs font-medium text-center" style={{ color: fileUrl ? accent : muted }}>
                                   {uploading ? 'Uploading...' : fileUrl ? (readOnly ? 'Uploaded' : 'Uploaded. Click to replace.') : readOnly ? 'No file uploaded' : 'Click to upload your file'}
                                 </p>
                                 {fileUrl && <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[11px] underline" style={{ color: accent }}>View file</a>}
                                 <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={readOnly} onChange={async e => { const f = e.target.files?.[0]; if (f) await handleFileUpload(req.id, f); e.target.value = ''; }}/>
                               </label>
-                              {uploadErrors[req.id] && <p role="alert" className="text-[12px] flex items-center gap-1.5" style={{ color: '#ef4444' }}><AlertTriangle className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
+                              {uploadErrors[req.id] && <p role="alert" className="text-[12px] flex items-center gap-1.5" style={{ color: '#ef4444' }}><Warning weight="duotone" className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
                               <div className="ve-field-shell flex items-center gap-2 px-3 py-2.5 rounded-xl"
                                 style={{ border: `1.5px solid ${linkUrl ? `${accent}80` : fieldBorder}`, background: fieldBg, boxShadow: fieldShadow }}>
-                                <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: faint }}/>
+                                <LinkSimple weight="bold" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: faint }}/>
                                 <input type="url" value={linkUrl} readOnly={readOnly} placeholder="Or paste a link..."
                                   className="flex-1 bg-transparent text-sm outline-none"
                                   style={{ color: text }}
@@ -1898,8 +1894,8 @@ export default function AssignmentExperiencePlayer({
                               onClick={() => { if (readOnly) return; updateProgress(req.id, { completed: !isDone }); }}>
                               <span className="flex-shrink-0 mt-0.5 pointer-events-none" aria-hidden="true">
                                 {isDone
-                                  ? <CheckCircle2 className="w-5 h-5" style={{ color: accent }}/>
-                                  : <Circle className="w-5 h-5" style={{ color: accent, opacity: 0.55 }}/>
+                                  ? <CheckCircle weight="fill" className="w-5 h-5" style={{ color: accent }}/>
+                                  : <Circle weight="bold" className="w-5 h-5" style={{ color: accent, opacity: 0.55 }}/>
                                 }
                               </span>
                               <div className="flex-1">
@@ -1925,7 +1921,7 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
                               <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }}
                                 reqId={req.id}
@@ -1954,7 +1950,7 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
                               <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }}
                                 reqId={req.id}
@@ -1987,7 +1983,7 @@ export default function AssignmentExperiencePlayer({
                                   <p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>
                                   {req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}
                                 </div>
-                                {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
+                                {isDone && <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
                               <ExcelReviewPlayer
                                 reqId={req.id}
@@ -2048,7 +2044,7 @@ export default function AssignmentExperiencePlayer({
                           <button onClick={() => skipReqInPreview(nextBlockingReq.id)}
                             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold transition-all hover:opacity-80"
                             style={{ background: `${accent}18`, color: accent, border: 'none', cursor: 'pointer' }}>
-                            <SkipForward className="w-3.5 h-3.5" /> Skip this step
+                            <SkipForward weight="fill" className="w-3.5 h-3.5" /> Skip this step
                           </button>
                           <span className="text-[12px]" style={{ color: muted }}>
                             Preview only. Skipping reveals what a student sees next and is not saved.
@@ -2077,7 +2073,7 @@ export default function AssignmentExperiencePlayer({
                   onClick={() => prevEntry && navigate(prevEntry.modId, prevEntry.lesson.id)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-30"
                   style={{ background: prevBtnBg, color: prevBtnText, border: 'none', cursor: prevEntry ? 'pointer' : 'not-allowed' }}>
-                  <ChevronLeft className="w-4 h-4"/> Previous
+                  <CaretLeft weight="bold" className="w-4 h-4"/> Previous
                 </button>
                 {nextEntry ? (
                   <button
@@ -2085,7 +2081,7 @@ export default function AssignmentExperiencePlayer({
                     onClick={() => navigate(nextEntry.modId, nextEntry.lesson.id)}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
                     style={{ background: accent, color: 'white', border: 'none', cursor: !navUnlocked && lessonPct(currentLes, progress) < 100 ? 'not-allowed' : 'pointer' }}>
-                    Next <ChevronRight className="w-4 h-4"/>
+                    Next <CaretRight weight="bold" className="w-4 h-4"/>
                   </button>
                 ) : reviewMode ? (
                   <span/>
@@ -2103,7 +2099,7 @@ export default function AssignmentExperiencePlayer({
                     onClick={submitAssignment}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
                     style={{ background: '#10b981', color: 'white', border: 'none', cursor: !canComplete || saving ? 'not-allowed' : 'pointer' }}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4"/>} Complete
+                    {saving ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin"/> : <CheckCircle weight="fill" className="w-4 h-4"/>} Complete
                   </button>
                   )
                 )}

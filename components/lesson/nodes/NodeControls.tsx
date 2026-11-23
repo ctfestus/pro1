@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { Trash } from '@phosphor-icons/react';
 import type { NodeViewProps } from '@tiptap/react';
 
 interface NodeDeleteButtonProps {
@@ -33,7 +33,7 @@ export function NodeDeleteButton({ editor, getPos, nodeSize, label, onDelete }: 
       onMouseDown={(event) => event.preventDefault()}
       onClick={remove}
     >
-      <Trash2 width={13} height={13} aria-hidden="true" />
+      <Trash weight="duotone" width={13} height={13} aria-hidden="true" />
     </button>
   );
 }

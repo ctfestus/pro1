@@ -1,6 +1,6 @@
 'use client';
 
-import { HelpCircle } from 'lucide-react';
+import { Question } from '@phosphor-icons/react';
 import type { RequirementProps } from './types';
 import { TaskHeader, TaskOption, taskTheme } from './TaskCard';
 
@@ -29,7 +29,7 @@ export function McqRequirement({ req, rowStyle, ctx }: RequirementProps) {
 
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <TaskHeader t={t} icon={<HelpCircle className="w-3.5 h-3.5" />} label="Question" title={req.label}
+      <TaskHeader t={t} icon={<Question weight="duotone" className="w-3.5 h-3.5" />} label="Question" title={req.label}
         description={req.description} done={done ? 'Correct' : null} />
       <div className="flex flex-col gap-2" role="radiogroup" aria-label={req.label}>
         {options.map((opt, oi) => {

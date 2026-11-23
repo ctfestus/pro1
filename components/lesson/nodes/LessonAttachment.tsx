@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { Node } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Download, File as FileIcon, FileArchive, FileSpreadsheet, FileText, Replace } from 'lucide-react';
+import { DownloadSimple, File, FileText, FileXls, FileZip, Swap } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
@@ -20,10 +20,20 @@ import {
 } from '@/lib/lesson-attachment';
 
 function AttachmentIcon({ ext }: { ext: string }) {
-  if (ext === 'XLS' || ext === 'XLSX' || ext === 'CSV') return <FileSpreadsheet width={19} height={19} aria-hidden="true" />;
-  if (ext === 'ZIP') return <FileArchive width={19} height={19} aria-hidden="true" />;
-  if (ext) return <FileText width={19} height={19} aria-hidden="true" />;
-  return <FileIcon width={19} height={19} aria-hidden="true" />;
+  if (ext === 'XLS' || ext === 'XLSX' || ext === 'CSV') return <FileXls weight="duotone" width={19} height={19} aria-hidden="true" />;
+  if (ext === 'ZIP') return <FileZip weight="duotone" width={19} height={19} aria-hidden="true" />;
+  if (ext) return <FileText weight="duotone" width={19} height={19} aria-hidden="true" />;
+  return <File weight="duotone" width={19} height={19} aria-hidden="true" />;
+}
+
+// The file tile takes the colour people know for the file type: green for spreadsheets, red for
+// PDFs, blue for documents, orange for slides; anything else stays neutral.
+function fileKind(ext: string): string {
+  if (['XLS', 'XLSX', 'CSV'].includes(ext)) return 'sheet';
+  if (ext === 'PDF') return 'pdf';
+  if (['DOC', 'DOCX'].includes(ext)) return 'doc';
+  if (['PPT', 'PPTX'].includes(ext)) return 'slides';
+  return 'other';
 }
 
 function AttachmentView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
@@ -42,7 +52,7 @@ function AttachmentView({ node, updateAttributes, editor, getPos }: NodeViewProp
 
   const face = (
     <>
-      <span className="lesson-attachment__tile"><AttachmentIcon ext={ext} /></span>
+      <span className="lesson-attachment__tile" data-kind={fileKind(ext)}><AttachmentIcon ext={ext} /></span>
       <span className="lesson-attachment__meta">
         <span className="lesson-attachment__name">{displayName}</span>
         <span className="lesson-attachment__detail">{detail}</span>
@@ -56,7 +66,7 @@ function AttachmentView({ node, updateAttributes, editor, getPos }: NodeViewProp
         <div className="lesson-attachment__card" data-editing="true" contentEditable={false}>
           {face}
           <span className="lesson-block-corner lesson-attachment__controls">
-            <button type="button" className="lesson-attachment__control" aria-label="Replace file" title="Replace file" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPicker(true)}><Replace width={14} height={14} /></button>
+            <button type="button" className="lesson-attachment__control" aria-label="Replace file" title="Replace file" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPicker(true)}><Swap weight="bold" width={14} height={14} /></button>
             <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="file" />
           </span>
         </div>
@@ -69,7 +79,7 @@ function AttachmentView({ node, updateAttributes, editor, getPos }: NodeViewProp
           download={displayName}
         >
           {face}
-          <span className="lesson-attachment__grab"><Download width={13} height={13} aria-hidden="true" /> Download</span>
+          <span className="lesson-attachment__grab"><DownloadSimple weight="bold" width={13} height={13} aria-hidden="true" /> Download</span>
         </a>
       ) : (
         <div className="lesson-attachment__card">{face}</div>

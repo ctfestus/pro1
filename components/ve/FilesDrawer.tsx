@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { FileText, Link as LinkIcon, X } from 'lucide-react';
+import { FileText, LinkSimple, X } from '@phosphor-icons/react';
 
 export interface DrawerFile {
   key: string;
@@ -26,7 +26,7 @@ function FileRow({ file, isDark, text, faint }: { file: DrawerFile; isDark: bool
     <>
       <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-[9.5px] font-bold uppercase text-white"
         style={{ background: file.isLink ? (isDark ? '#3f3f46' : '#64748b') : color, fontFamily: 'var(--font-mono), monospace' }}>
-        {file.isLink ? <LinkIcon className="w-4 h-4" /> : ext || <FileText className="w-4 h-4" />}
+        {file.isLink ? <LinkSimple weight="bold" className="w-4 h-4" /> : ext || <FileText weight="duotone" className="w-4 h-4" />}
       </span>
       <span className="min-w-0 flex-1 text-left">
         <span className="block text-[13px] font-semibold truncate" style={{ color: text }}>{file.name}</span>
@@ -72,7 +72,7 @@ export function FilesDrawer({ open, onClose, shared, sent, isDark, text, muted }
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-[17px] font-semibold" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>Files</h2>
           <button onClick={onClose} aria-label="Close files" className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
-            <X className="w-5 h-5" />
+            <X weight="bold" className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-24 sm:pb-6 flex flex-col gap-1.5">

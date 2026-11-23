@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ChevronDown, FastForward, Pause, Play, Rewind, Volume2, VolumeX } from 'lucide-react';
+import { CaretDown, FastForward, Pause, Play, Rewind, SpeakerHigh, SpeakerX } from '@phosphor-icons/react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 
@@ -21,12 +21,15 @@ function formatTime(seconds: number) {
   return `${minutes}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 }
 
+// Bar heights for the waveform: a fixed, natural-looking shape (not the real audio's), the same on
+// every render so the bars do not jump.
+const WAVE = Array.from({ length: 48 }, (_, i) => Math.round(30 + 60 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6))));
+
 export function LessonAudioPlayer({ src, title, transcript, isDark = false, accentColor = '#10b981', className = '', editorControls }: LessonAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -92,7 +95,6 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
   };
 
   const progress = duration > 0 ? (current / duration) * 100 : 0;
-  const bufferedProgress = duration > 0 ? (buffered / duration) * 100 : 0;
 
   return (
     <div className={`lesson-audio-player ${className}`.trim()} data-theme={isDark ? 'dark' : 'light'} style={{ '--audio-accent': accentColor } as React.CSSProperties}>
@@ -100,39 +102,40 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
         ref={audioRef}
         src={src}
         preload="metadata"
-        onLoadStart={() => { setPlaying(false); setCurrent(0); setDuration(0); setBuffered(0); setFailed(false); }}
+        onLoadStart={() => { setPlaying(false); setCurrent(0); setDuration(0); setFailed(false); }}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
         onDurationChange={(event) => setDuration(event.currentTarget.duration || 0)}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
-        onProgress={(event) => {
-          const audio = event.currentTarget;
-          if (audio.buffered.length) setBuffered(audio.buffered.end(audio.buffered.length - 1));
-        }}
         onPlay={() => { setPlaying(true); setFailed(false); }}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onError={() => setFailed(true)}
       />
       <div className="lesson-audio-player__surface">
-        <button type="button" className="lesson-audio-player__icon lesson-audio-player__play" aria-label={playing ? 'Pause audio' : 'Play audio'} onClick={togglePlayback}>{playing ? <Pause width={16} height={16} fill="currentColor" /> : <Play width={16} height={16} fill="currentColor" />}</button>
-        <button type="button" className="lesson-audio-player__icon" aria-label="Skip back 10 seconds" title="Back 10 seconds" onClick={() => skip(-10)}><Rewind width={15} height={15} /></button>
+        <button type="button" className="lesson-audio-player__icon lesson-audio-player__play" aria-label={playing ? 'Pause audio' : 'Play audio'} onClick={togglePlayback}>{playing ? <Pause weight="fill" width={16} height={16} /> : <Play weight="fill" width={16} height={16} />}</button>
+        <button type="button" className="lesson-audio-player__icon" aria-label="Skip back 10 seconds" title="Back 10 seconds" onClick={() => skip(-10)}><Rewind weight="fill" width={15} height={15} /></button>
         <div className="lesson-audio-player__main">
-          <input aria-label="Audio position" className="lesson-audio-player__range" type="range" min={0} max={duration || 0} step={0.1} value={Math.min(current, duration || 0)} onChange={(event) => seek(Number(event.target.value))} style={{ background: `linear-gradient(to right,var(--audio-accent) 0 ${progress}%,var(--audio-buffer) ${progress}% ${Math.max(progress, bufferedProgress)}%,var(--audio-track) ${Math.max(progress, bufferedProgress)}% 100%)` }} />
+          {title && <span className="lesson-audio-player__caption">{title}</span>}
+          {/* The waveform is the position bar: the bars fill as the audio plays, and the slider laid
+              invisibly over them keeps dragging, keys and screen readers working. */}
+          <div className="lesson-audio-player__wave" data-playing={playing ? 'true' : 'false'}>
+            {WAVE.map((height, i) => <i key={i} style={{ height: `${height}%` }} data-played={(i + 0.5) / WAVE.length * 100 <= progress ? 'true' : 'false'} />)}
+            <input aria-label="Audio position" className="lesson-audio-player__range lesson-audio-player__seek" type="range" min={0} max={duration || 0} step={0.1} value={Math.min(current, duration || 0)} onChange={(event) => seek(Number(event.target.value))} />
+          </div>
           <span className="lesson-audio-player__time"><span>{formatTime(current)}</span><span>-{formatTime(Math.max(0, duration - current))}</span></span>
         </div>
-        <button type="button" className="lesson-audio-player__icon" aria-label="Skip forward 10 seconds" title="Forward 10 seconds" onClick={() => skip(10)}><FastForward width={15} height={15} /></button>
+        <button type="button" className="lesson-audio-player__icon" aria-label="Skip forward 10 seconds" title="Forward 10 seconds" onClick={() => skip(10)}><FastForward weight="fill" width={15} height={15} /></button>
         <div className="lesson-audio-player__volume">
-          <button type="button" className="lesson-audio-player__icon" aria-label={muted ? 'Unmute audio' : 'Mute audio'} onClick={toggleMute}>{muted || volume === 0 ? <VolumeX width={15} height={15} /> : <Volume2 width={15} height={15} />}</button>
+          <button type="button" className="lesson-audio-player__icon" aria-label={muted ? 'Unmute audio' : 'Mute audio'} onClick={toggleMute}>{muted || volume === 0 ? <SpeakerX weight="bold" width={15} height={15} /> : <SpeakerHigh weight="bold" width={15} height={15} />}</button>
           <input aria-label="Volume" className="lesson-audio-player__range lesson-audio-player__volume-range" type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} style={{ background: `linear-gradient(to right,var(--audio-accent) 0 ${(muted ? 0 : volume) * 100}%,var(--audio-track) ${(muted ? 0 : volume) * 100}% 100%)` }} />
         </div>
         <MenuSelect label="Playback speed" C={{ ...(isDark ? DARK_C : LIGHT_C), cta: accentColor }} value={String(speed)} onChange={(value) => changeSpeed(Number(value))}
           options={[0.75, 1, 1.25, 1.5, 2].map((value) => ({ value: String(value), label: `${value}x` }))} />
         {editorControls && <div className="lesson-audio-player__editor">{editorControls}</div>}
       </div>
-      {title && <span className="lesson-audio-player__caption">{title}</span>}
       {transcript && (
         <>
-          <button type="button" className="lesson-audio-player__transcript-toggle" data-open={transcriptOpen ? 'true' : 'false'} aria-expanded={transcriptOpen} onClick={() => setTranscriptOpen((open) => !open)}>Transcript <ChevronDown width={13} height={13} /></button>
+          <button type="button" className="lesson-audio-player__transcript-toggle" data-open={transcriptOpen ? 'true' : 'false'} aria-expanded={transcriptOpen} onClick={() => setTranscriptOpen((open) => !open)}>Transcript <CaretDown weight="bold" width={13} height={13} /></button>
           {transcriptOpen && <div className="lesson-audio-player__transcript">{transcript}</div>}
         </>
       )}

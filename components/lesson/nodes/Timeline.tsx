@@ -10,7 +10,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Plus, Trash } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -88,10 +88,10 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
           ) : null}
           {editable && (
             <div className="lesson-timeline__controls" aria-label={`Event ${index + 1} controls`}>
-              <button type="button" className="lesson-timeline__control" disabled={index === 0} aria-label={`Move event ${index + 1} up`} title="Move event up" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(-1)}><ArrowUp width={13} height={13} /></button>
-              <button type="button" className="lesson-timeline__control" disabled={index >= siblingCount - 1} aria-label={`Move event ${index + 1} down`} title="Move event down" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(1)}><ArrowDown width={13} height={13} /></button>
-              <button type="button" className="lesson-timeline__control" disabled={siblingCount >= MAX_ENTRIES} aria-label={`Duplicate event ${index + 1}`} title="Duplicate event" onMouseDown={(event) => event.preventDefault()} onClick={duplicateSelf}><Copy width={13} height={13} /></button>
-              <button type="button" className="lesson-timeline__control lesson-timeline__remove" disabled={siblingCount <= 1} aria-label={`Delete event ${index + 1}`} title="Delete event" onMouseDown={(event) => event.preventDefault()} onClick={removeSelf}><Trash2 width={13} height={13} /></button>
+              <button type="button" className="lesson-timeline__control" disabled={index === 0} aria-label={`Move event ${index + 1} up`} title="Move event up" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(-1)}><ArrowUp weight="bold" width={13} height={13} /></button>
+              <button type="button" className="lesson-timeline__control" disabled={index >= siblingCount - 1} aria-label={`Move event ${index + 1} down`} title="Move event down" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(1)}><ArrowDown weight="bold" width={13} height={13} /></button>
+              <button type="button" className="lesson-timeline__control" disabled={siblingCount >= MAX_ENTRIES} aria-label={`Duplicate event ${index + 1}`} title="Duplicate event" onMouseDown={(event) => event.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
+              <button type="button" className="lesson-timeline__control lesson-timeline__remove" disabled={siblingCount <= 1} aria-label={`Delete event ${index + 1}`} title="Delete event" onMouseDown={(event) => event.preventDefault()} onClick={removeSelf}><Trash weight="duotone" width={13} height={13} /></button>
             </div>
           )}
         </div>
@@ -157,7 +157,7 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
         <div className="lesson-block-footer" contentEditable={false}>
           {count < MAX_ENTRIES && (
             <button type="button" className="lesson-timeline__add" onMouseDown={(e) => e.preventDefault()} onClick={addEntry}>
-              <Plus width={13} height={13} /> Add event
+              <Plus weight="bold" width={13} height={13} /> Add event
             </button>
           )}
           {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a

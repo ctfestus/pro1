@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, ExternalLink } from 'lucide-react';
+import { ArrowSquareOut, BookOpen } from '@phosphor-icons/react';
 
 interface TipState {
   term: string;
@@ -150,7 +150,7 @@ export function GlossaryTooltip() {
     >
       <div className="lesson-term-tip" data-placement={tip.placement} data-theme={tip.dark ? 'dark' : 'light'} role="tooltip">
         <div className="lesson-term-tip__head">
-          <span className="lesson-term-tip__icon"><BookOpen width={14} height={14} /></span>
+          <span className="lesson-term-tip__icon"><BookOpen weight="duotone" width={14} height={14} /></span>
           <span>
             <strong>{tip.term}</strong>
             {tip.pronunciation ? <small>{tip.pronunciation}</small> : null}
@@ -159,7 +159,7 @@ export function GlossaryTooltip() {
         <p>{tip.definition}</p>
         {tip.example ? <div className="lesson-term-tip__example"><span>Example</span>{tip.example}</div> : null}
         {tip.learnMoreUrl ? (
-          <a href={tip.learnMoreUrl} target="_blank" rel="noopener noreferrer">Learn more <ExternalLink width={11} height={11} /></a>
+          <a href={tip.learnMoreUrl} target="_blank" rel="noopener noreferrer">Learn more <ArrowSquareOut weight="bold" width={11} height={11} /></a>
         ) : null}
       </div>
     </div>,

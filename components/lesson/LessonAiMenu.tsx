@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { Wand2 } from 'lucide-react';
+import { MagicWand } from '@phosphor-icons/react';
 import type { JSONContent } from '@tiptap/core';
 import { AiAssistPanel, type ApplyMode } from '@/components/AiAssistPanel';
 import {
@@ -134,7 +134,7 @@ export function LessonAiMenu({ editor, dark }: { editor: Editor; dark: boolean }
             cursor: 'pointer',
           }}
         >
-          <Wand2 width={14} height={14} color="#10b981" />
+          <MagicWand weight="duotone" width={14} height={14} color="#10b981" />
           Ask AI
         </button>,
         document.body,

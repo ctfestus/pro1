@@ -7,12 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  MessageSquare,
-} from 'lucide-react';
+import { ArrowSquareOut, ChatTeardrop, Check, Copy } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import { ColorField, MenuRow, StyleMenu, accentScope } from '@/components/lesson/nodes/StyleControls';
@@ -85,7 +80,7 @@ function ProviderLink({
       title={title}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      {children}{showLabel && <span>{label}</span>}<ExternalLink width={12} height={12} aria-hidden="true" />
+      {children}{showLabel && <span>{label}</span>}<ArrowSquareOut weight="bold" width={12} height={12} aria-hidden="true" />
     </a>
   );
 }
@@ -207,7 +202,7 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
 
       <div className="lesson-prompt__footer">
         <div className="lesson-prompt__guidance">
-          <MessageSquare width={14} height={14} aria-hidden="true" />
+          <ChatTeardrop weight="duotone" width={14} height={14} aria-hidden="true" />
           <span>{claudeTooLong ? 'This prompt is too long for a Claude handoff. Copy it instead.' : 'Review and personalize the prompt before sending.'}</span>
         </div>
         <div className="lesson-prompt__actions">
@@ -218,7 +213,7 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
             onMouseDown={(event) => event.stopPropagation()}
             onClick={handleCopy}
           >
-            {copyState === 'copied' ? <Check width={14} height={14} /> : <Copy width={14} height={14} />}
+            {copyState === 'copied' ? <Check weight="bold" width={14} height={14} /> : <Copy weight="bold" width={14} height={14} />}
             {/* The longest labels sit hidden in the same cell, so the button keeps one width and
                 the buttons beside it do not shift when it switches to Copied. */}
             <span className="lesson-prompt__copy-label">

@@ -12,7 +12,7 @@ import {
   CheckCircle, XCircle, CircleNotch, Lightbulb, CaretRight, ArrowCounterClockwise,
   Clock, Warning, BookOpen, X, ArrowSquareOut, ArrowRight, DownloadSimple, Lock,
   Check, PlayCircle, FileText, Flask, ListChecks, Copy, CursorClick,
-  PencilSimpleLine, LinkSimple, ImageSquare, CalendarDots, type IconWeight,
+  PencilSimpleLine, LinkSimple, ImageSquare, CalendarDots, Trophy, Fire, Lightning, Medal, GraduationCap, type IconWeight,
 } from '@phosphor-icons/react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { MenuIcon } from '@/components/MenuIcon';
@@ -188,6 +188,9 @@ function kindIcon(kind: string): React.ComponentType<{ className?: string; weigh
     : ListChecks;
 }
 
+// Gold, silver and bronze for the top three on the leaderboard.
+const MEDAL = ['#f5b301', '#a8b2bd', '#c9824a'];
+
 // Minutes a reading takes at about 200 words a minute; 0 when it has no text.
 function readingMinutes(lesson: any): number {
   const text = lesson?.doc ? lessonPlainText(lesson.doc, Infinity) : String(lesson?.body ?? '').replace(/<[^>]*>/g, ' ');
@@ -298,7 +301,7 @@ export function CourseTaker({
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
-  const [floatingPoints, setFloatingPoints] = useState<{ id: number; text: string; x: number; y: number } | null>(null);
+  const [floatingPoints, setFloatingPoints] = useState<{ id: number; text: string; x: number; y: number; streak?: boolean; fast?: boolean } | null>(null);
   const [displayedPoints, setDisplayedPoints] = useState(0);
 
   // Chapters drawer
@@ -1382,7 +1385,7 @@ export function CourseTaker({
                 {streak >= (ps?.streakCount ?? 3) && (
                   <div className="flex items-center justify-end px-4 py-3">
                     <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${isDark ? 'bg-orange-500/15 text-orange-400' : 'bg-orange-100 text-orange-600'}`}>
-                      🔥 {streak} streak
+                      <Fire weight="fill" className="w-3.5 h-3.5" /> {streak} streak
                     </div>
                   </div>
                 )}
@@ -1396,7 +1399,7 @@ export function CourseTaker({
                     <div className="px-4 py-3 space-y-2">
                       {unlocked.map((m: any) => (
                         <div key={m.id} className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-200'}`}>
-                          <span className="text-base flex-shrink-0">🏆</span>
+                          <Trophy weight="duotone" className="w-5 h-5 flex-shrink-0" style={{ color: accent }} />
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-semibold ${textColor}`}>{m.label}</p>
                             {m.description && <p className={`text-xs mt-0.5 ${mutedColor}`}>{m.description}</p>}
@@ -1412,7 +1415,7 @@ export function CourseTaker({
                       ))}
                       {nextMilestone && (
                         <div className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-zinc-900/60 border border-zinc-700/60' : 'bg-white border border-zinc-200'}`}>
-                          <span className="text-base flex-shrink-0 opacity-40">🔒</span>
+                          <Lock weight="duotone" className="w-5 h-5 flex-shrink-0" style={{ color: txtFaint }} />
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-semibold ${mutedColor}`}>{nextMilestone.label}</p>
                             <p className="text-xs mt-0.5" style={{ color: accent }}>
@@ -1467,7 +1470,7 @@ export function CourseTaker({
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black"
                 style={{ background: `${accent}18`, color: accent }}
               >
-                {rankCtx.rank === 1 ? '🥇' : rankCtx.rank === 2 ? '🥈' : rankCtx.rank === 3 ? '🥉' : `#${rankCtx.rank}`}
+                {rankCtx.rank <= 3 ? <Medal weight="fill" className="w-5 h-5" style={{ color: MEDAL[rankCtx.rank - 1] }} aria-label={`Rank ${rankCtx.rank}`} /> : `#${rankCtx.rank}`}
               </div>
             </div>
 
@@ -1786,7 +1789,7 @@ export function CourseTaker({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: `${accent}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>
-                      🎓
+                      <GraduationCap weight="duotone" className="w-6 h-6" style={{ color: accent }} />
                     </div>
                     <div>
                       <p className={`text-base font-bold ${textColor}`}>Course completed!</p>
@@ -1937,11 +1940,7 @@ export function CourseTaker({
     let earned = Math.round(base * timeMultiplier);
     if (isStreak) earned = streakBonus > 0 ? earned + streakBonus : Math.round(earned * 1.2);
     if (hintUsed) earned = Math.max(0, earned - (ps?.hintPenalty ?? 20));
-    let label = `+${earned} XP`;
-    if (withinTimeBonus && isStreak) label = `🔥⚡ +${earned} XP`;
-    else if (isStreak) label = `🔥 +${earned} XP`;
-    else if (withinTimeBonus) label = `⚡ +${earned} XP`;
-    return { earned, label, isTimeBonus: withinTimeBonus, isStreak };
+    return { earned, label: `+${earned} XP`, isTimeBonus: withinTimeBonus, isStreak };
   };
 
   // -- Swipe navigation --
@@ -1998,11 +1997,11 @@ export function CourseTaker({
       if (pointsEnabled && !reviewMode) {
         // The hint can be hidden again, so the penalty follows whether it was opened, not whether
         // it is showing right now.
-        const { earned, label, isStreak } = calcPoints(hintWasUsed);
+        const { earned, label, isStreak, isTimeBonus } = calcPoints(hintWasUsed);
         setTotalPoints(prev => prev + earned);
         const newStreak = streak + 1;
         setStreak(newStreak);
-        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
+        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60, streak: isStreak, fast: isTimeBonus });
         setTimeout(() => setFloatingPoints(null), 1200);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
@@ -2110,12 +2109,12 @@ export function CourseTaker({
         newScore = score + (hintWasUsed ? 0.9 : 1);
         setScore(newScore);
         if (pointsEnabled) {
-          const { earned, label, isStreak } = calcPoints(hintWasUsed);
+          const { earned, label, isStreak, isTimeBonus } = calcPoints(hintWasUsed);
           newPoints = totalPoints + earned;
           newStreak = streak + 1;
           setTotalPoints(newPoints);
           setStreak(newStreak);
-          setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
+          setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60, streak: isStreak, fast: isTimeBonus });
           setTimeout(() => setFloatingPoints(null), 1200);
           if (isStreak) {
             setStreakToast(`${newStreak} in a row! Streak bonus`);
@@ -2180,12 +2179,12 @@ export function CourseTaker({
       setScore(newScore);
       if (confettiRef.current) burstConfetti(confettiRef.current, accent);
       if (pointsEnabled) {
-        const { earned, label, isStreak } = calcPoints(hintWasUsed);
+        const { earned, label, isStreak, isTimeBonus } = calcPoints(hintWasUsed);
         newPoints = totalPoints + earned;
         newStreak = streak + 1;
         setTotalPoints(newPoints);
         setStreak(newStreak);
-        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
+        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60, streak: isStreak, fast: isTimeBonus });
         setTimeout(() => setFloatingPoints(null), 1200);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
@@ -2234,12 +2233,12 @@ export function CourseTaker({
       setScore(newScore);
       if (confettiRef.current) burstConfetti(confettiRef.current, accent);
       if (pointsEnabled) {
-        const { earned, label, isStreak } = calcPoints(hintWasUsed);
+        const { earned, label, isStreak, isTimeBonus } = calcPoints(hintWasUsed);
         newPoints = totalPoints + earned;
         newStreak = streak + 1;
         setTotalPoints(newPoints);
         setStreak(newStreak);
-        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
+        setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60, streak: isStreak, fast: isTimeBonus });
         setTimeout(() => setFloatingPoints(null), 1200);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
@@ -2383,7 +2382,7 @@ export function CourseTaker({
           >
             <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-semibold text-white shadow-lg"
               style={{ background: '#10b981' }}>
-              🔥 {streakToast.replace(/^🔥\s*/, '')}
+              <Fire weight="fill" className="w-3.5 h-3.5" /> {streakToast}
             </span>
           </motion.div>
         )}
@@ -2492,12 +2491,12 @@ export function CourseTaker({
                     className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full"
                     style={{ background: isDark ? '#1E1F26' : '#ffffff', marginTop: 6 }}
                   >
-                    <span className="text-[14px]">🏆</span>
+                    <Trophy weight="duotone" className="w-4 h-4" style={{ color: accent }} />
                     <span className="text-[11px] font-medium" style={{ color: txtFaint }}>XP</span>
                     <span className="text-[13px] font-bold tabular-nums" style={{ color: accent }}>
                       {displayedPoints.toLocaleString()}
                     </span>
-                    {streak >= 2 && <span className="text-[12px] text-orange-400">🔥{streak}</span>}
+                    {streak >= 2 && <span className="inline-flex items-center gap-0.5 text-[12px] text-orange-400"><Fire weight="fill" className="w-3.5 h-3.5" />{streak}</span>}
                   </div>
                 )}
                 {timeLeft !== null && (
@@ -2630,7 +2629,7 @@ export function CourseTaker({
                     <span className="text-[13px] font-bold tabular-nums" style={{ color: isDark ? '#facc15' : accent }}>
                       {displayedPoints.toLocaleString()}
                     </span>
-                    {streak >= 2 && <span className="text-[12px] text-orange-400">🔥 {streak}</span>}
+                    {streak >= 2 && <span className="inline-flex items-center gap-0.5 text-[12px] text-orange-400"><Fire weight="fill" className="w-3.5 h-3.5" />{streak}</span>}
                   </div>
                 )}
               </div>
@@ -3816,7 +3815,11 @@ export function CourseTaker({
             className="fixed z-[9999] pointer-events-none font-black text-2xl"
             style={{ left: `${floatingPoints.x}%`, top: `${floatingPoints.y}%`, transform: 'translateX(-50%)', textShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.15)', color: isDark ? '#facc15' : '#10b981' }}
           >
-            {floatingPoints.text}
+            <span className="inline-flex items-center gap-1">
+              {floatingPoints.streak && <Fire weight="fill" className="w-6 h-6" style={{ color: '#f97316' }} />}
+              {floatingPoints.fast && <Lightning weight="fill" className="w-6 h-6" style={{ color: '#f59e0b' }} />}
+              {floatingPoints.text}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>

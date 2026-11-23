@@ -5,7 +5,7 @@
 // Reviews without a rubric use AiStructuredReviewReport instead.
 
 import type { ReactNode } from 'react';
-import { Check, Download, Info, Minus, RotateCcw, X } from 'lucide-react';
+import { ArrowCounterClockwise, Check, DownloadSimple, Info, Minus, X } from '@phosphor-icons/react';
 import { criterionMarks, isUngraded } from '@/lib/review-gate';
 
 export interface RubricReportGrade {
@@ -125,12 +125,12 @@ export default function RubricReviewReport({
         <div className="flex gap-2">
           {onExport && (
             <button type="button" onClick={onExport} className={buttonBase} style={{ background: t.card, color: t.text }}>
-              <Download className="h-4 w-4" aria-hidden="true" /> Export
+              <DownloadSimple weight="bold" className="h-4 w-4" aria-hidden="true" /> Export
             </button>
           )}
           {onRetry && (
             <button type="button" onClick={onRetry} className={buttonBase} style={{ background: accentColor, color: t.retryText }}>
-              <RotateCcw className="h-4 w-4" aria-hidden="true" /> Try again
+              <ArrowCounterClockwise weight="bold" className="h-4 w-4" aria-hidden="true" /> Try again
             </button>
           )}
         </div>
@@ -159,7 +159,7 @@ export default function RubricReviewReport({
           return (
             <div key={index} className="flex gap-3 rounded-[14px] p-4" style={{ background: tone.row }}>
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: tone.dot, color: tone.icon }}>
-                <Icon className="h-3.5 w-3.5" strokeWidth={3} role={iconLabel ? 'img' : undefined} aria-label={iconLabel} aria-hidden={iconLabel ? undefined : true} />
+                <Icon weight="bold" className="h-3.5 w-3.5" role={iconLabel ? 'img' : undefined} aria-label={iconLabel} aria-hidden={iconLabel ? undefined : true} />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <div className="flex items-start justify-between gap-3">
@@ -188,7 +188,7 @@ export default function RubricReviewReport({
 
       {closingNote && (
         <div className="flex items-center gap-2.5 rounded-[14px] px-4 py-3.5" style={{ background: t.card }}>
-          <Info className="h-[18px] w-[18px] shrink-0" style={{ color: t.muted }} aria-hidden="true" />
+          <Info weight="duotone" className="h-[18px] w-[18px] shrink-0" style={{ color: t.muted }} aria-hidden="true" />
           <p className="text-[13px] leading-normal" style={{ color: t.muted }}>{closingNote}</p>
         </div>
       )}
@@ -219,7 +219,7 @@ export function ReviewResultCard({ good, heading, resultLine, summary, score, mi
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center gap-2.5">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: bubble.bg, color: bubble.fg }}>
-            {good ? <Check className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" /> : <X className="h-[18px] w-[18px]" strokeWidth={2.5} aria-hidden="true" />}
+            {good ? <Check weight="bold" className="h-[18px] w-[18px]" aria-hidden="true" /> : <X weight="bold" className="h-[18px] w-[18px]" aria-hidden="true" />}
           </span>
           <h2 className="text-2xl font-bold tracking-[-0.02em]" style={{ color: t.text }}>{heading}</h2>
         </div>

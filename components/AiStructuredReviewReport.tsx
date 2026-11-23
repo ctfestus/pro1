@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ArrowUpRight, Check, CheckCircle2, ChevronDown, Lightbulb, Minus, ShieldCheck, TriangleAlert, Zap } from 'lucide-react';
+import { ArrowUpRight, CaretDown, Check, CheckCircle, Lightbulb, Lightning, Minus, ShieldCheck, Warning } from '@phosphor-icons/react';
 
 export type ReviewFindingSeverity = 'error' | 'warning' | 'suggestion';
 
@@ -156,12 +156,12 @@ export default function AiStructuredReviewReport({
         <div className={`grid grid-cols-2 gap-px ${categories.length > 0 ? 'sm:grid-cols-4' : ''}`} style={{ background: border }}>
           {[
             { label: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e', fromCategories: true },
-            { label: metricLabels.risks ?? 'Risks', value: errors.length + warnings.length, icon: TriangleAlert, color: '#f59e0b' },
+            { label: metricLabels.risks ?? 'Risks', value: errors.length + warnings.length, icon: Warning, color: '#f59e0b' },
             { label: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6', fromCategories: true },
-            { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle2, color: accentColor },
+            { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle, color: accentColor },
           ].filter(metric => categories.length > 0 || !metric.fromCategories).map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
-              <metric.icon className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
+              <metric.icon weight="duotone" className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
               <div className="min-w-0"><span className="block text-lg font-bold leading-none tabular-nums" style={{ color: text }}>{metric.value}</span><span className="mt-1 block truncate text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: muted }}>{metric.label}</span></div>
             </div>
           ))}
@@ -185,7 +185,7 @@ export default function AiStructuredReviewReport({
           </div>
           <div className="mt-4 space-y-2">
             {visibleFindings.length === 0 ? (
-              <div className="grid min-h-28 place-items-center rounded-2xl text-center" style={{ background: inner }}><div><CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500" /><p className="mt-2 text-xs font-medium" style={{ color: muted }}>No findings in this category</p></div></div>
+              <div className="grid min-h-28 place-items-center rounded-2xl text-center" style={{ background: inner }}><div><CheckCircle weight="fill" className="mx-auto h-5 w-5 text-emerald-500" /><p className="mt-2 text-xs font-medium" style={{ color: muted }}>No findings in this category</p></div></div>
             ) : visibleFindings.map(finding => {
               const originalIndex = findings.indexOf(finding);
               const color = SEVERITY_COLORS[finding.severity];
@@ -198,9 +198,9 @@ export default function AiStructuredReviewReport({
                       <div className="flex flex-wrap items-center gap-2"><span className="text-[11px] font-bold uppercase tracking-[0.11em]" style={{ color }}>{severityLabels[finding.severity] ?? finding.severity}</span>{finding.location && <span className="text-[11px] font-medium" style={{ color: muted, fontFamily: 'var(--font-mono)' }}>{locationLabel ? `${locationLabel} ` : ''}{finding.location}</span>}</div>
                       <p className="mt-1 text-[13px] font-semibold" style={{ color: text }}>{finding.title}</p>
                     </div>
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} style={{ color: muted }} />
+                    <CaretDown weight="bold" className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} style={{ color: muted }} />
                   </button>
-                  {isExpanded && <div className="px-4 pb-4 sm:pl-[43px]"><p className="text-[12.5px] leading-relaxed" style={{ color: muted }}>{finding.detail}</p>{finding.fix && <div className="mt-3 rounded-xl p-3.5" style={{ background: card }}><p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: accentColor }}><ArrowUpRight className="h-3 w-3" /> Recommended action</p><p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: text }}>{finding.fix}</p></div>}</div>}
+                  {isExpanded && <div className="px-4 pb-4 sm:pl-[43px]"><p className="text-[12.5px] leading-relaxed" style={{ color: muted }}>{finding.detail}</p>{finding.fix && <div className="mt-3 rounded-xl p-3.5" style={{ background: card }}><p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: accentColor }}><ArrowUpRight weight="bold" className="h-3 w-3" /> Recommended action</p><p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: text }}>{finding.fix}</p></div>}</div>}
                 </article>
               );
             })}
@@ -212,7 +212,7 @@ export default function AiStructuredReviewReport({
         {rubricGrades.length > 0 && (
           <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
             <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Rubric</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Requirements check</h3></div><span className="text-sm font-bold tabular-nums" style={{ color: text }}>{rubricPassed}<span style={{ color: muted }}>/{rubricGrades.length}</span></span></div>
-            <div className="mt-4 space-y-2">{rubricGrades.map((grade, index) => <div key={index} className="flex items-start gap-2.5 rounded-xl p-3" style={{ background: inner }}><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[11px] font-bold" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? <Check className="h-2.5 w-2.5" strokeWidth={3} role="img" aria-label="Met" /> : <Minus className="h-2.5 w-2.5" strokeWidth={3} role="img" aria-label="Not met" />}</span><div className="min-w-0"><p className="text-[11.5px] font-semibold" style={{ color: text }}>{grade.criterion}</p><p className="mt-1 text-[11px] leading-relaxed" style={{ color: muted }}>{grade.comment}</p></div></div>)}</div>
+            <div className="mt-4 space-y-2">{rubricGrades.map((grade, index) => <div key={index} className="flex items-start gap-2.5 rounded-xl p-3" style={{ background: inner }}><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[11px] font-bold" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? <Check weight="bold" className="h-2.5 w-2.5" role="img" aria-label="Met" /> : <Minus weight="bold" className="h-2.5 w-2.5" role="img" aria-label="Not met" />}</span><div className="min-w-0"><p className="text-[11.5px] font-semibold" style={{ color: text }}>{grade.criterion}</p><p className="mt-1 text-[11px] leading-relaxed" style={{ color: muted }}>{grade.comment}</p></div></div>)}</div>
           </section>
         )}
         {categories.length > 0 && (
@@ -225,7 +225,7 @@ export default function AiStructuredReviewReport({
 
       {recommendations.length > 0 && (
         <section className="rounded-[22px] p-4 sm:p-5" style={panel}>
-          <div className="flex items-center justify-between gap-4"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Next steps</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Your improvement path</h3></div><Zap className="h-5 w-5" style={{ color: accentColor }} /></div>
+          <div className="flex items-center justify-between gap-4"><div><p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Next steps</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Your improvement path</h3></div><Lightning weight="duotone" className="h-5 w-5" style={{ color: accentColor }} /></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.map((recommendation, index) => <div key={index} className="rounded-2xl p-4" style={{ background: raised }}><span className="grid h-7 w-7 place-items-center rounded-lg text-[11px] font-bold" style={{ background: accentColor, color: '#fff' }}>{index + 1}</span><p className="mt-3 text-[12.5px] leading-relaxed" style={{ color: text }}>{recommendation}</p></div>)}</div>
         </section>
       )}

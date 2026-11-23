@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, FileText, Link as LinkIcon, Sparkles } from 'lucide-react';
+import { CaretRight, FileText, LinkSimple, Sparkle } from '@phosphor-icons/react';
 import { lessonCompletionPct } from '@/lib/ve-completion';
 import { parseReviewNotes } from '@/lib/reviewRecord';
 import { repairVeSubmissionUrl } from '@/lib/ve-upload';
@@ -129,11 +129,11 @@ export function FinishSummary({ modules, progress, manager, studentName, isDark,
           </div>
           <div>
             {work.map((w, i) => {
-              const Icon = w.kind === 'link' ? LinkIcon : w.kind === 'review' || w.kind === 'answer' ? Sparkles : FileText;
+              const Icon = w.kind === 'link' ? LinkSimple : w.kind === 'review' || w.kind === 'answer' ? Sparkle : FileText;
               const inner = (
                 <>
                   <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${accentColor}14`, color: accentColor }}>
-                    <Icon className="w-4 h-4" />
+                    <Icon weight="duotone" className="w-4 h-4" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-semibold truncate" style={{ color: text }}>{w.name}</span>
@@ -144,7 +144,7 @@ export function FinishSummary({ modules, progress, manager, studentName, isDark,
                   {w.score !== undefined && (
                     <span className="text-[14px] font-bold tabular-nums flex-shrink-0" style={{ color: accentColor }}>{w.score}</span>
                   )}
-                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: muted }} />
+                  <CaretRight weight="bold" className="w-4 h-4 flex-shrink-0" style={{ color: muted }} />
                 </>
               );
               const cls = 'w-full flex items-center gap-3 px-5 py-3 text-left transition-opacity hover:opacity-80';
