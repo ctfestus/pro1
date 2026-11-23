@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publicApplicationForm } from '@/lib/application-forms';
+import { isAcceptedStage, publicApplicationForm } from '@/lib/application-forms';
 import { getApplicationSubmissionByTokenHash } from '@/lib/application-submissions';
 import { getApplicationForm } from '@/lib/application-form-store';
 import { hashApplicationAccessToken } from '@/lib/application-access';
@@ -20,6 +20,8 @@ function publicSubmission(form: NonNullable<Awaited<ReturnType<typeof getApplica
     id: submission.id, reference: submission.reference, email: submission.email, state: submission.state,
     answers: submission.answers, submittedAt: submission.submittedAt,
     status: stage?.applicantLabel || stage?.name || 'Application received',
+    // Only an acceptance shows as good news on the status page; every other stage reads neutral.
+    accepted: isAcceptedStage(stage),
     updatedAt: submission.updatedAt,
   };
 }
