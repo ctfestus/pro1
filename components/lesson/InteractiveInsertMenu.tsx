@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, type Icon as PhosphorIcon } from '@phosphor-icons/react';
+import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, MicrosoftExcelLogo, type Icon as PhosphorIcon } from '@phosphor-icons/react';
+import { EXCEL_SHEET_STARTER } from '@/components/lesson/nodes/ExcelSheet';
 import { insertStepCards } from '@/lib/lesson-step-cards';
 
 type InsertCategory = 'Organize' | 'Engage' | 'Practice';
@@ -31,6 +32,7 @@ const ITEMS: InsertItem[] = [
   { id: 'knowledge-check', label: 'Knowledge check', description: 'Add ungraded practice: multiple choice, fill in, or a written response.', category: 'Practice', Icon: Question, content: { type: 'knowledgeCheck', attrs: { question: '', format: 'choice', options: ['', ''], correctIndex: 0, explanation: '' } } },
   { id: 'sql', label: 'SQL playground', description: 'Add executable SQL with optional sample data.', category: 'Practice', Icon: TerminalWindow, content: { type: 'runnableCode', attrs: { language: 'sql', code: '', setupSql: '', setupPython: '' } } },
   { id: 'python', label: 'Python playground', description: 'Add executable Python directly in the lesson.', category: 'Practice', Icon: BracketsCurly, content: { type: 'runnableCode', attrs: { language: 'python', code: '', setupSql: '', setupPython: '' } } },
+  { id: 'excel-sheet', label: 'Excel sheet', description: 'Show a spreadsheet the way Excel draws it, with formulas and numbered pointers.', category: 'Practice', Icon: MicrosoftExcelLogo, content: EXCEL_SHEET_STARTER },
 ];
 
 const CATEGORY_META: Record<InsertCategory, { label: string; Icon: typeof Cube }> = {
