@@ -100,6 +100,8 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
   const C = useMemo(() => ({ ...theme, cta: DARK_C.cta }), [theme]);
   const P = palette(C);
   const [config, setConfig]     = useState<Record<string, string>>({});
+  // The settings as last loaded or saved, to tell when there is something to save.
+  const [savedConfig, setSavedConfig] = useState('{}');
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [msg, setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
@@ -116,6 +118,7 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
       .then(json => {
         if (json?.data) {
           setConfig(json.data.config ?? {});
+          setSavedConfig(JSON.stringify(json.data.config ?? {}));
           // Pre-load saved fonts
           loadFont(json.data.config?.headingFont);
           loadFont(json.data.config?.bodyFont);
@@ -148,6 +151,7 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Save failed');
+      setSavedConfig(JSON.stringify(config));
       setMsg({ ok: true, text: 'Saved. Landing page will update within 60 seconds.' });
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
@@ -156,6 +160,15 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
       setTimeout(() => setMsg(null), 6000);
     }
   };
+
+  const dirty = !loading && JSON.stringify(config) !== savedConfig;
+  // Leaving with unsaved changes asks first.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const tf = (key: string, label: string, placeholder: string, hint?: string) => (
     <div>
@@ -340,7 +353,9 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
   );
 
   return (
-    <div className="grid gap-4">
+    // One column that never grows past the page: the preview draws the landing page 1440px wide and
+    // scales it down, and an auto column would stretch to that width and push Save off-screen.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <PageHeader C={C} title="Site" sub="The public landing page: colours, fonts and each section. The preview updates as you type."
         actions={<>
           <button type="button" onClick={handleOpenPreview} className={btnClass} style={btnStyle('sec', C)}>
@@ -469,6 +484,25 @@ export function SiteSettingsSection({ C: theme }: { C: ThemeColors }) {
       </div>
 
     </div>
+
+      {/* Unsaved changes: a bar at the bottom of the screen, so Save is in reach wherever you are
+          in the settings. It shows the result once saved, then goes. */}
+      {(dirty || saving || msg) && (
+        <div role={msg && !msg.ok ? 'alert' : 'status'}
+          className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3"
+          style={{ background: C.card, border: `1px solid ${C.cardBorder}`, boxShadow: '0 18px 40px -12px rgba(0,0,0,0.35)' }}>
+          {msg ? (msg.ok ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: C.successText }} /> : <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: C.errorText }} />)
+            : <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: P.warn }} />}
+          <span className="min-w-0 flex-1 text-sm" style={{ color: msg ? (msg.ok ? C.successText : C.errorText) : C.text }}>
+            {msg ? msg.text : 'You have unsaved changes'}
+          </span>
+          {dirty && (
+            <button type="button" onClick={handleSave} disabled={saving} className={btnSmClass} style={btnStyle('pri', C)}>
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Save changes
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
