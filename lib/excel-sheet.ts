@@ -12,6 +12,8 @@ export interface ExcelCell {
   /** The formula learners see in the formula bar, for example =C3/B3. */
   f?: string;
   s?: ExcelCellStyle;
+  /** A soft yellow fill, as in Excel, to mark cells without numbering them. */
+  h?: true;
 }
 
 /** An orange outline round a range, with its number badge. a and b are corner cells, like D2 and D4. */
@@ -79,7 +81,8 @@ export function normalizeSheets(input: unknown): ExcelSheetData[] {
       const cell: ExcelCell = { v: clip(c.v) };
       if (c.f) cell.f = clip(c.f);
       if (STYLES.has(c.s as ExcelCellStyle) && c.s) cell.s = c.s as ExcelCellStyle;
-      if (cell.v || cell.f || cell.s) cells[id] = cell;
+      if (c.h === true) cell.h = true;
+      if (cell.v || cell.f || cell.s || cell.h) cells[id] = cell;
     }
     const frames = (Array.isArray(s.frames) ? s.frames : [])
       .filter((f): f is { a: string; b: string } => !!f && CELL_ID.test(String((f as ExcelFrame).a)) && CELL_ID.test(String((f as ExcelFrame).b)))

@@ -1782,21 +1782,23 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
    teaching frames) whatever the lesson colour, so it always reads as Excel. */
 .lesson-content .lesson-xl-block { margin: 1rem 0; }
 .lesson-content .lesson-xl { --x-green: #217346; --x-sel: #107c41; --x-head: #f3f3f3; --x-headtx: #444444; --x-grid: #e1e1e1; --x-cell: #ffffff; --x-tx: #111111; --x-hdrsel: #d3f0e0; --x-hd: #ddebf7; --x-hdline: #9bc2e6; --x-total: #f7f7f7; --x-range: #e8f3ec;
-  overflow: hidden; border: 1px solid #c8c8c8; border-radius: 8px; color: var(--x-tx); background: var(--x-cell); box-shadow: var(--lb-shadow); font-family: "Segoe UI", Aptos, Calibri, Inter, system-ui, sans-serif; font-size: 13px; }
-.lesson-content.dark .lesson-xl { --x-head: #2b2b2b; --x-headtx: #c8c8c8; --x-grid: #3a3a3a; --x-cell: #1f1f1f; --x-tx: #eaeaea; --x-hdrsel: #1d3b2b; --x-hd: #22364a; --x-hdline: #3d5a78; --x-total: #262626; --x-range: #1d3326; border-color: #3a3a3a; }
+  overflow: hidden; border: 0; border-radius: 8px; color: var(--x-tx); background: var(--x-cell); font-family: "Segoe UI", Aptos, Calibri, Inter, system-ui, sans-serif; font-size: 13px; }
+.lesson-content.dark .lesson-xl { --x-head: #2b2b2b; --x-headtx: #c8c8c8; --x-grid: #3a3a3a; --x-cell: #1f1f1f; --x-tx: #eaeaea; --x-hdrsel: #1d3b2b; --x-hd: #22364a; --x-hdline: #3d5a78; --x-total: #262626; --x-range: #1d3326; }
 .lesson-content .lesson-xl__win { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 16px; color: #ffffff; background: var(--x-green); }
 .lesson-content .lesson-xl__dots { display: flex; gap: 7px; } .lesson-content .lesson-xl__dots i { width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,0.38); }
 .lesson-content .lesson-xl__title { min-width: 0; overflow: hidden; color: #ffffff; font-size: 15px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .lesson-content .lesson-xl__title-input { flex: 0 1 260px; padding: 2px 0; border: 0; border-bottom: 1px dashed rgba(255,255,255,0.55); outline: none; background: transparent; font: inherit; font-size: 15px; font-weight: 600; }
 .lesson-content .lesson-xl__title-input::placeholder { color: rgba(255,255,255,0.6); } .lesson-content .lesson-xl__title-input:focus { border-bottom-style: solid; }
 .lesson-content .lesson-xl__app { margin-left: auto; font-size: 13px; opacity: 0.85; }
-.lesson-content .lesson-xl__fbar { display: flex; align-items: center; height: 32px; border-bottom: 1px solid var(--x-grid); background: var(--x-cell); }
-.lesson-content .lesson-xl__namebox { display: flex; align-items: center; justify-content: space-between; width: 96px; height: 100%; padding: 0 8px; box-sizing: border-box; border-right: 1px solid var(--x-grid); font-weight: 600; }
+.lesson-content .lesson-xl__fbar { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px; box-sizing: border-box; border: 1px solid var(--x-grid); border-top: 0; background: var(--x-head); }
+.lesson-content .lesson-xl__namebox { display: flex; align-items: center; justify-content: space-between; width: 92px; height: 26px; padding: 0 8px; box-sizing: border-box; border: 1px solid #c8c8c8; border-radius: 4px; background: var(--x-cell); font-weight: 600; }
+.lesson-content.dark .lesson-xl__namebox, .lesson-content.dark .lesson-xl__formula { border-color: #4a4a4a; }
 .lesson-content .lesson-xl__namebox svg { color: #8a8a8a; }
 .lesson-content .lesson-xl__more { display: grid; place-items: center; width: 20px; color: #8a8a8a; }
-.lesson-content .lesson-xl__ctl { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 10px; border-right: 1px solid var(--x-grid); color: #9a9a9a; }
+.lesson-content .lesson-xl__ctl { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 4px; color: #9a9a9a; }
 .lesson-content .lesson-xl__fx { color: #555555; font: italic 600 14px Georgia, "Times New Roman", serif; } .lesson-content.dark .lesson-xl__fx { color: #bbbbbb; }
-.lesson-content .lesson-xl__formula { flex: 1; min-width: 0; height: 100%; padding: 0 10px; overflow: hidden; border: 0; outline: none; color: inherit; background: transparent; font: 13px Consolas, "JetBrains Mono", ui-monospace, monospace; line-height: 32px; white-space: nowrap; text-overflow: ellipsis; }
+.lesson-content .lesson-xl__formula { flex: 1; min-width: 0; height: 26px; padding: 0 8px; box-sizing: border-box; overflow: hidden; border: 1px solid #c8c8c8; border-radius: 4px; outline: none; color: inherit; background: var(--x-cell); font: 13px Consolas, "JetBrains Mono", ui-monospace, monospace; line-height: 24px; white-space: nowrap; text-overflow: ellipsis; }
+input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-xl__formula::placeholder { color: #a8a8a8; font-family: Inter, system-ui, sans-serif; }
 .lesson-content .lesson-xl__scroll { position: relative; overflow-x: auto; }
 .lesson-content .lesson-xl__grid { width: 100%; min-width: 480px; margin: 0; border-collapse: collapse; table-layout: fixed; outline: none; user-select: none; color: inherit; font: inherit; box-shadow: none; border-radius: 0; }
@@ -1810,7 +1812,9 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-xl__grid td[data-style~="num"] { text-align: right; font-variant-numeric: tabular-nums; }
 .lesson-content .lesson-xl__grid td[data-style="hd"] { border-bottom-color: var(--x-hdline); background: var(--x-hd); font-weight: 700; }
 .lesson-content .lesson-xl__grid td[data-style~="tot"] { border-top: 2px solid var(--x-tx); background: var(--x-total); font-weight: 700; }
+.lesson-content .lesson-xl__grid td[data-hl="true"] { background: #fff2cc; } .lesson-content.dark .lesson-xl__grid td[data-hl="true"] { background: #4a4120; }
 .lesson-content .lesson-xl__grid td[data-in-range="true"] { background: var(--x-range); }
+.lesson-content .lesson-xl__grid th[data-pick="true"] { cursor: pointer; } .lesson-content .lesson-xl__grid th[data-pick="true"]:hover { color: var(--x-green); }
 .lesson-content .lesson-xl__grid td[data-current="true"] { outline: 2px solid var(--x-sel); outline-offset: -2px; }
 .lesson-content .lesson-xl__grid td[data-current="true"]::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 6px; height: 6px; border: 1px solid var(--x-cell); background: var(--x-sel); }
 .lesson-content .lesson-xl__cell-input { width: 100%; height: 24px; padding: 0; border: 0; outline: none; color: inherit; background: transparent; font: inherit; }
@@ -1818,17 +1822,36 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-xl__badge { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #ffffff; background: #ed7d31; font-size: 12px; font-weight: 700; vertical-align: middle; }
 .lesson-content .lesson-xl__badge--pin { position: absolute; top: -11px; left: -11px; box-shadow: 0 0 0 2px var(--x-cell); }
 .lesson-content .lesson-xl__grow { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--x-grid); background: var(--x-cell); }
-.lesson-content .lesson-xl__tabs { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 6px; overflow-x: auto; border-top: 1px solid var(--x-grid); background: var(--x-head); font-size: 12.5px; }
-.lesson-content .lesson-xl__tab-wrap { display: inline-flex; align-items: center; height: 100%; }
-.lesson-content .lesson-xl__tab-wrap[data-on="true"] { background: var(--x-cell); box-shadow: inset 0 -2px 0 var(--x-green); }
-.lesson-content .lesson-xl__tab { padding: 6px 12px; border: 0; color: var(--x-headtx); background: transparent; font: inherit; white-space: nowrap; cursor: pointer; }
-.lesson-content .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab { color: var(--x-green); font-weight: 600; } .lesson-content.dark .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab { color: #6fcf97; }
-.lesson-content .lesson-xl__tab-input { width: 100px; margin: 0 6px; padding: 1px 4px; border: 0; outline: 1px solid var(--x-green); color: var(--x-tx); background: var(--x-cell); font: inherit; }
-.lesson-content .lesson-xl__tab-remove, .lesson-content .lesson-xl__tab-add { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; color: #8a8a8a; background: transparent; cursor: pointer; }
-.lesson-content .lesson-xl__hint { margin-left: auto; padding-right: 4px; color: #8a8a8a; font-size: 12px; white-space: nowrap; }
+/* Sheet tabs and status bar, as Excel draws them: the active tab hangs from the grid (white, joined
+   to the sheet, green name with a short green line), thin separators between tabs, a gap under
+   them, then the status bar. */
+.lesson-content .lesson-xl__tabs { display: flex; align-items: flex-start; height: 34px; padding: 0 8px 0 4px; overflow-x: auto; border-top: 1px solid #b4b4b4; background: var(--x-head); font-size: 12.5px; }
+.lesson-content.dark .lesson-xl__tabs { border-top-color: #4a4a4a; }
+.lesson-content .lesson-xl__tab-nav { display: inline-flex; align-items: center; gap: 2px; height: 28px; margin-right: 6px; }
+.lesson-content .lesson-xl__tab-nav button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; color: #8a8a8a; background: transparent; cursor: pointer; }
+.lesson-content .lesson-xl__tab-nav button:disabled { opacity: 0.4; cursor: default; }
+.lesson-content .lesson-xl__tab-nav button:hover:not(:disabled) { color: var(--x-tx); background: rgba(127,127,127,0.14); }
+.lesson-content .lesson-xl__tab-wrap { position: relative; display: inline-flex; align-items: center; height: 28px; margin-top: -1px; border-right: 1px solid #d0d0d0; }
+.lesson-content .lesson-xl__tab-nav + .lesson-xl__tab-wrap { border-left: 1px solid #d0d0d0; }
+.lesson-content.dark .lesson-xl__tab-wrap, .lesson-content.dark .lesson-xl__tab-nav + .lesson-xl__tab-wrap { border-color: #444444; }
+.lesson-content .lesson-xl__tab-wrap[data-on="true"] { background: var(--x-cell); }
+.lesson-content .lesson-xl__tab { position: relative; height: 100%; padding: 0 16px; border: 0; color: var(--x-headtx); background: transparent; font: inherit; white-space: nowrap; cursor: pointer; }
+.lesson-content .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab { color: var(--x-green); font-weight: 600; }
+.lesson-content.dark .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab { color: #6fcf97; }
+.lesson-content .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--x-green); }
+.lesson-content.dark .lesson-xl__tab-wrap[data-on="true"] .lesson-xl__tab::after { background: #6fcf97; }
+.lesson-content .lesson-xl__tab-input { width: 100px; margin: 0 8px; padding: 1px 4px; border: 0; outline: 1px solid var(--x-green); color: var(--x-tx); background: var(--x-cell); font: inherit; }
+.lesson-content .lesson-xl__tab-remove { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; padding: 0; border: 0; color: #8a8a8a; background: transparent; cursor: pointer; }
+.lesson-content .lesson-xl__tab-add { display: grid; place-items: center; width: 34px; height: 28px; margin-top: -1px; padding: 0; border: 0; border-right: 1px solid #d0d0d0; color: var(--x-headtx); background: transparent; cursor: pointer; }
+.lesson-content.dark .lesson-xl__tab-add { border-color: #444444; }
+.lesson-content .lesson-xl__status { display: flex; align-items: center; gap: 12px; height: 28px; padding: 0 14px; border-top: 1px solid var(--x-grid); color: #6f6f6f; background: var(--x-head); font-size: 12px; }
+.lesson-content.dark .lesson-xl__status { color: #a0a0a0; }
+.lesson-content .lesson-xl__hint { margin-left: auto; color: #8a8a8a; font-size: 12px; white-space: nowrap; }
 @media (max-width: 560px) { .lesson-content .lesson-xl__hint { display: none; } }
 
 /* Editor only: the tool bar above the sheet, the side panel and the paste dialog. */
+.lesson-content .lesson-xl-block[data-idle="true"] .lesson-xl { cursor: pointer; transition: outline-color 0.15s ease; outline: 2px solid transparent; outline-offset: 2px; }
+.lesson-content .lesson-xl-block[data-idle="true"]:hover .lesson-xl { outline-color: #217346; }
 .lesson-content .lesson-xl__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .lesson-content .lesson-xl__name { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; color: #217346; background: #e9f3ec; font-size: 12.5px; font-weight: 700; }
 .lesson-content.dark .lesson-xl__name { color: #6fcf97; background: rgba(33,115,70,0.2); }
@@ -1837,6 +1860,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-xl__tool:disabled { opacity: 0.45; cursor: not-allowed; }
 .lesson-content .lesson-xl__tool[data-on="true"] { color: #ffffff; background: #111827; box-shadow: none; } .lesson-content.dark .lesson-xl__tool[data-on="true"] { color: #111111; background: #f3f4f6; }
 .lesson-content .lesson-xl__tool--wide { width: 100%; justify-content: center; }
+.lesson-content .lesson-xl__tool--wide[data-on="true"] { color: #7a5c00; background: #fff2cc; box-shadow: inset 0 0 0 1px #f1d37a; }
 .lesson-content .lesson-xl__tool--primary { color: #ffffff; background: #217346; box-shadow: none; }
 .lesson-content .lesson-xl__layout[data-panel="true"] { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 14px; align-items: start; }
 @media (max-width: 900px) { .lesson-content .lesson-xl__layout[data-panel="true"] { grid-template-columns: 1fr; } }

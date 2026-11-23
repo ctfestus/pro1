@@ -6,14 +6,14 @@
 // the same sheet is filled in place: paste from Excel, type into cells, set formulas and
 // styles, add frames and sheets. Data rules live in lib/excel-sheet.ts.
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { CaretDown, Check, ClipboardText, DotsThreeVertical, Eye, FrameCorners, MicrosoftExcelLogo, Plus, X } from '@phosphor-icons/react';
+import { CaretDown, CaretLeft, CaretRight, Check, ClipboardText, DotsThreeVertical, Eye, FrameCorners, HighlighterCircle, MicrosoftExcelLogo, Plus, X } from '@phosphor-icons/react';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import {
-  EXCEL_MAX_COLS, EXCEL_MAX_ROWS, EXCEL_MAX_SHEETS, badgeCell, blankSheet, cellBox, cellsIn, colLetter,
-  looksNumeric, normalizeSheets, pasteInto, sheetsPlainText, type ExcelCellStyle, type ExcelSheetData,
+  EXCEL_MAX_COLS, EXCEL_MAX_ROWS, EXCEL_MAX_SHEETS, badgeCell, blankSheet, cellBox, cellsIn, colIndex, colLetter,
+  looksNumeric, normalizeSheets, pasteInto, rowNumber, sheetsPlainText, type ExcelCellStyle, type ExcelSheetData,
 } from '@/lib/excel-sheet';
 
 const STYLE_OPTIONS: { value: ExcelCellStyle; label: string }[] = [
@@ -33,7 +33,19 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
   const [preview, setPreview] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const authoring = editable && !preview;
+  // The editing tools show only while the instructor is working on this sheet: clicking into it
+  // opens them, clicking anywhere else closes them, so an unselected sheet looks as learners see it.
+  const [active, setActive] = useState(false);
+  const blockRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editable || !active) return;
+    const close = (event: MouseEvent) => {
+      if (!blockRef.current?.contains(event.target as globalThis.Node)) { setActive(false); setEditing(null); setPreview(false); }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [editable, active]);
+  const authoring = editable && active && !preview;
 
   const index = Math.min(sheetIndex, sheets.length - 1);
   const sheet = sheets[index];
@@ -52,7 +64,7 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
     const cell = { ...(sheet.cells[id] || { v: '' }), v: value };
     if (!cell.s && looksNumeric(value)) cell.s = 'num';
     const cells = { ...sheet.cells };
-    if (cell.v || cell.f || cell.s) cells[id] = cell; else delete cells[id];
+    if (cell.v || cell.f || cell.s || cell.h) cells[id] = cell; else delete cells[id];
     saveSheet({ ...sheet, cells });
     setEditing(null);
   };
@@ -71,6 +83,27 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
       cells[id] = cell;
     }
     saveSheet({ ...sheet, cells });
+  };
+  // Highlight toggles a soft yellow fill on the selection: on unless every selected cell has it.
+  const allHighlighted = [...selected].every((id) => sheet.cells[id]?.h);
+  const toggleHighlight = () => {
+    const cells = { ...sheet.cells };
+    for (const id of selected) {
+      const cell = { ...(cells[id] || { v: '' }) };
+      if (allHighlighted) delete cell.h; else cell.h = true;
+      if (cell.v || cell.f || cell.s || cell.h) cells[id] = cell; else delete cells[id];
+    }
+    saveSheet({ ...sheet, cells });
+  };
+  // Clicking a column letter or row number selects the whole column or row, as in Excel;
+  // shift-click extends from the current selection.
+  const selectColumn = (c: number, extend: boolean) => {
+    const startCol = extend ? colIndex(anchor) : c;
+    setAnchor(`${colLetter(startCol)}1`); setFocus(`${colLetter(c)}${sheet.rows}`); setEditing(null);
+  };
+  const selectRow = (r: number, extend: boolean) => {
+    const startRow = extend ? rowNumber(anchor) : r;
+    setAnchor(`A${startRow}`); setFocus(`${colLetter(sheet.cols - 1)}${r}`); setEditing(null);
   };
   const clearSelection = () => {
     const cells = { ...sheet.cells };
@@ -133,8 +166,9 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
   sheet.frames.forEach((f) => { const at = badgeCell(sheet, f); if (at) badges.set(at, f.n); });
 
   return (
-    <NodeViewWrapper className="lesson-xl-block" data-editing={authoring ? 'true' : 'false'} contentEditable={false}>
-      {editable && (
+    <NodeViewWrapper ref={blockRef} className="lesson-xl-block" data-editing={authoring ? 'true' : 'false'} data-idle={editable && !active ? 'true' : 'false'}
+      contentEditable={false} onMouseDownCapture={() => editable && setActive(true)} onFocusCapture={() => editable && setActive(true)}>
+      {editable && active && (
         <div className="lesson-xl__bar">
           <span className="lesson-xl__name"><MicrosoftExcelLogo weight="duotone" width={15} height={15} aria-hidden="true" /> Excel sheet</span>
           {!preview && (
@@ -171,13 +205,13 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
               <thead>
                 <tr>
                   <th className="lesson-xl__corner" aria-hidden="true" />
-                  {Array.from({ length: sheet.cols }, (_, c) => <th key={c} scope="col" data-on={c >= range.c1 && c <= range.c2 ? 'true' : 'false'}>{colLetter(c)}</th>)}
+                  {Array.from({ length: sheet.cols }, (_, c) => <th key={c} scope="col" data-on={c >= range.c1 && c <= range.c2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectColumn(c, e.shiftKey); }}>{colLetter(c)}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: sheet.rows }, (_, r) => r + 1).map((r) => (
                   <tr key={r}>
-                    <th scope="row" data-on={r >= range.r1 && r <= range.r2 ? 'true' : 'false'}>{r}</th>
+                    <th scope="row" data-on={r >= range.r1 && r <= range.r2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectRow(r, e.shiftKey); }}>{r}</th>
                     {Array.from({ length: sheet.cols }, (_, c) => {
                       const id = colLetter(c) + r;
                       const cell = sheet.cells[id];
@@ -187,6 +221,7 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
                           key={id}
                           data-cell={id}
                           data-style={cell?.s || undefined}
+                          data-hl={cell?.h ? 'true' : undefined}
                           data-current={id === focus ? 'true' : undefined}
                           data-in-range={multi && selected.has(id) ? 'true' : undefined}
                           onMouseDown={(e) => { if (editing === id) return; e.preventDefault(); select(id, e.shiftKey && authoring); setEditing(null); (e.currentTarget.closest('table') as HTMLTableElement | null)?.focus(); }}
@@ -228,6 +263,11 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
             </div>
           )}
           <div className="lesson-xl__tabs" role="tablist" aria-label="Sheets">
+            {/* Excel's sheet arrows: step to the previous or next sheet. */}
+            <span className="lesson-xl__tab-nav">
+              <button type="button" aria-label="Previous sheet" disabled={index === 0} onClick={() => showSheet(index - 1)}><CaretLeft weight="fill" width={11} height={11} /></button>
+              <button type="button" aria-label="Next sheet" disabled={index >= sheets.length - 1} onClick={() => showSheet(index + 1)}><CaretRight weight="fill" width={11} height={11} /></button>
+            </span>
             {sheets.map((s, i) => (
               <span key={i} className="lesson-xl__tab-wrap" data-on={i === index ? 'true' : 'false'}>
                 {renaming === i ? (
@@ -244,6 +284,10 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
             {authoring && sheets.length < EXCEL_MAX_SHEETS && (
               <button type="button" className="lesson-xl__tab-add" aria-label="Add sheet" onClick={addSheet}><Plus weight="bold" width={13} height={13} /></button>
             )}
+          </div>
+          {/* Excel's status bar under the sheet tabs. */}
+          <div className="lesson-xl__status">
+            <span>Ready</span>
             <span className="lesson-xl__hint">{authoring ? 'Double-click a tab to rename it' : 'Click a cell to see its formula'}</span>
           </div>
         </div>
@@ -260,6 +304,12 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
                   return <button key={o.label} type="button" data-on={on ? 'true' : 'false'} onClick={() => setStyle(o.value)}>{o.label}</button>;
                 })}
               </div>
+            </div>
+            <div>
+              <p className="lesson-xl__label">Highlight</p>
+              <button type="button" className="lesson-xl__tool lesson-xl__tool--wide" data-on={allHighlighted ? 'true' : 'false'} aria-pressed={allHighlighted} onClick={toggleHighlight}>
+                <HighlighterCircle weight="duotone" width={15} height={15} aria-hidden="true" /> {allHighlighted ? 'Remove highlight' : 'Highlight cells'}
+              </button>
             </div>
             <div>
               <p className="lesson-xl__label">Numbered frames</p>

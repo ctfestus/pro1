@@ -17,6 +17,12 @@ describe('normalizeSheets', () => {
     expect(s.frames).toEqual([{ a: 'B2', b: 'B3', n: 1 }, { a: 'C2', b: 'C2', n: 2 }]);
   });
 
+  it('keeps a highlighted cell even when it is empty, and only a true highlight', () => {
+    const [s] = normalizeSheets([{ ...blankSheet('S'), cells: { A1: { v: '', h: true }, B1: { v: 'x', h: 'yes' } } }]);
+    expect(s.cells.A1).toEqual({ v: '', h: true });
+    expect(s.cells.B1).toEqual({ v: 'x' });
+  });
+
   it('falls back to a sheet name when one is blank', () => {
     expect(normalizeSheets([{ name: '  ' }, { name: '' }]).map((s) => s.name)).toEqual(['Sheet1', 'Sheet2']);
   });
