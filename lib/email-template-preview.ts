@@ -92,7 +92,7 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     weeks: 'Weeks 3 and 4',
     program_name: 'Data Analytics Programme',
     book_title: 'SQL for Data Analysts',
-    currency: 'GHS',
+    currency: '',
     amount: '450.00',
     reference: 'PAY-1024',
     payment_date: '4 October 2026',
@@ -117,7 +117,7 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     case 'cohort_added':
       return { subject: 'You have been added to October Cohort', html: studentAddedToCohortEmail({ name, cohortName: 'October Cohort', signInUrl: studentUrl, branding }), variables };
     case 'individual_learner_welcome':
-      return { subject: `Your ${appName} account is ready`, html: individualLearnerWelcomeEmail({ name, planName: 'Professional Plan', durationMonths: 3, setupUrl: `${appUrl}/auth/setup?token=sample`, isRenewal: false, access: { kind: 'awaiting_payment', amount: 450, currency: 'GHS', dueDate: '2026-10-05' }, branding }), variables };
+      return { subject: `Your ${appName} account is ready`, html: individualLearnerWelcomeEmail({ name, planName: 'Professional Plan', durationMonths: 3, setupUrl: `${appUrl}/auth/setup?token=sample`, isRenewal: false, access: { kind: 'awaiting_payment', amount: 450, currency: '', dueDate: '2026-10-05' }, branding }), variables };
     case 'onboarding_welcome':
       return { subject: `Welcome to ${appName}, ${name}!`, html: welcomeEmail({ name, studentUrl, branding }), variables };
     case 'onboarding_day3':
@@ -167,21 +167,21 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     case 'open_certificate':
       return { subject: 'Your Data Analytics Programme Certificate', html: openCertificateEmail({ recipientName: name, programName: 'Data Analytics Programme', issuedDate: '4 October 2026', certUrl: certificateUrl, branding }), variables };
     case 'payment_receipt':
-      return { subject: 'Payment received on your account', html: paymentReceiptEmail({ name, amount: 450, currency: 'GHS', paidAt: '4 October 2026', method: 'Mobile Money', reference: 'PAY-1024', dashboardUrl: paymentsUrl, branding }), variables };
+      return { subject: 'Payment received on your account', html: paymentReceiptEmail({ name, amount: 450, currency: '', paidAt: '4 October 2026', method: 'Mobile Money', reference: 'PAY-1024', dashboardUrl: paymentsUrl, branding }), variables };
     case 'book_free_download':
       return { subject: 'Your free download: SQL for Data Analysts', html: bookFreeDownloadEmail({ name, bookTitle: 'SQL for Data Analysts', downloadUrl: `${appUrl}/products/download`, until: '11 October 2026', branding }), variables };
     case 'product_announcement':
-      return { subject: 'New: SQL for Data Analysts', html: productAnnouncementEmail({ name, bookTitle: 'SQL for Data Analysts', priceLabel: 'GHS 120 (was GHS 200)', messageHtml: '<p>Our new guide is out. It walks you through the <b>queries analysts use every day</b>, with real data.</p><ul><li>Joins and window functions</li><li>Real datasets</li></ul>', productUrl: `${appUrl}/products/sql-for-data-analysts`, branding }), variables };
+      return { subject: 'New: SQL for Data Analysts', html: productAnnouncementEmail({ name, bookTitle: 'SQL for Data Analysts', priceLabel: '120 (was 200)', messageHtml: '<p>Our new guide is out. It walks you through the <b>queries analysts use every day</b>, with real data.</p><ul><li>Joins and window functions</li><li>Real datasets</li></ul>', productUrl: `${appUrl}/products/sql-for-data-analysts`, branding }), variables };
     case 'book_purchase':
-      return { subject: 'Your purchase: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: 'GHS', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#products`, branding }), variables };
+      return { subject: 'Your purchase: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: '', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#products`, branding }), variables };
     case 'payment_confirmation_received':
-      return { subject: 'We received your payment confirmation', html: paymentConfirmationAcknowledgedEmail({ name, amount: 450, currency: 'GHS', dashboardUrl: paymentsUrl, branding }), variables };
+      return { subject: 'We received your payment confirmation', html: paymentConfirmationAcknowledgedEmail({ name, amount: 450, currency: '', dashboardUrl: paymentsUrl, branding }), variables };
     case 'payment_confirmation_approved':
-      return { subject: 'Your payment confirmation has been approved', html: paymentConfirmationApprovedEmail({ name, amount: 450, currency: 'GHS', dashboardUrl: paymentsUrl, adminNotes: 'The receipt was verified.', branding }), variables };
+      return { subject: 'Your payment confirmation has been approved', html: paymentConfirmationApprovedEmail({ name, amount: 450, currency: '', dashboardUrl: paymentsUrl, adminNotes: 'The receipt was verified.', branding }), variables };
     case 'payment_confirmation_rejected':
-      return { subject: 'Your payment confirmation could not be verified', html: paymentConfirmationRejectedEmail({ name, amount: 450, currency: 'GHS', dashboardUrl: paymentsUrl, adminNotes: 'Please upload a clearer receipt showing the reference and amount.', branding }), variables };
+      return { subject: 'Your payment confirmation could not be verified', html: paymentConfirmationRejectedEmail({ name, amount: 450, currency: '', dashboardUrl: paymentsUrl, adminNotes: 'Please upload a clearer receipt showing the reference and amount.', branding }), variables };
     case 'payment_request':
-      return { subject: 'Payment request for Professional Plan', html: subscriptionPaymentAssignedEmail({ name, planName: 'Professional Plan', amount: 450, currency: 'GHS', dueDate: '5 October 2026', dashboardUrl: paymentsUrl, branding }), variables };
+      return { subject: 'Payment request for Professional Plan', html: subscriptionPaymentAssignedEmail({ name, planName: 'Professional Plan', amount: 450, currency: '', dueDate: '5 October 2026', dashboardUrl: paymentsUrl, branding }), variables };
     case 'subscription_activated':
       return { subject: 'Your Professional Plan subscription is active', html: subscriptionActivatedEmail({ name, planName: 'Professional Plan', durationMonths: 3, periodStart: '2026-10-04', periodEnd: '2027-01-04', isActivation: true, dashboardUrl: appUrl, branding }), variables };
     case 'subscription_expiring':
@@ -193,7 +193,7 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     case 'abandoned_checkout':
       return {
         subject: 'Still interested in Professional Plan?',
-        html: `<p>Hi ${name.split(' ')[0]},</p><p>You started subscribing to <strong>Professional Plan</strong> for GHS 450.00 but did not finish.</p><p><a href="${paymentsUrl}">Finish your payment</a></p><p>Nothing has been charged, and you owe nothing. If you have changed your mind you can ignore this.</p>`,
+        html: `<p>Hi ${name.split(' ')[0]},</p><p>You started subscribing to <strong>Professional Plan</strong> for 450.00 but did not finish.</p><p><a href="${paymentsUrl}">Finish your payment</a></p><p>Nothing has been charged, and you owe nothing. If you have changed your mind you can ignore this.</p>`,
         variables,
       };
   }

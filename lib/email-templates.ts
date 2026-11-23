@@ -1185,7 +1185,7 @@ export function paymentReceiptEmail(data: {
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0;">
       <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#374151;">
-        <tr><td style="padding:4px 0;font-weight:700;width:140px;">Amount</td><td>${currency} ${Number(amount).toLocaleString()}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;width:140px;">Amount</td><td>${esc(currency)} ${Number(amount).toLocaleString()}</td></tr>
         <tr><td style="padding:4px 0;font-weight:700;">Date</td><td>${paidAt}</td></tr>
         ${method ? `<tr><td style="padding:4px 0;font-weight:700;">Method</td><td>${esc(method)}</td></tr>` : ''}
         ${reference ? `<tr><td style="padding:4px 0;font-weight:700;">Reference</td><td>${esc(reference)}</td></tr>` : ''}
@@ -1344,7 +1344,7 @@ export function paymentConfirmationAcknowledgedEmail(data: {
   const { name, amount, currency, dashboardUrl, branding } = data;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>We have received your payment confirmation of <b>${currency} ${Number(amount).toLocaleString()}</b>. Our team will review and approve it shortly.</p>
+    <p>We have received your payment confirmation of <b>${esc(currency)} ${Number(amount).toLocaleString()}</b>. Our team will review and approve it shortly.</p>
 
     <div style="margin:20px 0;padding:16px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:0;">
       <p style="margin:0;font-size:14px;color:#1d4ed8;">Once approved, your account balance will be updated and your access status will be refreshed automatically.</p>
@@ -1371,7 +1371,7 @@ export function paymentConfirmationApprovedEmail(data: {
   const { name, amount, currency, dashboardUrl, adminNotes, branding } = data;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>Great news! Your payment confirmation of <b>${currency} ${Number(amount).toLocaleString()}</b> has been <b style="color:#16a34a;">approved</b>.</p>
+    <p>Great news! Your payment confirmation of <b>${esc(currency)} ${Number(amount).toLocaleString()}</b> has been <b style="color:#16a34a;">approved</b>.</p>
 
     <div style="margin:20px 0;padding:16px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0;">
       <p style="margin:0;font-size:14px;color:#15803d;">Your account balance has been updated and your access status has been refreshed.</p>
@@ -1400,7 +1400,7 @@ export function paymentConfirmationRejectedEmail(data: {
   const { name, amount, currency, dashboardUrl, adminNotes, branding } = data;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>Unfortunately, your payment confirmation of <b>${currency} ${Number(amount).toLocaleString()}</b> could not be verified and has been <b style="color:#dc2626;">rejected</b>.</p>
+    <p>Unfortunately, your payment confirmation of <b>${esc(currency)} ${Number(amount).toLocaleString()}</b> could not be verified and has been <b style="color:#dc2626;">rejected</b>.</p>
 
     ${adminNotes ? `
     <div style="margin:20px 0;padding:16px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:0;">
@@ -1434,7 +1434,7 @@ export function adminPaymentConfirmationEmail(data: {
       <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#374151;">
         <tr><td style="padding:4px 0;font-weight:700;width:140px;">Student</td><td>${esc(studentName)}</td></tr>
         <tr><td style="padding:4px 0;font-weight:700;">Email</td><td>${esc(studentEmail)}</td></tr>
-        <tr><td style="padding:4px 0;font-weight:700;">Amount</td><td>${currency} ${Number(amount).toLocaleString()}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;">Amount</td><td>${esc(currency)} ${Number(amount).toLocaleString()}</td></tr>
       </table>
     </div>
 

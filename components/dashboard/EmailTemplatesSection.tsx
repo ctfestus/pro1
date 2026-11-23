@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCircle2, Loader2, Mail, RotateCcw, Search, Send, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { DARK_C, type ThemeColors } from '@/lib/theme';
@@ -8,6 +8,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { PageHeader } from '@/components/dashboard/content/kit';
 import { Card, Pill, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 import { FIELD, Hint, Label, Sect, inputStyle } from '@/components/create/EditorKit';
+import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
 
 type Definition = {
   key: string; label: string; category: string; description: string; schedule: string;
@@ -90,8 +91,25 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
   }, [definitions, query]);
   const categories = useMemo(() => [...new Set(filtered.map(item => item.category))], [filtered]);
 
+  // A merge tag goes in where the cursor is in the message; with no cursor there, on a new line at the end.
+  // onMouseDown on the tag keeps the editor's selection, so the tag lands in place.
+  const editorWrap = useRef<HTMLDivElement>(null);
+  function insertTag(tag: string) {
+    const selection = window.getSelection();
+    const inEditor = selection?.anchorNode && editorWrap.current?.contains(selection.anchorNode);
+    if (inEditor && document.execCommand('insertText', false, `{{${tag}}}`)) return;
+    setBody(value => `${value}<p>{{${tag}}}</p>`);
+  }
+
+  // Questions before an action, in the app's own pop-up.
+  const [ask, setAsk] = useState<{ title: string; body: string; action: string; danger?: boolean; run: () => void } | null>(null);
+
   function choose(key: string) {
-    if (dirty && !window.confirm('Discard your unsaved email changes?')) return;
+    if (key === selectedKey) return;
+    if (dirty) {
+      setAsk({ title: 'Discard your changes?', body: 'You have unsaved changes to this email. Opening another template drops them.', action: 'Discard changes', danger: true, run: () => setSelectedKey(key) });
+      return;
+    }
     setSelectedKey(key);
   }
 
@@ -113,9 +131,12 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
     } finally { setBusy(null); }
   }
 
-  async function save() {
+  async function save(confirmed = false) {
     if (!selected) return;
-    if (!selectedOverride && !window.confirm('Saving adds this customization to future emails while preserving the complete system email. Continue?')) return;
+    if (!selectedOverride && !confirmed) {
+      setAsk({ title: 'Save this customisation?', body: 'Future emails of this kind will include it. The complete system email stays in place.', action: 'Save', run: () => void save(true) });
+      return;
+    }
     setBusy('save');
     setMessage(null);
     try {
@@ -132,9 +153,12 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
     } finally { setBusy(null); }
   }
 
-  async function reset() {
+  async function reset(confirmed = false) {
     if (!selected || !selectedOverride) return;
-    if (!window.confirm('Remove this customization and restore the system email? The change will affect future sends.')) return;
+    if (!confirmed) {
+      setAsk({ title: 'Restore the system email?', body: 'Your custom subject and message are removed from future emails of this kind.', action: 'Restore system email', danger: true, run: () => void reset(true) });
+      return;
+    }
     setBusy('reset');
     setMessage(null);
     try {
@@ -163,7 +187,7 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
     <div className="grid gap-4">
       <PageHeader C={C} title="Email templates" sub="Add your own subject or message to the emails learners get. The system content, details and buttons stay."
         actions={selected && (
-          <button type="button" onClick={save} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className={btnClass} style={btnStyle('pri', C)}>
+          <button type="button" onClick={() => void save()} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className={btnClass} style={btnStyle('pri', C)}>
             {busy === 'save' && <Loader2 className="w-4 h-4 animate-spin"/>}Save changes
           </button>
         )} />
@@ -210,16 +234,16 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
             </div>
             <div>
               <Label C={C}>Custom message (optional)</Label>
-              <RichTextEditor value={body} onChange={setBody} placeholder="Add a message above the system email" bgOverride={C.input}/>
+              <div ref={editorWrap}><RichTextEditor value={body} onChange={setBody} placeholder="Add a message above the system email" bgOverride={C.input}/></div>
             </div>
             <div>
               <Label C={C}>Merge tags</Label>
-              <div className="flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onClick={() => setBody(value => `${value}<p>{{${tag}}}</p>`)} className="rounded-lg px-2 py-1 font-mono text-xs" style={{ background: C.pill, color: C.text }}>{`{{${tag}}}`}</button>)}</div>
+              <div className="flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onMouseDown={event => event.preventDefault()} onClick={() => insertTag(tag)} className="rounded-lg px-2 py-1 font-mono text-xs" style={{ background: C.pill, color: C.text }}>{`{{${tag}}}`}</button>)}</div>
               <Hint C={C}>Merge tags are optional in your message because essential learner information stays in the protected system email. Custom links are blocked.</Hint>
             </div>
             {selectedOverride && (
               <div>
-                <button type="button" onClick={reset} disabled={busy !== null} className={btnSmClass} style={btnStyle('sec', C)}>
+                <button type="button" onClick={() => void reset()} disabled={busy !== null} className={btnSmClass} style={btnStyle('sec', C)}>
                   {busy === 'reset' ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>}Restore system email
                 </button>
               </div>
@@ -242,6 +266,8 @@ export function EmailTemplatesSection({ C: theme }: { C: ThemeColors }) {
           </Sect>
         </Card>}
       </div>
+      {ask && <ConfirmModal title={ask.title} body={ask.body} action={ask.action} danger={ask.danger} C={C}
+        onClose={() => setAsk(null)} onConfirm={() => { const run = ask.run; setAsk(null); run(); }} />}
     </div>
   );
 }
