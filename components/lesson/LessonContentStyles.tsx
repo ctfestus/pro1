@@ -1605,6 +1605,170 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content.dark .lesson-tabs__panels { background: #1B1C1F; }
 .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__body { margin: 0 4px 4px; padding: 12px 16px; border-radius: 10px; background: #ffffff; }
 .lesson-content.dark .lesson-accordion__item[data-open="true"] .lesson-accordion__body { background: #1B1C1F; }
+/* ---- Visual blocks (November 2026, approved proposal) ------------------------------------------
+   White cards with a thin line and a soft shadow instead of the grey panels; one colour, the
+   lesson's accent, with amber only for warnings; 8 to 12px corners; dashed lines between steps.
+   Learner-only touches (sliding tab pill, horizontal timeline) are scoped to the read-only view. */
+.lesson-content { --lb-card: #ffffff; --lb-line: rgba(15,23,42,0.1); --lb-line2: rgba(15,23,42,0.07); --lb-dash: rgba(15,23,42,0.22);
+  --lb-text: #0f172a; --lb-sub: #475569; --lb-faint: #8a929e; --lb-chip: color-mix(in oklab, #0f172a 5%, #ffffff);
+  --lb-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -12px rgba(15,23,42,0.14);
+  --lb-tint: color-mix(in oklab, var(--lesson-accent-base) 12%, #ffffff); --lb-soft: color-mix(in oklab, var(--lesson-accent-base) 7%, #ffffff); --lb-wrong: #ea580c; }
+.lesson-content.dark { --lb-card: rgba(255,255,255,0.02); --lb-line: rgba(255,255,255,0.11); --lb-line2: rgba(255,255,255,0.08); --lb-dash: rgba(255,255,255,0.24);
+  --lb-text: #eef0f4; --lb-sub: #a3acb9; --lb-faint: #7d8694; --lb-chip: rgba(255,255,255,0.07); --lb-shadow: none;
+  --lb-tint: color-mix(in oklab, var(--lesson-accent-base) 16%, transparent); --lb-soft: color-mix(in oklab, var(--lesson-accent-base) 9%, transparent); --lb-wrong: #fb923c; }
+
+/* Callouts: the tip and info notes take the lesson colour; warnings stay amber. */
+.lesson-content .lesson-callout[data-variant="tip"]:not([data-custom-accent]), .lesson-content .lesson-callout[data-variant="info"]:not([data-custom-accent]) { --callout-accent: var(--lesson-accent); --callout-ink: var(--lesson-accent-ink); }
+.lesson-content .lesson-callout { border-radius: 12px; }
+.lesson-content .lesson-callout__icon-wrap { border-radius: 7px; }
+
+/* Flip cards: white with a thin line; the turned card is a light tint of the lesson colour. */
+.lesson-content .lesson-flip__face { border-radius: 12px; }
+.lesson-content .lesson-flip__face--front, .lesson-content.dark .lesson-flip__face--front { background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line); }
+.lesson-content .lesson-flip__face--back, .lesson-content.dark .lesson-flip__face--back { color: var(--lb-text); background: var(--lb-tint); }
+
+/* Tabs: one white card; the tab bar is a soft track and the selected tab a white pill. */
+.lesson-content .lesson-tabs, .lesson-content.dark .lesson-tabs { overflow: hidden; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-tabs__bar, .lesson-content.dark .lesson-tabs__bar { position: relative; gap: 4px; margin: 10px; padding: 4px; border: 0; border-radius: 10px; background: var(--lb-chip); }
+.lesson-content .lesson-tabs__tab { position: relative; z-index: 1; flex: 1 1 0; display: flex; justify-content: center; border-radius: 7px; }
+.lesson-content .lesson-tabs__tab::after { display: none; }
+.lesson-content .lesson-tabs__trigger { width: 100%; padding: 9px 12px; color: var(--lb-sub); font-size: 14px; font-weight: 700; transition: color 0.2s ease; }
+.lesson-content .lesson-tabs__tab[data-active="true"] .lesson-tabs__trigger, .lesson-content .lesson-tabs__tab[data-active="true"] { color: var(--lb-text); }
+.lesson-content .lesson-tabs__pill { position: absolute; top: 4px; bottom: 4px; z-index: 0; border-radius: 7px; background: #ffffff; box-shadow: 0 2px 10px -2px rgba(15,23,42,0.18); transition: left 0.35s cubic-bezier(0.2,0.8,0.2,1), width 0.35s cubic-bezier(0.2,0.8,0.2,1); }
+.lesson-content.dark .lesson-tabs__pill { background: #2a2c33; box-shadow: none; }
+.lesson-content .ProseMirror[contenteditable="true"] .lesson-tabs__tab[data-active="true"] { background: var(--lb-card); box-shadow: 0 2px 10px -2px rgba(15,23,42,0.18); }
+.lesson-content .lesson-tabs__panels, .lesson-content.dark .lesson-tabs__panels { margin: 0; padding: 6px 18px 18px; border-radius: 0; background: transparent; }
+
+/* Collapsible sections: one card per section, a numbered chip (or the brand logo), and a plus
+   that turns into a close mark; the open section's line takes its colour. */
+.lesson-content .lesson-accordion__items, .lesson-content.dark .lesson-accordion__items { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.lesson-content .lesson-accordion__items > [data-node-view-content-react] { display: grid; gap: 10px; counter-reset: lesson-acc; }
+.lesson-content .lesson-accordion__item, .lesson-content.dark .lesson-accordion__item { counter-increment: lesson-acc; overflow: hidden; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); transition: box-shadow 0.25s ease; }
+.lesson-content .lesson-accordion__item + .lesson-accordion__item { border-top: 0; }
+.lesson-content .lesson-accordion__item[data-open="true"] { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lesson-accent) 50%, transparent), var(--lb-shadow); }
+.lesson-content .lesson-accordion__head { gap: 14px; padding: 14px 16px; font-size: 15px; font-weight: 700; }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item:not(:has(.lesson-accordion__logo)) .lesson-accordion__head::before {
+  content: counter(lesson-acc); display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 13px; font-weight: 800; transition: color 0.25s ease, background 0.25s ease; }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item[data-open="true"]:not(:has(.lesson-accordion__logo)) .lesson-accordion__head::before { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-accordion__logo { width: 40px; height: 40px; padding: 7px; box-sizing: border-box; border-radius: 8px; background: #ffffff; box-shadow: inset 0 0 0 1px var(--lb-line); object-fit: contain; }
+.lesson-content .lesson-accordion__subtitle { color: var(--lb-sub); font-size: 13px; font-weight: 500; }
+.lesson-content .lesson-accordion__toggle-icon, .lesson-content .lesson-accordion__head:hover .lesson-accordion__toggle-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: auto; border-radius: 999px; color: var(--lb-sub); background: var(--lb-chip); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__toggle-icon { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-accordion__chevron, .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__chevron { transition: transform 0.3s ease; }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__chevron { transform: rotate(45deg); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__body, .lesson-content.dark .lesson-accordion__item[data-open="true"] .lesson-accordion__body { margin: 0; padding: 0 16px 16px 58px; border-radius: 0; color: var(--lb-sub); background: transparent; }
+
+/* Knowledge checks: a card with an icon tile; white options; a right answer lights up and bursts,
+   a wrong one shakes; the result sits in a tinted box. */
+.lesson-content .lesson-check, .lesson-content.dark .lesson-check { position: relative; padding: 20px; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-check__head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.lesson-content .lesson-check__tile { display: inline-grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 8px; color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-check__tile { color: var(--lesson-accent); }
+.lesson-content .lesson-check__tile svg { width: 20px; height: 20px; }
+.lesson-content .lesson-check__head .lesson-check__question { margin: 0; padding-top: 7px; color: var(--lb-text); font-size: 17px; font-weight: 700; line-height: 1.35; }
+.lesson-content .lesson-check__options { gap: 10px; }
+.lesson-content .lesson-check__option, .lesson-content.dark .lesson-check__option { gap: 12px; padding: 12px 14px; border-radius: 10px; color: var(--lb-text); background: var(--lb-card); box-shadow: inset 0 0 0 1.5px var(--lb-line); font-size: 15px; transition: box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease; }
+.lesson-content .lesson-check__option:hover:not(:disabled):not([data-wrong="true"]) { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--lesson-accent) 55%, transparent); transform: translateX(3px); }
+.lesson-content .lesson-check__letter, .lesson-content.dark .lesson-check__letter { width: 26px; height: 26px; flex-basis: 26px; border-radius: 6px; color: var(--lb-sub); background: var(--lb-chip); }
+.lesson-content .lesson-check__option[data-correct="true"], .lesson-content.dark .lesson-check__option[data-correct="true"] { background: var(--lb-tint); box-shadow: inset 0 0 0 1.5px var(--lesson-accent); }
+.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__option-end { display: inline-flex; margin-left: auto; color: var(--lesson-accent); animation: lesson-check-pop 0.35s cubic-bezier(0.3,1.6,0.5,1); }
+.lesson-content .lesson-check__option[data-wrong="true"], .lesson-content.dark .lesson-check__option[data-wrong="true"] { background: color-mix(in oklab, var(--lb-wrong) 9%, transparent); box-shadow: inset 0 0 0 1.5px var(--lb-wrong); animation: lesson-check-shake 0.4s; }
+.lesson-content .lesson-check__option[data-wrong="true"] .lesson-check__letter { color: #ffffff; background: var(--lb-wrong); }
+@keyframes lesson-check-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+@keyframes lesson-check-pop { from { opacity: 0; transform: scale(0.4); } }
+.lesson-content .lesson-check__line, .lesson-content.dark .lesson-check__line { display: flex; width: auto; max-width: none; box-sizing: border-box; align-items: flex-start; margin: 14px 0 0; padding: 12px 14px; border-radius: 10px; animation: lesson-check-in 0.3s ease; }
+.lesson-content .lesson-check__line[data-kind="correct"] { color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-check__line[data-kind="correct"] { color: var(--lesson-accent); }
+.lesson-content .lesson-check__line[data-kind="incorrect"], .lesson-content.dark .lesson-check__line[data-kind="incorrect"] { color: var(--lb-wrong); background: color-mix(in oklab, var(--lb-wrong) 10%, transparent); }
+@keyframes lesson-check-in { from { opacity: 0; transform: translateY(6px); } }
+.lesson-content .lesson-check__answer-form:not([data-multiline]) .lesson-check__answer-input, .lesson-content .lesson-check__answer-form[data-multiline] .lesson-check__answer-input,
+.lesson-content.dark .lesson-check__answer-form .lesson-check__answer-input { padding: 12px 14px; border: 0; border-radius: 10px; color: var(--lb-text); background: var(--lb-card); box-shadow: inset 0 0 0 1.5px var(--lb-line); font-size: 15px; }
+.lesson-content .lesson-check__answer-form .lesson-check__answer-input:focus, .lesson-content.dark .lesson-check__answer-form .lesson-check__answer-input:focus { outline: none !important; background: var(--lb-card); box-shadow: inset 0 0 0 1.5px var(--lesson-accent), 0 0 0 4px color-mix(in oklab, var(--lesson-accent) 16%, transparent); }
+.lesson-content .lesson-check__submit { border-radius: 8px; }
+.lesson-content .lesson-check__submit:disabled { color: var(--lb-faint); background: var(--lb-chip); opacity: 1; }
+.lesson-content .lesson-check__words { display: block; margin-top: 8px; color: var(--lb-faint); font-size: 12px; }
+.lesson-content .lesson-check__burst { position: absolute; right: 48px; top: 50%; width: 0; height: 0; pointer-events: none; }
+.lesson-content .lesson-check__burst > i { position: absolute; width: 7px; height: 7px; border-radius: 2px; background: var(--lesson-accent); animation: lesson-check-burst 0.8s ease-out forwards;
+  --a: calc(var(--i) * 30deg); transform: rotate(var(--a)) translateX(0); }
+@keyframes lesson-check-burst { to { opacity: 0; transform: rotate(var(--a)) translateX(64px) rotate(180deg); } }
+
+/* Step cards: each step a white card on a dashed rail, with a solid numbered node. */
+.lesson-content .lesson-step-card, .lesson-content.dark .lesson-step-card { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 0 0 12px; }
+.lesson-content .lesson-step-card::after { left: 19px; top: 44px; bottom: 0; }
+.lesson-content .lesson-step-card__number, .lesson-content.dark .lesson-step-card__number { width: 40px; height: 40px; margin-top: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); font-size: 14px; font-weight: 800; }
+.lesson-content .lesson-step-card__main { padding: 14px 16px; border-radius: 10px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); transition: transform 0.2s ease; }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-step-card:hover .lesson-step-card__main { transform: translateX(4px); }
+
+/* Guided steps: a card with a segmented progress bar over the steps. */
+.lesson-content .lesson-stepper { padding: 20px; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-stepper[data-editable="true"] { padding: 0; background: transparent; box-shadow: none; }
+.lesson-content .lesson-stepper__bar { display: flex; gap: 6px; margin-bottom: 16px; }
+.lesson-content .lesson-stepper__bar > i { flex: 1; height: 6px; border-radius: 9px; background: var(--lb-line); transition: background 0.4s ease; }
+.lesson-content .lesson-stepper__bar > i[data-on="true"] { background: var(--lesson-accent); }
+.lesson-content .lesson-stepper__next { border-radius: 8px; }
+/* A deliverable's instructions show every step at once, so there is no progress to track. */
+.ve-task-instructions .lesson-content .lesson-stepper__bar { display: none; }
+
+/* Timeline: for learners on wider screens, events sit side by side as cards under a dashed line,
+   each with its dot and date pill. The editor and phones keep the vertical layout. */
+@media (min-width: 561px) {
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entries > [data-node-view-content-react] { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entry { display: block; margin-top: 30px; padding: 14px; border-radius: 10px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entry::after, .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__entry::after { display: block; left: 0; right: -14px; top: -16px; bottom: auto; width: auto; height: 0; transform: none; border-left: 0; border-top: 2px dashed var(--lb-dash); }
+  .lesson-content .ProseMirror[contenteditable="false"] [data-node-view-content-react] > .node-timelineEntry:last-child .lesson-timeline__entry::after { display: block; right: 0; }
+  .lesson-content .ProseMirror[contenteditable="false"] [data-node-view-content-react] > .node-timelineEntry:last-child .lesson-timeline__entry { padding-bottom: 14px; }
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot { position: absolute; top: -24px; left: 14px; width: 16px; height: 16px; }
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before, .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before { left: 0; top: 0; width: 16px; height: 16px; box-sizing: border-box; transform: none; border: 3px solid var(--lesson-accent); background: var(--lb-card); box-shadow: none; }
+  .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before { background: #18191e; }
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__date-col { margin-bottom: 8px; text-align: left; }
+}
+.lesson-content .lesson-timeline__date, .lesson-content.dark .lesson-timeline__date { padding: 3px 10px; border-radius: 999px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 12px; font-weight: 800; }
+.lesson-content.dark .lesson-timeline__date { color: var(--lesson-accent); }
+
+/* Carousel: a white card; the slide's picture fills the top; under it a progress bar, the count
+   and the arrows. */
+.lesson-content .lesson-carousel, .lesson-content.dark .lesson-carousel { padding: 16px 16px 14px; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-carousel__cover { border-radius: 8px; }
+.lesson-content .lesson-carousel__slide, .lesson-content.dark .lesson-carousel__slide { background: transparent; box-shadow: none; }
+.lesson-content.dark .lesson-carousel__body, .lesson-content.dark .lesson-carousel__body p, .lesson-content.dark .lesson-carousel__title { color: var(--lb-text); }
+.lesson-content .lesson-carousel__footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.lesson-content .lesson-carousel__nav { display: flex; flex: 1; gap: 6px; }
+.lesson-content .lesson-carousel__dot, .lesson-content .lesson-carousel__dot[data-active="true"] { flex: 1; width: auto; height: 4px; border-radius: 9px; background: var(--lb-line); }
+.lesson-content .lesson-carousel__dot[data-filled="true"] { background: var(--lesson-accent); }
+.lesson-content .lesson-carousel__count { margin: 0 2px 0 4px; color: var(--lb-faint); font-size: 12px; font-weight: 600; }
+.lesson-content .lesson-carousel__arrow, .lesson-content .lesson-carousel__arrow:hover:not(:disabled), .lesson-content .lesson-carousel__arrow:disabled { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 8px; color: var(--lb-text); background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line); }
+
+/* AI prompt: the card follows the page theme; the prompt sits in a bordered code-style box with
+   a blinking cursor in the lesson colour. */
+.lesson-content .lesson-prompt, .lesson-content.dark .lesson-prompt { border: 0; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-prompt__surface, .lesson-content.dark .lesson-prompt__surface { border-radius: 10px; background: color-mix(in oklab, var(--lb-text) 3%, transparent); box-shadow: inset 0 0 0 1px var(--lb-line); }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-prompt__text::after { content: ''; display: inline-block; width: 8px; height: 1.1em; margin-left: 3px; vertical-align: -0.2em; background: var(--lesson-accent); animation: lesson-prompt-caret 1s steps(1) infinite; }
+@keyframes lesson-prompt-caret { 50% { opacity: 0; } }
+.lesson-content .lesson-prompt__button { border-radius: 8px; }
+.lesson-content .lesson-prompt__button--copy, .lesson-content.dark .lesson-prompt__button--copy { color: var(--lb-text); background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line); }
+.lesson-content.dark .lesson-prompt__button--chatgpt { color: #111418; background: #ffffff; }
+
+/* Code playground, table and file download: cards in the same family. */
+.lesson-content .lesson-code { border-radius: 12px; border-color: var(--lb-line); box-shadow: var(--lb-shadow); }
+.lesson-content .lesson-code__identity-icon, .lesson-content .lesson-check__identity-icon { width: 38px; height: 38px; flex-basis: 38px; border-radius: 8px; color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-code__identity-icon, .lesson-content.dark .lesson-check__identity-icon { color: var(--lesson-accent); }
+.lesson-content .tableWrapper { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .tableWrapper table { margin: 0; }
+.lesson-content .tableWrapper th, .lesson-content.dark .tableWrapper th { color: var(--lesson-accent-ink); background: var(--cell-bg, var(--lb-tint)); font-size: 13px; font-weight: 800; }
+.lesson-content.dark .tableWrapper th { color: var(--lesson-accent); }
+.lesson-content .lesson-attachment__card, .lesson-content.dark .lesson-attachment__card, .lesson-content a.lesson-attachment__card:hover { border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-attachment__tile[data-kind] { width: 42px; height: 48px; flex-basis: 42px; border-radius: 7px; color: #ffffff; }
+.lesson-content .lesson-attachment__tile[data-kind="sheet"] { background: #16a34a; } .lesson-content .lesson-attachment__tile[data-kind="pdf"] { background: #dc2626; }
+.lesson-content .lesson-attachment__tile[data-kind="doc"] { background: #2563eb; } .lesson-content .lesson-attachment__tile[data-kind="slides"] { background: #ea580c; }
+.lesson-content .lesson-attachment__tile[data-kind="other"], .lesson-content.dark .lesson-attachment__tile[data-kind="other"] { color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content .lesson-attachment__grab { padding: 8px 12px; border-radius: 8px; color: #ffffff; background: var(--lesson-accent); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-content .lesson-tabs__pill, .lesson-content .lesson-accordion__chevron, .lesson-content .lesson-check__option { transition: none; }
+  .lesson-content .lesson-check__option[data-wrong="true"], .lesson-content .lesson-check__burst, .lesson-content .lesson-check__line, .lesson-content .ProseMirror[contenteditable="false"] .lesson-prompt__text::after { animation: none; }
+  .lesson-content .lesson-check__burst { display: none; }
+}
 `}</style>
   );
 }

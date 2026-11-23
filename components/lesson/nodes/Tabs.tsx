@@ -11,10 +11,10 @@
 // Styling caps at 12 visible panels (the :nth-child rules), and addTab() enforces the
 // same cap, which is far above any realistic lesson.
 
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -26,6 +26,22 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const count = node.childCount;
   const [active, setActive] = useState(0);
   const current = Math.min(active, count - 1);
+  // Learners see the selected tab as a white pill that slides between tabs; it is measured from
+  // the selected tab, so it follows label widths and wrapping.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar || editable) return;
+    const place = () => {
+      const tab = bar.querySelector<HTMLElement>(`.lesson-tabs__tab[data-active="true"]`);
+      if (tab) setPill({ left: tab.offsetLeft, width: tab.offsetWidth });
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [current, count, editable]);
 
   const borderStyle = (node.attrs.borderStyle as BorderStyle) || 'none';
   const borderColor = (node.attrs.borderColor as string) || '';
@@ -99,7 +115,8 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className={`lesson-tabs ${accent.className}`.trim()} data-active={current} style={wrapperStyle}>
-      <div className="lesson-tabs__bar" contentEditable={false} role={editable ? undefined : 'tablist'} aria-label={editable ? undefined : 'Lesson sections'}>
+      <div ref={barRef} className="lesson-tabs__bar" contentEditable={false} role={editable ? undefined : 'tablist'} aria-label={editable ? undefined : 'Lesson sections'}>
+        {!editable && pill && <span className="lesson-tabs__pill" aria-hidden="true" style={{ left: pill.left, width: pill.width }} />}
         {labels.map((label, i) => (
           <div key={i} className="lesson-tabs__tab" data-active={i === current ? 'true' : 'false'}>
             {editable ? (
@@ -118,7 +135,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
                     aria-label="Remove tab"
                     onMouseDown={(e) => { e.preventDefault(); removeTab(i); }}
                   >
-                    <X width={11} height={11} />
+                    <X weight="bold" width={11} height={11} />
                   </button>
                 )}
               </>
@@ -134,7 +151,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
             aria-label="Add tab"
             onMouseDown={(e) => { e.preventDefault(); addTab(); }}
           >
-            <Plus width={13} height={13} />
+            <Plus weight="bold" width={13} height={13} />
           </button>
         )}
         {editable && (

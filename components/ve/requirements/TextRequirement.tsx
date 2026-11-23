@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, AlertTriangle, PenLine, Sparkles } from 'lucide-react';
+import { CircleNotch, PencilSimpleLine, Sparkle, Warning } from '@phosphor-icons/react';
 import AiReviewUpgradePrompt, { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
@@ -93,7 +93,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
 
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-        <TaskHeader t={t} icon={<Sparkles className="w-3.5 h-3.5" />} label="Written answer" title={req.label}
+        <TaskHeader t={t} icon={<Sparkle weight="duotone" className="w-3.5 h-3.5" />} label="Written answer" title={req.label}
           description={req.description}
           done={showDone ? (feedback && !fbErrored ? `Reviewed ${feedback.score} / 100` : 'Reviewed') : null} />
         <textarea
@@ -133,7 +133,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             </span>
             <TaskButton t={t} onClick={handleSubmitAi}
               disabled={noteVal.trim().length === 0 || reviewing || (entitlement.exhausted && !entitlement.locked)}>
-              {reviewing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {reviewing && <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />}
               {reviewing ? 'Reviewing...' : 'Send for review'}
             </TaskButton>
           </div>
@@ -142,7 +142,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
         {feedback && fbErrored && (
           <div className="rounded-xl p-3 flex items-start gap-2"
             style={{ background: isDark ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.12)', border: `1px solid ${isDark ? 'rgba(148,163,184,0.30)' : 'rgba(148,163,184,0.40)'}` }}>
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: isDark ? '#cbd5e1' : '#64748b' }} />
+            <Warning weight="duotone" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: isDark ? '#cbd5e1' : '#64748b' }} />
             <div className="min-w-0">
               <p className="text-[13px] font-bold" style={{ color: isDark ? '#cbd5e1' : '#64748b' }}>Review unavailable</p>
               <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
@@ -175,7 +175,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
   };
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <TaskHeader t={t} icon={<PenLine className="w-3.5 h-3.5" />} label="Short answer" title={req.label}
+      <TaskHeader t={t} icon={<PencilSimpleLine weight="duotone" className="w-3.5 h-3.5" />} label="Short answer" title={req.label}
         description={req.description} done={done ? 'Correct' : null} />
       {done && !reviewMode ? (
         // Answered: the answer as plain text on the soft panel, so it no longer reads as a field.

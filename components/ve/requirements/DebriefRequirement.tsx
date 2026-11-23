@@ -1,6 +1,6 @@
 'use client';
 
-import { Reply } from 'lucide-react';
+import { ArrowBendUpLeft } from '@phosphor-icons/react';
 import { MailCard, MailThreadMsg, MailComposer, MailStatusChip } from '@/components/ve/MailCard';
 import { firstNameOf, workStamp, anchorZone, quoteSnippet } from '@/components/ve/workplace';
 import { applyNameTags } from '@/lib/merge-tags';
@@ -34,7 +34,7 @@ export function DebriefRequirement({ req, qi, rowStyle, ctx }: RequirementProps)
                 <button
                   onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: isDark ? '#ddd' : '#444', cursor: 'pointer' }}>
-                  <Reply className="w-4 h-4" /> Reply
+                  <ArrowBendUpLeft weight="bold" className="w-4 h-4" /> Reply
                 </button>
               )}
             </div>

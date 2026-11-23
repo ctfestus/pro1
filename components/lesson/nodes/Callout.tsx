@@ -16,11 +16,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import {
-  ArrowUpRight, Copy, Info, Lightbulb, AlertTriangle, FileText, CheckCircle2, Plus, X,
-  Star, Flag, Quote, BookOpen, Target, Zap, Clock, HelpCircle, Sparkles, Wrench,
-  ShieldCheck, Bookmark, Megaphone, ListChecks, TrendingUp, Users, Ban, Eye, RotateCcw,
-} from 'lucide-react';
+import { ArrowCounterClockwise, ArrowUpRight, BookOpen, BookmarkSimple, CheckCircle, Clock, Copy, Eye, FileText, Flag, Info, Lightbulb, Lightning, ListChecks, Megaphone, Plus, Prohibit, Question, Quotes, ShieldCheck, Sparkle, Star, Target, TrendUp, Users, Warning, Wrench, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, IconPicker, StyleMenu, MenuRow, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { safeCalloutActionUrl } from '@/lib/lesson-callout';
@@ -30,9 +26,9 @@ export type CalloutVariant = 'note' | 'tip' | 'warning' | 'info' | 'success';
 const VARIANTS: Record<CalloutVariant, { label: string; Icon: typeof Info }> = {
   note: { label: 'Note', Icon: FileText },
   tip: { label: 'Tip', Icon: Lightbulb },
-  warning: { label: 'Warning', Icon: AlertTriangle },
+  warning: { label: 'Warning', Icon: Warning },
   info: { label: 'Info', Icon: Info },
-  success: { label: 'Success', Icon: CheckCircle2 },
+  success: { label: 'Success', Icon: CheckCircle },
 };
 
 type CalloutShape = 'rounded' | 'square';
@@ -65,31 +61,31 @@ const VARIANT_OPTIONS: { value: CalloutVariant; label: string }[] = [
 const CALLOUT_ICONS: Record<string, { label: string; Icon: typeof Info }> = {
   note:      { label: 'Document',    Icon: FileText },
   tip:       { label: 'Lightbulb',   Icon: Lightbulb },
-  warning:   { label: 'Warning',     Icon: AlertTriangle },
+  warning:   { label: 'Warning',     Icon: Warning },
   info:      { label: 'Info',        Icon: Info },
-  success:   { label: 'Check',       Icon: CheckCircle2 },
+  success:   { label: 'Check',       Icon: CheckCircle },
   star:      { label: 'Star',        Icon: Star },
   flag:      { label: 'Flag',        Icon: Flag },
-  quote:     { label: 'Quote',       Icon: Quote },
+  quote:     { label: 'Quote',       Icon: Quotes },
   book:      { label: 'Reading',     Icon: BookOpen },
   target:    { label: 'Goal',        Icon: Target },
-  zap:       { label: 'Fast',        Icon: Zap },
+  zap:       { label: 'Fast',        Icon: Lightning },
   clock:     { label: 'Time',        Icon: Clock },
-  question:  { label: 'Question',    Icon: HelpCircle },
-  sparkles:  { label: 'Highlight',   Icon: Sparkles },
+  question:  { label: 'Question',    Icon: Question },
+  sparkles:  { label: 'Highlight',   Icon: Sparkle },
   tool:      { label: 'Practice',    Icon: Wrench },
   shield:    { label: 'Best practice', Icon: ShieldCheck },
-  bookmark:  { label: 'Remember',    Icon: Bookmark },
+  bookmark:  { label: 'Remember',    Icon: BookmarkSimple },
   announce:  { label: 'Announcement', Icon: Megaphone },
   checklist: { label: 'Checklist',   Icon: ListChecks },
-  trend:     { label: 'Trend',       Icon: TrendingUp },
+  trend:     { label: 'Trend',       Icon: TrendUp },
   people:    { label: 'People',      Icon: Users },
-  avoid:     { label: 'Avoid',       Icon: Ban },
+  avoid:     { label: 'Avoid',       Icon: Prohibit },
   watch:     { label: 'Watch for',   Icon: Eye },
 };
 
 const ICON_OPTIONS = [
-  { value: '', label: 'Match the style', Icon: RotateCcw },
+  { value: '', label: 'Match the style', Icon: ArrowCounterClockwise },
   ...Object.entries(CALLOUT_ICONS).map(([value, { label, Icon }]) => ({ value, label, Icon })),
 ];
 
@@ -152,7 +148,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   return (
     <NodeViewWrapper className="lesson-callout" data-variant={variant} data-shape={shape} data-accent={accentPosition} data-custom-accent={accentColor ? '' : undefined} style={wrapperStyle}>
       <div className="lesson-callout__icon-wrap" contentEditable={false}>
-        <Icon className="lesson-callout__icon" width={17} height={17} />
+        <Icon weight="duotone" className="lesson-callout__icon" width={17} height={17} />
       </div>
       <div className="lesson-callout__main">
         <div className="lesson-callout__head" contentEditable={false}>
@@ -174,7 +170,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
           </div>
           {editable && (
             <div className="lesson-callout__controls">
-              <button type="button" className="lesson-callout__control" aria-label="Duplicate callout" title="Duplicate" onMouseDown={(event) => { event.preventDefault(); duplicateSelf(); }}><Copy width={13} height={13} /></button>
+              <button type="button" className="lesson-callout__control" aria-label="Duplicate callout" title="Duplicate" onMouseDown={(event) => { event.preventDefault(); duplicateSelf(); }}><Copy weight="bold" width={13} height={13} /></button>
               <StyleMenu width={288}>
                 <MenuRow label="Style"><Segmented<CalloutVariant> value={variant} onChange={(v) => updateAttributes({ variant: v })} options={VARIANT_OPTIONS} /></MenuRow>
                 <MenuRow label="Shape"><Segmented<CalloutShape> value={shape} onChange={(v) => updateAttributes({ shape: v })} options={SHAPE_OPTIONS} /></MenuRow>
@@ -186,25 +182,25 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
                   <MenuRow label="Border color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>
                 )}
               </StyleMenu>
-              <button type="button" className="lesson-callout__control lesson-callout__remove" aria-label="Remove callout" title="Remove" onMouseDown={(event) => { event.preventDefault(); removeSelf(); }}><X width={13} height={13} /></button>
+              <button type="button" className="lesson-callout__control lesson-callout__remove" aria-label="Remove callout" title="Remove" onMouseDown={(event) => { event.preventDefault(); removeSelf(); }}><X weight="bold" width={13} height={13} /></button>
             </div>
           )}
         </div>
         <NodeViewContent className="lesson-callout__body" />
 
         {editable && !showAction && (
-          <button type="button" className="lesson-callout__add-action" contentEditable={false} onMouseDown={(event) => { event.preventDefault(); setActionOpen(true); }}><Plus width={12} height={12} /> Add action</button>
+          <button type="button" className="lesson-callout__add-action" contentEditable={false} onMouseDown={(event) => { event.preventDefault(); setActionOpen(true); }}><Plus weight="bold" width={12} height={12} /> Add action</button>
         )}
         {editable && showAction && (
           <div className="lesson-callout__action-editor" contentEditable={false}>
             <NodeTextInput className="lesson-callout__action-input" value={actionLabel} placeholder="Action label" onCommit={(value) => updateAttributes({ actionLabel: value })} />
             <NodeTextInput className="lesson-callout__action-input" value={actionUrl} placeholder="https://... or /course/path" onCommit={(value) => updateAttributes({ actionUrl: value })} />
-            <button type="button" className="lesson-callout__remove-action" aria-label="Remove action" title="Remove action" onMouseDown={(event) => { event.preventDefault(); removeAction(); }}><X width={12} height={12} /></button>
+            <button type="button" className="lesson-callout__remove-action" aria-label="Remove action" title="Remove action" onMouseDown={(event) => { event.preventDefault(); removeAction(); }}><X weight="bold" width={12} height={12} /></button>
           </div>
         )}
         {!editable && actionLabel && safeUrl && (
           <a className="lesson-callout__action" href={safeUrl} target={safeUrl.startsWith('/') ? undefined : '_blank'} rel={safeUrl.startsWith('/') ? undefined : 'noopener noreferrer'}>
-            {actionLabel}<ArrowUpRight width={13} height={13} />
+            {actionLabel}<ArrowUpRight weight="bold" width={13} height={13} />
           </a>
         )}
       </div>

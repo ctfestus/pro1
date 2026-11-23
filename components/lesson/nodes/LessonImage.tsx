@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Image from '@tiptap/extension-image';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Crop, Expand, Replace, RotateCcw, X } from 'lucide-react';
+import { ArrowCounterClockwise, ArrowsOut, Crop, Swap, X } from '@phosphor-icons/react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { ImageCropModal } from '@/components/ImageCropModal';
 import {
@@ -106,9 +106,9 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
       <div className="lesson-image__media" style={mediaStyle}>
         {editable && (
           <div className="lesson-block-corner lesson-image__controls" contentEditable={false}>
-            <button type="button" className="lesson-image__control" aria-label="Replace image" title="Replace image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowLibrary(true)}><Replace width={14} height={14} /></button>
-            <button type="button" className="lesson-image__control" aria-label="Crop image" title="Crop image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowCrop(true)}><Crop width={14} height={14} /></button>
-            {originalSrc && src !== originalSrc && <button type="button" className="lesson-image__control" aria-label="Restore original image" title="Restore original" onMouseDown={(event) => event.preventDefault()} onClick={() => { const croppedSrc = src; updateAttributes({ src: originalSrc, frame: 'original' }); if (isCloudinaryUrl(croppedSrc)) void deleteFromCloudinary(croppedSrc); }}><RotateCcw width={14} height={14} /></button>}
+            <button type="button" className="lesson-image__control" aria-label="Replace image" title="Replace image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowLibrary(true)}><Swap weight="bold" width={14} height={14} /></button>
+            <button type="button" className="lesson-image__control" aria-label="Crop image" title="Crop image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowCrop(true)}><Crop weight="bold" width={14} height={14} /></button>
+            {originalSrc && src !== originalSrc && <button type="button" className="lesson-image__control" aria-label="Restore original image" title="Restore original" onMouseDown={(event) => event.preventDefault()} onClick={() => { const croppedSrc = src; updateAttributes({ src: originalSrc, frame: 'original' }); if (isCloudinaryUrl(croppedSrc)) void deleteFromCloudinary(croppedSrc); }}><ArrowCounterClockwise weight="bold" width={14} height={14} /></button>}
             <StyleMenu>
               <MenuRow label="Align">
                 <Segmented<Align> value={align} onChange={(value) => updateAttributes({ align: value })} options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }]} />
@@ -136,7 +136,7 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
         )}
 
         {!editable && expandable ? (
-          <button type="button" className="lesson-image__expand" aria-label="Expand image" onClick={() => setExpanded(true)}>{renderedImage}<span><Expand width={14} height={14} /> Expand</span></button>
+          <button type="button" className="lesson-image__expand" aria-label="Expand image" onClick={() => setExpanded(true)}>{renderedImage}<span><ArrowsOut weight="bold" width={14} height={14} /> Expand</span></button>
         ) : renderedImage}
       </div>
 
@@ -157,7 +157,7 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
       )}
       {!editable && expanded && createPortal(
         <div className="lesson-image-lightbox" role="dialog" aria-modal="true" aria-label={alt || 'Expanded lesson image'} onMouseDown={(event) => { if (event.target === event.currentTarget) setExpanded(false); }}>
-          <button type="button" className="lesson-image-lightbox__close" aria-label="Close expanded image" onClick={() => setExpanded(false)}><X width={18} height={18} /></button>
+          <button type="button" className="lesson-image-lightbox__close" aria-label="Close expanded image" onClick={() => setExpanded(false)}><X weight="bold" width={18} height={18} /></button>
           <img src={src} alt={alt} />
           {caption && <p>{caption}</p>}
         </div>,

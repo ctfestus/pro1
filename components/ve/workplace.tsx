@@ -6,7 +6,7 @@
 
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, FileSpreadsheet, FileText, FileImage, FileCode2, File as FileIcon, Paperclip } from 'lucide-react';
+import { Buildings, File, FileCode, FileImage, FileText, FileXls, Paperclip } from '@phosphor-icons/react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 
 export interface Person {
@@ -279,7 +279,7 @@ export function PersonAvatar({ name, size, color, presence, avatarUrl, title, co
               </div>
               {title && <p style={{ margin: '3px 0 0', fontSize: 12, color: profileMuted, lineHeight: 1.3 }}>{title}</p>}
               {company && <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Building2 aria-hidden="true" style={{ width: 14, height: 14, color: isDark ? '#949ba7' : '#7a8695', flexShrink: 0 }} />
+                <Buildings weight="duotone" aria-hidden="true" style={{ width: 14, height: 14, color: isDark ? '#949ba7' : '#7a8695', flexShrink: 0 }} />
                 <span style={{ fontSize: 11.5, color: isDark ? '#b7bdc7' : '#667085', fontWeight: 650 }}>{company}</span>
               </div>}
             </div>
@@ -331,11 +331,11 @@ export function AttachmentCard({ name, isDark, href, onClick, subtitle }: {
     : ['py', 'sql', 'js', 'ts', 'json', 'ipynb'].includes(ext) ? 'code'
     : 'file';
   const iconColor = kind === 'sheet' ? '#1D8A4E' : kind === 'doc' ? '#D93025' : kind === 'image' ? '#1A73E8' : kind === 'code' ? '#E8710A' : (isDark ? '#aaa' : '#5f6368');
-  const Icon = kind === 'sheet' ? FileSpreadsheet : kind === 'doc' ? FileText : kind === 'image' ? FileImage : kind === 'code' ? FileCode2 : FileIcon;
+  const Icon = kind === 'sheet' ? FileXls : kind === 'doc' ? FileText : kind === 'image' ? FileImage : kind === 'code' ? FileCode : File;
   const inner = (
     <>
       <div style={{ width: 34, height: 34, borderRadius: 8, background: `${iconColor}1A`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon style={{ width: 17, height: 17, color: iconColor }} />
+        <Icon weight="duotone" style={{ width: 17, height: 17, color: iconColor }} />
       </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: isDark ? '#e8eaed' : '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{name}</p>

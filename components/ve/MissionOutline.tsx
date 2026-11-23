@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { CaretDown } from '@phosphor-icons/react';
 
 /**
  * The experience's missions before it starts, drawn like the player's mission list (week groups,
@@ -39,7 +39,7 @@ export function MissionOutline({ modules, isDark, text, muted, divider, collapse
               <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: muted }}>{mod.title}</span>
               <span className="flex flex-shrink-0 items-center gap-2 text-xs" style={{ color: faint }}>
                 {mod.lessons.length} {itemWord}{mod.lessons.length === 1 ? '' : 's'}
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collapsed?.has(mod.id) ? '-rotate-90' : ''}`} />
+                <CaretDown weight="bold" className={`h-3.5 w-3.5 transition-transform ${collapsed?.has(mod.id) ? '-rotate-90' : ''}`} />
               </span>
             </button>
           ) : mod.title ? (

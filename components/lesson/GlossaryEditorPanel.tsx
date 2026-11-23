@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BookMarked, Check, Trash2, X } from 'lucide-react';
+import { BookBookmark, Check, Trash, X } from '@phosphor-icons/react';
 
 export interface GlossaryDetails {
   definition: string;
@@ -63,12 +63,12 @@ export function GlossaryEditorPanel({
       }}
     >
       <div className="lesson-glossary-editor__head">
-        <span className="lesson-glossary-editor__icon"><BookMarked width={15} height={15} /></span>
+        <span className="lesson-glossary-editor__icon"><BookBookmark weight="duotone" width={15} height={15} /></span>
         <span>
           <strong>Define &quot;{term || 'selected term'}&quot;</strong>
           <small>Add context learners can open without leaving the lesson.</small>
         </span>
-        <button type="button" className="lesson-glossary-editor__close" onClick={onClose} aria-label="Close glossary editor"><X width={15} height={15} /></button>
+        <button type="button" className="lesson-glossary-editor__close" onClick={onClose} aria-label="Close glossary editor"><X weight="bold" width={15} height={15} /></button>
       </div>
 
       <label className="lesson-glossary-editor__field lesson-glossary-editor__field--wide">
@@ -99,9 +99,9 @@ export function GlossaryEditorPanel({
 
       <div className="lesson-glossary-editor__actions">
         {canRemove ? (
-          <button type="button" className="lesson-glossary-editor__remove" onClick={onRemove}><Trash2 width={13} height={13} /> Remove term</button>
+          <button type="button" className="lesson-glossary-editor__remove" onClick={onRemove}><Trash weight="duotone" width={13} height={13} /> Remove term</button>
         ) : <span />}
-        <button type="button" className="lesson-glossary-editor__save" disabled={!details.definition.trim()} onClick={saveDetails}><Check width={14} height={14} /> Save definition</button>
+        <button type="button" className="lesson-glossary-editor__save" disabled={!details.definition.trim()} onClick={saveDetails}><Check weight="bold" width={14} height={14} /> Save definition</button>
       </div>
     </div>
   );

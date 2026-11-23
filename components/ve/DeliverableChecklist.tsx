@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Paperclip } from 'lucide-react';
+import { Check, Paperclip } from '@phosphor-icons/react';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { MailStatusChip } from '@/components/ve/MailCard';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
@@ -105,7 +105,7 @@ export function DeliverableChecklist({
                 rel="noreferrer"
                 className="inline-flex max-w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold hover:opacity-80"
                 style={{ background: `${accentColor}12`, color: accentColor }}>
-                <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
+                <Paperclip weight="bold" className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate">{attachment.name || 'Open resource'}</span>
               </a>
             ))}
@@ -137,9 +137,8 @@ export function DeliverableChecklist({
             outlineColor: accentColor,
             transform: completed ? 'scale(1)' : 'scale(0.92)',
           }}>
-          <Check
+          <Check weight="bold"
             className="h-4 w-4 transition-all duration-300 motion-reduce:transition-none"
-            strokeWidth={3}
             style={{ opacity: completed ? 1 : 0, transform: completed ? 'scale(1)' : 'scale(0.4)' }}
           />
         </span>

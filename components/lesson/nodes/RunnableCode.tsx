@@ -13,11 +13,10 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Play, Copy, Check, Loader2, Database, X, ChevronDown } from 'lucide-react';
+import { CaretDown, Check, CircleNotch, Copy, Database, FileCode, Play, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditorLazy';
-import { LayeredBadgeIcon } from '@/components/lesson/LayeredBadgeIcon';
 import { useLessonRuntime } from '@/components/lesson/LessonRuntimeContext';
 import { useTheme } from '@/components/ThemeProvider';
 import { MenuSelect } from '@/components/MenuSelect';
@@ -31,19 +30,9 @@ const LANGUAGES = ['sql', 'javascript', 'python', 'bash', 'json', 'plaintext'];
 const MAX_VISIBLE_ROWS = 50;
 
 function PlaygroundBadgeIcon({ language }: { language: string }) {
-  if (language === 'sql') {
-    return (
-      <LayeredBadgeIcon>
-        <ellipse cx="11.3" cy="8.9" rx="4.7" ry="1.75" stroke="#fff" strokeWidth="1.55" />
-        <path d="M6.6 8.9v5.8c0 1 2.1 1.8 4.7 1.8s4.7-.8 4.7-1.8V8.9M6.6 11.8c0 1 2.1 1.8 4.7 1.8s4.7-.8 4.7-1.8" stroke="#fff" strokeWidth="1.55" strokeLinecap="round" />
-      </LayeredBadgeIcon>
-    );
-  }
-  return (
-    <LayeredBadgeIcon>
-      <path d="m8.4 9.5-2.5 2.6 2.5 2.6M14.2 9.5l2.5 2.6-2.5 2.6M12.3 8.7l-2 7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </LayeredBadgeIcon>
-  );
+  return language === 'sql'
+    ? <Database weight="duotone" width={20} height={20} aria-hidden="true" />
+    : <FileCode weight="duotone" width={20} height={20} aria-hidden="true" />;
 }
 
 function playgroundTitle(language: string) {
@@ -102,9 +91,9 @@ function RunnableCodeView({ node, updateAttributes, editor, getPos }: NodeViewPr
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => setSetupOpen((current) => !current)}
               >
-                <Database width={14} height={14} aria-hidden="true" />
+                <Database weight="duotone" width={14} height={14} aria-hidden="true" />
                 <span><strong>Data & runtime setup</strong><small>{setupOpen ? 'Hide advanced setup' : 'Configure sample data and scope'}</small></span>
-                <ChevronDown width={14} height={14} aria-hidden="true" />
+                <CaretDown weight="bold" width={14} height={14} aria-hidden="true" />
               </button>
               <span className="lesson-code__scope" title="Where this block's data comes from">
                 <button type="button" data-active={dataScope === 'shared' ? 'true' : 'false'} onMouseDown={(e) => { e.preventDefault(); updateAttributes({ dataScope: 'shared' }); }}>Shared</button>
@@ -269,17 +258,17 @@ function RunnableCodePlayer({ language, initialCode, setupSql, setupPython, isSq
         <div className="lesson-code__actions">
           {canRun && (
             <button type="button" className="lesson-code__btn" data-primary="true" onClick={run} disabled={running}>
-              {running ? <Loader2 className="lesson-code__spin" width={13} height={13} /> : <Play width={13} height={13} />}
+              {running ? <CircleNotch weight="bold" className="lesson-code__spin" width={13} height={13} /> : <Play weight="fill" width={13} height={13} />}
               {running ? 'Running' : 'Run'}
             </button>
           )}
           {hasData && (
             <button ref={dataBtnRef} type="button" className="lesson-code__btn" data-active={showData ? 'true' : 'false'} onClick={toggleData}>
-              <Database width={13} height={13} /> Data
+              <Database weight="duotone" width={13} height={13} /> Data
             </button>
           )}
           <button type="button" className="lesson-code__btn" data-success={copied ? 'true' : 'false'} onClick={copy}>
-            {copied ? <Check width={13} height={13} /> : <Copy width={13} height={13} />}
+            {copied ? <Check weight="bold" width={13} height={13} /> : <Copy weight="bold" width={13} height={13} />}
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
@@ -365,7 +354,7 @@ function DatasetPopover({ datasets, state, total, isSql, dark, pos, anchorRef, o
     >
       <div className="lesson-data-pop__head">
         <span>Available data</span>
-        <button type="button" onClick={onClose} aria-label="Close data preview"><X width={14} height={14} /></button>
+        <button type="button" onClick={onClose} aria-label="Close data preview"><X weight="bold" width={14} height={14} /></button>
       </div>
       {state === 'loading' && <p className="lesson-data-pop__note">Loading data...</p>}
       {state === 'error' && <p className="lesson-data-pop__note">Could not load the data preview.</p>}

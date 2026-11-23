@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Upload, Loader2, Music } from 'lucide-react';
+import { CircleNotch, MusicNotes, UploadSimple, X } from '@phosphor-icons/react';
 import { useC } from '@/lib/theme';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 
@@ -54,10 +54,10 @@ export function AudioPicker({ onSelect, onClose }: Props) {
       <div style={{ width: '100%', maxWidth: 420, background: C.card, borderRadius: 16, padding: 20 }}>
         <div className="flex items-center justify-between mb-4">
           <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.text }}>
-            <Music className="w-4 h-4" /> Add audio
+            <MusicNotes weight="duotone" className="w-4 h-4" /> Add audio
           </span>
           <button type="button" onClick={onClose} className="p-1 rounded-lg transition-opacity hover:opacity-70" style={{ color: C.muted }} aria-label="Close">
-            <X className="w-4 h-4" />
+            <X weight="bold" className="w-4 h-4" />
           </button>
         </div>
 
@@ -70,7 +70,7 @@ export function AudioPicker({ onSelect, onClose }: Props) {
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleUpload(f); }}
           />
           <div className="w-full flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-medium transition-opacity hover:opacity-80" style={{ background: C.cta, color: C.ctaText }}>
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" /> : <UploadSimple weight="bold" className="w-4 h-4" />}
             {uploading ? 'Uploading...' : 'Upload audio file (max 20 MB)'}
           </div>
         </label>

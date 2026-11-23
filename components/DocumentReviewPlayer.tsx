@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { CheckCircle2, Zap, RotateCcw, FileText, Download, TriangleAlert } from 'lucide-react';
+import { ArrowCounterClockwise, CheckCircle, DownloadSimple, FileText, Lightning, Warning } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { ReviewTarget } from '@/lib/review-target';
@@ -194,7 +194,7 @@ export default function DocumentReviewPlayer({
   if (!result && completed && shouldLock) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}25` }}>
-        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+        <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
         <p className="text-sm font-medium" style={{ color: accentColor }}>
           {isManual ? 'Report submitted for instructor review.' : 'Document review already submitted for this question.'}
         </p>
@@ -206,7 +206,7 @@ export default function DocumentReviewPlayer({
     if (atLimit) {
       return (
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', border: `1px solid ${border}` }}>
-          <FileText className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
+          <FileText weight="duotone" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: text }}>Review limit reached</p>
             <p className="text-xs mt-0.5" style={{ color: muted }}>You have used all {maxReviews} allowed review attempts for this question.</p>
@@ -228,9 +228,9 @@ export default function DocumentReviewPlayer({
       >
       <div className="space-y-3">
         {!hideWorkspaceHeader && (<>
-          <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewWorkspaceHeader icon={<FileText weight="duotone" className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         </>)}
-        <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<FileText className="w-5 h-5" />}
+        <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<FileText weight="duotone" className="w-5 h-5" />}
           title="Drop your document here" hint="PDF, DOCX, DOC or TXT" fileName={file?.name}
           dragging={dragging} onDragChange={setDragging} onDropFile={onDrop} onClick={() => inputRef.current?.click()}>
           <input ref={inputRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
@@ -242,8 +242,8 @@ export default function DocumentReviewPlayer({
 
         <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!file} busy={analyzing} busyLabel={isManual ? 'Submitting...' : 'Reviewing...'} onClick={handleSubmit}>
           {isManual
-            ? <><FileText className="w-4 h-4" /> Submit for instructor review</>
-            : <><Zap className="w-4 h-4" /> {isHybrid ? 'Submit for AI and instructor review' : 'Submit for AI review'}</>}
+            ? <><FileText weight="duotone" className="w-4 h-4" /> Submit for instructor review</>
+            : <><Lightning weight="duotone" className="w-4 h-4" /> {isHybrid ? 'Submit for AI and instructor review' : 'Submit for AI review'}</>}
         </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
@@ -255,7 +255,7 @@ export default function DocumentReviewPlayer({
   const passMark = result.minScore ?? minScore;
   const warningNotice = result?.warning ? (
     <div role="alert" className="flex items-start gap-2 rounded-lg p-3" style={{ background: card, color: text }}>
-      <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <Warning weight="duotone" size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
       <p className="text-sm">{result.warning}</p>
     </div>
   ) : null;
@@ -313,8 +313,8 @@ export default function DocumentReviewPlayer({
         isDark={isDark}
         passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
-          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
-          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}
+          <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><DownloadSimple weight="bold" className="w-3.5 h-3.5" /> Export</button>
+          {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><ArrowCounterClockwise weight="bold" className="w-3.5 h-3.5" /> Try again</button>}
         </>}
       />
 
@@ -322,7 +322,7 @@ export default function DocumentReviewPlayer({
       {/* Pass/fail gate */}
       {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
+          <Warning weight="duotone" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
               Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
@@ -332,7 +332,7 @@ export default function DocumentReviewPlayer({
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+          <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
             Review complete | {result.sections.length} section note{result.sections.length !== 1 ? 's' : ''} identified
           </p>

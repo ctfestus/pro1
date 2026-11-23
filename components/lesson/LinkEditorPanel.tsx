@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Link2, Trash2, X } from 'lucide-react';
+import { Check, LinkSimple, Trash, X } from '@phosphor-icons/react';
 
 export interface LinkDetails {
   text: string;
@@ -60,9 +60,9 @@ export function LinkEditorPanel({ initial, dark, accentColor, canRemove, onSave,
       }}
     >
       <div className="lesson-link-editor__head">
-        <span className="lesson-link-editor__icon"><Link2 width={15} height={15} /></span>
+        <span className="lesson-link-editor__icon"><LinkSimple weight="bold" width={15} height={15} /></span>
         <span><strong>{canRemove ? 'Edit link' : 'Add link'}</strong><small>Connect selected text to a safe destination.</small></span>
-        <button type="button" className="lesson-link-editor__close" onClick={onClose} aria-label="Close link editor"><X width={15} height={15} /></button>
+        <button type="button" className="lesson-link-editor__close" onClick={onClose} aria-label="Close link editor"><X weight="bold" width={15} height={15} /></button>
       </div>
 
       <div className="lesson-link-editor__grid">
@@ -83,8 +83,8 @@ export function LinkEditorPanel({ initial, dark, accentColor, canRemove, onSave,
           <span aria-hidden="true" /> Open in a new tab
         </label>
         <div className="lesson-link-editor__actions">
-          {canRemove ? <button type="button" className="lesson-link-editor__remove" onClick={onRemove}><Trash2 width={13} height={13} /> Remove</button> : null}
-          <button type="button" className="lesson-link-editor__save" disabled={!text.trim() || !normalizedHref} onClick={applyLink}><Check width={14} height={14} /> Apply link</button>
+          {canRemove ? <button type="button" className="lesson-link-editor__remove" onClick={onRemove}><Trash weight="duotone" width={13} height={13} /> Remove</button> : null}
+          <button type="button" className="lesson-link-editor__save" disabled={!text.trim() || !normalizedHref} onClick={applyLink}><Check weight="bold" width={14} height={14} /> Apply link</button>
         </div>
       </div>
     </div>

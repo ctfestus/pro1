@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { RotateCcw, MoreHorizontal, MoreVertical } from 'lucide-react';
+import { ArrowCounterClockwise, DotsThree, DotsThreeVertical } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
 
 const DEFAULT_SWATCH = '#10b981';
@@ -34,7 +34,7 @@ export function ColorField({ value, onChange, title = 'Color' }: {
           title="Reset to default"
           onMouseDown={(e) => { e.preventDefault(); onChange(''); }}
         >
-          <RotateCcw width={11} height={11} />
+          <ArrowCounterClockwise weight="bold" width={11} height={11} />
         </button>
       ) : null}
     </span>
@@ -192,7 +192,7 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: 
         data-theme={dark ? 'dark' : 'light'}
         onMouseDown={toggle}
       >
-        {triggerLabel ? <><MoreHorizontal width={15} height={15} /><span>{triggerLabel}</span></> : <MoreVertical width={15} height={15} />}
+        {triggerLabel ? <><DotsThree weight="bold" width={15} height={15} /><span>{triggerLabel}</span></> : <DotsThreeVertical weight="bold" width={15} height={15} />}
       </button>
       {open && pos && createPortal(
         <div

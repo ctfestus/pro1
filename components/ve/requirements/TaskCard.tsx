@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Check, Info } from 'lucide-react';
+import { Check, Info } from '@phosphor-icons/react';
 import { onAccent } from '@/lib/ve-accent';
 
 /**
@@ -62,7 +62,7 @@ export function TaskHeader({ t, icon, label, title, description, done, doneActio
         <span className="flex flex-shrink-0 items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap"
             style={{ background: `${t.accent}1a`, color: t.accent }} role="status">
-            <Check className="w-3.5 h-3.5" strokeWidth={3} /> {done}
+            <Check weight="bold" className="w-3.5 h-3.5" /> {done}
           </span>
           {doneAction}
         </span>
@@ -144,7 +144,7 @@ export function TaskOption({ t, letter, children, state = 'idle', note, onClick,
 export function AiNote({ t }: { t: TaskTheme }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[12.5px] min-w-0" style={{ color: t.muted }}>
-      <Info className="w-3.5 h-3.5 flex-shrink-0" /> AI feedback can be wrong. Double-check anything important.
+      <Info weight="duotone" className="w-3.5 h-3.5 flex-shrink-0" /> AI feedback can be wrong. Double-check anything important.
     </span>
   );
 }

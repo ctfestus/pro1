@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
-import { Loader2, UploadIcon, Eye, EyeOff, RotateCcw, CheckCircle2, Zap, Download, Lightbulb } from 'lucide-react';
+import { ArrowCounterClockwise, CheckCircle, CircleNotch, DownloadSimple, Eye, EyeSlash, Lightbulb, Lightning, UploadSimple } from '@phosphor-icons/react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { RubricGrade } from '@/lib/review-gate';
@@ -252,7 +252,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   if (completed && !imageDataUrl && !result && shouldLock) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}25` }}>
-        <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+        <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
         <p className="text-sm font-medium" style={{ color: accentColor }}>
           Dashboard critique already submitted for this question.
         </p>
@@ -302,14 +302,14 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
         )}
         <div className="flex justify-end">
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: `${accentColor}15`, color: accentColor }}>
-            <Download className="h-3 w-3" /> PDF
+            <DownloadSimple weight="bold" className="h-3 w-3" /> PDF
           </button>
         </div>
         {result.audit ? (
           <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={passMark ? reviewGate(result.audit, rubric?.length).score >= passMark : undefined} />
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+            <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
             <p className="text-xs font-medium" style={{ color: accentColor }}>
               {result.elements?.length ?? 0} elements analysed
             </p>
@@ -324,7 +324,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
     if (atLimit) {
       return (
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
-          <Eye className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
+          <Eye weight="duotone" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: muted }} />
           <div>
             <p className="text-sm font-semibold" style={{ color: text }}>Review limit reached</p>
             <p className="text-xs mt-0.5" style={{ color: muted }}>You have used all {maxReviews} allowed review attempts for this question.</p>
@@ -347,9 +347,9 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       >
       <div className="space-y-3">
       {!hideWorkspaceHeader && (
-        <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
+        <AiReviewWorkspaceHeader icon={<Eye weight="duotone" className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
       )}
-      <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<UploadIcon className="w-5 h-5" />}
+      <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<UploadSimple weight="bold" className="w-5 h-5" />}
         title="Drop your dashboard screenshot here" hint="PNG or JPG" fileName={pendingFile?.name}
         dragging={dragging} onDragChange={setDragging} onDropFile={handleDrop} onClick={() => inputRef.current?.click()}>
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg" className="hidden"
@@ -358,7 +358,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       {error && <p className="text-xs font-medium text-red-400">{error}</p>}
       {/* The same rule as the other reviews: choose the file, then send it. */}
       <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!pendingFile} onClick={() => { if (pendingFile) processFile(pendingFile); }}>
-        <Zap className="w-4 h-4" /> Submit for AI review
+        <Lightning weight="duotone" className="w-4 h-4" /> Submit for AI review
       </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
@@ -369,13 +369,13 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   if (analyzing) {
     return (
       <div className="space-y-3">
-      <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Reviewing your dashboard" description="The reviewer is mapping visual elements and generating coaching feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing />
+      <AiReviewWorkspaceHeader icon={<Eye weight="duotone" className="w-5 h-5" />} title="Reviewing your dashboard" description="The reviewer is mapping visual elements and generating coaching feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing />
       <div className="rounded-2xl flex flex-col items-center justify-center gap-4 py-16" style={{ background: card, border: `1px solid ${border}` }}>
         <div className="relative">
           <div className="w-16 h-16 rounded-2xl overflow-hidden">
             <img src={imageDataUrl} alt="" className="w-full h-full object-cover opacity-40" />
           </div>
-          <Loader2 className="w-6 h-6 animate-spin absolute -bottom-1 -right-1" style={{ color: accentColor }} />
+          <CircleNotch weight="bold" className="w-6 h-6 animate-spin absolute -bottom-1 -right-1" style={{ color: accentColor }} />
         </div>
         <div className="text-center">
           <p className="text-sm font-semibold" style={{ color: text }}>Analyzing your dashboard...</p>
@@ -413,7 +413,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Zap className="w-3.5 h-3.5" style={{ color: accentColor }} />
+          <Lightning weight="duotone" className="w-3.5 h-3.5" style={{ color: accentColor }} />
           <p className="text-xs font-semibold" style={{ color: muted }}>
             Hover over the highlighted zones below to receive element-specific coaching.
           </p>
@@ -424,7 +424,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
             style={{ background: zonesVisible ? accentColor : isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', color: zonesVisible ? '#fff' : muted }}
           >
-            {zonesVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+            {zonesVisible ? <Eye weight="duotone" className="w-3 h-3" /> : <EyeSlash weight="duotone" className="w-3 h-3" />}
             {zonesVisible ? 'Zones Visible' : 'Zones Hidden'}
           </button>
           {result && !rubricMode && (
@@ -433,7 +433,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
               style={{ background: `${accentColor}15`, color: accentColor }}
             >
-              <Download className="w-3 h-3" /> PDF
+              <DownloadSimple weight="bold" className="w-3 h-3" /> PDF
             </button>
           )}
           {showReset && !rubricMode && (
@@ -442,7 +442,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
               style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', color: muted }}
             >
-              <RotateCcw className="w-3 h-3" /> Reset
+              <ArrowCounterClockwise weight="bold" className="w-3 h-3" /> Reset
             </button>
           )}
         </div>
@@ -523,7 +523,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
                 </div>
                 <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full"
                   style={{ background: `${accentColor}15` }}>
-                  <Zap className="w-3 h-3" style={{ color: accentColor }} />
+                  <Lightning weight="duotone" className="w-3 h-3" style={{ color: accentColor }} />
                 </div>
               </div>
 
@@ -565,7 +565,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
               {hovered.recommendation && (
                 <div className="rounded-xl p-3" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1 inline-flex items-center gap-1.5" style={{ color: '#2563eb' }}>
-                    <Lightbulb className="w-3 h-3" /> Actionable Insight
+                    <Lightbulb weight="duotone" className="w-3 h-3" /> Actionable Insight
                   </p>
                   <p className="text-[12px] text-gray-700 leading-snug">{hovered.recommendation}</p>
                 </div>
@@ -596,7 +596,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
             style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+            <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
             <p className="text-xs font-medium" style={{ color: accentColor }}>
               {result.elements.length} elements analysed | hover each zone to explore the feedback
             </p>

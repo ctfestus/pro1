@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { Sparkle } from '@phosphor-icons/react';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
@@ -31,7 +31,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     : 'Reviewed';
   const header = (
     <>
-      <TaskHeader t={t} icon={<Sparkles className="w-3.5 h-3.5" />}
+      <TaskHeader t={t} icon={<Sparkle weight="duotone" className="w-3.5 h-3.5" />}
         label={manual ? `${REVIEW_KIND[req.type] || ''} review`.trim() : `AI review - ${REVIEW_KIND[req.type] || 'work'}`}
         title={req.label} description={req.description} done={doneText} />
       {!manual && <AiNote t={t} />}

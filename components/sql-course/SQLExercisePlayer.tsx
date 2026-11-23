@@ -1,21 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import {
-  CheckCircle2,
-  ChevronRight,
-  Database,
-  Download,
-  Loader2,
-  Lightbulb,
-  Maximize2,
-  Menu,
-  Play,
-  RotateCcw,
-  Sparkles,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { ArrowCounterClockwise, ArrowsOut, CaretRight, CheckCircle, CircleNotch, Database, DownloadSimple, Lightbulb, List, Play, Sparkle, X, XCircle } from '@phosphor-icons/react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
@@ -199,7 +185,7 @@ function DataGrid({
   if (!result || visibleRows.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3">
-        <Database className="w-5 h-5" style={{ color: isDark ? '#252840' : '#d8ddef' }} />
+        <Database weight="duotone" className="w-5 h-5" style={{ color: isDark ? '#252840' : '#d8ddef' }} />
         <p className="text-[12px] font-mono" style={{ color: isDark ? '#6b7a89' : '#888888' }}>{emptyMessage}</p>
       </div>
     );
@@ -736,7 +722,7 @@ export default function SQLExercisePlayer({
           <div className="relative w-12 h-12 mx-auto mb-5">
             <div className="absolute inset-0 rounded-full border-2" style={{ borderColor: accentColor, opacity: 0.15 }} />
             <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: accentColor }} />
-            <Database className="absolute inset-0 m-auto w-5 h-5" style={{ color: accentColor }} />
+            <Database weight="duotone" className="absolute inset-0 m-auto w-5 h-5" style={{ color: accentColor }} />
           </div>
           <p className="font-semibold text-[14px] mb-1">Preparing workspace</p>
           <p className="text-[12px]" style={{ color: muted }}>Loading course tables</p>
@@ -825,7 +811,7 @@ export default function SQLExercisePlayer({
                   className="h-8 px-3 rounded-lg text-[12px] font-bold transition-colors"
                   style={{ background: leftTab === 'hint' ? subtle : 'transparent', color: leftTab === 'hint' ? text : muted }}
                 >
-                  <span className="inline-flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Hint</span>{hintPenalty && !hintShown ? <span className="ml-1 text-[10px] font-semibold" style={{ color: isDark ? '#fca5a5' : '#dc2626' }}>-{hintPenalty} pts</span> : null}
+                  <span className="inline-flex items-center gap-1.5"><Lightbulb weight="duotone" className="w-3.5 h-3.5" /> Hint</span>{hintPenalty && !hintShown ? <span className="ml-1 text-[10px] font-semibold" style={{ color: isDark ? '#fca5a5' : '#dc2626' }}>-{hintPenalty} pts</span> : null}
                 </button>
               )}
             </div>
@@ -908,7 +894,7 @@ export default function SQLExercisePlayer({
               <ul className="space-y-3">
                 {availableHints.map((h, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg" style={{ color: isDark ? '#fcd34d' : '#a16207', background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb' }}><Lightbulb className="w-3.5 h-3.5" /></span>
+                    <span className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg" style={{ color: isDark ? '#fcd34d' : '#a16207', background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb' }}><Lightbulb weight="duotone" className="w-3.5 h-3.5" /></span>
                     <p className="text-[14px] leading-relaxed" style={{ color: isDark ? '#A8B5C2' : '#555555' }}>{h}</p>
                   </li>
                 ))}
@@ -955,7 +941,7 @@ export default function SQLExercisePlayer({
                   style={{ background: subtle, color: muted }}
                   title={leftOpen ? 'Collapse lesson' : 'Expand lesson'}
                 >
-                  <Menu className="w-3.5 h-3.5" />
+                  <List weight="bold" className="w-3.5 h-3.5" />
                 </button>
               )}
               <span className="font-mono text-[12px] font-semibold" style={{ color: text }}>
@@ -969,7 +955,7 @@ export default function SQLExercisePlayer({
                 style={{ background: subtle, color: muted }}
                 title="Reset"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <ArrowCounterClockwise weight="bold" className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -1020,7 +1006,7 @@ export default function SQLExercisePlayer({
                   className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-50 hover:opacity-80"
                   style={{ color: '#34d399', background: 'rgba(52,211,153,0.13)' }}
                 >
-                  {solutionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {solutionLoading ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : null}
                   View Solution
                   {solutionPenalty ? <span className="ml-1 text-[10px] font-semibold opacity-70">-{solutionPenalty} XP</span> : null}
                 </button>
@@ -1032,7 +1018,7 @@ export default function SQLExercisePlayer({
                 className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-40 hover:opacity-80"
                 style={{ background: subtle, color: text }}
               >
-                {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                {running ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : <Play weight="fill" className="w-3.5 h-3.5 fill-current" />}
                 Run Code
               </button>
               {hasChecker && !completed && !solutionRevealed && (
@@ -1043,7 +1029,7 @@ export default function SQLExercisePlayer({
                   className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-40"
                   style={{ background: accentColor, color: '#ffffff' }}
                 >
-                  {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {checking ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" /> : null}
                   Submit Answer
                 </button>
               )}
@@ -1055,7 +1041,7 @@ export default function SQLExercisePlayer({
                   className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold transition-opacity disabled:opacity-40"
                   style={{ background: accentColor, color: '#ffffff' }}
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <CaretRight weight="bold" className="w-3.5 h-3.5" />
                   {isLastQuestion ? 'Finish Course' : 'Continue'}
                 </button>
               )}
@@ -1066,7 +1052,7 @@ export default function SQLExercisePlayer({
                   className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg text-[13px] font-semibold"
                   style={{ background: accentColor, color: '#ffffff' }}
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <CaretRight weight="bold" className="w-3.5 h-3.5" />
                   {isLastQuestion ? 'Finish Course' : 'Continue'}
                 </button>
               )}
@@ -1136,8 +1122,8 @@ export default function SQLExercisePlayer({
                   title={activeTab === 'result' ? 'Export result as CSV' : `Export ${activeTab} as CSV`}
                 >
                   {exportingTable === activeTab
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: muted }} />
-                    : <Download className="w-3.5 h-3.5" style={{ color: muted }} />
+                    ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" style={{ color: muted }} />
+                    : <DownloadSimple weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} />
                   }
                 </button>
               )}
@@ -1148,7 +1134,7 @@ export default function SQLExercisePlayer({
                 style={{ background: subtle }}
                 title="Expand"
               >
-                <Maximize2 className="w-3.5 h-3.5" style={{ color: muted }} />
+                <ArrowsOut weight="bold" className="w-3.5 h-3.5" style={{ color: muted }} />
               </button>
             </div>
 
@@ -1172,8 +1158,8 @@ export default function SQLExercisePlayer({
                     style={{ background: feedback.passed ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }}
                   >
                     {feedback.passed
-                      ? <CheckCircle2 style={{ color: '#34d399', width: 18, height: 18 }} />
-                      : <XCircle style={{ color: '#f87171', width: 18, height: 18 }} />
+                      ? <CheckCircle weight="fill" style={{ color: '#34d399', width: 18, height: 18 }} />
+                      : <XCircle weight="fill" style={{ color: '#f87171', width: 18, height: 18 }} />
                     }
                   </div>
 
@@ -1202,7 +1188,7 @@ export default function SQLExercisePlayer({
                       color: feedback.passed ? '#34d399' : '#f87171',
                     }}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X weight="bold" className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -1217,10 +1203,10 @@ export default function SQLExercisePlayer({
                   className="flex-shrink-0 flex items-start gap-2.5 px-4 py-3"
                   style={{ background: `${accentColor}14` }}
                 >
-                  <Sparkles className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: accentColor }} />
+                  <Sparkle weight="duotone" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: accentColor }} />
                   <p className="text-[12.5px] leading-relaxed flex-1" style={{ color: text }}>{errorExplain}</p>
                   <button type="button" onClick={() => setErrorExplain('')} className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity">
-                    <X className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    <X weight="bold" className="w-3.5 h-3.5" style={{ color: accentColor }} />
                   </button>
                 </div>
               )}
@@ -1237,15 +1223,15 @@ export default function SQLExercisePlayer({
                       style={{ color: accentColor }}
                     >
                       {explainLoading
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Sparkles className="w-3.5 h-3.5" />}
+                        ? <CircleNotch weight="bold" className="w-3.5 h-3.5 animate-spin" />
+                        : <Sparkle weight="duotone" className="w-3.5 h-3.5" />}
                       {explainLoading ? 'Explaining...' : 'What does this mean?'}
                     </button>
                   </div>
                 </div>
               ) : sampleLoading === activeTab ? (
                 <div className="h-full flex items-center justify-center gap-2" style={{ color: muted }}>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />
                   <span className="text-[12px] font-medium">Loading sample rows...</span>
                 </div>
               ) : (
@@ -1301,7 +1287,7 @@ export default function SQLExercisePlayer({
                     style={{ background: subtle, color: muted }}
                     title="Export as CSV"
                   >
-                    <Download className="w-3.5 h-3.5" /> Export CSV
+                    <DownloadSimple weight="bold" className="w-3.5 h-3.5" /> Export CSV
                   </button>
                 )}
                 <button
@@ -1310,7 +1296,7 @@ export default function SQLExercisePlayer({
                   className="w-8 h-8 grid place-items-center rounded-lg transition-opacity hover:opacity-70"
                   style={{ background: subtle, color: muted }}
                 >
-                  <X className="w-4 h-4" />
+                  <X weight="bold" className="w-4 h-4" />
                 </button>
               </div>
             </div>

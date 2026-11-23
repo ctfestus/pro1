@@ -16,12 +16,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { generateHTML, type JSONContent } from '@tiptap/core';
 import Placeholder from '@tiptap/extension-placeholder';
-import {
-  Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code2, FileCode2,
-  List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Quote,
-  Image as ImageIcon, Table as TableIcon, BookMarked, AudioLines, Paperclip,
-  Eye, Monitor, Pencil, Smartphone, Tablet,
-} from 'lucide-react';
+import { BookBookmark, Code, DeviceMobile, DeviceTablet, Eye, FileCode, ImageSquare, LinkSimple, ListBullets, ListNumbers, Monitor, Paperclip, PencilSimple, Quotes, Table, TextB, TextHThree, TextHTwo, TextItalic, TextStrikethrough, TextUnderline, Waveform } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
 import { StyleMenu, MenuRow, Segmented, ColorField } from '@/components/lesson/nodes/StyleControls';
 import { LessonAiMenu } from '@/components/lesson/LessonAiMenu';
@@ -208,59 +203,59 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
       <LessonContentStyles />
       <div className="lesson-editor-viewbar" data-theme={dark ? 'dark' : 'light'} style={{ '--lesson-accent-base': lessonAccent } as React.CSSProperties}>
         <div className="lesson-editor-viewbar__switch" role="group" aria-label="Lesson view">
-          <button type="button" data-active={!previewMode ? 'true' : 'false'} onClick={() => setPreviewMode(false)}><Pencil width={13} height={13} /> Edit</button>
-          <button type="button" data-active={previewMode ? 'true' : 'false'} onClick={() => { setGlossaryEditor(null); setLinkEditor(null); setPreviewMode(true); }}><Eye width={14} height={14} /> Preview</button>
+          <button type="button" data-active={!previewMode ? 'true' : 'false'} onClick={() => setPreviewMode(false)}><PencilSimple weight="bold" width={13} height={13} /> Edit</button>
+          <button type="button" data-active={previewMode ? 'true' : 'false'} onClick={() => { setGlossaryEditor(null); setLinkEditor(null); setPreviewMode(true); }}><Eye weight="duotone" width={14} height={14} /> Preview</button>
         </div>
         {previewMode ? (
           <div className="lesson-editor-viewbar__devices" role="group" aria-label="Preview width">
-            <button type="button" title="Desktop preview" aria-label="Desktop preview" data-active={previewSize === 'desktop' ? 'true' : 'false'} onClick={() => setPreviewSize('desktop')}><Monitor width={14} height={14} /></button>
-            <button type="button" title="Tablet preview" aria-label="Tablet preview" data-active={previewSize === 'tablet' ? 'true' : 'false'} onClick={() => setPreviewSize('tablet')}><Tablet width={14} height={14} /></button>
-            <button type="button" title="Mobile preview" aria-label="Mobile preview" data-active={previewSize === 'mobile' ? 'true' : 'false'} onClick={() => setPreviewSize('mobile')}><Smartphone width={14} height={14} /></button>
+            <button type="button" title="Desktop preview" aria-label="Desktop preview" data-active={previewSize === 'desktop' ? 'true' : 'false'} onClick={() => setPreviewSize('desktop')}><Monitor weight="duotone" width={14} height={14} /></button>
+            <button type="button" title="Tablet preview" aria-label="Tablet preview" data-active={previewSize === 'tablet' ? 'true' : 'false'} onClick={() => setPreviewSize('tablet')}><DeviceTablet weight="duotone" width={14} height={14} /></button>
+            <button type="button" title="Mobile preview" aria-label="Mobile preview" data-active={previewSize === 'mobile' ? 'true' : 'false'} onClick={() => setPreviewSize('mobile')}><DeviceMobile weight="duotone" width={14} height={14} /></button>
           </div>
         ) : null}
       </div>
 
       {!previewMode ? <Toolbar dark={dark} accentColor={lessonAccent}>
         <div className="lesson-editor-toolbar__group" aria-label="Text formatting">
-          <Btn dark={dark} title="Heading 2" active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 /></Btn>
-          <Btn dark={dark} title="Heading 3" active={editor.isActive('heading', { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 /></Btn>
-          <Btn dark={dark} title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><Bold /></Btn>
-          <Btn dark={dark} title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic /></Btn>
-          <Btn dark={dark} title="Bullet list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}><List /></Btn>
-          <Btn dark={dark} title="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered /></Btn>
-          <Btn dark={dark} title="Link" optionalCore active={editor.isActive('link')} onClick={handleLink}><LinkIcon /></Btn>
-          <Btn dark={dark} title="Define glossary term" optionalCore active={editor.isActive('glossaryTerm')} onClick={handleGlossary}><BookMarked /></Btn>
+          <Btn dark={dark} title="Heading 2" active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><TextHTwo weight="bold" /></Btn>
+          <Btn dark={dark} title="Heading 3" active={editor.isActive('heading', { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><TextHThree weight="bold" /></Btn>
+          <Btn dark={dark} title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><TextB weight="bold" /></Btn>
+          <Btn dark={dark} title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><TextItalic weight="bold" /></Btn>
+          <Btn dark={dark} title="Bullet list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}><ListBullets weight="bold" /></Btn>
+          <Btn dark={dark} title="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListNumbers weight="bold" /></Btn>
+          <Btn dark={dark} title="Link" optionalCore active={editor.isActive('link')} onClick={handleLink}><LinkSimple weight="bold" /></Btn>
+          <Btn dark={dark} title="Define glossary term" optionalCore active={editor.isActive('glossaryTerm')} onClick={handleGlossary}><BookBookmark weight="duotone" /></Btn>
         </div>
         <div className="lesson-editor-toolbar__group lesson-editor-toolbar__secondary" aria-label="More formatting">
-          <Btn dark={dark} title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon /></Btn>
-          <Btn dark={dark} title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough /></Btn>
-          <Btn dark={dark} title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code2 /></Btn>
-          <Btn dark={dark} title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><FileCode2 /></Btn>
-          <Btn dark={dark} title="Blockquote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote /></Btn>
+          <Btn dark={dark} title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><TextUnderline weight="bold" /></Btn>
+          <Btn dark={dark} title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}><TextStrikethrough weight="bold" /></Btn>
+          <Btn dark={dark} title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code weight="bold" /></Btn>
+          <Btn dark={dark} title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><FileCode weight="duotone" /></Btn>
+          <Btn dark={dark} title="Blockquote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quotes weight="duotone" /></Btn>
         </div>
         <div className="lesson-editor-toolbar__group lesson-editor-toolbar__interactive"><InteractiveInsertMenu editor={editor} dark={dark} accentColor={lessonAccent} /></div>
         <div className="lesson-editor-toolbar__group lesson-editor-toolbar__media" aria-label="Insert media">
-          <Btn dark={dark} title="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon /></Btn>
-          <Btn dark={dark} title="Insert image" onClick={() => setShowLibrary(true)}><ImageIcon /></Btn>
-          <Btn dark={dark} title="Insert audio" onClick={() => setShowAudioPicker(true)}><AudioLines /></Btn>
-          <Btn dark={dark} title="Insert file" onClick={() => setShowAttachmentPicker(true)}><Paperclip /></Btn>
+          <Btn dark={dark} title="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table weight="duotone" /></Btn>
+          <Btn dark={dark} title="Insert image" onClick={() => setShowLibrary(true)}><ImageSquare weight="duotone" /></Btn>
+          <Btn dark={dark} title="Insert audio" onClick={() => setShowAudioPicker(true)}><Waveform weight="duotone" /></Btn>
+          <Btn dark={dark} title="Insert file" onClick={() => setShowAttachmentPicker(true)}><Paperclip weight="bold" /></Btn>
         </div>
         <div className="lesson-editor-toolbar__more">
           <StyleMenu width={244} triggerLabel="More" accentColor={lessonAccent}>
             <MenuRow label="Format">
-              <ToolbarMenuBtn active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon /> Underline</ToolbarMenuBtn>
-              <ToolbarMenuBtn active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough /> Strike</ToolbarMenuBtn>
-              <ToolbarMenuBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote /> Quote</ToolbarMenuBtn>
+              <ToolbarMenuBtn active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><TextUnderline weight="bold" /> Underline</ToolbarMenuBtn>
+              <ToolbarMenuBtn active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}><TextStrikethrough weight="bold" /> Strike</ToolbarMenuBtn>
+              <ToolbarMenuBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quotes weight="duotone" /> Quote</ToolbarMenuBtn>
             </MenuRow>
             <MenuRow label="Code">
-              <ToolbarMenuBtn active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code2 /> Inline</ToolbarMenuBtn>
-              <ToolbarMenuBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><FileCode2 /> Block</ToolbarMenuBtn>
+              <ToolbarMenuBtn active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}><Code weight="bold" /> Inline</ToolbarMenuBtn>
+              <ToolbarMenuBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}><FileCode weight="duotone" /> Block</ToolbarMenuBtn>
             </MenuRow>
             <MenuRow label="Insert">
-              <ToolbarMenuBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon /> Table</ToolbarMenuBtn>
-              <ToolbarMenuBtn onClick={() => setShowLibrary(true)}><ImageIcon /> Image</ToolbarMenuBtn>
-              <ToolbarMenuBtn onClick={() => setShowAudioPicker(true)}><AudioLines /> Audio</ToolbarMenuBtn>
-              <ToolbarMenuBtn onClick={() => setShowAttachmentPicker(true)}><Paperclip /> File</ToolbarMenuBtn>
+              <ToolbarMenuBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table weight="duotone" /> Table</ToolbarMenuBtn>
+              <ToolbarMenuBtn onClick={() => setShowLibrary(true)}><ImageSquare weight="duotone" /> Image</ToolbarMenuBtn>
+              <ToolbarMenuBtn onClick={() => setShowAudioPicker(true)}><Waveform weight="duotone" /> Audio</ToolbarMenuBtn>
+              <ToolbarMenuBtn onClick={() => setShowAttachmentPicker(true)}><Paperclip weight="bold" /> File</ToolbarMenuBtn>
             </MenuRow>
           </StyleMenu>
         </div>
@@ -320,7 +315,7 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
         const radius = (tableAttrs.radius || 'square') as string;
         return (
           <div className="lesson-table-toolbar" data-theme={dark ? 'dark' : 'light'} style={{ '--lesson-accent-base': lessonAccent } as React.CSSProperties}>
-            <span className="lesson-table-toolbar__identity" title="Table tools"><TableIcon width={14} height={14} /></span>
+            <span className="lesson-table-toolbar__identity" title="Table tools"><Table weight="duotone" width={14} height={14} /></span>
             <TableBtn dark={dark} onClick={() => editor.chain().focus().addRowAfter().run()}>+ Row</TableBtn>
             <TableBtn dark={dark} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ Column</TableBtn>
             <StyleMenu width={420} accentColor={lessonAccent}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { ThumbsUp } from 'lucide-react';
+import { ThumbsUp } from '@phosphor-icons/react';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
 import { ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread } from '@/components/ve/ChatCard';
 import { MailCard, MailThreadMsg, MailStatusChip, SmartReplies, type MailAttachment } from '@/components/ve/MailCard';
@@ -45,9 +45,9 @@ export function BriefingRequirement({ req, qi, rowStyle, ctx }: RequirementProps
           <ChatMsg isDark={isDark} author={manager} time={stamp.time}
             reactions={
               !done && !reviewMode ? (
-                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp className="w-3.5 h-3.5" />} onClick={() => acknowledge()} />
+                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp weight="duotone" className="w-3.5 h-3.5" />} onClick={() => acknowledge()} />
               ) : done ? (
-                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp className="w-3.5 h-3.5" />} count={1} active disabled />
+                <ChatReaction isDark={isDark} accent={accentColor} emoji={<ThumbsUp weight="duotone" className="w-3.5 h-3.5" />} count={1} active disabled />
               ) : null
             }>
             <p style={{ margin: 0 }}>{subject}</p>
@@ -59,7 +59,7 @@ export function BriefingRequirement({ req, qi, rowStyle, ctx }: RequirementProps
                 ? <ChatTypingMsg isDark={isDark} author="me" meName={studentName} />
                 : (
                   <ChatMsg isDark={isDark} author="me" meName={studentName} time="Just now">
-                    <>Got it, on it. <ThumbsUp className="inline w-3.5 h-3.5 align-[-2px]" /></>
+                    <>Got it, on it. <ThumbsUp weight="duotone" className="inline w-3.5 h-3.5 align-[-2px]" /></>
                   </ChatMsg>
                 )}
             </ChatThread>

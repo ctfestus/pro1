@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, Loader2, Trophy, X } from 'lucide-react';
+import { CaretRight, CircleNotch, Trophy, X } from '@phosphor-icons/react';
 import { PersonAvatar, firstNameOf, type Person } from '@/components/ve/workplace';
 
 /**
@@ -58,11 +58,11 @@ export function MissionSignOff({
         <div className="mt-3">
           {nextTitle ? (
             <button onClick={onNext} className={btn} style={btnStyle}>
-              Open next brief <ChevronRight className="w-4 h-4" />
+              Open next brief <CaretRight weight="bold" className="w-4 h-4" />
             </button>
           ) : (
             <button onClick={onFinish} disabled={!canFinish || finishing} className={btn} style={btnStyle}>
-              {finishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Finish the project
+              {finishing ? <CircleNotch weight="bold" className="w-4 h-4 animate-spin" /> : <Trophy weight="duotone" className="w-4 h-4" />} Finish the project
             </button>
           )}
         </div>
@@ -93,7 +93,7 @@ export function WelcomeBack({ studentName, missionTitle, left, isDark, accentCol
         {left === 0 ? 'Everything in it is done.' : left === 1 ? '1 thing left in this mission.' : `${left} things left in this mission.`}
       </p>
       <button onClick={onClose} aria-label="Close" className="p-1 rounded-md flex-shrink-0 transition-opacity hover:opacity-70" style={{ color: muted }}>
-        <X className="w-4 h-4" />
+        <X weight="bold" className="w-4 h-4" />
       </button>
     </div>
   );
