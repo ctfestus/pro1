@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Clock, Loader2, CheckCircle2, XCircle, ShieldAlert, Award, AlertTriangle, Circle, Check, ListChecks, Sparkle, ChevronRight, FileText, ExternalLink, BarChart3, Image as ImageIcon, BookOpen, BookOpenCheck, FileCheck2, Play, LogOut } from 'lucide-react';
+import { X, Clock, CircleNotch, CheckCircle, XCircle, ShieldWarning, Medal, Warning, Circle, Check, ListChecks, Sparkle, CaretRight, FileText, ArrowSquareOut, ChartBar, ImageSquare, BookOpen, BookOpenText, Exam, Play, SignOut } from '@phosphor-icons/react';
 import { useSqlRuntime } from '@/lib/use-sql-runtime';
 import SQLExercisePlayer from '@/components/sql-course/SQLExercisePlayer';
 import PythonExercisePlayer from '@/components/sql-course/PythonExercisePlayer';
@@ -89,8 +89,8 @@ export function CertificationResultSummary({ result, passmark, isPreview = false
   return (
     <>
       {result.passed || isPreview
-        ? <CheckCircle2 className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: accentColor }} />
-        : <XCircle className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: '#f43f5e' }} />}
+        ? <CheckCircle weight="fill" className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: accentColor }} />
+        : <XCircle weight="fill" className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: '#f43f5e' }} />}
       <h1 style={{ fontSize: compact ? 19 : 24, fontWeight: 800, marginBottom: 6 }}>{isPreview ? 'Preview complete' : result.practice ? 'Practice complete' : result.passed ? 'Certification passed' : 'Not passed yet'}</h1>
       {result.practice && <p style={{ fontSize: 13, color: theme.muted, marginBottom: 10 }}>Practice run. Not graded, no certificate issued.</p>}
       {isPreview ? (
@@ -548,7 +548,7 @@ export default function CertificationTaker({
   if (phase === 'loading') {
     return (
       <div style={{ minHeight: '100vh', background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: accentColor, opacity: 0.6 }} />
+        <CircleNotch weight="bold" className="w-8 h-8 animate-spin" style={{ color: accentColor, opacity: 0.6 }} />
       </div>
     );
   }
@@ -562,10 +562,10 @@ export default function CertificationTaker({
     return (
       <div style={{ minHeight: '100vh', background: t.bg, color: t.text, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 460, width: '100%', textAlign: 'center', background: t.card, borderRadius: 24, padding: 32, border: `1px solid ${t.border}`, boxShadow: '0 24px 70px rgba(0,0,0,0.16)' }}>
-          <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: '#f59e0b' }} />
+          <Warning weight="duotone" className="w-12 h-12 mx-auto mb-4" style={{ color: '#f59e0b' }} />
           <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No attempts remaining</h1>
           <p style={{ fontSize: 14, color: t.muted, marginBottom: 20 }}>You have used all {maxAttempts} attempt{maxAttempts === 1 ? '' : 's'} for this certification.</p>
-          <button onClick={onExit} style={{ background: accentColor, color: '#06281a', fontWeight: 600, fontSize: 14, padding: '10px 22px', borderRadius: 10 }}>Back</button>
+          <button onClick={onExit} style={{ background: accentColor, color: '#ffffff', fontWeight: 600, fontSize: 14, padding: '10px 22px', borderRadius: 10 }}>Back</button>
         </div>
       </div>
     );
@@ -584,12 +584,12 @@ export default function CertificationTaker({
 
           {result.passed && certUrl && (
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-              <a href={certUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: accentColor, color: '#06281a', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10 }}>
-                <Award className="w-4 h-4" /> View certificate
+              <a href={certUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: accentColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10 }}>
+                <Medal weight="duotone" className="w-4 h-4" /> View certificate
               </a>
               {reportUrl && (
                 <a href={reportUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: t.card, color: t.text, fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10, border: `1px solid ${t.border}` }}>
-                  <BarChart3 className="w-4 h-4" /> View report
+                  <ChartBar weight="duotone" className="w-4 h-4" /> View report
                 </a>
               )}
             </div>
@@ -602,8 +602,8 @@ export default function CertificationTaker({
                   <div key={r.id} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                       {r.correct
-                        ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#16a34a', marginTop: 2 }} />
-                        : <XCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#f43f5e', marginTop: 2 }} />}
+                        ? <CheckCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: '#16a34a', marginTop: 2 }} />
+                        : <XCircle weight="fill" className="w-4 h-4 flex-shrink-0" style={{ color: '#f43f5e', marginTop: 2 }} />}
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: t.text }}>{i + 1}. {r.question}</div>
                         {!r.correct && r.correctAnswer && <div style={{ fontSize: 12.5, color: t.muted, marginTop: 4 }}>Correct answer: <span style={{ color: t.text }}>{r.correctAnswer}</span></div>}
@@ -618,8 +618,8 @@ export default function CertificationTaker({
 
           {result.practice ? (
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-              <button onClick={startPractice} disabled={starting} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: accentColor, color: '#06281a', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10 }}>
-                {starting && <Loader2 className="w-4 h-4 animate-spin" />} Practice again
+              <button onClick={startPractice} disabled={starting} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: accentColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10 }}>
+                {starting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />} Practice again
               </button>
               <button onClick={exitPractice} style={{ background: t.card, color: t.text, fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 10, border: `1px solid ${t.border}` }}>Back to overview</button>
             </div>
@@ -659,13 +659,13 @@ export default function CertificationTaker({
     const facts = [
       { icon: ListChecks, label: 'Questions', value: `${questionCount}` },
       { icon: Clock, label: 'Time limit', value: timeLimitMin ? `${timeLimitMin} min` : 'Untimed' },
-      { icon: Award, label: 'Pass mark', value: `${config?.passmark ?? 70}%` },
-      { icon: CheckCircle2, label: 'Attempts', value: maxAttempts > 0 ? `${attemptsLeft ?? maxAttempts} of ${maxAttempts}` : 'Unlimited' },
+      { icon: Medal, label: 'Pass mark', value: `${config?.passmark ?? 70}%` },
+      { icon: CheckCircle, label: 'Attempts', value: maxAttempts > 0 ? `${attemptsLeft ?? maxAttempts} of ${maxAttempts}` : 'Unlimited' },
     ];
     const howSteps = [
-      { Icon: BookOpenCheck, title: 'Prepare with confidence', desc: 'Use the study resources, courses, learning paths, and practice questions provided for your certification.' },
-      { Icon: FileCheck2, title: 'Pass the assessment', desc: 'Complete the practical exam and meet the required pass mark within the available attempts.' },
-      { Icon: Award, title: 'Receive your credential', desc: 'Unlock your result, certificate, and badge, ready to view and share.' },
+      { Icon: BookOpenText, title: 'Prepare with confidence', desc: 'Use the study resources, courses, learning paths, and practice questions provided for your certification.' },
+      { Icon: Exam, title: 'Pass the assessment', desc: 'Complete the practical exam and meet the required pass mark within the available attempts.' },
+      { Icon: Medal, title: 'Receive your credential', desc: 'Unlock your result, certificate, and badge, ready to view and share.' },
     ];
     const journeyTheme = isDark
       ? { bg: '#17181E', card: '#1E1F26', cardHover: '#23242c', border: 'rgba(255,255,255,0.10)', text: '#f0f0f0', muted: '#8a8a93', track: 'rgba(255,255,255,0.08)' }
@@ -673,8 +673,8 @@ export default function CertificationTaker({
     const journeyQuestion = { id: 'cert-journey-preview', type: 'multiple_choice', question: 'Which approach best validates a model before deployment?', options: ['Test against representative data', 'Use only training accuracy', 'Skip edge-case testing'], correctAnswer: 'Test against representative data' };
     const resources = [
       studyGuide ? { icon: FileText, title: 'Study guide', desc: 'View or download the PDF.', href: studyGuide.url } : null,
-      practiceTestUrl ? { icon: ExternalLink, title: 'Practice test', desc: 'Warm up before the real exam.', href: practiceTestUrl } : null,
-      posterUrl ? { icon: ImageIcon, title: 'Poster', desc: 'View the certification poster.', href: posterUrl } : null,
+      practiceTestUrl ? { icon: ArrowSquareOut, title: 'Practice test', desc: 'Warm up before the real exam.', href: practiceTestUrl } : null,
+      posterUrl ? { icon: ImageSquare, title: 'Poster', desc: 'View the certification poster.', href: posterUrl } : null,
     ].filter(Boolean) as { icon: any; title: string; desc: string; href: string }[];
 
     // Small section labels use a dark ~90% tone (not blue/primary, per design).
@@ -753,10 +753,10 @@ export default function CertificationTaker({
         <div style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '12px 16px' : '14px 24px', background: ov.bg }}>
           {logo ? <img src={logo} alt="" style={{ height: 26, maxWidth: '40vw', objectFit: 'contain' }} /> : <span style={{ fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-            <button onClick={onExit} style={{ color: ov.muted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}><X className="w-4 h-4" /> Exit</button>
+            <button onClick={onExit} style={{ color: ov.muted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}><X weight="bold" className="w-4 h-4" /> Exit</button>
             {locked
               ? <Link href={unlockHref} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', textDecoration: 'none' }}>{unlockLabel}</Link>
-              : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake unavailable' : ctaLabel}</button>}
+              : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake unavailable' : ctaLabel}</button>}
           </div>
         </div>
 
@@ -770,7 +770,7 @@ export default function CertificationTaker({
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button onClick={() => setSwitchPrompt(null)} style={{ background: ov.surface, color: ov.text, fontWeight: 600, fontSize: 14, padding: '10px 18px', borderRadius: 10, border: `1px solid ${ov.border}` }}>Cancel</button>
-                <button onClick={() => { setSwitchPrompt(null); doStart(true); }} disabled={starting} className="cert-cta" style={{ ...ctaPrimary, padding: '10px 20px' }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}Switch and start</button>
+                <button onClick={() => { setSwitchPrompt(null); doStart(true); }} disabled={starting} className="cert-cta" style={{ ...ctaPrimary, padding: '10px 20px' }}>{starting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />}Switch and start</button>
               </div>
             </div>
           </div>
@@ -780,7 +780,7 @@ export default function CertificationTaker({
         {showNoAttempts && (
           <div role="dialog" aria-modal="true" aria-labelledby="no-attempts-title" style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
             <div style={{ background: ov.card, color: ov.text, maxWidth: 440, width: '100%', borderRadius: 20, padding: isMobile ? 24 : 30, border: isDark ? `1px solid ${ov.border}` : 'none', boxShadow: '0 24px 70px rgba(0,0,0,0.28)', textAlign: 'center' }}>
-              <span style={{ width: 58, height: 58, margin: '0 auto 18px', borderRadius: 17, display: 'grid', placeItems: 'center', background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}><AlertTriangle style={{ width: 29, height: 29 }} /></span>
+              <span style={{ width: 58, height: 58, margin: '0 auto 18px', borderRadius: 17, display: 'grid', placeItems: 'center', background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}><Warning weight="duotone" style={{ width: 29, height: 29 }} /></span>
               <h3 id="no-attempts-title" style={{ fontSize: 20, fontWeight: 700, marginBottom: 9 }}>No attempts remaining</h3>
               <p style={{ fontSize: 14.5, color: ov.muted, lineHeight: 1.6, marginBottom: 22 }}>You have used all {maxAttempts} attempt{maxAttempts === 1 ? '' : 's'} for this certification. You can still review its preparation, required learning, and exam information.</p>
               <button autoFocus onClick={() => setShowNoAttempts(false)} style={{ background: brandColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 11 }}>Return to certification</button>
@@ -796,8 +796,8 @@ export default function CertificationTaker({
             {config?.description && <p style={{ fontSize: isMobile ? 16 : 18, color: ov.muted, lineHeight: 1.65, marginBottom: 28, maxWidth: 640 }}>{config.description}</p>}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {locked
-                ? <Link href={unlockHref} className="cert-cta" style={{ ...ctaPrimary, textDecoration: 'none' }}>{unlockLabel}<ChevronRight className="w-4 h-4" /></Link>
-                : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>}
+                ? <Link href={unlockHref} className="cert-cta" style={{ ...ctaPrimary, textDecoration: 'none' }}>{unlockLabel}<CaretRight weight="bold" className="w-4 h-4" /></Link>
+                : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<CaretRight weight="bold" className="w-4 h-4" /></button>}
               {/* Preparation is part of what a certification sells, so a viewer who cannot sit the
                   exam cannot practise for it either. The preview config carries none of this; the
                   guard is here so a full config can never make these clickable for them. */}
@@ -805,7 +805,7 @@ export default function CertificationTaker({
               {!locked && practiceTestUrl && <a href={practiceTestUrl} target="_blank" rel="noreferrer" className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>Practice test</a>}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px', marginTop: 24, color: ov.muted, fontSize: 13 }}>
-              {['Official credential', 'Shareable certificate', 'Publicly verifiable'].map(label => <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><CheckCircle2 style={{ width: 15, height: 15, color: signalColor }} />{label}</span>)}
+              {['Official credential', 'Shareable certificate', 'Publicly verifiable'].map(label => <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><CheckCircle weight="fill" style={{ width: 15, height: 15, color: signalColor }} />{label}</span>)}
             </div>
             {(startError || retakeBlocked) && <p style={{ marginTop: 14, fontSize: 13, color: '#ef4444' }}>{startError || `You can retake this certification on ${retakeWhen}.`}</p>}
           </div>
@@ -829,7 +829,7 @@ export default function CertificationTaker({
                 <div style={{ height: isMobile ? 126 : 148, display: 'grid', placeItems: 'center' }}>
                   {heroVisual
                     ? <img src={heroVisual} alt={`${title} credential`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-                    : <div style={{ width: isMobile ? 94 : 116, height: isMobile ? 94 : 116, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${signalColor}`, color: signalColor, background: tint(0.08), boxShadow: `0 0 0 8px ${tint(0.05)}` }}><Award style={{ width: '46%', height: '46%' }} /></div>}
+                    : <div style={{ width: isMobile ? 94 : 116, height: isMobile ? 94 : 116, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${signalColor}`, color: signalColor, background: tint(0.08), boxShadow: `0 0 0 8px ${tint(0.05)}` }}><Medal weight="duotone" style={{ width: '46%', height: '46%' }} /></div>}
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 9.5, fontWeight: 750, letterSpacing: '0.12em', textTransform: 'uppercase', color: ov.muted }}>Professional certification</div>
@@ -842,10 +842,10 @@ export default function CertificationTaker({
               <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginTop: isMobile ? 24 : 28 }}>
                 <div>
                   <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ov.muted }}>Credential status</div>
-                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 750, color: signalColor }}><CheckCircle2 style={{ width: 15, height: 15 }} />Certified</div>
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 750, color: signalColor }}><CheckCircle weight="fill" style={{ width: 15, height: 15 }} />Certified</div>
                 </div>
                 <div style={{ width: 62, height: 62, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `1px solid ${tint(0.4)}`, background: tint(0.08), color: signalColor }}>
-                  <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `1.5px dashed ${signalColor}` }}><CheckCircle2 style={{ width: 22, height: 22 }} /></div>
+                  <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `1.5px dashed ${signalColor}` }}><CheckCircle weight="fill" style={{ width: 22, height: 22 }} /></div>
                 </div>
               </div>
               <div className="cert-credential-sweep" style={{ position: 'absolute', zIndex: 4, top: '-20%', bottom: '-20%', left: 0, width: '20%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)', pointerEvents: 'none', opacity: 0 }} />
@@ -858,7 +858,7 @@ export default function CertificationTaker({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
             {facts.map((f, i) => (
               <div key={i} className="cert-card" style={{ ...card, padding: 18 }}>
-                <f.icon className="w-5 h-5" style={{ color: signalColor, marginBottom: 10 }} />
+                <f.icon weight="duotone" className="w-5 h-5" style={{ color: signalColor, marginBottom: 10 }} />
                 <div style={{ fontSize: 22, fontWeight: 800 }}>{f.value}</div>
                 <div style={{ fontSize: 12.5, color: ov.muted, marginTop: 2 }}>{f.label}</div>
               </div>
@@ -884,7 +884,7 @@ export default function CertificationTaker({
             )}
             {protect && (
               <div style={{ display: 'flex', gap: 12, padding: '14px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.12)' }}>
-                <ShieldAlert className="w-5 h-5 flex-shrink-0" style={{ color: '#f59e0b' }} />
+                <ShieldWarning weight="duotone" className="w-5 h-5 flex-shrink-0" style={{ color: '#f59e0b' }} />
                 <p style={{ fontSize: 13, color: ov.muted, lineHeight: 1.55 }}>Protected exam: copying, pasting and right-click are disabled, leaving the tab is recorded, and the timer cannot be paused.</p>
               </div>
             )}
@@ -899,7 +899,7 @@ export default function CertificationTaker({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
                 {skillAreas.map(s => (
                   <div key={s.id} className="cert-card" style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: signalColor }} />
+                    <CheckCircle weight="fill" className="w-5 h-5 flex-shrink-0" style={{ color: signalColor }} />
                     <span style={{ fontSize: 15, fontWeight: 600 }}>{s.name}</span>
                   </div>
                 ))}
@@ -917,7 +917,7 @@ export default function CertificationTaker({
                 <div key={stepTitle} className="cert-card" style={{ ...card, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 0.32fr) minmax(0, 0.68fr)', gap: isMobile ? 24 : 34, padding: isMobile ? 22 : 28, alignItems: 'start' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
-                      <span style={{ width: 44, height: 44, borderRadius: 12, background: tint(0.12), color: signalColor, display: 'grid', placeItems: 'center' }}><Icon style={{ width: 20, height: 20 }} /></span>
+                      <span style={{ width: 44, height: 44, borderRadius: 12, background: tint(0.12), color: signalColor, display: 'grid', placeItems: 'center' }}><Icon weight="duotone" style={{ width: 20, height: 20 }} /></span>
                       <span style={{ fontSize: 30, fontWeight: 750, color: tint(isDark ? 0.24 : 0.18) }}>0{i + 1}</span>
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 700, marginTop: 18, marginBottom: 6 }}>{stepTitle}</div>
@@ -928,12 +928,12 @@ export default function CertificationTaker({
                     {i === 1 && (
                       <div style={{ maxWidth: 680, margin: '0 auto', overflow: 'hidden', borderRadius: 16, background: journeyTheme.bg, boxShadow: isDark ? 'none' : '0 14px 40px rgba(15,23,42,0.10)' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '32px minmax(0,1fr) 72px', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
-                          <span style={{ width: 28, height: 28, borderRadius: 999, background: journeyTheme.track, color: journeyTheme.muted, display: 'grid', placeItems: 'center' }}><X style={{ width: 14, height: 14 }} /></span>
+                          <span style={{ width: 28, height: 28, borderRadius: 999, background: journeyTheme.track, color: journeyTheme.muted, display: 'grid', placeItems: 'center' }}><X weight="bold" style={{ width: 14, height: 14 }} /></span>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 9, fontWeight: 700, color: journeyTheme.muted }}><span>Question 2 of 10</span><span>20%</span></div>
                             <div style={{ height: 6, borderRadius: 999, overflow: 'hidden', background: journeyTheme.track }}><div style={{ width: '20%', height: '100%', borderRadius: 999, background: signalColor }} /></div>
                           </div>
-                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 10, fontWeight: 700, color: journeyTheme.muted }}><Clock style={{ width: 14, height: 14 }} />04:18</span>
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 10, fontWeight: 700, color: journeyTheme.muted }}><Clock weight="duotone" style={{ width: 14, height: 14 }} />04:18</span>
                         </div>
                         <div style={{ maxWidth: 580, margin: '0 auto', padding: isMobile ? 16 : 20 }}>
                           <CertificationQuestionView q={journeyQuestion} qType="multiple_choice" value={journeyAnswer} onChange={setJourneyAnswer} t={journeyTheme} accentColor={signalColor} sharedPlayground={{}} />
@@ -960,10 +960,10 @@ export default function CertificationTaker({
                 {resources.map((r, i) => (
                   <a key={i} href={r.href} target="_blank" rel="noreferrer" className="cert-card" style={{ ...card, display: 'flex', alignItems: 'flex-start', gap: 12, textDecoration: 'none', color: ov.text }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: tint(0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <r.icon className="w-5 h-5" style={{ color: signalColor }} />
+                      <r.icon weight="duotone" className="w-5 h-5" style={{ color: signalColor }} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{r.title} <ChevronRight className="w-3.5 h-3.5" style={{ color: ov.muted }} /></div>
+                      <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{r.title} <CaretRight weight="bold" className="w-3.5 h-3.5" style={{ color: ov.muted }} /></div>
                       <div style={{ fontSize: 13, color: ov.muted, marginTop: 2 }}>{r.desc}</div>
                     </div>
                   </a>
@@ -990,17 +990,17 @@ export default function CertificationTaker({
 
       {/* Top bar */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 56, zIndex: 60, display: 'flex', alignItems: 'center', gap: isMobile ? 14 : 28, padding: isMobile ? '0 16px' : '0 56px', background: t.bg }}>
-        <button onClick={() => { if (isPractice) { exitPractice(); } else if (!isPreview && timeLimitMin > 0) { setShowExit(true); } else { onExit(); } }} title={isPractice ? 'Exit practice' : 'Exit (progress saved, resume later)'} style={{ color: t.muted }}><X className="w-5 h-5" /></button>
+        <button onClick={() => { if (isPractice) { exitPractice(); } else if (!isPreview && timeLimitMin > 0) { setShowExit(true); } else { onExit(); } }} title={isPractice ? 'Exit practice' : 'Exit (progress saved, resume later)'} style={{ color: t.muted }}><X weight="bold" className="w-5 h-5" /></button>
         <div ref={barRef} style={{ flex: '1 1 0%', width: '100%', maxWidth: 1200, minWidth: 0, margin: '0 auto', height: 9, borderRadius: 999, background: t.track }}>
           <div style={{ height: '100%', width: `${progress}%`, minWidth: progress > 0 ? 9 : 0, background: accentColor, borderRadius: 999, transition: 'width 240ms ease' }} />
         </div>
         {timeLeft !== null && (
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: isMobile ? 56 : 70, flexShrink: 0, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: timeWarn ? '#f43f5e' : t.muted }}>
-            <Clock className="w-4 h-4" /> {fmt(timeLeft)}
+            <Clock weight="duotone" className="w-4 h-4" /> {fmt(timeLeft)}
           </span>
         )}
         {!isPractice && !isPreview && (
-          <button onClick={() => setShowQuit(true)} title="Quit exam" style={{ color: t.muted, display: 'inline-flex', flexShrink: 0 }}><LogOut className="w-5 h-5" /></button>
+          <button onClick={() => setShowQuit(true)} title="Quit exam" style={{ color: t.muted, display: 'inline-flex', flexShrink: 0 }}><SignOut weight="bold" className="w-5 h-5" /></button>
         )}
       </div>
 
@@ -1012,7 +1012,7 @@ export default function CertificationTaker({
             <p style={{ fontSize: 14.5, color: t.muted, lineHeight: 1.6, marginBottom: 22 }}>The timer keeps running while you are away and cannot be paused. It will continue until the time is up. You can resume before it ends, but any time that passes counts against you.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button onClick={() => setShowExit(false)} style={{ background: t.cardHover, color: t.text, fontWeight: 600, fontSize: 14, padding: '10px 18px', borderRadius: 10 }}>Cancel</button>
-              <button onClick={onExit} style={{ background: accentColor, color: '#06281a', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 10 }}>Exit exam</button>
+              <button onClick={onExit} style={{ background: accentColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 10 }}>Exit exam</button>
             </div>
           </div>
         </div>
@@ -1026,7 +1026,7 @@ export default function CertificationTaker({
             <p style={{ fontSize: 14.5, color: t.muted, lineHeight: 1.6, marginBottom: 22 }}>Are you sure you want to quit the exam? You will lose one attempt and progress.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button onClick={() => setShowQuit(false)} disabled={quitting} style={{ background: t.cardHover, color: t.text, fontWeight: 600, fontSize: 14, padding: '10px 18px', borderRadius: 10 }}>Cancel</button>
-              <button onClick={abandonExam} disabled={quitting} style={{ background: '#f43f5e', color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 8 }}>{quitting && <Loader2 className="w-4 h-4 animate-spin" />}Quit exam</button>
+              <button onClick={abandonExam} disabled={quitting} style={{ background: '#f43f5e', color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 8 }}>{quitting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />}Quit exam</button>
             </div>
           </div>
         </div>
@@ -1037,7 +1037,7 @@ export default function CertificationTaker({
         {warning && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             style={{ position: 'fixed', top: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 70, maxWidth: 'calc(100vw - 24px)', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.14)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontSize: 12.5, fontWeight: 600 }}>
-            <ShieldAlert className="w-4 h-4" /> {warning}
+            <ShieldWarning weight="duotone" className="w-4 h-4" /> {warning}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1112,7 +1112,7 @@ export default function CertificationTaker({
             <button
               onClick={advance}
               disabled={returnToReview && !answered}
-              style={{ background: answered ? accentColor : t.card, color: answered ? '#06281a' : t.muted, fontWeight: 700, fontSize: 14, padding: '11px 30px', borderRadius: 12, cursor: (returnToReview && !answered) ? 'not-allowed' : 'pointer', opacity: (returnToReview && !answered) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 8 }}
+              style={{ background: answered ? accentColor : t.card, color: answered ? '#ffffff' : t.muted, fontWeight: 700, fontSize: 14, padding: '11px 30px', borderRadius: 12, cursor: (returnToReview && !answered) ? 'not-allowed' : 'pointer', opacity: (returnToReview && !answered) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 8 }}
             >
               {returnToReview ? 'Continue' : answered ? (index >= total - 1 ? 'Review answers' : 'Continue') : 'Skip'}
             </button>
@@ -1130,7 +1130,7 @@ export default function CertificationTaker({
               transition={{ type: 'spring', stiffness: 260, damping: 18 }}
               style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.15, type: 'spring', stiffness: 320, damping: 16 }}>
-                <Check className="w-11 h-11" strokeWidth={3} style={{ color: '#fff' }} />
+                <Check weight="bold" className="w-11 h-11" style={{ color: '#fff' }} />
               </motion.span>
             </motion.div>
             {[
@@ -1143,7 +1143,7 @@ export default function CertificationTaker({
                 animate={{ scale: [0.75, 1.2, 0.75], opacity: [0.45, 1, 0.45], rotate: [0, 25, 0] }}
                 transition={{ duration: 1.8, delay: 0.3 + i * 0.16, repeat: Infinity, ease: 'easeInOut' }}
                 style={{ position: 'absolute', top: s.top as any, left: s.left as any, right: s.right as any, bottom: s.bottom as any, lineHeight: 0 }}>
-                <Sparkle style={{ width: s.size, height: s.size, color: '#fbbf24' }} fill="#fbbf24" />
+                <Sparkle weight="fill" style={{ width: s.size, height: s.size, color: '#fbbf24' }} />
               </motion.span>
             ))}
           </div>
@@ -1153,7 +1153,7 @@ export default function CertificationTaker({
           {/* Summary */}
           <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: isMobile ? 24 : 44, marginBottom: 30 }}>
             <Stat t={t} Icon={ListChecks} label="Questions" value={total} color={t.muted} />
-            <Stat t={t} Icon={CheckCircle2} label="Answered" value={answeredCount} color={accentColor} />
+            <Stat t={t} Icon={CheckCircle} label="Answered" value={answeredCount} color={accentColor} />
             <Stat t={t} Icon={Circle} label="Not answered" value={total - answeredCount} color={total - answeredCount > 0 ? '#f43f5e' : t.muted} />
           </div>
 
@@ -1168,15 +1168,15 @@ export default function CertificationTaker({
               const inner = (
                 <>
                   {ok
-                    ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: accentColor }} />
-                    : <Circle className="w-5 h-5 flex-shrink-0" style={{ color: t.muted }} />}
+                    ? <CheckCircle weight="fill" className="w-5 h-5 flex-shrink-0" style={{ color: accentColor }} />
+                    : <Circle weight="bold" className="w-5 h-5 flex-shrink-0" style={{ color: t.muted }} />}
                   <span style={{ color: t.muted, fontWeight: 700, fontSize: 13, width: 22, flexShrink: 0 }}>{i + 1}</span>
                   <span className="truncate" style={{ fontSize: 14, flex: 1, minWidth: 0, color: ok ? t.text : t.muted }}>
                     {shortText((qq as any).question) || `Question ${i + 1}`}
                   </span>
                   {canAnswerThis && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, color: accentColor }}>
-                      Answer <ChevronRight className="w-4 h-4" />
+                      Answer <CaretRight weight="bold" className="w-4 h-4" />
                     </span>
                   )}
                 </>
@@ -1190,8 +1190,8 @@ export default function CertificationTaker({
           {submitError && <p style={{ color: '#f43f5e', fontSize: 13, textAlign: 'center', marginTop: 16 }}>{submitError}</p>}
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 28 }}>
             <button onClick={submit} disabled={submitting}
-              style={{ background: accentColor, color: '#06281a', fontWeight: 700, fontSize: 14, padding: '11px 36px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8, opacity: submitting ? 0.7 : 1 }}>
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />} Submit exam
+              style={{ background: accentColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '11px 36px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8, opacity: submitting ? 0.7 : 1 }}>
+              {submitting && <CircleNotch weight="bold" className="w-4 h-4 animate-spin" />} Submit exam
             </button>
           </div>
         </div>
@@ -1204,7 +1204,7 @@ function Stat({ t, Icon, label, value, color }: { t: any; Icon: any; label: stri
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-        <Icon className="w-5 h-5" style={{ color }} />
+        <Icon weight="duotone" className="w-5 h-5" style={{ color }} />
         <span style={{ fontSize: 24, fontWeight: 800, color: t.text, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
       </div>
       <div style={{ fontSize: 12, color: t.muted, marginTop: 4 }}>{label}</div>
@@ -1282,7 +1282,7 @@ export function CertificationQuestionView({ q, qType, value, onChange, t, accent
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, textAlign: 'left', padding: '18px 22px', borderRadius: 14, background: selected ? `${accentColor}1f` : hover ? t.cardHover : t.card, border: `1.5px solid ${selected ? accentColor : hover ? `${accentColor}80` : t.border}`, color: t.text, fontSize: 15.5, transform: hover ? 'translateY(-1px)' : 'none', transition: 'all 130ms ease', cursor: 'pointer' }}>
                 <span>{opt}</span>
                 {multi
-                  ? <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${selected ? accentColor : t.muted}`, background: selected ? accentColor : 'transparent' }}>{selected && <Check className="w-3.5 h-3.5" style={{ color: '#06281a' }} />}</span>
+                  ? <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${selected ? accentColor : t.muted}`, background: selected ? accentColor : 'transparent' }}>{selected && <Check weight="bold" className="w-3.5 h-3.5" style={{ color: '#ffffff' }} />}</span>
                   : <span style={{ fontSize: 13, color: selected || hover ? accentColor : t.muted, fontWeight: 600 }}>{i + 1}</span>}
               </button>
             );
@@ -1359,7 +1359,7 @@ export function CertificationQuestionView({ q, qType, value, onChange, t, accent
               <button key={i} onClick={() => toggle(opt)} {...hoverProps(i)}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, textAlign: 'left', padding: '16px 20px', borderRadius: 12, background: selected ? `${accentColor}1f` : hover ? t.cardHover : t.card, border: `1.5px solid ${selected ? accentColor : hover ? `${accentColor}80` : t.border}`, color: t.text, fontSize: 15, transform: hover ? 'translateY(-1px)' : 'none', transition: 'all 130ms ease', cursor: 'pointer' }}>
                 <span>{opt}</span>
-                {selected && <span style={{ width: 24, height: 24, borderRadius: 999, background: accentColor, color: '#06281a', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pos + 1}</span>}
+                {selected && <span style={{ width: 24, height: 24, borderRadius: 999, background: accentColor, color: '#ffffff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pos + 1}</span>}
               </button>
             );
           })}
@@ -1535,7 +1535,7 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
     <div style={{ marginTop: embedded ? 0 : 32, borderRadius: embedded ? 18 : undefined, padding: embedded ? 18 : undefined, background: embedded ? ov.surface : undefined, boxShadow: embedded && !isDarkRequired ? '0 14px 38px rgba(15,23,42,0.08)' : 'none' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 17 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
-          <span style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 13, display: 'grid', placeItems: 'center', background: `${brandColor}14`, color: brandColor }}><BookOpenCheck style={{ width: 20, height: 20 }} /></span>
+          <span style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 13, display: 'grid', placeItems: 'center', background: `${brandColor}14`, color: brandColor }}><BookOpenText weight="duotone" style={{ width: 20, height: 20 }} /></span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.11em', textTransform: 'uppercase', color: brandColor, marginBottom: 3 }}>Required preparation</div>
             <div style={{ fontSize: embedded ? 18 : 20, fontWeight: 700, color: ov.text, lineHeight: 1.25 }}>Learning selected for this certification</div>
@@ -1551,7 +1551,7 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
               <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', width: '100%', aspectRatio: '16/9', background: item.imageUrl ? '#0b0b0d' : ov.surface }}>
                 {item.imageUrl
                   ? <img src={item.imageUrl} alt={item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: PREP_FALLBACK_BG }}><BookOpen style={{ width: 30, height: 30, color: PREP_ICON }} /></div>}
+                  : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: PREP_FALLBACK_BG }}><BookOpen weight="duotone" style={{ width: 30, height: 30, color: PREP_ICON }} /></div>}
                 <span style={{ position: 'absolute', left: 9, top: 9, borderRadius: 999, padding: '5px 9px', background: brandColor, color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', boxShadow: '0 4px 12px rgba(0,0,0,0.18)' }}>{item.type === 'path' ? 'Learning path' : 'Course'}</span>
               </div>
               <div style={{ padding: '12px 4px 11px' }}>
@@ -1607,7 +1607,7 @@ function PrepPreview({ item, brandColor, actionColor, ov }: { item: PrepDetail; 
                     <div style={{ borderRadius: 8, overflow: 'hidden', marginBottom: 6, aspectRatio: '16/9', background: c.imageUrl ? '#0b0b0d' : ov.surface }}>
                       {c.imageUrl
                         ? <img src={c.imageUrl} alt={c.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BookOpen style={{ width: 18, height: 18, color: '#9CA3AF' }} /></div>}
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BookOpen weight="duotone" style={{ width: 18, height: 18, color: '#9CA3AF' }} /></div>}
                     </div>
                     <p style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.3, color: ov.text, ...clamp(2) }}>{c.title}</p>
                   </div>
@@ -1615,7 +1615,7 @@ function PrepPreview({ item, brandColor, actionColor, ov }: { item: PrepDetail; 
               </div>
             </>
           ) : (desc && <p style={{ fontSize: 14, lineHeight: 1.5, color: ov.muted }}>{desc}</p>)}
-          <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...cta, marginTop: 16 }}><Play style={{ width: 14, height: 14 }} /> Start path</a>
+          <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...cta, marginTop: 16 }}><Play weight="fill" style={{ width: 14, height: 14 }} /> Start path</a>
         </div>
       </div>
     );
@@ -1626,14 +1626,14 @@ function PrepPreview({ item, brandColor, actionColor, ov }: { item: PrepDetail; 
       <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: PREP_FALLBACK_BG }}><BookOpen style={{ width: 40, height: 40, color: PREP_ICON }} /></div>}
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: PREP_FALLBACK_BG }}><BookOpen weight="duotone" style={{ width: 40, height: 40, color: PREP_ICON }} /></div>}
         <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: PREP_ICON, color: 'white' }}>Course</span>
       </div>
       <div style={{ padding: 20 }}>
         <p style={{ fontSize: 12, marginBottom: 4, color: ov.muted }}>Course</p>
         <h3 style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: ov.text, ...clamp(2) }}>{item.title}</h3>
         {desc && <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 12, color: ov.muted, ...clamp(3) }}>{desc}</p>}
-        <a href={href} target="_blank" rel="noopener noreferrer" style={cta}><Play style={{ width: 14, height: 14 }} /> Start learning</a>
+        <a href={href} target="_blank" rel="noopener noreferrer" style={cta}><Play weight="fill" style={{ width: 14, height: 14 }} /> Start learning</a>
       </div>
     </div>
   );
