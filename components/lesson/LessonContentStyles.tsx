@@ -1644,7 +1644,8 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-accordion__items, .lesson-content.dark .lesson-accordion__items { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .lesson-content .lesson-accordion__items > [data-node-view-content-react] { display: grid; gap: 10px; counter-reset: lesson-acc; }
 .lesson-content .lesson-accordion__item, .lesson-content.dark .lesson-accordion__item { counter-increment: lesson-acc; overflow: hidden; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); transition: box-shadow 0.25s ease; }
-.lesson-content .lesson-accordion__item + .lesson-accordion__item { border-top: 0; }
+/* Each section is its own card now, so the old divider between stacked sections goes. */
+.lesson-content .lesson-accordion__items > [data-node-view-content-react] > .node-accordionItem + .node-accordionItem { border-top: 0; }
 .lesson-content .lesson-accordion__item[data-open="true"] { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lesson-accent) 50%, transparent), var(--lb-shadow); }
 .lesson-content .lesson-accordion__head { gap: 14px; padding: 14px 16px; font-size: 15px; font-weight: 700; }
 .lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item:not(:has(.lesson-accordion__logo)) .lesson-accordion__head::before {
@@ -1696,7 +1697,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 /* Step cards: each step a white card on a dashed rail, with a solid numbered node. */
 .lesson-content .lesson-step-card, .lesson-content.dark .lesson-step-card { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 0 0 12px; }
 .lesson-content .lesson-step-card::after { left: 19px; top: 44px; bottom: 0; }
-.lesson-content .lesson-step-card__number, .lesson-content.dark .lesson-step-card__number { width: 40px; height: 40px; margin-top: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); font-size: 14px; font-weight: 800; }
+.lesson-content .lesson-step-card__number, .lesson-content.dark .lesson-step-card__number { position: relative; z-index: 1; width: 40px; height: 40px; margin-top: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); font-size: 14px; font-weight: 800; }
 .lesson-content .lesson-step-card__main { padding: 14px 16px; border-radius: 10px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); transition: transform 0.2s ease; }
 .lesson-content .ProseMirror[contenteditable="false"] .lesson-step-card:hover .lesson-step-card__main { transform: translateX(4px); }
 
@@ -1753,8 +1754,15 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-code { border-radius: 12px; border-color: var(--lb-line); box-shadow: var(--lb-shadow); }
 .lesson-content .lesson-code__identity-icon, .lesson-content .lesson-check__identity-icon { width: 38px; height: 38px; flex-basis: 38px; border-radius: 8px; color: var(--lesson-accent-ink); background: var(--lb-tint); }
 .lesson-content.dark .lesson-code__identity-icon, .lesson-content.dark .lesson-check__identity-icon { color: var(--lesson-accent); }
-.lesson-content .tableWrapper { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+/* A real border, not an inset shadow: cell fills (the tinted header) would paint over a shadow. */
+.lesson-content .tableWrapper { overflow-x: auto; border: 1px solid var(--lb-line); border-radius: 12px; box-shadow: var(--lb-shadow); }
 .lesson-content .tableWrapper table { margin: 0; }
+/* The card draws the table's outer edge, so cells keep only the lines between them; a cell an
+   instructor gave its own borders (data-cb) keeps them. */
+.lesson-content .tableWrapper :is(th, td):not([data-cb]) { border-top: 0; border-left: 0; }
+.lesson-content .tableWrapper tr > :is(th, td):last-child:not([data-cb]) { border-right: 0; }
+.lesson-content .tableWrapper tr:last-child > :is(th, td):not([data-cb]) { border-bottom: 0; }
+.lesson-content.dark .tableWrapper :is(th, td):not([data-cb]) { border-color: var(--lb-line); }
 .lesson-content .tableWrapper th, .lesson-content.dark .tableWrapper th { color: var(--lesson-accent-ink); background: var(--cell-bg, var(--lb-tint)); font-size: 13px; font-weight: 800; }
 .lesson-content.dark .tableWrapper th { color: var(--lesson-accent); }
 .lesson-content .lesson-attachment__card, .lesson-content.dark .lesson-attachment__card, .lesson-content a.lesson-attachment__card:hover { border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
