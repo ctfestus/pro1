@@ -14,7 +14,7 @@ function itemLabel(item: ApplicationRelatedItem): string {
 function itemMeta(item: ApplicationRelatedItem): string {
   if (item.type === 'event' && item.date) {
     const date = new Date(item.date);
-    if (!Number.isNaN(date.getTime())) return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    if (!Number.isNaN(date.getTime())) return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
   return item.type === 'event' ? item.location?.trim() || 'View programme' : 'Explore course';
 }
@@ -34,7 +34,7 @@ export function ApplicationRelatedCards({ items, C }: { items: ApplicationRelate
               {cover
                 ? <img src={cover} alt={`${item.title} cover`} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                 : <div className="grid h-full place-items-center"><span className="grid h-12 w-12 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}><Icon className="h-5 w-5" /></span></div>}
-              <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: C.card, color: C.muted }}>{itemLabel(item)}</span>
+              <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: C.card, color: C.muted }}>{itemLabel(item)}</span>
             </div>
             <div className="flex flex-1 flex-col p-4">
               <h3 className="line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{item.title}</h3>

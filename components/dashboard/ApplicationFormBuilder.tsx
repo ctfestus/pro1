@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
+import { MenuSelect } from '@/components/MenuSelect';
 import { ApplicationResponseValidation } from '@/components/dashboard/ApplicationResponseValidation';
 import { ApplicationOptionSuggestions } from '@/components/dashboard/ApplicationOptionSuggestions';
 import { ApplicationQuestionImport } from '@/components/dashboard/ApplicationQuestionImport';
@@ -632,15 +633,13 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           </button>
           {logicOpen && (
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <select value={question.condition?.questionId ?? ''} onChange={event => setConditionQuestion(event.target.value)} style={{ ...inputStyle, background: C.card }}>
-                <option value="">Always show</option>
-                {conditionSources.map(item => <option key={item.id} value={item.id}>If {item.label}</option>)}
-              </select>
+              <MenuSelect label="Show this question" field C={C} value={question.condition?.questionId ?? ''} onChange={setConditionQuestion}
+                options={[{ value: '', label: 'Always show' }, ...conditionSources.map(item => ({ value: item.id, label: `If ${item.label}` }))]} />
               {question.condition && (
                 <>
-                  <select value={question.condition.operator} onChange={event => onUpdate({ condition: { ...question.condition!, operator: event.target.value as ApplicationCondition['operator'] } })} style={{ ...inputStyle, background: C.card }}>
-                    <option value="equals">Equals</option><option value="not_equals">Does not equal</option><option value="contains">Contains</option>
-                  </select>
+                  <MenuSelect<ApplicationCondition['operator']> label="Condition" field C={C} value={question.condition.operator}
+                    onChange={operator => onUpdate({ condition: { ...question.condition!, operator } })}
+                    options={[{ value: 'equals', label: 'Equals' }, { value: 'not_equals', label: 'Does not equal' }, { value: 'contains', label: 'Contains' }]} />
                   <div>
                     <input value={question.condition.value} onChange={event => onUpdate({ condition: { ...question.condition!, value: event.target.value } })} placeholder="Answer value" list={conditionOptions.length ? `application-condition-${question.id}` : undefined} style={{ ...inputStyle, background: C.card }} />
                     {conditionOptions.length > 0 && <datalist id={`application-condition-${question.id}`}>{conditionOptions.map(option => <option key={option} value={option} />)}</datalist>}
@@ -874,12 +873,12 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
               </label>
               {config.fee && <div className="mt-5 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Fee type</span><select value={config.fee.type} onChange={event => { const type = event.target.value as ApplicationFeeType; const defaults = APPLICATION_FEE_TYPES[type]; setConfig({ fee: { ...config.fee!, type, name: defaults.name, due: defaults.due, description: defaults.description } }); }} style={inputStyle}>{(Object.keys(APPLICATION_FEE_TYPES) as ApplicationFeeType[]).map(type => <option key={type} value={type}>{APPLICATION_FEE_TYPES[type].name}</option>)}</select></label>
+                  <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Fee type</span><MenuSelect<ApplicationFeeType> label="Fee type" field C={C} value={config.fee.type} onChange={type => { const defaults = APPLICATION_FEE_TYPES[type]; setConfig({ fee: { ...config.fee!, type, name: defaults.name, due: defaults.due, description: defaults.description } }); }} options={(Object.keys(APPLICATION_FEE_TYPES) as ApplicationFeeType[]).map(type => ({ value: type, label: APPLICATION_FEE_TYPES[type].name }))} /></label>
                   <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Fee name</span><input value={config.fee.name} maxLength={80} onChange={event => setConfig({ fee: { ...config.fee!, name: event.target.value } })} placeholder="Commitment fee" style={inputStyle} /></label>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Amount</span><input type="number" min="0.01" max="1000000000" step="0.01" value={feeAmountInput} onChange={event => { setFeeAmountInput(event.target.value); setConfig({ fee: { ...config.fee!, amount: event.target.value === '' ? 0 : Number(event.target.value) } }); }} placeholder="150" style={inputStyle} /></label>
-                  <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Currency</span><select value={APPLICATION_FEE_CURRENCIES.some(item => item.code === config.fee?.currency) ? config.fee.currency : 'other'} onChange={event => setConfig({ fee: { ...config.fee!, currency: event.target.value === 'other' ? '' : event.target.value } })} style={inputStyle}>{APPLICATION_FEE_CURRENCIES.map(item => <option key={item.code} value={item.code}>{item.code} - {item.name}</option>)}<option value="other">Other currency</option></select></label>
+                  <label><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Currency</span><MenuSelect label="Currency" field searchable C={C} value={APPLICATION_FEE_CURRENCIES.some(item => item.code === config.fee?.currency) ? config.fee.currency : 'other'} onChange={code => setConfig({ fee: { ...config.fee!, currency: code === 'other' ? '' : code } })} options={[...APPLICATION_FEE_CURRENCIES.map(item => ({ value: item.code, label: `${item.code} - ${item.name}` })), { value: 'other', label: 'Other currency' }]} /></label>
                 </div>
                 {!APPLICATION_FEE_CURRENCIES.some(item => item.code === config.fee?.currency) && <label className="block"><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Other currency code</span><input value={config.fee.currency} maxLength={3} onChange={event => setConfig({ fee: { ...config.fee!, currency: event.target.value.toUpperCase().replace(/[^A-Z]/g, '') } })} placeholder="Three-letter code" style={inputStyle} /></label>}
                 <label className="block"><span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>When is it due?</span><input value={config.fee.due} maxLength={120} onChange={event => setConfig({ fee: { ...config.fee!, due: event.target.value } })} placeholder="After acceptance" style={inputStyle} /></label>
@@ -899,19 +898,20 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Admit into cohort</span>
-                <select value={config.admission?.cohortId ?? ''} onChange={event => setConfig({ admission: event.target.value ? { cohortId: event.target.value, nameQuestionId: config.admission?.nameQuestionId ?? suggestedNameQuestionId(config.questions) } : undefined })} style={inputStyle}>
-                  <option value="">Do not admit from this form</option>
-                  {cohorts.map(cohort => <option key={cohort.id} value={cohort.id}>{cohort.name}{cohort.ready ? '' : ' (fee or start date not set)'}</option>)}
-                  {config.admission && !admissionCohort && <option value={config.admission.cohortId}>Unavailable cohort</option>}
-                </select>
+                <MenuSelect label="Admit to cohort" field searchable C={C} value={config.admission?.cohortId ?? ''}
+                  onChange={cohortId => setConfig({ admission: cohortId ? { cohortId, nameQuestionId: config.admission?.nameQuestionId ?? suggestedNameQuestionId(config.questions) } : undefined })}
+                  options={[
+                    { value: '', label: 'Do not admit from this form' },
+                    ...cohorts.map(cohort => ({ value: cohort.id, label: `${cohort.name}${cohort.ready ? '' : ' (fee or start date not set)'}` })),
+                    ...(config.admission && !admissionCohort ? [{ value: config.admission.cohortId, label: 'Unavailable cohort' }] : []),
+                  ]} />
               </label>
               {config.admission && (
                 <label className="block">
                   <span className="mb-2 block text-xs font-semibold" style={{ color: C.muted }}>Student name comes from</span>
-                  <select value={config.admission.nameQuestionId ?? ''} onChange={event => setConfig({ admission: { ...config.admission!, nameQuestionId: event.target.value || undefined } })} style={inputStyle}>
-                    <option value="">No name question</option>
-                    {config.questions.filter(question => question.type === 'short_text').map(question => <option key={question.id} value={question.id}>{question.label || 'Untitled question'}</option>)}
-                  </select>
+                  <MenuSelect label="Name question" field C={C} value={config.admission.nameQuestionId ?? ''}
+                    onChange={id => setConfig({ admission: { ...config.admission!, nameQuestionId: id || undefined } })}
+                    options={[{ value: '', label: 'No name question' }, ...config.questions.filter(question => question.type === 'short_text').map(question => ({ value: question.id, label: question.label || 'Untitled question' }))]} />
                 </label>
               )}
             </div>
