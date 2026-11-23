@@ -153,6 +153,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const [activeStep, setActiveStep] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [stepDirection, setStepDirection] = useState(1);
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
 
   useEffect(() => {
     if (previewForm) {
@@ -169,6 +170,21 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
       .catch(error => setMessage(error.message || 'This application form is temporarily unavailable.'))
       .finally(() => setLoading(false));
   }, [previewForm, slug]);
+
+  // The deadline can pass while someone is filling the form in: close it then, not on submit.
+  const closesAt = preview ? '' : form?.config?.closesAt;
+  useEffect(() => {
+    const deadline = closesAt ? new Date(closesAt).getTime() : NaN;
+    if (!Number.isFinite(deadline)) return;
+    // setTimeout holds at most about 24 days; a later deadline is checked again when it fires.
+    const check = () => {
+      const left = deadline - Date.now();
+      if (left <= 0) { setDeadlinePassed(true); return; }
+      timer = window.setTimeout(check, Math.min(left, 2 ** 31 - 1));
+    };
+    let timer = window.setTimeout(check, 0);
+    return () => window.clearTimeout(timer);
+  }, [closesAt]);
 
   useEffect(() => {
     const redirectUrl = form?.config?.postSubmission?.redirectUrl;
@@ -279,6 +295,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
 
   const C = applicationThemeColors(baseC, form.config.themeColor, form.config.theme ?? 'platform', form.config.customTheme, form.config.themeMode ?? 'light');
   const themedPageStyle = { background: C.page, '--application-focus-color': C.cta } as CSSProperties;
+  const availability = deadlinePassed ? 'closed' : form.availability;
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
@@ -386,11 +403,11 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
               {showOverviewDetails && form.config.fee && <ApplicationFeeTicket fee={form.config.fee} C={C} />}
               {showOverviewDetails && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
               {showOverviewDetails && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><div className="application-rich-content rich-content compact mt-2" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: applicationRichText(form.config.eligibility) }} /></div>}
-              {form.availability !== 'open' ? <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div> : !listLayout && !started && (<div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div>)}
+              {availability !== 'open' ? <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{availability === 'not_open' ? 'Applications have not opened yet.' : availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div> : !listLayout && !started && (<div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div>)}
             </div>
           </section>
 
-          {listLayout && form.availability === 'open' && <>
+          {listLayout && availability === 'open' && <>
             <section id="application-question-email" className="scroll-mt-4 rounded-xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
               <div className="mb-4 flex items-start gap-3">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.pill, color: emailError ? C.errorText : C.muted }}>1</span>
@@ -410,7 +427,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
             </section>
           </>}
 
-          {!listLayout && started && form.availability === 'open' ? <section className="rounded-xl" style={{ background: C.card }}>
+          {!listLayout && started && availability === 'open' ? <section className="rounded-xl" style={{ background: C.card }}>
             <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Step ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
               <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.skeleton }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>

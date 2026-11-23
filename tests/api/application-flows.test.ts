@@ -386,6 +386,18 @@ describe('application end-to-end route boundaries', () => {
     expect(value.submission.status).toBe('Application received');
     expect(value.submission.privateNotes).toBeUndefined();
     expect(value.submission.tokenHash).toBeUndefined();
+    expect(value.submission.accepted).toBe(false);
+  });
+
+  it('marks only an acceptance stage as accepted for the status page', async () => {
+    const status = async (stageId: string) => {
+      getSubmissionByTokenHash.mockResolvedValue({ ...submission, state: 'submitted', stageId });
+      const response = await applicantStatus(new Request('http://localhost') as any, { params: Promise.resolve({ token: 'token' }) });
+      return (await response.json()).submission;
+    };
+    expect(await status('accepted')).toMatchObject({ status: 'Accepted', accepted: true });
+    expect(await status('declined')).toMatchObject({ status: 'Decision made', accepted: false });
+    expect(await status('waitlisted')).toMatchObject({ accepted: false });
   });
 
   it('exports submitted applications as CSV without secure tokens or private notes', async () => {
