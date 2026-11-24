@@ -65,7 +65,8 @@ function icon(name: string, size = 20): string {
 }
 
 type Tone = 'info' | 'good' | 'warn';
-const HERO_EYEBROW: Record<Tone, string> = { info: '#2563eb', good: '#15803d', warn: '#b45309' };
+// Information is neutral grey; colour only where it means something (good news, action needed).
+const HERO_EYEBROW: Record<Tone, string> = { info: '#4b5563', good: '#15803d', warn: '#b45309' };
 
 /**
  * The news, as the opening title of the email: a small grey icon tile with a coloured label on one
@@ -110,9 +111,9 @@ function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boo
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
 </head>
-<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;">
-    <tr><td align="center" style="padding:24px 12px;">
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff;">
+    <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;margin:0 auto;background-color:#ffffff;">
 
         ${headerHtml}
@@ -129,7 +130,7 @@ function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boo
         <!-- Footer -->
         <tr><td style="padding:14px 26px 18px;border-top:1px solid #f0f1f3;font-size:12px;line-height:1.5;color:#9ca3af;">
           ${opts?.neutralFooter ? `You received this because this email address is associated with ${appName}.` : `You received this because you are enrolled on ${appName}.`} &middot;
-          <a href="${appUrl_}" style="color:#2563eb;">Visit ${appName}</a>
+          <a href="${appUrl_}" style="color:#6b7280;text-decoration:underline;">Visit ${appName}</a>
         </td></tr>
 
       </table>
@@ -305,7 +306,7 @@ function itemCard(item: { title: string; coverImage?: string | null; isVE?: bool
         <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#6b7280;">${icon(k.icon, 13)}&nbsp; ${k.label}</p>
         <p style="margin:1px 0 0;font-size:15px;font-weight:700;line-height:1.35;color:#111827;">${item.title}</p>
         ${item.description ? `<p style="margin:2px 0 0;font-size:13px;line-height:1.45;color:#6b7280;">${item.description}</p>` : ''}
-        ${chip ? `<p style="margin:6px 0 0;"><span style="display:inline-block;font-size:11.5px;font-weight:700;color:#2563eb;background:#f3f4f6;padding:2px 9px;border-radius:99px;">${chip}</span></p>` : ''}
+        ${chip ? `<p style="margin:6px 0 0;"><span style="display:inline-block;font-size:11.5px;font-weight:700;color:#111827;background:#f3f4f6;padding:2px 9px;border-radius:99px;">${chip}</span></p>` : ''}
       </td>
     </tr>
   </table>`;
@@ -429,7 +430,7 @@ function badgeBlock(badgeName: string, badgeImageUrl: string, badgesUrl: string)
         <td valign="middle" style="padding:14px 16px;">
           <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">${icon('medal', 13)}&nbsp; Badge earned</p>
           <p style="margin:2px 0 8px;font-size:16px;font-weight:700;color:#111827;">${esc(badgeName)}</p>
-          <a href="${badgesUrl}" style="font-size:13px;font-weight:700;color:#2563eb;text-decoration:none;">View in your profile</a>
+          <a href="${badgesUrl}" style="font-size:13px;font-weight:700;color:#111827;text-decoration:underline;">View in your profile</a>
         </td>
       </tr>
     </table>
