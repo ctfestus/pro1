@@ -1805,6 +1805,12 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-xl__grid th, .lesson-content .lesson-xl__grid td { height: 26px; padding: 0 8px; overflow: hidden; border: 1px solid var(--x-grid); color: var(--x-tx); background: var(--x-cell); font-size: 13px; font-weight: 400; text-align: left; white-space: nowrap; text-overflow: ellipsis; vertical-align: middle; }
 .lesson-content .lesson-xl__grid th { color: var(--x-headtx); background: var(--x-head); font-size: 12px; text-align: center; }
 .lesson-content .lesson-xl__grid .lesson-xl__corner, .lesson-content .lesson-xl__grid tbody th { width: 36px; }
+.lesson-content .lesson-xl__grid th { position: relative; }
+.lesson-content .lesson-xl__size { position: absolute; z-index: 2; }
+.lesson-content .lesson-xl__size--col { top: 0; right: 0; width: 5px; height: 100%; cursor: col-resize; }
+.lesson-content .lesson-xl__size--row { left: 0; bottom: 0; width: 100%; height: 5px; cursor: row-resize; }
+.lesson-content .lesson-xl__size:hover { background: var(--x-green); opacity: 0.5; }
+.lesson-content .lesson-xl__grid tr[data-tall="true"] td { white-space: normal; overflow-wrap: anywhere; }
 .lesson-content .lesson-xl__grid th[data-on="true"] { color: var(--x-green); background: var(--x-hdrsel); font-weight: 600; box-shadow: inset 0 -2px 0 var(--x-green); }
 .lesson-content .lesson-xl__grid tbody th[data-on="true"] { box-shadow: inset -2px 0 0 var(--x-green); }
 .lesson-content.dark .lesson-xl__grid th[data-on="true"] { color: #6fcf97; }

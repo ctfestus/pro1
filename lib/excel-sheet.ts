@@ -25,12 +25,18 @@ export interface ExcelSheetData {
   rows: number;
   cells: Record<string, ExcelCell>;
   frames: ExcelFrame[];
+  /** Column widths in px by letter, set by dragging a column edge. Unset columns share the space. */
+  colWidths?: Record<string, number>;
+  /** Row heights in px by row number; a taller row wraps its text. */
+  rowHeights?: Record<string, number>;
 }
 
 export const EXCEL_MAX_COLS = 12;
 export const EXCEL_MAX_ROWS = 60;
 export const EXCEL_MAX_SHEETS = 8;
 const MAX_TEXT = 300;
+export const EXCEL_COL_WIDTH = { min: 40, max: 600 };
+export const EXCEL_ROW_HEIGHT = { min: 26, max: 240 };
 
 const STYLES = new Set<ExcelCellStyle>(['', 'num', 'hd', 'tot', 'num tot']);
 const CELL_ID = /^([A-L])([1-9]\d?)$/;
@@ -88,7 +94,16 @@ export function normalizeSheets(input: unknown): ExcelSheetData[] {
       .filter((f): f is { a: string; b: string } => !!f && CELL_ID.test(String((f as ExcelFrame).a)) && CELL_ID.test(String((f as ExcelFrame).b)))
       .slice(0, 9)
       .map((f, n) => ({ a: f.a, b: f.b, n: n + 1 }));
-    return { name: clip(s.name).trim() || `Sheet${i + 1}`, cols, rows, cells, frames };
+    const sizes = (value: unknown, valid: (key: string) => boolean, limits: { min: number; max: number }) => {
+      const out: Record<string, number> = {};
+      for (const [key, n] of Object.entries((value && typeof value === 'object' ? value : {}) as Record<string, unknown>)) {
+        if (valid(key) && Number.isFinite(Number(n))) out[key] = clamp(n, limits.min, limits.max, limits.min);
+      }
+      return Object.keys(out).length ? out : undefined;
+    };
+    const colWidths = sizes(s.colWidths, (k) => /^[A-L]$/.test(k) && colIndex(k) < cols, EXCEL_COL_WIDTH);
+    const rowHeights = sizes(s.rowHeights, (k) => /^[1-9]\d?$/.test(k) && Number(k) <= rows, EXCEL_ROW_HEIGHT);
+    return { name: clip(s.name).trim() || `Sheet${i + 1}`, cols, rows, cells, frames, ...(colWidths && { colWidths }), ...(rowHeights && { rowHeights }) };
   });
   return sheets.length ? sheets : [blankSheet('Sheet1')];
 }
