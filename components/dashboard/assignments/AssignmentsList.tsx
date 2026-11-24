@@ -157,7 +157,7 @@ export function AssignmentsList({ assignments, onOpen, onDuplicate, onDelete, du
           <div className="grid sm:grid-cols-3 gap-3">
             {kpis.map((k) => (
               <Card key={k.label} C={C} className="p-4 grid gap-2 content-start">
-                <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
+                <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 font-semibold tabular-nums" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
                 <p className="text-sm font-semibold" style={{ color: C.text }}>{k.label}</p>
                 <p className="text-xs line-clamp-2" style={{ color: C.muted }}>{k.sub}</p>
               </Card>

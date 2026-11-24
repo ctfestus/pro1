@@ -76,7 +76,7 @@ export function Kpis({ items, C }: { items: { label: string; n: ReactNode; sub: 
     <div className={`grid gap-3 ${items.length === 4 ? 'grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}>
       {items.map((k) => (
         <Card key={k.label} C={C} className="p-4 grid gap-2 content-start">
-          <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
+          <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 font-semibold tabular-nums" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
           <p className="text-sm font-semibold" style={{ color: C.text }}>{k.label}</p>
           <p className="text-xs" style={{ color: C.muted }}>{k.sub}</p>
         </Card>

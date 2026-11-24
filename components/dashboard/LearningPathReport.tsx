@@ -280,7 +280,7 @@ export function LearningPathReport({ C, pathId, header }: { C: Theme; pathId: st
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         {tiles.map(([label, n, color]) => (
           <Card key={label} C={C} className="p-4 grid gap-2 content-start">
-            <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums" style={{ color: color ?? C.text, fontFamily: DISPLAY_FONT }}>{n}</p>
+            <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 font-semibold tabular-nums" style={{ color: color ?? C.text, fontFamily: DISPLAY_FONT }}>{n}</p>
             <p className="text-sm font-semibold" style={{ color: C.text }}>{label}</p>
           </Card>
         ))}
