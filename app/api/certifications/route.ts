@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeCoverVideo } from '@/lib/course-schema';
 import { randomBytes } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
 import { requireRole, requireUser, isAuthError } from '@/lib/api-auth';
@@ -56,6 +57,7 @@ function toRow(config: any) {
   return {
     cert_type:       config.certType === 'career' ? 'career' : 'technology',
     cover_image:     config.coverImage ?? null,
+    cover_video:     normalizeCoverVideo(config.coverVideo),
     badge_image_url: config.badgeImageUrl ?? null,
     questions:       normalizeQuestions(config.questions),
     practice_questions: normalizeQuestions(Array.isArray(config.practiceQuestions) ? config.practiceQuestions : []),

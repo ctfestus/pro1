@@ -29,7 +29,8 @@ import type {
 } from '@/lib/course-schema';
 import { questionNumbers, itemIssues, courseIssues } from '@/lib/course-validation';
 import { groupOutline, moveModule, moduleIds } from '@/lib/course-outline';
-import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS, COURSE_DIFFICULTIES } from '@/lib/course-schema';
+import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS, COURSE_DIFFICULTIES, normalizeCoverVideo } from '@/lib/course-schema';
+import { CoverVideoField } from '@/components/CoverVideoField';
 import { useToolIconMap } from '@/lib/use-tool-icons';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -693,13 +694,14 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     setIsLoading(true);
     (async () => {
       if (contentType === 'course') {
-        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
+        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, cover_video, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
         if (course) {
           setFormConfig({
             isCourse: true,
             title: course.title,
             description: course.description ?? '',
             coverImage: course.cover_image,
+            coverVideo: normalizeCoverVideo(course.cover_video),
             questions: course.questions ?? [],
             fields: course.fields ?? [],
             passmark: course.passmark,
@@ -2208,6 +2210,11 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                   onSelect={ref => { if (formConfig?.coverImage && formConfig.coverImage !== ref) deleteUploadedFile(formConfig.coverImage); updateConfig({ coverImage: ref }); }}
                   onClose={() => setShowCoverLibrary(false)}
                 />
+              )}
+              {formConfig.isCourse && (
+                <div className="mt-6 pt-6" style={{ borderTop: `1px solid ${FE.divider}` }}>
+                  <CoverVideoField value={formConfig.coverVideo} onChange={coverVideo => updateConfig({ coverVideo })} noun="course" />
+                </div>
               )}
               </div>
             )}

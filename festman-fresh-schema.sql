@@ -229,6 +229,7 @@ CREATE TABLE public.courses (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   deadline_days   integer,
   theme           text,
   mode            text        CHECK (mode IN ('light','dark','auto')),
@@ -344,6 +345,7 @@ CREATE TABLE public.virtual_experiences (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   deadline_days   integer,
   theme           text,
   mode            text        CHECK (mode IN ('light','dark')),
@@ -396,6 +398,7 @@ CREATE TABLE public.certifications (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   badge_image_url text,
   questions       jsonb       NOT NULL DEFAULT '[]',
   -- Separate practice-only bank (migration 133); practice mode reveals feedback, never the exam bank.
@@ -778,6 +781,7 @@ CREATE TABLE public.learning_paths (
   title         text        NOT NULL,
   description   text,
   cover_image   text,
+  cover_video   jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   instructor_id uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   item_ids      uuid[]      NOT NULL DEFAULT '{}',
   cohort_ids    uuid[]      NOT NULL DEFAULT '{}',
@@ -4034,7 +4038,8 @@ CREATE VIEW public.published_courses
 WITH (security_barrier = true)
 AS
   SELECT c.id, c.title, c.description, c.cover_image, c.slug, c.category,
-         p.name AS partner_name, p.logo_url AS partner_logo_url
+         p.name AS partner_name, p.logo_url AS partner_logo_url,
+         c.cover_video  -- migration 254
   FROM public.courses c
   LEFT JOIN public.partners p ON p.id = c.partner_id AND p.is_active = true
   WHERE c.status = 'published';
@@ -4069,7 +4074,7 @@ GRANT SELECT ON public.course_outlines TO authenticated;
 CREATE VIEW public.published_virtual_experiences
 WITH (security_barrier = true)
 AS
-  SELECT id, title, tagline, cover_image, slug, industry, difficulty
+  SELECT id, title, tagline, cover_image, slug, industry, difficulty, cover_video  -- cover_video: migration 254
   FROM   public.virtual_experiences
   WHERE  status = 'published';
 
@@ -4078,7 +4083,7 @@ GRANT SELECT ON public.published_virtual_experiences TO anon, authenticated;
 CREATE VIEW public.published_learning_paths
 WITH (security_barrier = true)
 AS
-  SELECT id, title, description, cover_image
+  SELECT id, title, description, cover_image, cover_video  -- cover_video: migration 254
   FROM   public.learning_paths
   WHERE  status = 'published';
 
@@ -7026,7 +7031,7 @@ GRANT SELECT ON public.publicly_offered_learning_paths TO anon, authenticated;
 CREATE OR REPLACE VIEW public.publicly_offered_certifications
 WITH (security_barrier = true)
 AS
-  SELECT ce.id, ce.title, ce.description, ce.cover_image, ce.slug, ce.cert_type
+  SELECT ce.id, ce.title, ce.description, ce.cover_image, ce.slug, ce.cert_type, ce.cover_video  -- cover_video: migration 254
   FROM   public.certifications ce
   JOIN   public.publicly_offered_content o
     ON   o.content_table = 'certifications' AND o.content_id = ce.id;

@@ -19,6 +19,7 @@
  * An anonymous viewer belongs to no cohort, so `locked` reduces to "is this offered to everyone",
  * which is the authenticated rule in app/api/student/catalogue evaluated with no viewer.
  */
+import { normalizeCoverVideo } from '@/lib/course-schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { findPublicCatalogueItem } from '@/lib/public-catalogue-item';
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
         title: (record.title as string) ?? 'Untitled',
         slug: (record.slug as string) ?? null,
         coverImage: (record.cover_image as string) ?? null,
+        coverVideo: normalizeCoverVideo(record.cover_video),
         description: (record.description as string) ?? null,
         category: (record.category as string) ?? null,
         locked,

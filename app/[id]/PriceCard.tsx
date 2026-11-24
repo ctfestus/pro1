@@ -5,7 +5,7 @@
 // not the item's, and the card says so: it opens everything in the plan.
 
 import Link from 'next/link';
-import { ArrowRight, Check, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck } from '@phosphor-icons/react';
 import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
 import { enrollLabel, pricingHrefFor, sellablePlans, unlockDurationLabel, unlockMoney, type UnlockInfo } from '@/lib/unlock-pricing';
 

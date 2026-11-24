@@ -5,6 +5,8 @@
 // list. Reuses the shared CourseQuestion shape, QuestionTypePicker, the dashboard theme,
 // and the dnd-kit sortable pattern. Persists to /api/certifications.
 
+import { normalizeCoverVideo, type CoverVideo } from '@/lib/course-schema';
+import { CoverVideoField } from '@/components/CoverVideoField';
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -75,6 +77,7 @@ interface CertState {
   certType: CertificationType; // 'career' | 'technology'; groups the certifications listing
   slug: string;               // public URL; blank keeps the current/auto-generated one
   coverImage: string;
+  coverVideo: CoverVideo | null;
   badgeImageUrl: string;      // awarded on pass; shown on the certificate, report, and badges
   passmark: number;
   timeLimit: number;          // minutes; 0 = untimed
@@ -101,7 +104,7 @@ interface CertState {
 }
 
 const DEFAULTS: CertState = {
-  title: '', description: '', certType: 'technology', slug: '', coverImage: '', badgeImageUrl: '',
+  title: '', description: '', certType: 'technology', slug: '', coverImage: '', coverVideo: null, badgeImageUrl: '',
   passmark: 70, timeLimit: 30, maxAttempts: 1, retakeCooldownHours: 24, examProtection: true,
   cohortIds: [],
   availableToEveryone: false,
@@ -157,7 +160,7 @@ function CertificationEditor() {
         setSavedStatus(data.status === 'published' ? 'published' : 'draft');
         setState({
           title: data.title ?? '', description: data.description ?? '', certType: data.cert_type === 'career' ? 'career' : 'technology',
-          slug: data.slug ?? '', coverImage: data.cover_image ?? '',
+          slug: data.slug ?? '', coverImage: data.cover_image ?? '', coverVideo: normalizeCoverVideo(data.cover_video),
           badgeImageUrl: data.badge_image_url ?? '',
           passmark: data.passmark ?? 70, timeLimit: data.time_limit ?? 0, maxAttempts: data.max_attempts ?? 1,
           retakeCooldownHours: data.retake_cooldown_hours ?? 24,
@@ -262,6 +265,7 @@ function CertificationEditor() {
         config: {
           certType: state.certType,
           coverImage: state.coverImage,
+          coverVideo: state.coverVideo,
           badgeImageUrl: state.badgeImageUrl || null,
           questions: state.questions,
           passmark: state.passmark,
@@ -410,6 +414,9 @@ function CertificationEditor() {
                 <ImagePickerField C={C} value={state.badgeImageUrl} onChange={url => update({ badgeImageUrl: url })} folder="certification-badges" placeholder="Select or upload a badge" contain />
                 <p className="text-xs mt-2" style={{ color: C.muted }}>Awarded on pass; shown on the report and in badges.</p>
               </div>
+            </div>
+            <div className="mt-5 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+              <CoverVideoField value={state.coverVideo} onChange={coverVideo => update({ coverVideo })} noun="certification" />
             </div>
           </Sect>
           <Sect C={C} title="Exam integrity">

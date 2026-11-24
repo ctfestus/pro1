@@ -8,6 +8,8 @@
  * Explore on the student dashboard and the public landing page both render this one component, so
  * a visitor and a signed-in learner see the same preview.
  */
+import { CoverVideoPlayer } from '@/components/CoverVideoPlayer';
+import type { CoverVideo } from '@/lib/course-schema';
 import type { ElementType, ReactNode } from 'react';
 import { ArrowRight, Award, Briefcase, Check, Clock, Film, GraduationCap, Layers, Lock, Package, Play, Tag, Target } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
@@ -25,6 +27,8 @@ export interface CatalogueItem {
   title: string;
   slug: string | null;
   coverImage: string | null;
+  /** The cover video, when there is one: the card shows a play button. */
+  coverVideo?: CoverVideo | null;
   description: string | null;
   category: string | null;
   /** A course's partner ("Offered by ...") or an experience's role. */
@@ -134,7 +138,9 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
       <div className="rounded-xl overflow-hidden" style={{ fontFamily: font, background: previewSurface, border: `1px solid ${previewEdge}`, boxShadow: previewShadow }}>
         <div className="p-3 pb-0">
           <div className="relative w-full aspect-video overflow-hidden rounded-lg" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
-            {coverUrl
+            {item.coverVideo
+              ? <CoverVideoPlayer video={item.coverVideo} color={accent} poster={coverUrl || undefined} embedded />
+              : coverUrl
               ? <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center"><Layers className="w-9 h-9" style={{ color: C.faint }} /></div>}
             <span className="absolute left-0 top-3 px-3 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>Learning path</span>
@@ -195,7 +201,10 @@ export function CataloguePreview({ item, accent, href, onOpen, viewOnly = false,
     >
       <div className="p-3 pb-0">
       <div className={`relative w-full aspect-video overflow-hidden ${compact ? 'rounded-lg' : 'rounded-xl'}`} style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
-        {coverUrl ? (
+        {item.coverVideo ? (
+          // The cover video plays right here in the preview, with sound, once play is pressed.
+          <CoverVideoPlayer video={item.coverVideo} color={accent} poster={coverUrl || undefined} embedded />
+        ) : coverUrl ? (
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
           // No cover: the tool's logo on soft grey, as the card shows it.

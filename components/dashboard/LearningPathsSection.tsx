@@ -2,6 +2,8 @@
 
 // Learning-path management workspace shared by the instructor dashboard.
 
+import { normalizeCoverVideo } from '@/lib/course-schema';
+import { CoverVideoField } from '@/components/CoverVideoField';
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertCircle, ArrowLeft, BarChart3, Check, CheckCircle2, ChevronDown, ChevronUp, Layers3, Loader2, Pencil, Plus, Settings2, Sparkles, Trash2, Upload, X, XCircle } from 'lucide-react';
@@ -535,6 +537,9 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
               {showCoverLibrary && (
                 <ImageLibrary uploadFolder="covers" initialFolder="covers" onSelect={url => setEditing((p: any) => ({ ...p, cover_image: url }))} onClose={() => setShowCoverLibrary(false)}/>
               )}
+              <div className="mt-5 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+                <CoverVideoField value={normalizeCoverVideo(editing.cover_video)} onChange={video => setEditing((p: any) => ({ ...p, cover_video: video }))} noun="learning path" />
+              </div>
             </Sect>
           </Card>
         )}

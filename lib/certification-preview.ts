@@ -12,6 +12,7 @@
  * questions there are. Nothing here changes that. `questions` is read on the server to produce a
  * count and to list which sections exist; no question text, option or answer key leaves.
  */
+import { normalizeCoverVideo } from '@/lib/course-schema';
 
 /**
  * The columns a preview needs. Pinned here so both catalogue routes select the same set.
@@ -24,7 +25,7 @@
  */
 export const CERTIFICATION_PREVIEW_COLUMNS =
   'title, description, cert_type, passmark, time_limit, max_attempts, retake_cooldown_hours, '
-  + 'exam_protection, cover_image, badge_image_url, theme, mode, font, custom_accent, '
+  + 'exam_protection, cover_image, cover_video, badge_image_url, theme, mode, font, custom_accent, '
   + 'skill_areas, question_pool_size, questions';
 
 /** A slide that carries a gradeable answer, matching the exam route's own count. */
@@ -50,7 +51,7 @@ export function certificationPreviewConfig(cert: any) {
     // made every locked certification warn about a protected exam, including ones configured
     // without protection.
     examProtection: cert?.exam_protection,
-    coverImage: cert?.cover_image, badgeImageUrl: cert?.badge_image_url || null,
+    coverImage: cert?.cover_image, coverVideo: normalizeCoverVideo(cert?.cover_video), badgeImageUrl: cert?.badge_image_url || null,
     theme: cert?.theme, mode: cert?.mode, font: cert?.font, customAccent: cert?.custom_accent,
     skillAreas: Array.isArray(cert?.skill_areas) ? cert.skill_areas : [],
     sections: ['technical', 'practical'].filter(s => questions.some((q: any) => q?.section === s)),

@@ -183,7 +183,7 @@ describe('GET /api/student/catalogue', () => {
     const list = await items();
 
     expect(Object.keys(list[0]).sort()).toEqual(
-      ['byline', 'bylineLogo', 'category', 'coverImage', 'description', 'id', 'locked', 'slug', 'title', 'type'],
+      ['byline', 'bylineLogo', 'category', 'coverImage', 'coverVideo', 'description', 'id', 'locked', 'slug', 'title', 'type'],
     );
     expect(JSON.stringify(list)).not.toContain('correctAnswer');
   });
@@ -254,7 +254,7 @@ describe('GET /api/student/catalogue', () => {
     // lesson, one gradeable question at 50 base points, and a section that is neither.
     expect(item).toEqual({
       id: 'c7', type: 'course', title: 'Locked course', slug: 'locked-course',
-      coverImage: 'cover.jpg', description: 'Overview', category: 'Data', byline: null, bylineLogo: null, outcomes: ['Read a query plan'], locked: true,
+      coverImage: 'cover.jpg', coverVideo: null, description: 'Overview', category: 'Data', byline: null, bylineLogo: null, outcomes: ['Read a query plan'], locked: true,
       unlock: { plans: [] },
       mode: 'light', theme: 'ocean', font: 'inter', customAccent: '#123456',
       learnOutcomes: ['Read a query plan'],
@@ -442,7 +442,7 @@ describe('GET /api/student/catalogue', () => {
       });
       const list = await items();
       expect(Object.keys(byTitle(list, 'Book')).sort()).toEqual(
-        ['byline', 'bylineLogo', 'category', 'coverImage', 'description', 'id', 'inStore', 'locked', 'prices', 'slug', 'title', 'type'],
+        ['byline', 'bylineLogo', 'category', 'coverImage', 'coverVideo', 'description', 'id', 'inStore', 'locked', 'prices', 'slug', 'title', 'type'],
       );
       expect(JSON.stringify(list)).not.toContain('file-x');
     });

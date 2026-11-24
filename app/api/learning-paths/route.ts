@@ -1,4 +1,5 @@
 import { sanitizeRichText } from '@/lib/sanitize';
+import { normalizeCoverVideo } from '@/lib/course-schema';
 import { looksLikeHtml } from '@/lib/plain-text';
 
 /**
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
+    const { title, description, cover_image, cover_video, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
             overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest) {
       // Rich text from the editor: cleaned before it is stored, and it is also emailed.
       description: cleanAuthored(description),
       cover_image: cover_image ?? null,
+      cover_video: normalizeCoverVideo(cover_video),
       badge_image_url: badge_image_url ?? null,
       // What the path is FOR, as opposed to what it contains. Arrays default to empty so a path
       // saved before these existed simply shows fewer sections.
@@ -195,7 +197,7 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
+    const { id, title, description, cover_image, cover_video, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
             overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
     // Checked before saving: normalizeTracks would drop a bad track, silently making its items
@@ -243,6 +245,7 @@ export async function POST(req: NextRequest) {
     if (title           !== undefined) updateData.title           = title.trim();
     if (description     !== undefined) updateData.description     = cleanAuthored(description);
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
+    if (cover_video     !== undefined) updateData.cover_video     = normalizeCoverVideo(cover_video);
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
     // Tracks may only name items in the path, so they are cleaned against the item list being

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server';
+import { normalizeCoverVideo } from '@/lib/course-schema';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
@@ -249,7 +250,7 @@ export async function POST(req: NextRequest) {
           passmark: cert.passmark, timeLimit: cert.time_limit,
           maxAttempts: cert.max_attempts, retakeCooldownHours: cert.retake_cooldown_hours ?? 24,
           examProtection: cert.exam_protection,
-          coverImage: cert.cover_image, badgeImageUrl: cert.badge_image_url || null, deadline_days: cert.deadline_days,
+          coverImage: cert.cover_image, coverVideo: normalizeCoverVideo(cert.cover_video), badgeImageUrl: cert.badge_image_url || null, deadline_days: cert.deadline_days,
           theme: cert.theme, mode: cert.mode, font: cert.font, customAccent: cert.custom_accent,
           // Foundation assets shown on the intro screen. Study guide + poster are gated on their
           // publish flags; skill areas + practice-test link are always visible.

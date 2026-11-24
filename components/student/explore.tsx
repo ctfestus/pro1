@@ -17,6 +17,7 @@
  * courses and virtual_experiences), and /api/student/catalogue returns display fields only, so a
  * locked card carries no course content to leak.
  */
+import { VideoBadge } from '@/components/CoverVideoPlayer';
 import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
@@ -305,6 +306,7 @@ function CatalogueRow({ title, type, items, C, onOpen, onHover, onHoverLeave }: 
                         <Lock className="h-3 w-3" /> Locked
                       </span>
                     )}
+                    {item.coverVideo && <VideoBadge />}
                   </div>
 
                   <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">

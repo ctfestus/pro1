@@ -6,7 +6,7 @@
  * from the page's metadata; the title and blurb go along for apps that show text.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { Check, Link2, Share2 } from 'lucide-react';
+import { Check, LinkSimple as Link2, ShareNetwork as Share2 } from '@phosphor-icons/react';
 import { SHARE_PLATFORMS } from '@/components/share-platforms';
 
 const ORDER = ['whatsapp', 'linkedin', 'twitter', 'facebook'] as const;

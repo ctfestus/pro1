@@ -11,10 +11,10 @@ import { supabase } from '@/lib/supabase';
 import type { ThemeColors } from '@/lib/theme';
 import { btnClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
 
-type BunnyVideo = { guid: string; title: string; embedUrl: string; thumbnail?: string; status: number; duration: number };
+export type BunnyVideo = { guid: string; title: string; embedUrl: string; thumbnail?: string; status: number; duration: number };
 type BunnyCollection = { guid: string; name: string; videoCount: number };
 
-export function BunnyPicker({ C, onPick, onClose }: { C: ThemeColors; onPick: (embedUrl: string) => void; onClose: () => void }) {
+export function BunnyPicker({ C, onPick, onClose }: { C: ThemeColors; onPick: (embedUrl: string, video: BunnyVideo) => void; onClose: () => void }) {
   const P = palette(C);
   const [videos, setVideos] = useState<BunnyVideo[]>([]);
   const [collections, setCollections] = useState<BunnyCollection[]>([]);
@@ -93,7 +93,7 @@ export function BunnyPicker({ C, onPick, onClose }: { C: ThemeColors; onPick: (e
             {!loading && !error && videos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {videos.map(v => (
-                  <button key={v.guid} type="button" onClick={() => onPick(v.embedUrl)}
+                  <button key={v.guid} type="button" onClick={() => onPick(v.embedUrl, v)}
                     className="text-left rounded-xl overflow-hidden transition-transform hover:scale-[1.02] group" style={{ background: C.input }}>
                     <div className="relative aspect-video bg-black overflow-hidden">
                       {v.thumbnail

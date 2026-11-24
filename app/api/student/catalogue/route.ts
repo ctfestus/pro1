@@ -14,6 +14,7 @@
  * The `locked` flag mirrors the RLS rules rather than inventing its own, or a student would see a
  * padlock on something they can actually open.
  */
+import { normalizeCoverVideo, type CoverVideo } from '@/lib/course-schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
@@ -43,6 +44,7 @@ export interface CatalogueItem {
   title: string;
   slug: string | null;
   coverImage: string | null;
+  coverVideo: CoverVideo | null;
   description: string | null;
   category: string | null;
   /** A course's partner ("Offered by ...") or an experience's role. */
@@ -77,6 +79,7 @@ type Row = {
   title: string | null;
   slug?: string | null;
   cover_image: string | null;
+  cover_video?: unknown;
   description: string | null;
   category?: string | null;
   industry?: string | null;
@@ -148,16 +151,16 @@ export async function GET(req: NextRequest) {
   try {
     const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
-        .select('id, title, slug, cover_image, description, category, learn_outcomes, difficulty, tags, tools, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
+        .select('id, title, slug, cover_image, cover_video, description, category, learn_outcomes, difficulty, tags, tools, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
-        .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
+        .select('id, title, cover_image, cover_video, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, industry, role, company, difficulty, duration, tools, tags, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, cover_video, description, industry, role, company, difficulty, duration, tools, tags, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
-        .select('id, title, slug, cover_image, description, learn_outcomes, time_limit, passmark, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, cover_video, description, learn_outcomes, time_limit, passmark, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       // Books with a file, or link products (migration 243; save_book only publishes one with its
       // address). The file path itself is a filter, never selected: it must not reach the browser
@@ -206,6 +209,7 @@ export async function GET(req: NextRequest) {
         title: r.title ?? 'Untitled',
         slug: r.slug ?? null,
         coverImage: r.cover_image ?? null,
+        coverVideo: normalizeCoverVideo(r.cover_video),
         description: r.description ?? null,
         // An experience is grouped by its industry, the way the landing page shows it.
         category: itemCategory(r),

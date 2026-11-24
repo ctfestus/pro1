@@ -6,6 +6,7 @@
 // auto-submits, and a document-level protection layer (block copy/cut/paste/right-click + text
 // selection, log tab-switch / blur). Reuses the CourseQuestion shape and the SQL/Python players.
 
+import { CoverVideoPlayer } from '@/components/CoverVideoPlayer';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -809,6 +810,11 @@ export default function CertificationTaker({
             </div>
             {(startError || retakeBlocked) && <p style={{ marginTop: 14, fontSize: 13, color: '#ef4444' }}>{startError || `You can retake this certification on ${retakeWhen}.`}</p>}
           </div>
+          {config?.coverVideo ? (
+            <div style={{ flex: '1 1 420px', maxWidth: 520, minWidth: 0 }}>
+              <CoverVideoPlayer video={config.coverVideo} poster={resolveCoverUrl(config.coverImage) || undefined} color={brandColor} floatOnScroll />
+            </div>
+          ) : (
           <div className="cert-credential-stage" style={{ flex: '0 1 420px', minHeight: isMobile ? 350 : 372, display: 'grid', placeItems: 'center', position: 'relative' }}>
             <div className="cert-credential-frame" style={{ position: 'relative', width: '100%', minHeight: isMobile ? 338 : 356, padding: isMobile ? '24px 20px 22px' : '28px 28px 24px', overflow: 'hidden', borderRadius: 26, background: isDark ? 'linear-gradient(145deg,#24262d 0%,#191a20 72%)' : 'linear-gradient(145deg,#ffffff 0%,#eef2f5 76%)', boxShadow: isDark ? 'inset 0 0 0 2px rgba(255,255,255,0.09)' : '0 22px 58px rgba(15,23,42,0.12), inset 0 0 0 2px rgba(15,23,42,0.065)' }}>
               <div className="cert-holo-border" />
@@ -851,6 +857,7 @@ export default function CertificationTaker({
               <div className="cert-credential-sweep" style={{ position: 'absolute', zIndex: 4, top: '-20%', bottom: '-20%', left: 0, width: '20%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)', pointerEvents: 'none', opacity: 0 }} />
             </div>
           </div>
+          )}
         </motion.section>
 
         <div style={{ maxWidth: 1120, margin: '0 auto', padding: isMobile ? '20px 20px 56px' : '28px 24px 72px' }}>
