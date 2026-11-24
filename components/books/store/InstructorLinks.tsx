@@ -1,4 +1,4 @@
-import { GithubLogo as Github, Globe, InstagramLogo as Instagram, LinkedinLogo as Linkedin, XLogo as Twitter, YoutubeLogo as Youtube } from '@phosphor-icons/react';
+import { GithubLogo as Github, Globe, InstagramLogo as Instagram, LinkedinLogo as Linkedin, XLogo as Twitter, YoutubeLogo as Youtube } from '@phosphor-icons/react/dist/ssr';
 import type { SocialKey } from '@/lib/books/store';
 
 const ICON: Record<SocialKey, { Icon: typeof Globe; label: string }> = {
