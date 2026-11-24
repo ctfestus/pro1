@@ -6,7 +6,7 @@
 // appears. The cards are the landing page's: cover, title, tags, level and tools.
 
 import Link from 'next/link';
-import { BookOpen, Briefcase, Layers } from 'lucide-react';
+import { BookOpen, Briefcase, Stack as Layers } from '@phosphor-icons/react';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { CardMeta, FRAMED_CARD } from '@/components/CardMeta';
 

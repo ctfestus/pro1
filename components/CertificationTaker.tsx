@@ -812,7 +812,7 @@ export default function CertificationTaker({
           </div>
           {config?.coverVideo ? (
             <div style={{ flex: '1 1 420px', maxWidth: 520, minWidth: 0 }}>
-              <CoverVideoPlayer video={config.coverVideo} color={brandColor} floatOnScroll />
+              <CoverVideoPlayer video={config.coverVideo} poster={resolveCoverUrl(config.coverImage) || undefined} color={brandColor} floatOnScroll />
             </div>
           ) : (
           <div className="cert-credential-stage" style={{ flex: '0 1 420px', minHeight: isMobile ? 350 : 372, display: 'grid', placeItems: 'center', position: 'relative' }}>

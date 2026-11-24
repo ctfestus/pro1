@@ -1,5 +1,7 @@
 'use client';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { LevelBars } from '@/components/CataloguePreview';
 import { CoverVideoHero } from '@/components/CoverVideoPlayer';
 import { contentPath } from '@/lib/content-link';
 
@@ -9,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, Building2, ExternalLink, Calendar, Download, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { CircleNotch as Loader2, CheckCircle as CheckCircle2, ArrowRight, ArrowLeft, Buildings as Building2, ArrowSquareOut as ExternalLink, CalendarBlank as Calendar, DownloadSimple as Download, ListChecks, VideoCamera as Video, Lightning as Zap, Clock, LockSimple as Lock, SealCheck as BadgeCheck, MonitorPlay, Briefcase, IconContext } from '@phosphor-icons/react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
@@ -554,7 +556,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
       </nav>
 
       {/* Banner: the cover dimmed under a dark fade, white text at the bottom left. */}
-      {coverVideo ? <CoverVideoHero video={coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero> : (
+      {coverVideo ? <CoverVideoHero video={coverVideo} poster={cover} color={sitePrimary}>{heroText}</CoverVideoHero> : (
       <section style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
         {cover
           ? <img src={cover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
@@ -652,7 +654,19 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, programmes = [], sitePrimary }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; programmes?: ProgrammeItem[]; /** Site Settings primary colour: the header of a page with a cover video. */ sitePrimary: string }) {
+/** A fact on a header (kind, category, level): its icon on a soft see-through fill, no border. */
+const HERO_CHIP: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 999,
+  background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)', color: '#ffffff', fontSize: 13, fontWeight: 600,
+};
+
+// Icons on these pages are Phosphor duotone, as on the redesigned pages; one setting here covers
+// this page and the parts drawn inside it (price card, More like this).
+export default function PublicFormPage(props: Parameters<typeof PublicFormPageView>[0]) {
+  return <IconContext.Provider value={{ weight: 'duotone' }}><PublicFormPageView {...props} /></IconContext.Provider>;
+}
+
+function PublicFormPageView({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, programmes = [], sitePrimary }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; programmes?: ProgrammeItem[]; /** Site Settings primary colour: the header of a page with a cover video. */ sitePrimary: string }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -1438,11 +1452,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         {/* -- Hero banner -- */}
         {(() => {
           const heroText = (<>
-            {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
+            {/* Company and role (VE only). The role sits on a see-through chip so it reads on any cover. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
                 {config.role && (
-                  <span style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
+                  <span style={HERO_CHIP}><Briefcase className="h-4 w-4" aria-hidden />{config.role}</span>
                 )}
               </div>
             {/* Title and tagline in one column at a reading width, as on the course hero, so a
@@ -1478,7 +1492,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             )}
           </>);
           return config.coverVideo
-            ? <CoverVideoHero video={config.coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero>
+            ? <CoverVideoHero video={config.coverVideo} poster={resolveCoverUrl(config.coverImage)} color={sitePrimary}>{heroText}</CoverVideoHero>
             : (
         <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
           {config.coverImage
@@ -1678,10 +1692,12 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               {/* Kind, then the category and level on frosted chips, as the experience page shows
                   its company and role. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Course</span>
-                {[courseCategory, config.difficulty ? String(config.difficulty) : ''].filter(Boolean).map(chip => (
-                  <span key={chip} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', textTransform: 'capitalize' }}>{chip}</span>
-                ))}
+                <span style={HERO_CHIP}><MonitorPlay className="h-4 w-4" aria-hidden />Course</span>
+                {courseCategory && <span style={HERO_CHIP}><CategoryIcon name={courseCategory} />{courseCategory}</span>}
+                {config.difficulty && (() => {
+                  const level = String(config.difficulty).charAt(0).toUpperCase() + String(config.difficulty).slice(1);
+                  return <span style={HERO_CHIP}><LevelBars level={level} color="#ffffff" track="rgba(255,255,255,0.35)" />{level}</span>;
+                })()}
               </div>
               {/* One text column at a reading width, so a long title or description wraps well
                   short of the far edge instead of running across the whole hero. The title
@@ -1708,7 +1724,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               </div>
           </>);
           return config.coverVideo
-            ? <CoverVideoHero video={config.coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero>
+            ? <CoverVideoHero video={config.coverVideo} poster={resolveCoverUrl(config.coverImage)} color={sitePrimary}>{heroText}</CoverVideoHero>
             : (
           <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
             {config.coverImage

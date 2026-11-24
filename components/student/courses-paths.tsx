@@ -2,6 +2,7 @@
 
 // Courses and learning-path journeys shared by the learner dashboard and public detail pages.
 
+import { Medal } from '@phosphor-icons/react';
 import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { createPortal } from 'react-dom';
@@ -1079,7 +1080,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
             {publicPreview ? (
               // The finish line: a gold step with the award, after the numbered ones.
               <span className="mt-4 flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7" style={{ background: '#F5D77A', color: '#3d2e00' }}>
-                <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Medal weight="duotone" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </span>
             ) : (
             <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>

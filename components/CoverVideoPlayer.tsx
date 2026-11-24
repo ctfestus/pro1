@@ -62,7 +62,7 @@ export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPla
             <span className="absolute left-1/2 top-1/2 grid h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white pl-1 shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-transform group-hover:scale-105" style={{ color }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
             </span>
-            <span className="absolute inset-x-0 bottom-0 flex h-[42px] items-center gap-2.5 px-3.5 text-xs text-white" style={{ background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.65))' }}>
+            <span className="absolute inset-x-0 bottom-0 flex h-[42px] items-center gap-2.5 px-3.5 text-xs text-white" style={{ background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.78))', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
               <span className="h-1 flex-1 rounded-full bg-white/35" />
               {video.duration > 0 && <span>0:00 / {videoLength(video.duration)}</span>}
@@ -80,17 +80,18 @@ export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPla
 }
 
 /**
- * The header of a content page that has a cover video: the site's primary colour instead of the
- * cover photo, the page's own heading on the left at a reading width, and the player on the right.
+ * The header of a content page that has a cover video: the site's primary colour, the page's own
+ * heading on the left at a reading width, and the player on the right. The player shows the cover
+ * image (`poster`), as the cards do, so the course has one picture everywhere.
  * Stacks on a phone.
  */
-export function CoverVideoHero({ video, color, children }: { video: CoverVideo; color: string; children: React.ReactNode }) {
+export function CoverVideoHero({ video, poster, color, children }: { video: CoverVideo; poster?: string; color: string; children: React.ReactNode }) {
   return (
     <section className="w-full" style={{ background: color }}>
       <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-5 py-10 sm:px-10 sm:py-14 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:px-16 lg:py-[72px] xl:px-[160px]">
         <div className="min-w-0 lg:max-w-[540px] lg:flex-1">{children}</div>
         <div className="w-full lg:max-w-[520px] lg:flex-1">
-          <CoverVideoPlayer video={video} color={color} floatOnScroll />
+          <CoverVideoPlayer video={video} poster={poster || undefined} color={color} floatOnScroll />
         </div>
       </div>
     </section>
