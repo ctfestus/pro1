@@ -12,6 +12,7 @@ import { sanitizePlainText } from '@/lib/sanitize';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { EMPLOYMENT_LABELS, OBJECTIVE_LABELS, REFERRAL_LABELS } from '@/lib/onboarding-answers';
 import { takeRememberedNext } from '@/lib/auth-redirect';
+import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 
 type AnswerKey = 'employment_status' | 'learning_objective' | 'referral_source';
 
@@ -129,6 +130,13 @@ function Logo({ appName }: { appName: string }) {
     );
 }
 
+// Where a learner lands after onboarding: bootcamp students already have their learning paths
+// unlocked, so they go there; everyone else browses what they can sign up for in Explore.
+function homeFor(role: string, bootcamp: boolean) {
+  if (role !== 'student' && role !== 'staff') return '/dashboard';
+  return bootcamp ? '/student#learning_paths' : '/student#explore';
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { appName } = useTenant();
@@ -139,6 +147,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState('student');
+  const [inBootcamp, setInBootcamp] = useState(false);
   const [name, setName] = useState('');
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
   const [loading, setLoading] = useState(true);
@@ -155,22 +164,25 @@ export default function OnboardingPage() {
 
       const { data: student } = await supabase
         .from('students')
-        .select('full_name, onboarding_done, onboarding_responses, role')
+        .select('full_name, onboarding_done, onboarding_responses, role, cohort_id')
         .eq('id', session.user.id)
         .single();
 
+      // Only a bootcamp cohort unlocks learning paths; plan and individual cohorts are subscribers.
+      const { data: cohort } = student?.cohort_id
+        ? await supabase.from('cohorts').select('cohort_kind').eq('id', student.cohort_id).maybeSingle()
+        : { data: null };
+      const bootcamp = cohort?.cohort_kind === COHORT_KIND_BOOTCAMP;
+
       if (student?.onboarding_done) {
-        router.replace(
-          student.role === 'student' || student.role === 'staff'
-            ? '/student#learning_paths'
-            : '/dashboard',
-        );
+        router.replace(homeFor(student.role, bootcamp));
         return;
       }
 
       const saved = student?.onboarding_responses as Partial<Answers> | null;
       setUserId(session.user.id);
       setRole(student?.role ?? 'student');
+      setInBootcamp(bootcamp);
       setName(student?.full_name?.trim() ?? '');
       setAnswers({
         employment_status: saved?.employment_status ?? '',
@@ -235,8 +247,8 @@ export default function OnboardingPage() {
       }).catch(() => {});
     }
 
-    // Back to the page they signed up from (a course, an event), else their dashboard.
-    router.replace(takeRememberedNext() ?? (role === 'student' || role === 'staff' ? '/student#learning_paths' : '/dashboard'));
+    // Back to the page they signed up from (a course, an event), else their home.
+    router.replace(takeRememberedNext() ?? homeFor(role, inBootcamp));
   };
 
   const advance = async () => {
