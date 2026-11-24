@@ -53,7 +53,8 @@ export function CoverVideoField({ value, onChange, noun }: { value: CoverVideo |
       {picking && (
         <BunnyPicker C={C} onClose={() => setPicking(false)}
           onPick={(embedUrl, video) => {
-            onChange(normalizeCoverVideo({ embedUrl, thumbnail: video.thumbnail, title: video.title, duration: video.duration }));
+            // Library titles are file names ("Intro.mp4"); the extension means nothing to a learner.
+            onChange(normalizeCoverVideo({ embedUrl, thumbnail: video.thumbnail, title: video.title.replace(/\.(mp4|mov|m4v|webm|mkv|avi)$/i, ''), duration: video.duration }));
             setPicking(false);
           }} />
       )}

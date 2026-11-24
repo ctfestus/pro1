@@ -18,7 +18,13 @@ import { videoLength } from '@/components/CoverVideoField';
 
 const PLAY_PATH = 'M8 5.5v13l11-6.5z';
 
-export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPlaying = false }: { video: CoverVideo; color: string; floatOnScroll?: boolean; startPlaying?: boolean }) {
+export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPlaying = false, poster, embedded = false }: {
+  video: CoverVideo; color: string; floatOnScroll?: boolean; startPlaying?: boolean;
+  /** A still to show instead of the video's own (the hover preview passes the cover image it already has). */
+  poster?: string;
+  /** Inside a frame that already rounds and clips it (the hover preview's cover): no frame of its own. */
+  embedded?: boolean;
+}) {
   const [playing, setPlaying] = useState(startPlaying);
   const [offscreen, setOffscreen] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -39,8 +45,8 @@ export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPla
       <div
         className={floating
           ? 'fixed bottom-4 right-4 z-[60] aspect-video w-[min(340px,calc(100vw-32px))] overflow-hidden rounded-[14px] bg-black'
-          : 'absolute inset-0 overflow-hidden rounded-2xl bg-black'}
-        style={{ boxShadow: floating ? '0 20px 50px -12px rgba(0,0,0,0.45)' : '0 24px 60px -20px rgba(0,0,0,0.55)' }}
+          : `absolute inset-0 overflow-hidden bg-black ${embedded ? '' : 'rounded-2xl'}`}
+        style={{ boxShadow: floating ? '0 20px 50px -12px rgba(0,0,0,0.45)' : embedded ? undefined : '0 24px 60px -20px rgba(0,0,0,0.55)' }}
       >
         {playing ? (
           <iframe
@@ -52,7 +58,7 @@ export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPla
           />
         ) : (
           <button type="button" onClick={() => setPlaying(true)} aria-label={`Play ${video.title || 'video'}`} className="group relative block h-full w-full text-left">
-            {video.thumbnail && <img src={video.thumbnail} alt="" className="h-full w-full object-cover" />}
+            {(poster || video.thumbnail) && <img src={poster || video.thumbnail!} alt="" className="h-full w-full object-cover" />}
             <span className="absolute left-1/2 top-1/2 grid h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white pl-1 shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-transform group-hover:scale-105" style={{ color }}>
               <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
             </span>
@@ -92,36 +98,30 @@ export function CoverVideoHero({ video, color, children }: { video: CoverVideo; 
 }
 
 /**
- * The play control on a card whose content has a cover video. A small badge marks the card;
- * hovering the card (its `group`) shows a play button over the cover. Pressing either opens the
- * video in a pop-up over the page, playing, with sound. Nothing plays on hover. The rest of the
- * card still opens the content as before.
+ * A play button, always showing, on a card whose content has a cover video, so it reads as a video.
+ * The video itself plays from the card's hover preview (CataloguePreview) and the content page.
  */
-export function CardVideoButton({ video, pill = false }: { video: CoverVideo; pill?: boolean }) {
+export function VideoBadge() {
+  return (
+    <span aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 z-[2] grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white pl-[3px] shadow-[0_6px_20px_rgba(0,0,0,0.3)]" style={{ color: '#111827' }}>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d={PLAY_PATH} /></svg>
+    </span>
+  );
+}
+
+/**
+ * "Watch video" on a learning path card. That card has no hover preview (its cover gives way to
+ * the details on hover), so it opens the video in a pop-up over the page instead.
+ */
+export function WatchVideoButton({ video }: { video: CoverVideo }) {
   const [open, setOpen] = useState(false);
-  const play = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setOpen(true); };
-  // A card whose cover gives way on hover (the learning path card) takes a plain button instead.
-  if (pill) return (
+  return (
     <>
-      <button type="button" onClick={play}
+      <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
         className="inline-flex h-9 items-center gap-2 rounded-full bg-white px-3.5 text-[13px] font-bold shadow-[0_2px_8px_rgba(16,24,40,0.12)]" style={{ color: '#111827' }}>
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
         Watch video
       </button>
-      {open && <VideoPopup video={video} onClose={() => setOpen(false)} />}
-    </>
-  );
-  return (
-    <>
-      <button type="button" onClick={play} aria-label={`Play ${video.title || 'video'}`}
-        className="absolute inset-0 z-[3] flex items-center justify-center bg-[rgba(17,24,39,0.35)] opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-visible:opacity-100">
-        <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-white pl-[3px] shadow-[0_8px_24px_rgba(0,0,0,0.35)]" style={{ color: '#111827' }}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
-        </span>
-      </button>
-      <span aria-hidden className="pointer-events-none absolute bottom-2.5 right-2.5 z-[2] grid h-7 w-7 place-items-center rounded-full pl-0.5 text-white transition-opacity group-hover:opacity-0" style={{ background: 'rgba(17,24,39,0.65)' }}>
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d={PLAY_PATH} /></svg>
-      </span>
       {open && <VideoPopup video={video} onClose={() => setOpen(false)} />}
     </>
   );
