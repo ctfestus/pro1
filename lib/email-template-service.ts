@@ -123,7 +123,7 @@ export const SYSTEM_EMAIL_CONTENT_MARKER = '<!-- PLATFORM_SYSTEM_EMAIL_CONTENT -
 
 function customMessageHtml(body: string) {
   if (!hasVisibleEmailMessage(body)) return '';
-  return `<div data-custom-email-message="true" style="margin:0 0 20px;padding:16px;background:#f3f4f6;border-left:4px solid #2563eb;"><p style="margin:0 0 10px;font-size:12px;font-weight:bold;color:#4b5563;text-transform:uppercase;letter-spacing:.04em;">Message from your learning team</p>${body}</div>`;
+  return `<div data-custom-email-message="true" style="margin:0 0 20px;padding:16px 18px;background:#f3f4f6;border-radius:12px;"><p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;">Message from your learning team</p>${body}</div>`;
 }
 
 export function disableEmailPreviewLinks(html: string) {
@@ -133,7 +133,7 @@ export function disableEmailPreviewLinks(html: string) {
 }
 
 export function preserveSystemEmailContent(fallbackHtml: string, customBody: string, branding: EmailBrandingInput) {
-  // The message box uses the stand-in blue like the templates, so it takes the brand colour too.
+  // Any stand-in blue in the message takes the brand colour too.
   const customBlock = brandEmailColors(customMessageHtml(customBody), branding.brandColor);
   if (!customBlock) return fallbackHtml;
   if (fallbackHtml.includes(SYSTEM_EMAIL_CONTENT_MARKER)) {
