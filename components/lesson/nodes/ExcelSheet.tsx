@@ -12,7 +12,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tip
 import { CaretDown, CaretLeft, CaretRight, Check, ClipboardText, DotsThreeVertical, Eye, FrameCorners, HighlighterCircle, MicrosoftExcelLogo, Plus, X } from '@phosphor-icons/react';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import {
-  EXCEL_MAX_COLS, EXCEL_MAX_ROWS, EXCEL_MAX_SHEETS, badgeCell, blankSheet, cellBox, cellsIn, colIndex, colLetter,
+  EXCEL_COL_WIDTH, EXCEL_MAX_COLS, EXCEL_MAX_ROWS, EXCEL_MAX_SHEETS, EXCEL_ROW_HEIGHT, badgeCell, blankSheet, cellBox, cellsIn, colIndex, colLetter,
   looksNumeric, normalizeSheets, pasteInto, rowNumber, sheetsPlainText, type ExcelCellStyle, type ExcelSheetData,
 } from '@/lib/excel-sheet';
 
@@ -58,7 +58,63 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
   const saveSheets = (next: ExcelSheetData[]) => updateAttributes({ sheets: next });
   const saveSheet = (next: ExcelSheetData) => saveSheets(sheets.map((s, i) => (i === index ? next : s)));
   const select = (id: string, extend = false) => { setFocus(id); if (!extend) setAnchor(id); };
-  const showSheet = (i: number) => { setSheetIndex(i); select('A1'); setEditing(null); };
+  const showSheet = (i: number) => { setSheetIndex(i); select('A1'); setEditing(null); setResized(null); };
+
+  // Column widths and row heights, as in Excel: drag the edge of a column letter or row number,
+  // double-click a column edge to fit its contents. The instructor's sizes save with the sheet;
+  // a learner's last only while they look, since learners cannot change the sheet.
+  type Sizes = { cols: Record<string, number>; rows: Record<string, number> };
+  const [resized, setResized] = useState<(Sizes & { sheet: number }) | null>(null);
+  const sizes: Sizes = resized && resized.sheet === index ? resized : { cols: sheet.colWidths || {}, rows: sheet.rowHeights || {} };
+  const sized = Object.keys(sizes.cols).length > 0;
+  const colWidth = (c: number) => sizes.cols[colLetter(c)] ?? (sized ? 100 : undefined);
+  const applySizes = (next: Sizes, save: boolean) => {
+    setResized({ ...next, sheet: index });
+    if (save && authoring) saveSheet({ ...sheet, colWidths: next.cols, rowHeights: next.rows });
+  };
+  const clampTo = (n: number, l: { min: number; max: number }) => Math.round(Math.min(l.max, Math.max(l.min, n)));
+  // Once one column has a width, every column gets its current one, so only the dragged column moves.
+  const fixedCols = () => {
+    const cols = { ...sizes.cols };
+    gridRef.current?.querySelectorAll<HTMLElement>('thead th[data-col]').forEach((th) => { cols[th.dataset.col!] = th.offsetWidth; });
+    return cols;
+  };
+  const startResize = (event: React.MouseEvent<HTMLElement>, kind: 'col' | 'row', key: string) => {
+    event.preventDefault(); event.stopPropagation();
+    const header = event.currentTarget.parentElement as HTMLElement;
+    const from = kind === 'col' ? event.clientX : event.clientY;
+    const base = kind === 'col' ? header.offsetWidth : header.offsetHeight;
+    let next: Sizes = { cols: kind === 'col' ? fixedCols() : sizes.cols, rows: sizes.rows };
+    const move = (e: MouseEvent) => {
+      next = kind === 'col'
+        ? { ...next, cols: { ...next.cols, [key]: clampTo(base + e.clientX - from, EXCEL_COL_WIDTH) } }
+        : { ...next, rows: { ...next.rows, [key]: clampTo(base + e.clientY - from, EXCEL_ROW_HEIGHT) } };
+      applySizes(next, false);
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+      applySizes(next, true);
+    };
+    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+  };
+  const fitColumn = (event: React.MouseEvent, letter: string) => {
+    event.preventDefault(); event.stopPropagation();
+    // The widest text in the column plus the cell padding, so the column can shrink as well as grow.
+    let widest = 0;
+    const text = document.createRange();
+    gridRef.current?.querySelectorAll<HTMLElement>(`td[data-cell^="${letter}"]`).forEach((td) => {
+      if (colLetter(colIndex(td.dataset.cell!)) !== letter) return;
+      text.selectNodeContents(td);
+      widest = Math.max(widest, text.getBoundingClientRect().width);
+    });
+    applySizes({ cols: { ...fixedCols(), [letter]: clampTo(widest + 20, EXCEL_COL_WIDTH) }, rows: sizes.rows }, true);
+  };
+  const resetRow = (event: React.MouseEvent, key: string) => {
+    event.preventDefault(); event.stopPropagation();
+    const rows = { ...sizes.rows };
+    delete rows[key];
+    applySizes({ cols: sizes.cols, rows }, true);
+  };
 
   const commitCell = (id: string, value: string) => {
     const cell = { ...(sheet.cells[id] || { v: '' }), v: value };
@@ -143,7 +199,7 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
   // Frames are drawn over the grid as one outline each, measured from the cells they cover.
   const gridRef = useRef<HTMLTableElement>(null);
   const [frameBoxes, setFrameBoxes] = useState<{ left: number; top: number; width: number; height: number }[]>([]);
-  const frameKey = JSON.stringify([sheet.frames, sheet.cols, sheet.rows, index]);
+  const frameKey = JSON.stringify([sheet.frames, sheet.cols, sheet.rows, index, sizes]);
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -201,17 +257,30 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
               : <span className="lesson-xl__formula" aria-live="polite">{current?.f || current?.v || ''}</span>}
           </div>
           <div className="lesson-xl__scroll">
-            <table ref={gridRef} className="lesson-xl__grid" tabIndex={0} onKeyDown={onGridKey} aria-label={`${sheet.name} sheet`}>
+            <table ref={gridRef} className="lesson-xl__grid" tabIndex={0} onKeyDown={onGridKey} aria-label={`${sheet.name} sheet`}
+              style={sized ? { width: 36 + Array.from({ length: sheet.cols }, (_, c) => colWidth(c)!).reduce((a, b) => a + b, 0), minWidth: 0 } : undefined}>
+              <colgroup>
+                <col style={{ width: 36 }} />
+                {Array.from({ length: sheet.cols }, (_, c) => <col key={c} style={{ width: colWidth(c) }} />)}
+              </colgroup>
               <thead>
                 <tr>
                   <th className="lesson-xl__corner" aria-hidden="true" />
-                  {Array.from({ length: sheet.cols }, (_, c) => <th key={c} scope="col" data-on={c >= range.c1 && c <= range.c2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectColumn(c, e.shiftKey); }}>{colLetter(c)}</th>)}
+                  {Array.from({ length: sheet.cols }, (_, c) => (
+                    <th key={c} scope="col" data-col={colLetter(c)} data-on={c >= range.c1 && c <= range.c2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectColumn(c, e.shiftKey); }}>
+                      {colLetter(c)}
+                      <span className="lesson-xl__size lesson-xl__size--col" title="Drag to resize, double-click to fit" onMouseDown={(e) => startResize(e, 'col', colLetter(c))} onDoubleClick={(e) => fitColumn(e, colLetter(c))} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: sheet.rows }, (_, r) => r + 1).map((r) => (
-                  <tr key={r}>
-                    <th scope="row" data-on={r >= range.r1 && r <= range.r2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectRow(r, e.shiftKey); }}>{r}</th>
+                  <tr key={r} data-tall={sizes.rows[r] > EXCEL_ROW_HEIGHT.min ? 'true' : undefined}>
+                    <th scope="row" style={sizes.rows[r] ? { height: sizes.rows[r] } : undefined} data-on={r >= range.r1 && r <= range.r2 ? 'true' : 'false'} data-pick={authoring ? 'true' : undefined} onMouseDown={(e) => { if (!authoring) return; e.preventDefault(); selectRow(r, e.shiftKey); }}>
+                      {r}
+                      <span className="lesson-xl__size lesson-xl__size--row" title="Drag to resize, double-click to reset" onMouseDown={(e) => startResize(e, 'row', String(r))} onDoubleClick={(e) => resetRow(e, String(r))} />
+                    </th>
                     {Array.from({ length: sheet.cols }, (_, c) => {
                       const id = colLetter(c) + r;
                       const cell = sheet.cells[id];
@@ -288,7 +357,7 @@ function ExcelSheetView({ node, editor, getPos, updateAttributes }: NodeViewProp
           {/* Excel's status bar under the sheet tabs. */}
           <div className="lesson-xl__status">
             <span>Ready</span>
-            <span className="lesson-xl__hint">{authoring ? 'Double-click a tab to rename it' : 'Click a cell to see its formula'}</span>
+            <span className="lesson-xl__hint">{authoring ? 'Double-click a tab to rename it' : 'Click a cell to see its formula. Drag a column or row edge to resize it.'}</span>
           </div>
         </div>
 
