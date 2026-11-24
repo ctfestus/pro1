@@ -13,6 +13,7 @@ import { resolveConfig } from '@/lib/site-templates';
 import { TenantProvider } from '@/components/TenantProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallAppButton from '@/components/InstallAppButton';
+import AuthPopupHost from '@/components/AuthPopupHost';
 import GoogleAnalytics from '@/components/GoogleAnalytics';
 
 // The fonts are files in app/fonts, not fetched from Google at build time: next/font/google
@@ -134,6 +135,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <SessionInactivityGuard />
             <ServiceWorkerRegistrar />
             <InstallAppButton />
+            <AuthPopupHost />
             {children}
           </ThemeProvider>
         </TenantProvider>
