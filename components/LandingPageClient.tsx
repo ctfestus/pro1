@@ -1,5 +1,6 @@
 'use client';
 
+import { CardVideoButton } from '@/components/CoverVideoPlayer';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useReducedMotion } from 'motion/react';
@@ -491,6 +492,7 @@ export function ProgrammeCard({ item, user, isDark, hFont }: {
             {item.category}
           </span>
         )}
+        {item.coverVideo && <CardVideoButton video={item.coverVideo} />}
       </div>
       <div className="flex flex-1 flex-col px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3.5 sm:pb-[18px]">
         {/* Two lines kept for the title, so the details line up across a row. */}

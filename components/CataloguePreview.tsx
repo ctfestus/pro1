@@ -8,6 +8,7 @@
  * Explore on the student dashboard and the public landing page both render this one component, so
  * a visitor and a signed-in learner see the same preview.
  */
+import type { CoverVideo } from '@/lib/course-schema';
 import type { ElementType, ReactNode } from 'react';
 import { ArrowRight, Award, Briefcase, Check, Clock, Film, GraduationCap, Layers, Lock, Package, Play, Tag, Target } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
@@ -25,6 +26,8 @@ export interface CatalogueItem {
   title: string;
   slug: string | null;
   coverImage: string | null;
+  /** The cover video, when there is one: the card shows a play button. */
+  coverVideo?: CoverVideo | null;
   description: string | null;
   category: string | null;
   /** A course's partner ("Offered by ...") or an experience's role. */

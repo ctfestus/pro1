@@ -11,14 +11,15 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from '@phosphor-icons/react';
 import type { CoverVideo } from '@/lib/course-schema';
 import { videoLength } from '@/components/CoverVideoField';
 
 const PLAY_PATH = 'M8 5.5v13l11-6.5z';
 
-export function CoverVideoPlayer({ video, color, floatOnScroll = false }: { video: CoverVideo; color: string; floatOnScroll?: boolean }) {
-  const [playing, setPlaying] = useState(false);
+export function CoverVideoPlayer({ video, color, floatOnScroll = false, startPlaying = false }: { video: CoverVideo; color: string; floatOnScroll?: boolean; startPlaying?: boolean }) {
+  const [playing, setPlaying] = useState(startPlaying);
   const [offscreen, setOffscreen] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
 
@@ -87,5 +88,71 @@ export function CoverVideoHero({ video, color, children }: { video: CoverVideo; 
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * The play control on a card whose content has a cover video. A small badge marks the card;
+ * hovering the card (its `group`) shows a play button over the cover. Pressing either opens the
+ * video in a pop-up over the page, playing, with sound. Nothing plays on hover. The rest of the
+ * card still opens the content as before.
+ */
+export function CardVideoButton({ video, pill = false }: { video: CoverVideo; pill?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const play = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setOpen(true); };
+  // A card whose cover gives way on hover (the learning path card) takes a plain button instead.
+  if (pill) return (
+    <>
+      <button type="button" onClick={play}
+        className="inline-flex h-9 items-center gap-2 rounded-full bg-white px-3.5 text-[13px] font-bold shadow-[0_2px_8px_rgba(16,24,40,0.12)]" style={{ color: '#111827' }}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
+        Watch video
+      </button>
+      {open && <VideoPopup video={video} onClose={() => setOpen(false)} />}
+    </>
+  );
+  return (
+    <>
+      <button type="button" onClick={play} aria-label={`Play ${video.title || 'video'}`}
+        className="absolute inset-0 z-[3] flex items-center justify-center bg-[rgba(17,24,39,0.35)] opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-visible:opacity-100">
+        <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-white pl-[3px] shadow-[0_8px_24px_rgba(0,0,0,0.35)]" style={{ color: '#111827' }}>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d={PLAY_PATH} /></svg>
+        </span>
+      </button>
+      <span aria-hidden className="pointer-events-none absolute bottom-2.5 right-2.5 z-[2] grid h-7 w-7 place-items-center rounded-full pl-0.5 text-white transition-opacity group-hover:opacity-0" style={{ background: 'rgba(17,24,39,0.65)' }}>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d={PLAY_PATH} /></svg>
+      </span>
+      {open && <VideoPopup video={video} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** The card's video, playing in a pop-up over the page. Escape, the X or a click outside closes it. */
+function VideoPopup({ video, onClose }: { video: CoverVideo; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+  }, [onClose]);
+
+  // Portalled to the body, but React still bubbles its clicks to the card's link: stop them here
+  // so a click in the pop-up never opens the content behind it.
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={video.title || 'Video'}
+      className="fixed inset-0 z-[100] grid place-items-center p-4"
+      style={{ background: 'rgba(15,23,42,0.7)' }}
+      onClick={e => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="relative w-full max-w-[880px]">
+        <button type="button" onClick={onClose} aria-label="Close video"
+          className="absolute -top-12 right-0 grid h-9 w-9 place-items-center rounded-full text-white" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <X weight="bold" className="h-4 w-4" />
+        </button>
+        {/* Starts playing, so the still and its play button (and their colour) never show. */}
+        <CoverVideoPlayer video={video} color="#111827" startPlaying />
+      </div>
+    </div>,
+    document.body,
   );
 }

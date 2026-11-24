@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { normalizeCoverVideo, type CoverVideo } from '@/lib/course-schema';
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import { adminClient } from './admin-client';
@@ -20,6 +21,8 @@ export type ProgrammeItem = {
   title: string;
   description: string;
   imageUrl: string;
+  /** The cover video, when there is one: its card shows a play button. */
+  coverVideo?: CoverVideo | null;
   badge: string;
   difficulty?: string;
   type: 'course' | 've' | 'path' | 'certification';
@@ -100,19 +103,19 @@ const getProgrammes = unstable_cache(
     const empty = { data: [] as any[], error: null };
     const [coursesResult, experiencesResult, pathsResult, certificationsResult] = await Promise.all([
       courseIds.length
-        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).order('title').limit(100)
+        ? publicClient.from('published_courses').select('id,title,cover_image,cover_video,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).order('title').limit(100)
         : empty,
       experienceIds.length
-        ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').in('id', experienceIds).order('title').limit(12)
+        ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,cover_video,slug,tagline,difficulty,industry').in('id', experienceIds).order('title').limit(12)
         : empty,
       offeredPathIds.length
-        ? publicClient.from('published_learning_paths').select('id,title,description,cover_image').in('id', offeredPathIds).order('title').limit(8)
+        ? publicClient.from('published_learning_paths').select('id,title,description,cover_image,cover_video').in('id', offeredPathIds).order('title').limit(8)
         : empty,
       // Certifications come from their own gated view rather than a published_* one: the base
       // table denies anon SELECT because it holds the exam bank, and publicly_offered_certifications
       // exposes the card columns only. See migration 208.
       certificationIds.length
-        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug,cert_type').in('id', certificationIds).order('title').limit(12)
+        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,cover_video,slug,cert_type').in('id', certificationIds).order('title').limit(12)
         : empty,
     ]);
 
@@ -152,6 +155,7 @@ const getProgrammes = unstable_cache(
       title: row.title,
       description: row.description ?? '',
       imageUrl: resolveCoverUrl(row.cover_image),
+      coverVideo: normalizeCoverVideo(row.cover_video),
       badge: 'Course',
       type: 'course',
       slug: row.slug,
@@ -169,6 +173,7 @@ const getProgrammes = unstable_cache(
       title: row.title,
       description: row.tagline ?? row.industry ?? '',
       imageUrl: resolveCoverUrl(row.cover_image),
+      coverVideo: normalizeCoverVideo(row.cover_video),
       badge: 'Guided Project',
       difficulty: row.difficulty
         ? row.difficulty.charAt(0).toUpperCase() + row.difficulty.slice(1)
@@ -188,6 +193,7 @@ const getProgrammes = unstable_cache(
       title: row.title,
       description: row.description ?? '',
       imageUrl: resolveCoverUrl(row.cover_image),
+      coverVideo: normalizeCoverVideo(row.cover_video),
       badge: 'Certification',
       type: 'certification',
       slug: row.slug,
@@ -225,6 +231,7 @@ const getProgrammes = unstable_cache(
       title: row.title,
       description: row.description ?? '',
       imageUrl: resolveCoverUrl(row.cover_image),
+      coverVideo: normalizeCoverVideo(row.cover_video),
       badge: 'Learning Path',
       type: 'path',
       slug: '',

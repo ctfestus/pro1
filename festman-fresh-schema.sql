@@ -4038,7 +4038,8 @@ CREATE VIEW public.published_courses
 WITH (security_barrier = true)
 AS
   SELECT c.id, c.title, c.description, c.cover_image, c.slug, c.category,
-         p.name AS partner_name, p.logo_url AS partner_logo_url
+         p.name AS partner_name, p.logo_url AS partner_logo_url,
+         c.cover_video  -- migration 254
   FROM public.courses c
   LEFT JOIN public.partners p ON p.id = c.partner_id AND p.is_active = true
   WHERE c.status = 'published';
@@ -4073,7 +4074,7 @@ GRANT SELECT ON public.course_outlines TO authenticated;
 CREATE VIEW public.published_virtual_experiences
 WITH (security_barrier = true)
 AS
-  SELECT id, title, tagline, cover_image, slug, industry, difficulty
+  SELECT id, title, tagline, cover_image, slug, industry, difficulty, cover_video  -- cover_video: migration 254
   FROM   public.virtual_experiences
   WHERE  status = 'published';
 
@@ -4082,7 +4083,7 @@ GRANT SELECT ON public.published_virtual_experiences TO anon, authenticated;
 CREATE VIEW public.published_learning_paths
 WITH (security_barrier = true)
 AS
-  SELECT id, title, description, cover_image
+  SELECT id, title, description, cover_image, cover_video  -- cover_video: migration 254
   FROM   public.learning_paths
   WHERE  status = 'published';
 
@@ -7030,7 +7031,7 @@ GRANT SELECT ON public.publicly_offered_learning_paths TO anon, authenticated;
 CREATE OR REPLACE VIEW public.publicly_offered_certifications
 WITH (security_barrier = true)
 AS
-  SELECT ce.id, ce.title, ce.description, ce.cover_image, ce.slug, ce.cert_type
+  SELECT ce.id, ce.title, ce.description, ce.cover_image, ce.slug, ce.cert_type, ce.cover_video  -- cover_video: migration 254
   FROM   public.certifications ce
   JOIN   public.publicly_offered_content o
     ON   o.content_table = 'certifications' AND o.content_id = ce.id;

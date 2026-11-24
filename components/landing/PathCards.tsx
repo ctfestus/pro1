@@ -9,6 +9,7 @@
  * Every card takes one colour, set under Brand & Style in Site settings: the button in that colour
  * and the body in a pale tint of it. The whole card is one link to the path's public page.
  */
+import { CardVideoButton } from '@/components/CoverVideoPlayer';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
@@ -100,6 +101,7 @@ export function PathCards({ paths, color, hoverColor, user, hFont, bFont }: {
               </div>
               <div className="pc-foot" />
               <div className="pc-fillet" />
+              {path.coverVideo && <span className="absolute bottom-2 left-3 z-[3]"><CardVideoButton video={path.coverVideo} pill /></span>}
               <span className="pc-btn" style={{ ...M3.labelLarge, fontWeight: 700, fontFamily: hFont }}>
                 View path
                 <ArrowRight className="w-[18px] h-[18px]" aria-hidden="true" />
