@@ -10,6 +10,7 @@ import { deleteFromCloudinary } from '@/lib/uploadToCloudinary';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
 import { IsStaffContext } from '@/components/dashboard/context';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 
 export function RecordingsManageSection({ C }: { C: typeof LIGHT_C }) {
   const isStaff = useContext(IsStaffContext);
@@ -37,11 +38,7 @@ export function RecordingsManageSection({ C }: { C: typeof LIGHT_C }) {
     setItems(prev => prev.filter(i => i.id !== id));
   }
 
-  if (loading) return (
-    <div className="space-y-3">
-      {[0,1,2].map(i => <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: C.card }}/>)}
-    </div>
-  );
+  if (loading) return <SectionSkeleton C={C} shape="rows" header={false} stats={0} />;
 
   if (!items.length) return (
     <SectionEmptyState Icon={Video} label="Recordings" createHref="/create/recording" createLabel="New Recording" C={C}/>

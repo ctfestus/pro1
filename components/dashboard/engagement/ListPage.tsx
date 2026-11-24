@@ -15,6 +15,7 @@ import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import { PageHeader } from '@/components/dashboard/content/kit';
 import { FloatingMenu, menuPosition, type MenuPosition } from '@/components/dashboard/subscriptions/Menus';
 import { Card, btnClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 
 export type Column = { label: string; width: string; cell: (item: any) => ReactNode };
 
@@ -112,7 +113,7 @@ export function ListPage({ table, title, sub, noun, createHref, createLabel, col
         </div>
       )}
       {loading ? (
-        <div className="h-48 rounded-2xl animate-pulse" style={{ background: C.card }} />
+        <SectionSkeleton C={C} shape="rows" header={false} stats={0} />
       ) : loadError ? null : items.length === 0 ? (
         <Card C={C} className="px-5 py-16 text-center">
           <p className="text-sm font-semibold" style={{ color: C.text }}>No {noun[1]} yet</p>

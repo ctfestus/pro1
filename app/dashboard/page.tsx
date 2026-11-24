@@ -13,6 +13,7 @@ import { IsStaffContext } from '@/components/dashboard/context';
 import { ProfileMenu } from '@/components/ProfileMenu';
 import { NAV_ITEMS, STAFF_SECTION_IDS, type SectionId } from '@/components/dashboard/nav';
 import { Sidebar } from '@/components/dashboard/Sidebar';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 import { SectionContent } from '@/components/dashboard/SectionContent';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { DISPLAY_FONT } from '@/components/dashboard/subscriptions/ui';
@@ -218,41 +219,36 @@ export default function DashboardPage() {
     window.location.href = '/';
   };
 
-  // -- Loading skeleton ---
+  // -- Loading skeleton: the real frame (navbar, sidebar) and the section shape ---
   if (loading) {
+    const bar = { background: C.skeleton };
     return (
-      <div className="platform-font-scope min-h-screen animate-pulse" style={{ background: C.page }}>
-        <div className="sticky top-0 z-20 border-b px-6 md:px-10 h-14 flex items-center justify-between backdrop-blur-md" style={{ background: C.nav, borderColor: C.navBorder }}>
+      <div className="platform-font-scope min-h-screen flex flex-col" style={{ background: C.page }}>
+        <div className="sticky top-0 z-30 border-b h-14 flex items-center justify-between px-4 md:px-6 animate-pulse motion-reduce:animate-none" style={{ background: C.nav, borderColor: C.navBorder }}>
+          <div className="h-8 w-24 rounded-lg" style={bar}/>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg" style={{ background: C.skeleton }}/>
-            <div className="h-4 w-24 rounded-lg" style={{ background: C.skeleton }}/>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-28 rounded-lg" style={{ background: C.skeleton }}/>
-            <div className="w-24 h-8 rounded-full" style={{ background: C.skeleton }}/>
+            <div className="w-8 h-8 rounded-lg" style={bar}/>
+            <div className="w-36 h-9 rounded-full" style={bar}/>
           </div>
         </div>
-        <div className="max-w-5xl mx-auto px-5 md:px-8 py-8 space-y-6">
-          {[0, 1].map(s => (
-            <div key={s} className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-6 w-44 rounded-lg" style={{ background: C.skeleton }}/>
-                <div className="flex gap-2">
-                  <div className="w-9 h-9 rounded-full" style={{ background: C.skeleton }}/>
-                  <div className="w-9 h-9 rounded-full" style={{ background: C.skeleton }}/>
-                </div>
-              </div>
-              <div className="flex gap-6 overflow-hidden">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex-shrink-0 w-[300px]">
-                    <div className="h-44 rounded-2xl" style={{ background: C.skeleton }}/>
-                    <div className="h-4 w-3/4 rounded-lg mt-3" style={{ background: C.skeleton }}/>
-                    <div className="h-3 w-1/2 rounded-lg mt-2" style={{ background: C.pill }}/>
+        <div className="flex flex-1">
+          <aside className="hidden md:flex flex-col w-[264px] flex-shrink-0 px-4 pt-4 animate-pulse motion-reduce:animate-none" aria-hidden="true"
+            style={{ background: C.nav, borderRight: `1px solid ${C.divider}`, height: 'calc(100vh - 56px)' }}>
+            {[7, 5, 4].map((rows, g) => (
+              <div key={g} className={g ? 'mt-6' : ''}>
+                <div className="h-2.5 w-20 rounded mb-3 ml-3" style={{ ...bar, opacity: 0.6 }}/>
+                {Array.from({ length: rows }).map((_, r) => (
+                  <div key={r} className="flex h-10 items-center gap-3.5 px-3">
+                    <div className="w-5 h-5 rounded-md" style={bar}/>
+                    <div className="h-3 rounded" style={{ ...bar, width: 64 + ((r * 37 + g * 11) % 48) }}/>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
+            ))}
+          </aside>
+          <main className="flex-1 min-w-0 px-4 md:px-10 lg:px-12 py-6 sm:py-8">
+            <SectionSkeleton C={C} shape="rows" />
+          </main>
         </div>
       </div>
     );
