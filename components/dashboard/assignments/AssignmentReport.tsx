@@ -144,7 +144,7 @@ export function AssignmentReport({ assignment, submissions, assignedStudents, lo
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {tiles.map((t) => (
           <Card key={t.label} C={C} className="p-4 grid gap-2 content-start">
-            <p className="text-2xl leading-8 tabular-nums" style={{ color: t.color, fontFamily: DISPLAY_FONT }}>{t.n}</p>
+            <p className="text-2xl leading-8 font-semibold tabular-nums" style={{ color: t.color, fontFamily: DISPLAY_FONT }}>{t.n}</p>
             <p className="text-sm font-semibold" style={{ color: C.text }}>{t.label}</p>
             {t.bar != null && <Bar parts={[{ pct: t.bar, color: P.good }]} C={C} />}
           </Card>

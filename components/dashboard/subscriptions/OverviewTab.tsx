@@ -83,7 +83,7 @@ export function OverviewTab({
               {kpi.corner}
             </div>
             <div className="min-w-0">
-              <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{kpi.n}</p>
+              <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 font-semibold tabular-nums truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{kpi.n}</p>
               <p className="text-sm font-semibold" style={{ color: C.text }}>{kpi.label}</p>
               <p className="text-xs mt-1" style={{ color: C.muted }}>{kpi.sub}</p>
             </div>

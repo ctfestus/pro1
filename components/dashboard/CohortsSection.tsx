@@ -275,7 +275,7 @@ export function CohortsSection({ C: theme }: { C: ThemeColors }) {
         <div className={`grid grid-cols-2 ${isStaff ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} gap-3`}>
           {kpis.map((k) => (
             <Card key={k.label} C={C} className="p-4 grid gap-2 content-start">
-              <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 tabular-nums truncate" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
+              <p className="text-2xl sm:text-[28px] leading-8 sm:leading-9 font-semibold tabular-nums truncate" style={{ color: k.color, fontFamily: DISPLAY_FONT }}>{k.n}</p>
               <p className="text-sm font-semibold" style={{ color: C.text }}>{k.label}</p>
               <p className="text-xs" style={{ color: C.muted }}>{k.sub}</p>
               {'bar' in k && k.bar != null && <Bar parts={[{ pct: k.bar, color: P.good }]} C={C} />}
