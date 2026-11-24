@@ -211,10 +211,43 @@ export interface PointsSystem {
   milestones: PointsMilestone[];
 }
 
+/**
+ * An optional cover video, picked from the Bunny library in the editor (migration 253). The
+ * thumbnail is the still shown before play; the player loads only when someone presses play.
+ */
+export interface CoverVideo {
+  embedUrl: string;
+  thumbnail: string | null;
+  title: string;
+  duration: number;
+}
+
+/**
+ * Accept a cover video only in the shape the picker produces: a Bunny player link and an https
+ * still. Anything else (a hand-edited row, an old value) reads as no video.
+ */
+export function normalizeCoverVideo(raw: unknown): CoverVideo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Record<string, unknown>;
+  let embed: URL;
+  try { embed = new URL(String(value.embedUrl ?? '')); } catch { return null; }
+  if (embed.protocol !== 'https:' || !['iframe.mediadelivery.net', 'player.mediadelivery.net'].includes(embed.hostname) || !embed.pathname.startsWith('/embed/')) return null;
+  let thumbnail: string | null = null;
+  try { const url = new URL(String(value.thumbnail ?? '')); if (url.protocol === 'https:') thumbnail = url.href; } catch { /* no still */ }
+  const duration = Number(value.duration);
+  return {
+    embedUrl: `${embed.origin}${embed.pathname}`,
+    thumbnail,
+    title: String(value.title ?? '').slice(0, 200),
+    duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 0,
+  };
+}
+
 export interface FormConfig {
   title: string;
   description: string;
   coverImage: string;
+  coverVideo?: CoverVideo | null;
   theme: ThemeColor;
   customAccent?: string;
   mode: ThemeMode;
@@ -274,6 +307,7 @@ export interface CertificationConfig {
   description?: string;
   certType?: CertificationType;      // 'career' | 'technology'; groups the certifications listing
   coverImage?: string;
+  coverVideo?: CoverVideo | null;
   badgeImageUrl?: string | null;
   questions: CourseQuestion[];
   practiceQuestions?: CourseQuestion[]; // separate practice-only bank; reveals feedback (never the real exam)
@@ -495,6 +529,7 @@ export function normalizeFormConfig(raw: any): FormConfig {
     courseTimer,
     pointsSystem,
     questions: rest.questions !== undefined ? normalizeQuestions(rest.questions) : rest.questions,
+    ...(rest.coverVideo !== undefined ? { coverVideo: normalizeCoverVideo(rest.coverVideo) } : {}),
     ...(rest.isCourse ? {
       difficulty: COURSE_DIFFICULTIES.includes(rest.difficulty) ? rest.difficulty : null,
       tags: cleanLabels(rest.tags),

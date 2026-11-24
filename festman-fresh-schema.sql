@@ -229,6 +229,7 @@ CREATE TABLE public.courses (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   deadline_days   integer,
   theme           text,
   mode            text        CHECK (mode IN ('light','dark','auto')),
@@ -344,6 +345,7 @@ CREATE TABLE public.virtual_experiences (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   deadline_days   integer,
   theme           text,
   mode            text        CHECK (mode IN ('light','dark')),
@@ -396,6 +398,7 @@ CREATE TABLE public.certifications (
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
+  cover_video     jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   badge_image_url text,
   questions       jsonb       NOT NULL DEFAULT '[]',
   -- Separate practice-only bank (migration 133); practice mode reveals feedback, never the exam bank.
@@ -778,6 +781,7 @@ CREATE TABLE public.learning_paths (
   title         text        NOT NULL,
   description   text,
   cover_image   text,
+  cover_video   jsonb,        -- migration 253: { embedUrl, thumbnail, title, duration }
   instructor_id uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   item_ids      uuid[]      NOT NULL DEFAULT '{}',
   cohort_ids    uuid[]      NOT NULL DEFAULT '{}',

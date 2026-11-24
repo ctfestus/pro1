@@ -3,6 +3,7 @@
 
 import { type ThemeColor } from '@/lib/theme-types';
 import type { LessonDoc } from '@/lib/lesson-doc';
+import type { CoverVideo } from '@/lib/course-schema';
 
 // Types
 export interface ReqAttachment { name: string; url: string; mimeType?: string; }
@@ -75,6 +76,7 @@ export interface ProjectConfig {
   description: string;
   background: string;
   coverImage: string;
+  coverVideo?: CoverVideo | null;
   learnOutcomes: string[];
   modules: Module[];
   managerName?: string;

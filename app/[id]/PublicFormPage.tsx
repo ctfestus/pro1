@@ -1,5 +1,6 @@
 'use client';
 
+import { CoverVideoHero } from '@/components/CoverVideoPlayer';
 import { contentPath } from '@/lib/content-link';
 
 import { accentColorFor } from '@/lib/theme-types';
@@ -40,7 +41,7 @@ import type { SocialKey } from '@/lib/books/store';
 import { EventPageView } from '@/components/events/store/EventPageView';
 import { Countdown } from '@/components/events/store/Countdown';
 import { CARD_SHADOW } from '@/components/books/store/card-style';
-import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+import { normalizeCoverVideo, pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
@@ -250,6 +251,7 @@ function lockedCoursePreviewToForm(item: any) {
       description: item.description,
       category: item.category,
       coverImage: item.coverImage,
+      coverVideo: normalizeCoverVideo(item.coverVideo),
       learnOutcomes: Array.isArray(item.learnOutcomes) ? item.learnOutcomes : [],
       difficulty: item.difficulty ?? undefined,
       tags: item.tags ?? [],
@@ -307,6 +309,7 @@ function vePreviewToForm(item: any) {
       guideId: item.guideId ?? undefined,
       guideSnapshot: item.guideSnapshot ?? undefined,
       coverImage: item.coverImage,
+      coverVideo: normalizeCoverVideo(item.coverVideo),
       mode: item.mode ?? undefined,
       theme: item.theme ?? undefined,
       font: item.font ?? undefined,
@@ -357,6 +360,7 @@ function cataloguePathToPathRow(item: any) {
     title: item.title,
     description: item.description,
     cover_image: item.coverImage,
+    cover_video: normalizeCoverVideo(item.coverVideo),
     badge_image_url: item.badgeImageUrl,
     item_ids: itemIds,
     items,
@@ -464,9 +468,10 @@ function AuthoredText({ value, className = '', style }: { value: string; classNa
   return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
 }
 
-function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor, programmes }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null; programmes: ProgrammeItem[] }) {
+function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabled, instructor, programmes, sitePrimary }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean; paystackEnabled: boolean; instructor: StoreInstructor | null; programmes: ProgrammeItem[]; sitePrimary: string }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
+  const coverVideo = normalizeCoverVideo(path.cover_video);
   // On a path with specializations no learner takes every item: count the core, and name the
   // specializations separately, rather than advertising all branches as one learner's total.
   const specializationCount: number = (path.specializations ?? []).length;
@@ -509,6 +514,26 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
     </span>
   );
 
+  // The banner's heading, shared by the cover-photo banner and the cover-video one.
+  const heroText = (<>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 16 }}>Learning path</p>
+          <div style={{ maxWidth: 680 }}>
+            <h1 style={{ fontSize: 'clamp(28px,4vw,36px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
+              {path.title}
+            </h1>
+            {description && (
+              <AuthoredText value={description} className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
+            {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
+              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
+              </span>
+            ))}
+          </div>
+  </>);
+
   return (
     <main style={{ minHeight: '100vh', background: C.page, color: C.text }}>
       <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isDark ? 'rgba(13,13,13,0.88)' : 'rgba(255,255,255,0.98)', borderBottom: `1px solid ${isDark ? C.cardBorder : 'rgba(0,0,0,0.07)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
@@ -529,30 +554,17 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
       </nav>
 
       {/* Banner: the cover dimmed under a dark fade, white text at the bottom left. */}
+      {coverVideo ? <CoverVideoHero video={coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero> : (
       <section style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
         {cover
           ? <img src={cover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
           : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 40%, transparent) 0%, #0a0a0a 70%)` }} />}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
         <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 16 }}>Learning path</p>
-          <div style={{ maxWidth: 680 }}>
-            <h1 style={{ fontSize: 'clamp(28px,4vw,36px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, marginBottom: 12, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: 'var(--font-display), sans-serif' }}>
-              {path.title}
-            </h1>
-            {description && (
-              <AuthoredText value={description} className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }} />
-            )}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 16 }}>
-            {[...facts, { Icon: BadgeCheck, label: 'Certificate on completion' }].map(({ Icon, label }) => (
-              <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
-                <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
-              </span>
-            ))}
-          </div>
+          {heroText}
         </div>
       </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]" style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 48px', gap: 24, alignItems: 'start' }}>
         <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
@@ -640,7 +652,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn, paystackEnabl
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, programmes = [] }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; programmes?: ProgrammeItem[] }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null, paystackEnabled = false, instructor = null, programmes = [], sitePrimary }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null; paystackEnabled?: boolean; instructor?: StoreInstructor | null; programmes?: ProgrammeItem[]; /** Site Settings primary colour: the header of a page with a cover video. */ sitePrimary: string }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -798,7 +810,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           difficulty: course.difficulty ?? undefined, tags: course.tags ?? [], tools: course.tools ?? [],
           pointsSystem: pointsSystemFromCourseRow(course),
           postSubmission: course.post_submission,
-          coverImage: course.cover_image, deadline_days: course.deadline_days,
+          coverImage: course.cover_image, coverVideo: normalizeCoverVideo(course.cover_video), deadline_days: course.deadline_days,
           theme: course.theme, mode: course.mode, font: course.font, customAccent: course.custom_accent,
           lessonTiming: course.lesson_timing ?? undefined,
           showAnswers:  course.show_answers  ?? 'per_question',
@@ -825,7 +837,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           duration: ve.duration, tools: ve.tools, tags: ve.tags ?? [], toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
           learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
           guideId: ve.guide_id, guideSnapshot: ve.guide_snapshot,
-          dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
+          dataset: ve.dataset, coverImage: ve.cover_image, coverVideo: normalizeCoverVideo(ve.cover_video), deadline_days: ve.deadline_days,
           theme: ve.theme, mode: ve.mode, font: ve.font, customAccent: ve.custom_accent,
         }};
       }
@@ -1209,7 +1221,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     if (pathPreview) {
       return (
         <>
-          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} programmes={programmes} />
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} paystackEnabled={paystackEnabled} instructor={instructor} programmes={programmes} sitePrimary={sitePrimary} />
           <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
         </>
       );
@@ -1424,15 +1436,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         </nav>
 
         {/* -- Hero banner -- */}
-        <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
-          {config.coverImage
-            ? <img src={resolveCoverUrl(config.coverImage)} srcSet={heroSrcSet(config.coverImage)} sizes="100vw" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
-            : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${indColor}55 0%, #0a0a0a 70%)` }} />
-          }
-          {/* Gradient overlay */}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
-          {/* Content */}
-          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
+        {(() => {
+          const heroText = (<>
             {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
@@ -1471,8 +1476,24 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 />
               </div>
             )}
+          </>);
+          return config.coverVideo
+            ? <CoverVideoHero video={config.coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero>
+            : (
+        <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
+          {config.coverImage
+            ? <img src={resolveCoverUrl(config.coverImage)} srcSet={heroSrcSet(config.coverImage)} sizes="100vw" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
+            : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${indColor}55 0%, #0a0a0a 70%)` }} />
+          }
+          {/* Gradient overlay */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
+          {/* Content */}
+          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
+            {heroText}
           </div>
         </div>
+            );
+        })()}
 
         {/* -- Main layout -- */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]"
@@ -1652,14 +1673,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         {/* Hero banner. The same treatment as the virtual experience page: full width, the cover
             image dimmed under a dark fade, and white text at the bottom left. It keeps the course's
             own tags, description and certificate ribbon, which the page shows nowhere else. */}
-        {!courseStarted && (
-          <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
-            {config.coverImage
-              ? <img src={resolveCoverUrl(config.coverImage)} srcSet={heroSrcSet(config.coverImage)} sizes="100vw" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
-              : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 33%, transparent) 0%, #0a0a0a 70%)` }} />
-            }
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
-            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
+        {!courseStarted && (() => {
+          const heroText = (<>
               {/* Kind, then the category and level on frosted chips, as the experience page shows
                   its company and role. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -1691,9 +1706,22 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   </span>
                 ))}
               </div>
+          </>);
+          return config.coverVideo
+            ? <CoverVideoHero video={config.coverVideo} color={sitePrimary}>{heroText}</CoverVideoHero>
+            : (
+          <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
+            {config.coverImage
+              ? <img src={resolveCoverUrl(config.coverImage)} srcSet={heroSrcSet(config.coverImage)} sizes="100vw" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
+              : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 33%, transparent) 0%, #0a0a0a 70%)` }} />
+            }
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
+            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px' }}>
+              {heroText}
             </div>
           </div>
-        )}
+            );
+        })()}
 
         {/* Main layout */}
         {!courseStarted && (

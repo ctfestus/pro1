@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeCoverVideo } from '@/lib/course-schema';
 import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { sendAssignmentNotifications } from '@/lib/send-assignment-notification';
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
     group_ids:      [],
     // What the editor sends is the whole truth: an empty cover or deadline means it was cleared.
     cover_image:    coverImage || null,
+    cover_video:    normalizeCoverVideo(config.coverVideo),
     deadline_days:  deadline_days ? Number(deadline_days) : null,
     theme:          config.theme         ?? null,
     mode:           config.mode          ?? null,

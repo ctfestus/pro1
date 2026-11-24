@@ -1,5 +1,7 @@
 'use client';
 
+import { normalizeCoverVideo } from '@/lib/course-schema';
+import { CoverVideoField } from '@/components/CoverVideoField';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DARK_C, useC } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
@@ -261,6 +263,7 @@ function VirtualExperienceCreatePageInner() {
             learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
             guideId: ve.guide_id || (ve.guide_snapshot?.linkedUserId ? `instructor:${ve.guide_snapshot.linkedUserId}` : null), guideSnapshot: ve.guide_snapshot,
             dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
+            coverVideo: normalizeCoverVideo(ve.cover_video),
             badgeImageUrl: ve.badge_image_url ?? null,
             theme: ve.theme ?? undefined, customAccent: ve.custom_accent ?? undefined,
           };
@@ -2162,6 +2165,9 @@ function VirtualExperienceCreatePageInner() {
                   </div>
                   <input ref={badgeInputRef} type="file" accept="image/*" className="hidden" onChange={handleBadgeUpload} />
                 </div>
+                </div>
+                <div className="pb-5">
+                  <CoverVideoField value={config?.coverVideo} onChange={coverVideo => setConfig(c => c ? { ...c, coverVideo } : c)} noun="experience" />
                 </div>
                 </div>)}
                 {activeSection === 'delivery' && (
