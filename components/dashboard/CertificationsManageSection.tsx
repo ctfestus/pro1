@@ -16,6 +16,7 @@ import { ConfirmModal } from '@/components/dashboard/cohorts/CohortModals';
 import { SearchBox } from '@/components/dashboard/cohorts/StudentsTab';
 import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, contentKpis, matchesFilters, useReach, type Reach, type Status } from '@/components/dashboard/content/kit';
 import { Card, DISPLAY_FONT, btnClass, btnSmClass, btnStyle, palette } from '@/components/dashboard/subscriptions/ui';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 
 type Analytics = {
   totalAttempts: number; uniqueStudents: number; passCount: number; passRate: number; avgScore: number;
@@ -117,7 +118,7 @@ export function CertificationsManageSection({ C: theme }: { C: typeof LIGHT_C })
         </div>
       )}
       {loading ? (
-        <div className="h-64 rounded-2xl animate-pulse" style={{ background: C.card }} />
+        <SectionSkeleton C={C} shape="cards" header={false} />
       ) : items.length === 0 ? (
         <Card C={C} className="px-5 py-16 text-center">
           <p className="text-sm font-semibold" style={{ color: C.text }}>No certifications yet</p>

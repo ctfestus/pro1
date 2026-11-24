@@ -551,11 +551,7 @@ export default function StudentDashboard() {
   // Live sessions holds the upcoming sessions and, on a second tab, the recordings.
   const isLiveSessions = activeSection === 'events' || activeSection === 'recordings';
 
-  if (!mounted) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4F5F7' }}>
-      <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#0e09dd' }}/>
-    </div>
-  );
+  if (!mounted) return <StudentLoading C={C} pageBg={pageBg} navCollapsed={navCollapsed} />;
 
   if (connectionLost) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ background: C.page }}>
@@ -567,11 +563,7 @@ export default function StudentDashboard() {
     </div>
   );
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: pageBg }}>
-      <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.green }}/>
-    </div>
-  );
+  if (loading) return <StudentLoading C={C} pageBg={pageBg} navCollapsed={navCollapsed} />;
 
   return (
     <div className="min-h-screen" style={{ background: pageBg }}>
@@ -973,6 +965,63 @@ export default function StudentDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The first paint while the student's profile loads: the real top bar and menu (a rail when the
+ * menu is collapsed) and the overview's shape, so the page does not jump when it arrives.
+ */
+function StudentLoading({ C, pageBg, navCollapsed }: { C: ReturnType<typeof useC>; pageBg: string; navCollapsed: boolean }) {
+  const bar = { background: C.skeleton };
+  const light = { background: C.skeleton, opacity: 0.6 };
+  return (
+    <div className="min-h-screen animate-pulse motion-reduce:animate-none" style={{ background: pageBg }} aria-busy="true">
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: C.nav, borderColor: C.navBorder }}>
+        <div className="h-8 w-24 rounded-lg" style={bar}/>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl" style={bar}/>
+          <div className="w-36 h-9 rounded-full" style={bar}/>
+        </div>
+      </div>
+      <div className="flex h-[calc(100vh-57px)]">
+        <aside className="hidden lg:flex flex-col flex-shrink-0 px-4 pt-4" aria-hidden="true"
+          style={{ width: navCollapsed ? 72 : 264, background: C.nav, borderRight: `1px solid ${C.divider}` }}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className={`flex h-10 items-center gap-3.5 ${navCollapsed ? 'justify-center' : 'px-3'} ${i === 5 ? 'mt-6' : ''}`}>
+              <div className="w-5 h-5 rounded-md flex-shrink-0" style={bar}/>
+              {!navCollapsed && <div className="h-3 rounded" style={{ ...bar, width: 60 + ((i * 29) % 56) }}/>}
+            </div>
+          ))}
+        </aside>
+        <main className="flex-1 min-w-0 overflow-hidden px-5 py-7 md:px-8 lg:px-12">
+          <div className="h-8 w-56 rounded-lg" style={bar}/>
+          <div className="h-3.5 w-80 max-w-full rounded-lg mt-3" style={light}/>
+          <div className="rounded-2xl p-5 sm:p-6 mt-6 grid gap-3" style={{ background: C.card }}>
+            <div className="h-5 w-2/5 rounded-lg" style={bar}/>
+            <div className="h-3.5 w-3/5 rounded-lg" style={light}/>
+            <div className="h-10 w-36 rounded-xl mt-2" style={bar}/>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="rounded-2xl p-4 grid gap-2.5" style={{ background: C.card }}>
+                <div className="h-7 w-10 rounded-lg" style={bar}/>
+                <div className="h-3.5 w-24 rounded-lg" style={light}/>
+              </div>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="rounded-2xl p-3 grid gap-2.5" style={{ background: C.card }}>
+                <div className="aspect-video w-full rounded-xl" style={bar}/>
+                <div className="h-4 w-3/4 rounded-lg" style={bar}/>
+                <div className="h-3 w-1/2 rounded-lg" style={light}/>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

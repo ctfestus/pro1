@@ -24,6 +24,7 @@ import { CARD_GRID, ContentCard, Kpis, PageHeader, StatusChips, contentKpis, mat
 import { FIELD, inputStyle } from '@/components/dashboard/subscriptions/Modal';
 import { Switch } from '@/components/dashboard/subscriptions/PlanForm';
 import { Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette, plural } from '@/components/dashboard/subscriptions/ui';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 
 // A request that never reached the server is worth distinguishing from one the server
 // refused: the first is usually the connection and retrying often works.
@@ -335,7 +336,7 @@ export function LearningPathsSection({ C: theme, forms }: { C: ThemeColors; form
     });
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
+  if (loading) return <SectionSkeleton C={C} shape="cards" />;
 
   if (loadError) return (
     <div className="flex flex-col items-center justify-center py-20 text-center">

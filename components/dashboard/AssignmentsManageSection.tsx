@@ -20,6 +20,7 @@ import { Bar, Card, DISPLAY_FONT, Pill, btnClass, btnSmClass, btnStyle, palette,
 import { SolutionFilesList } from '@/components/SolutionFilesList';
 import { AssignmentReport } from '@/components/dashboard/assignments/AssignmentReport';
 import { AssignmentsList } from '@/components/dashboard/assignments/AssignmentsList';
+import { SectionSkeleton } from '@/components/dashboard/content/SectionSkeleton';
 
 export function AssignmentsManageSection({ C: themeC }: { C: typeof LIGHT_C }) {
   // As on the other admin pages: the dark-mode blue for buttons and selection controls.
@@ -334,9 +335,7 @@ export function AssignmentsManageSection({ C: themeC }: { C: typeof LIGHT_C }) {
     </div>
   );
 
-  if (loading) return (
-    <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: C.card }}/>)}</div>
-  );
+  if (loading) return <SectionSkeleton C={C} shape="rows" />;
 
   // -- Grading view ---
   if (viewingSub) {
