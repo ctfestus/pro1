@@ -27,17 +27,15 @@ import { M3, GUTTER } from '@/components/landing/type';
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 /** A section link: a scroll button on the landing page, a link home anywhere else. */
-function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabIndex, children }: {
+function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, children }: {
   anchor: string; hrefFor?: (anchor: string) => string;
   className?: string; style?: React.CSSProperties; children: React.ReactNode;
   /** Runs when the link is followed. The megamenu uses it to close itself. */
   onNavigate?: () => void;
-  /** The megamenu rovs this so Tab leaves its type list instead of walking every row. */
-  tabIndex?: number;
 }) {
   // An anchor that is already a path (the store's /books) is a page of its own, never a section.
   if (anchor.startsWith('/') || hrefFor) {
-    return <Link href={anchor.startsWith('/') ? anchor : hrefFor!(anchor)} className={className} style={style} tabIndex={tabIndex} onClick={onNavigate}>{children}</Link>;
+    return <Link href={anchor.startsWith('/') ? anchor : hrefFor!(anchor)} className={className} style={style} onClick={onNavigate}>{children}</Link>;
   }
   return (
     <button
@@ -47,7 +45,6 @@ function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabInde
       }}
       className={className}
       style={style}
-      tabIndex={tabIndex}
     >
       {children}
     </button>
@@ -122,10 +119,10 @@ export interface LandingFooterProps {
  * One "Learn" trigger in place of a link per content type. Four flat links crowded the bar and
  * still only offered a scroll; this previews what is actually in each section.
  *
- * Hovering a type on the left swaps the panel on the right, and clicking it goes to that section
- * -- so a device with no hover still gets exactly what the flat links did. The panel also opens
- * on the first type rather than empty, and the trigger toggles on click as well as hover, which
- * is what makes it usable on a tablet, where the bar is visible but hover is not.
+ * Clicking a type on the left swaps the panel on the right; its See all button goes to that
+ * section. Selecting on click, not hover, keeps the panel steady while the pointer crosses the
+ * other rows on its way to the items. The panel opens on the first type rather than empty, and
+ * the trigger toggles on click as well as hover, which makes it usable on a tablet.
  */
 /** Each kind of content in the Learn menu, by the page it links to: its icon and one line. */
 const TYPE_META: Record<string, { icon: Icon; line: string }> = {
@@ -146,9 +143,9 @@ function TypeTile({ anchor, size = 20 }: { anchor: string; size?: number }) {
 }
 
 /** A grouping chip (AI, Fintech...) with its icon, the chosen one in the primary blue. */
-function GroupChip({ label, on, onClick, inset, muted, onMouseEnter }: { label: string; on: boolean; onClick: () => void; inset: string; muted: string; onMouseEnter?: () => void }) {
+function GroupChip({ label, on, onClick, inset, muted }: { label: string; on: boolean; onClick: () => void; inset: string; muted: string }) {
   return (
-    <button type="button" onClick={onClick} onMouseEnter={onMouseEnter} aria-pressed={on}
+    <button type="button" onClick={onClick} aria-pressed={on}
       className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
       style={{ background: on ? '#3E93FF' : inset, color: on ? '#ffffff' : muted }}>
       <CategoryIcon name={label} className="h-3.5 w-3.5" />{label}
@@ -273,22 +270,22 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, fontFamily }: {
               fontFamily,
             }}>
 
-            {/* Left: each kind of content, with its icon tile and how many there are. Hover selects
-                for a mouse; the arrow keys do it for a keyboard, and only the selected row is
+            {/* Left: each kind of content, with its icon tile and how many there are. A click
+                selects; the arrow keys do it for a keyboard, and only the selected row is
                 tabbable so Tab moves on into its items. */}
             <div ref={typeColRef}
               onKeyDown={e => handleRovingKeys(e, typeColRef, groups.length, active, selectType)}
               className="flex-shrink-0 space-y-1 overflow-y-auto p-3" style={{ width: 252, borderRight: hair }}>
               {groups.map((group, i) => (
-                <div key={group.anchor} data-roving-row onMouseEnter={() => selectType(i)}>
-                  <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                <div key={group.anchor} data-roving-row>
+                  <button type="button" onClick={() => selectType(i)} aria-pressed={i === active}
                     tabIndex={i === active ? 0 : -1}
                     className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors"
                     style={{ background: i === active ? inset : 'transparent', color: i === active ? strong : muted }}>
                     <TypeTile anchor={group.anchor} />
                     <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold" style={{ color: strong }}>{group.label}</span>
                     <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.35 }} />
-                  </NavSectionLink>
+                  </button>
                 </div>
               ))}
             </div>
@@ -302,7 +299,7 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, fontFamily }: {
                 <div ref={subColRef} className="mt-4 flex flex-wrap gap-1.5">
                   {subGroups.map((group, i) => (
                     <GroupChip key={group.label || i} label={group.label} on={i === activeSub} inset={inset} muted={muted}
-                      onClick={() => setActiveSub(i)} onMouseEnter={() => setActiveSub(i)} />
+                      onClick={() => setActiveSub(i)} />
                   ))}
                 </div>
               )}
