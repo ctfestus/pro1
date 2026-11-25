@@ -148,7 +148,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
                 )}
               </>
             ) : (
-              <button type="button" className="lesson-tabs__trigger" role="tab" data-tab-index={i} aria-selected={i === current} tabIndex={i === current ? 0 : -1} onClick={() => setActive(i)} onKeyDown={(event) => handleTabKeyDown(event, i)}><LessonIcon name={icons[i]} size={16} className="lesson-tabs__icon" />{label || `Tab ${i + 1}`}</button>
+              <button type="button" className="lesson-tabs__trigger" role="tab" data-tab-index={i} aria-selected={i === current} tabIndex={i === current ? 0 : -1} onClick={() => setActive(i)} onKeyDown={(event) => handleTabKeyDown(event, i)}><LessonIcon name={icons[i]} size={18} className="lesson-tabs__icon" />{label || `Tab ${i + 1}`}</button>
             )}
           </div>
         ))}

@@ -98,7 +98,7 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
       {icon ? (
         // The icon says what kind of step it is; the badge keeps the order.
         <div className="lesson-step-card__number" contentEditable={false}>
-          <LessonIcon name={icon} size={22} />
+          <LessonIcon name={icon} size={24} />
           <span className="lesson-step-card__badge">{index + 1}</span>
         </div>
       ) : (

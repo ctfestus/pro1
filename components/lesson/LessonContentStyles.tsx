@@ -1690,12 +1690,11 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 /* Guided steps: a card with a segmented progress bar over the steps. */
 .lesson-content .lesson-stepper { padding: 20px; border-radius: 12px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
 .lesson-content .lesson-stepper[data-editable="true"] { padding: 0; background: transparent; box-shadow: none; }
-.lesson-content .lesson-stepper__bar { display: flex; gap: 6px; margin-bottom: 16px; }
-.lesson-content .lesson-stepper__bar > i { flex: 1; height: 6px; border-radius: 9px; background: var(--lb-line); transition: background 0.4s ease; }
-.lesson-content .lesson-stepper__bar > i[data-on="true"] { background: var(--lesson-accent); }
+/* Progress reads down the rail with the steps: finished markers turn into checks, and a dashed
+   line, centred on the 30px markers, joins each marker to the next as the steps open. */
+.lesson-content .lesson-step::after { left: 15px; top: 34px; bottom: -14px; width: 0; transform: none; border-radius: 0; background: none; border-left: 2px dashed color-mix(in oklab, var(--lesson-accent-base) 45%, var(--lb-dash)); }
 .lesson-content .lesson-stepper__next { border-radius: 8px; }
 /* A deliverable's instructions show every step at once, so there is no progress to track. */
-.ve-task-instructions .lesson-content .lesson-stepper__bar { display: none; }
 
 .lesson-content .lesson-timeline__date, .lesson-content.dark .lesson-timeline__date { padding: 3px 10px; border-radius: 999px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 12px; font-weight: 800; }
 .lesson-content.dark .lesson-timeline__date { color: var(--lesson-accent); }
@@ -1922,7 +1921,14 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 }
 
 /* Hover-only controls stay visible while their icon picker is open. */
-.lesson-content .lesson-step-card__controls:has([data-open="true"]), .lesson-content .lesson-timeline__controls:has([data-open="true"]) { opacity: 1; }
+.lesson-content .lesson-step-card__controls:has([data-open="true"]), .lesson-content .lesson-timeline__controls:has([data-open="true"]), .lesson-content .lesson-step__controls:has([data-open="true"]) { opacity: 1; }
+
+/* Guided steps with an icon: a finished step keeps its icon, and the check sits on the marker's
+   corner as a small badge. The generated reveal rules hide the number and show the check on
+   finished steps; for an icon marker the icon stays (important, to beat those long selectors). */
+.lesson-content .lesson-step__marker[data-icon] .lesson-step__num { display: inline-flex !important; }
+.lesson-content .lesson-step__marker[data-icon] .lesson-step__check { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 3px; box-sizing: border-box; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; }
+.lesson-content.dark .lesson-step__marker[data-icon] .lesson-step__check { box-shadow: 0 0 0 2px #1d1e23; }
 
 /* Tabs: an icon before the label, in the label's colour. */
 .lesson-content .lesson-tabs__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
@@ -1980,6 +1986,7 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__icon { width: 40px; height: 40px; flex-basis: 40px; border-radius: 999px; background: var(--lb-soft); }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__text, .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__text-input { display: none; }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__words { flex: 1; }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__icon > svg { width: 22px; height: 22px; }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__item[data-editing="true"] { padding-right: 36px; }
 .lesson-content .lesson-icon-grid__add { display: inline-flex; align-items: center; gap: 4px; padding: 8px; border: 0; border-radius: 8px; color: var(--lb-sub); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
 .lesson-content .lesson-icon-grid__add:hover { color: var(--lb-text); background: var(--lb-chip); }
