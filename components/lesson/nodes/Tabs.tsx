@@ -18,6 +18,9 @@ import { Plus, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconButton } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 const MAX_TABS = 12;
 
@@ -56,7 +59,11 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   };
 
   const labels: string[] = [];
-  node.forEach((child) => labels.push((child.attrs.label as string) || ''));
+  const icons: string[] = [];
+  node.forEach((child) => {
+    labels.push((child.attrs.label as string) || '');
+    icons.push(resolveLessonIconKey(child.attrs.icon));
+  });
 
   const childPos = (index: number): number | null => {
     const base = typeof getPos === 'function' ? getPos() : undefined;
@@ -66,10 +73,10 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
     return found;
   };
 
-  const setLabel = (index: number, value: string) => {
+  const setPanelAttr = (index: number, attr: 'label' | 'icon', value: string) => {
     const pos = childPos(index);
     if (pos == null) return;
-    editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, 'label', value); return true; }).run();
+    editor.chain().command(({ tr }) => { tr.setNodeAttribute(pos, attr, value); return true; }).run();
   };
 
   const addTab = () => {
@@ -121,12 +128,13 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
           <div key={i} className="lesson-tabs__tab" data-active={i === current ? 'true' : 'false'}>
             {editable ? (
               <>
+                <LessonIconButton className="lesson-tabs__icon-btn" value={icons[i]} onChange={(key) => setPanelAttr(i, 'icon', key)} title={`Tab ${i + 1} icon`} />
                 <NodeTextInput
                   className="lesson-tabs__label-input"
                   value={label}
                   placeholder={`Tab ${i + 1}`}
                   onFocus={() => setActive(i)}
-                  onCommit={(v) => setLabel(i, v)}
+                  onCommit={(v) => setPanelAttr(i, 'label', v)}
                 />
                 {count > 1 && (
                   <button
@@ -140,7 +148,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
                 )}
               </>
             ) : (
-              <button type="button" className="lesson-tabs__trigger" role="tab" data-tab-index={i} aria-selected={i === current} tabIndex={i === current ? 0 : -1} onClick={() => setActive(i)} onKeyDown={(event) => handleTabKeyDown(event, i)}>{label || `Tab ${i + 1}`}</button>
+              <button type="button" className="lesson-tabs__trigger" role="tab" data-tab-index={i} aria-selected={i === current} tabIndex={i === current ? 0 : -1} onClick={() => setActive(i)} onKeyDown={(event) => handleTabKeyDown(event, i)}><LessonIcon name={icons[i]} size={16} className="lesson-tabs__icon" />{label || `Tab ${i + 1}`}</button>
             )}
           </div>
         ))}
@@ -209,6 +217,8 @@ export const TabPanel = Node.create({
         parseHTML: (el) => el.getAttribute('data-label') || '',
         renderHTML: (attrs) => ({ 'data-label': attrs.label }),
       },
+      // A key from lib/lesson-icons, shown before the label; empty = no icon.
+      icon: { default: '' },
     };
   },
 

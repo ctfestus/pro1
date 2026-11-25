@@ -22,6 +22,9 @@ import { BRANDFETCH_CLIENT_ID, resolveBrandLogoUrl } from '@/lib/brandfetch';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconPanel } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const editable = editor.isEditable;
@@ -33,6 +36,8 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
   // Rebuilt from the brand domain where there is one, so a rotated client id cannot break logos
   // already saved in published lessons.
   const logoSrc = resolveBrandLogoUrl(logoUrl, brandDomain);
+  // Shown in place of the number chip when the section has no logo.
+  const icon = resolveLessonIconKey(node.attrs.icon);
   const accentColor = (node.attrs.accentColor as string) || '';
   // Per ITEM, not per accordion: in the app-card pattern each section is a different product, so
   // each carries its own brand colour for its logo tile and toggle.
@@ -93,7 +98,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => (BRANDFETCH_CLIENT_ID ? setShowBrandPicker(true) : setShowLibrary(true))}
             >
-              {logoImage ?? <ImageSquare weight="duotone" width={15} height={15} aria-hidden="true" />}
+              {logoImage ?? (icon ? <LessonIcon name={icon} size={16} /> : <ImageSquare weight="duotone" width={15} height={15} aria-hidden="true" />)}
             </button>
             {logoUrl && (
               <button
@@ -122,8 +127,9 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               onCommit={(v) => updateAttributes({ subtitle: v })}
             />
           </span>
-          <StyleMenu width={210}>
+          <StyleMenu width={340}>
             <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Section accent" /></MenuRow>
+            <MenuRow label="Icon"><LessonIconPanel value={icon} noneLabel="Number" onChange={(key) => updateAttributes({ icon: key })} /></MenuRow>
           </StyleMenu>
           <button type="button" className="lesson-accordion__editor-toggle" aria-label={open ? 'Collapse section' : 'Expand section'} aria-expanded={open} onMouseDown={(event) => { event.preventDefault(); toggle(); }}>
             {toggleIcon}
@@ -136,7 +142,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
         </div>
       ) : (
         <button type="button" className="lesson-accordion__head" aria-expanded={open} onClick={toggle}>
-          {logoImage}
+          {logoImage ?? (icon && <span className="lesson-accordion__icon"><LessonIcon name={icon} size={16} /></span>)}
           <span className="lesson-accordion__heading">
             <span className="lesson-accordion__title">{title || 'Section'}</span>
             {subtitle && <span className="lesson-accordion__subtitle">{subtitle}</span>}
@@ -261,6 +267,8 @@ export const AccordionItem = Node.create({
         parseHTML: (el) => el.getAttribute('data-brand-domain') || '',
         renderHTML: (attrs) => ({ 'data-brand-domain': attrs.brandDomain }),
       },
+      // A key from lib/lesson-icons, shown when there is no logo; empty = the number chip.
+      icon: { default: '' },
       // Empty = follow the tenant accent, so untouched sections are unchanged.
       accentColor: {
         default: '',

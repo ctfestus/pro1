@@ -146,3 +146,33 @@ describe('lessonBlockSchema (the generators cannot skip a response schema)', () 
     }
   });
 });
+
+describe('block icons', () => {
+  it('keeps a known icon key on callouts and on each section', () => {
+    const [callout] = buildLessonNodes([{ type: 'callout', variant: 'tip', title: 'T', text: 'B', icon: 'warning' }]);
+    expect(callout.attrs?.icon).toBe('warning');
+    const [steps] = buildLessonNodes([{ type: 'stepCards', parts: [{ title: 'Clean', icon: 'clean', body: 'B' }] }]);
+    expect(steps.content?.[0]?.attrs?.icon).toBe('clean');
+    const [timeline] = buildLessonNodes([{ type: 'timeline', parts: [{ date: 'Week 1', title: 'T', icon: 'database', body: 'B' }] }]);
+    expect(timeline.content?.[0]?.attrs?.icon).toBe('database');
+    const [tabs] = buildLessonNodes([{ type: 'tabs', parts: [{ label: 'Excel', icon: 'excel', body: 'B' }] }]);
+    expect(tabs.content?.[0]?.attrs?.icon).toBe('excel');
+    const [accordion] = buildLessonNodes([{ type: 'accordion', parts: [{ title: 'S', icon: 'tip', body: 'B' }] }]);
+    expect(accordion.content?.[0]?.attrs?.icon).toBe('tip');
+  });
+
+  it('drops an invented key instead of storing it', () => {
+    const [steps] = buildLessonNodes([{ type: 'stepCards', parts: [{ title: 'S', icon: 'spreadsheet-magic', body: 'B' }] }]);
+    expect(steps.content?.[0]?.attrs?.icon).toBe('');
+  });
+
+  it('stores a flip card with no icon the way the editor does', () => {
+    const [deck] = buildLessonNodes([{ type: 'flipCards', parts: [{ front: 'F', back: 'B' }, { front: 'G', back: 'C', icon: 'brain' }] }]);
+    expect(deck.content?.map((card) => card.attrs?.icon)).toEqual(['none', 'brain']);
+  });
+
+  it('lists every icon key in the guide', () => {
+    expect(LESSON_BLOCK_GUIDE).toContain('chart-bar, chart-line');
+    expect(LESSON_BLOCK_GUIDE).toContain('mobile-money');
+  });
+});

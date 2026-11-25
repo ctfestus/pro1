@@ -8,6 +8,8 @@
 //
 // The guide describes authoring intent while the shared AI layer validates the JSON contract.
 
+import { LESSON_ICON_KEYS } from '@/lib/lesson-icons';
+
 /**
  * Every interactive block the AI can author, with its exact JSON shape and when to use it.
  * Keep in step with AI_BLOCK_TYPES + buildLessonNodes in lib/lesson-blocks.
@@ -29,7 +31,7 @@ Interactive blocks (this is what makes the lesson worth reading on screen):
 - tabs: {"type":"tabs","parts":[{"label":"Tab label","body":"..."}]} -- parallel options, comparisons, or the same task in two tools.
 - carousel: {"type":"carousel","parts":[{"title":"Slide title","body":"..."}]} -- step through one idea per slide.
 - timeline: {"type":"timeline","parts":[{"date":"2019","title":"Milestone","body":"..."}]} -- chronological events or stages.
-- stepCards: {"type":"stepCards","parts":[{"title":"Step title","body":"..."}]} -- scannable numbered instructions, all visible at once. Use for a procedure the learner follows while working.
+- stepCards: {"type":"stepCards","parts":[{"title":"Step title","icon":"filter","body":"..."}]} -- scannable numbered instructions, all visible at once. Use for a procedure the learner follows while working.
 - guidedSteps: {"type":"guidedSteps","parts":[{"title":"Step title","body":"..."}]} -- the same idea as stepCards but revealed one step at a time, so the learner focuses on the current step.
 - promptBlock: {"type":"promptBlock","title":"Try this prompt","prompt":"..."} -- a ready-made AI prompt the learner can copy or open in ChatGPT or Claude. Use when the skill is applied by prompting an AI tool.
 - runnableCode: {"type":"runnableCode","language":"sql|python|javascript","code":"...","setupSql":"...","setupPython":"..."} -- an editable snippet the learner runs inside the lesson. SQL: always include setupSql with CREATE TABLE plus INSERT (3-5 rows) so the query actually runs. Python: put imports in setupPython.
@@ -46,9 +48,14 @@ Every section in "parts" takes EITHER "body" (plain text) OR "children" (an arra
 ]}
 Nest at most two levels deep, and never nest a block type inside itself.
 
+ICONS -- an optional "icon" on a callout, and on each part of flipCards, stepCards, timeline, tabs and accordion. It shows the learner at a glance what the item is about (a step that filters data, a tab for Excel, a milestone that is a launch). Use exactly one of these keys, or leave "icon" out:
+${LESSON_ICON_KEYS.join(', ')}
+Pick the key that fits each item's content; give every part of one block an icon or none of them; never invent a key.
+
 Choosing well: pick the block that fits the content, not the flashiest one. Terminology becomes flipCards, a procedure becomes stepCards or guidedSteps, alternatives become tabs, chronology becomes timeline, optional detail becomes accordion, and anything the learner should try becomes runnableCode, promptBlock, or a knowledgeCheck. Plain paragraphs are still correct for explanation.`;
 
 const STR = { type: 'string' };
+const ICON = { type: 'string', description: 'optional: one key from the ICONS list in the guide' };
 const STR_ARRAY = { type: 'array', items: STR };
 
 /**
@@ -115,6 +122,7 @@ export function lessonBlockSchema(): Record<string, unknown> {
         variant: { type: 'string', enum: ['note', 'tip', 'warning', 'info', 'success'] },
         title: { type: 'string', description: 'short header label, 3-5 words' },
         text: { type: 'string', description: 'the callout body' },
+        icon: ICON,
       }, ['variant', 'title', 'text']),
       // options and correctIndex are required even though only format "choice" uses them:
       // left optional the model omits them on a choice question, and a choice question with
@@ -142,12 +150,13 @@ export function lessonBlockSchema(): Record<string, unknown> {
       containerBranch('flipCards', {
         front: { type: 'string', description: 'the term, question, or prompt' },
         back: { type: 'string', description: 'the definition or answer' },
+        icon: ICON,
       }, ['front', 'back'], '3 to 6 cards'),
-      containerBranch('accordion', { title: STR, body: BODY }, ['title', 'body'], '2 to 6 collapsible sections'),
-      containerBranch('tabs', { label: { type: 'string', description: 'the tab label' }, body: BODY }, ['label', 'body'], '2 to 5 tabs'),
+      containerBranch('accordion', { title: STR, body: BODY, icon: ICON }, ['title', 'body'], '2 to 6 collapsible sections'),
+      containerBranch('tabs', { label: { type: 'string', description: 'the tab label' }, body: BODY, icon: ICON }, ['label', 'body'], '2 to 5 tabs'),
       containerBranch('carousel', { title: STR, body: BODY }, ['title', 'body'], '3 to 6 slides'),
-      containerBranch('timeline', { date: { type: 'string', description: 'the date or period' }, title: STR, body: BODY }, ['date', 'title', 'body'], 'entries in chronological order'),
-      containerBranch('stepCards', { title: STR, body: BODY }, ['title', 'body'], 'the steps in order'),
+      containerBranch('timeline', { date: { type: 'string', description: 'the date or period' }, title: STR, body: BODY, icon: ICON }, ['date', 'title', 'body'], 'entries in chronological order'),
+      containerBranch('stepCards', { title: STR, body: BODY, icon: ICON }, ['title', 'body'], 'the steps in order'),
       containerBranch('guidedSteps', { title: STR, body: BODY }, ['title', 'body'], 'the steps in order'),
     ],
   };

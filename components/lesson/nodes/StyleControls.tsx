@@ -5,7 +5,7 @@
 // reflects the resulting attrs. Free color picking is intentional here -- authors
 // style their own lesson content (the editor chrome itself stays on-brand).
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowCounterClockwise, DotsThree, DotsThreeVertical } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -65,34 +65,6 @@ export function Segmented<T extends string>({ options, value, onChange, title }:
 }
 
 /**
- * Grid of icon choices for a block that shows one. `value` empty means "use the block's default",
- * which the first option should represent so an author can always get back to it.
- */
-export function IconPicker<T extends string>({ options, value, onChange }: {
-  options: { value: T; label: string; Icon: React.ComponentType<{ width?: number; height?: number }> }[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <span className="lesson-style__icons">
-      {options.map((o) => (
-        <button
-          key={o.value || 'default'}
-          type="button"
-          title={o.label}
-          aria-label={o.label}
-          aria-pressed={o.value === value}
-          data-active={o.value === value ? 'true' : 'false'}
-          onMouseDown={(e) => { e.preventDefault(); onChange(o.value); }}
-        >
-          <o.Icon width={14} height={14} />
-        </button>
-      ))}
-    </span>
-  );
-}
-
-/**
  * Inline style + class that give ONE block its own accent colour.
  *
  * Setting `--lesson-accent-base` alone is not enough: the derived shades (`--lesson-accent`,
@@ -143,7 +115,17 @@ export function MenuRow({ label, children }: { label: string; children: React.Re
  * The panel is portaled to <body> (so a block's overflow:hidden can't clip it) and
  * carries `lesson-content` so the shared control styles still apply. Editor-only.
  */
-export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: { children: React.ReactNode; width?: number; triggerLabel?: string; accentColor?: string }) {
+export function StyleMenu({ children, width = 240, triggerLabel, accentColor, trigger, triggerClassName, triggerTitle }: {
+  /** A function child gets `close`, for a menu that should shut once a choice is made. */
+  children: React.ReactNode | ((close: () => void) => React.ReactNode);
+  width?: number;
+  triggerLabel?: string;
+  accentColor?: string;
+  /** Custom trigger content in place of the dots, with its own class and accessible name. */
+  trigger?: React.ReactNode;
+  triggerClassName?: string;
+  triggerTitle?: string;
+}) {
   const { theme } = useTheme();
   const dark = theme === 'dark';
   const [open, setOpen] = useState(false);
@@ -151,12 +133,19 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Under the trigger, right-aligned to it and kept on screen. False once the trigger is out of view.
+  const place = useCallback((): boolean => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (!r || r.bottom < 0 || r.top > window.innerHeight) return false;
+    const panelWidth = Math.min(width, window.innerWidth - 16);
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8)) });
+    return true;
+  }, [width]);
+
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     if (open) { setOpen(false); return; }
-    const r = triggerRef.current?.getBoundingClientRect();
-    const panelWidth = Math.min(width, window.innerWidth - 16);
-    if (r) setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8)) });
+    place();
     setOpen(true);
   };
 
@@ -168,7 +157,13 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: 
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    const onMove = () => setOpen(false);
+    // The panel follows its trigger when the page or the editor scrolls (the editor can scroll on
+    // the very click that opens it), and closes once the trigger has scrolled out of view.
+    // Scrolling a list inside the panel moves nothing.
+    const onMove = (e: Event) => {
+      if (e.target instanceof globalThis.Node && panelRef.current?.contains(e.target)) return;
+      if (!place()) setOpen(false);
+    };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onMove, true);
@@ -179,20 +174,21 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: 
       window.removeEventListener('scroll', onMove, true);
       window.removeEventListener('resize', onMove);
     };
-  }, [open]);
+  }, [open, place]);
 
   return (
     <span className="lesson-style-menu" contentEditable={false}>
       <button
         ref={triggerRef}
         type="button"
-        className="lesson-style-menu__trigger"
-        aria-label={triggerLabel || 'Formatting options'}
+        className={triggerClassName || 'lesson-style-menu__trigger'}
+        aria-label={triggerTitle || triggerLabel || 'Formatting options'}
+        title={triggerTitle}
         data-open={open ? 'true' : 'false'}
         data-theme={dark ? 'dark' : 'light'}
         onMouseDown={toggle}
       >
-        {triggerLabel ? <><DotsThree weight="bold" width={15} height={15} /><span>{triggerLabel}</span></> : <DotsThreeVertical weight="bold" width={15} height={15} />}
+        {trigger ?? (triggerLabel ? <><DotsThree weight="bold" width={15} height={15} /><span>{triggerLabel}</span></> : <DotsThreeVertical weight="bold" width={15} height={15} />)}
       </button>
       {open && pos && createPortal(
         <div
@@ -201,7 +197,7 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor }: 
           style={{ position: 'fixed', top: pos.top, left: pos.left, width, maxWidth: 'calc(100vw - 16px)', ...(accentColor ? { '--lesson-accent-base': accentColor } : {}) } as React.CSSProperties}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {children}
+          {typeof children === 'function' ? children(() => setOpen(false)) : children}
         </div>,
         document.body,
       )}
