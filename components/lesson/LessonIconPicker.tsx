@@ -9,15 +9,29 @@
 
 import { useMemo, useState } from 'react';
 import { MagnifyingGlass, Shapes } from '@phosphor-icons/react';
-import { LESSON_ICONS, LESSON_ICON_GROUPS, LESSON_ICON_KEYS, resolveLessonIconKey, type LessonIconKey } from '@/lib/lesson-icons';
+import { LESSON_ICONS, LESSON_ICON_GROUPS, LESSON_ICON_KEYS, resolveLessonIconKey, toolIconName, toolIconValue, type LessonIconKey, type LessonIconValue } from '@/lib/lesson-icons';
+import { resolveToolIcon } from '@/lib/tool-icons';
+import { useToolIconMap } from '@/lib/use-tool-icons';
 import { LessonIcon, useLessonIconMap } from '@/components/lesson/LessonIcon';
 import { StyleMenu } from '@/components/lesson/nodes/StyleControls';
 
 const keepSelection = (e: React.MouseEvent) => e.preventDefault();
 
+/** Tool names are stored lower case: "power bi" -> "Power BI", "sql" -> "SQL", "chatgpt" -> "ChatGPT". */
+const toolLabel = (name: string) => (name === 'chatgpt' ? 'ChatGPT' : name
+  .split(' ')
+  .map((word) => (word.length <= 3 ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1)))
+  .join(' '));
+
+/** A readable name for a stored icon, for a button's label. */
+function iconLabel(value: LessonIconValue): string {
+  const tool = toolIconName(value);
+  return tool ? toolLabel(tool) : LESSON_ICONS[value as LessonIconKey].label;
+}
+
 export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherChoice = false, autoFocus = false }: {
   value: unknown;
-  onChange: (key: LessonIconKey | '') => void;
+  onChange: (key: LessonIconValue | '') => void;
   /** What the empty choice means for this block, e.g. "Match the style" on a callout. */
   noneLabel?: string;
   /** A choice outside the panel is in use (a flip card's own image), so nothing here is selected. */
@@ -26,8 +40,21 @@ export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherC
   autoFocus?: boolean;
 }) {
   const { map } = useLessonIconMap();
+  const toolMap = useToolIconMap();
   const [query, setQuery] = useState('');
   const selected = otherChoice ? null : resolveLessonIconKey(value);
+
+  // Tool logos first: the platform's tool-icon set, including any an admin uploaded. Names that
+  // share one logo (azure, microsoft azure) show it once.
+  const tools = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const seen = new Set<string>();
+    return Object.keys(toolMap).sort().filter((name) => {
+      if (seen.has(toolMap[name])) return false;
+      seen.add(toolMap[name]);
+      return !q || name.includes(q) || 'logo tool brand'.includes(q);
+    });
+  }, [query, toolMap]);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -67,6 +94,30 @@ export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherC
         </button>
       </div>
       <div className="lesson-icon-picker__list">
+        {tools.length > 0 && (
+          <div className="lesson-icon-picker__group">
+            <p className="lesson-icon-picker__group-name">Tool logos</p>
+            <div className="lesson-icon-picker__tools">
+              {tools.map((name) => {
+                const value = toolIconValue(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    className="lesson-icon-picker__tool"
+                    aria-pressed={value === selected}
+                    data-active={value === selected ? 'true' : 'false'}
+                    onMouseDown={keepSelection}
+                    onClick={() => onChange(value)}
+                  >
+                    <img src={resolveToolIcon(toolMap, name)} alt="" width={20} height={20} draggable={false} />
+                    <span>{toolLabel(name)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {groups.map((group) => (
           <div key={group.id} className="lesson-icon-picker__group">
             <p className="lesson-icon-picker__group-name">{group.name}</p>
@@ -92,7 +143,7 @@ export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherC
             </div>
           </div>
         ))}
-        {!groups.length && <p className="lesson-icon-picker__empty">No icon matches that search.</p>}
+        {!groups.length && !tools.length && <p className="lesson-icon-picker__empty">No icon matches that search.</p>}
       </div>
     </div>
   );
@@ -104,7 +155,7 @@ export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherC
  */
 export function LessonIconButton({ value, onChange, className, title }: {
   value: unknown;
-  onChange: (key: LessonIconKey | '') => void;
+  onChange: (key: LessonIconValue | '') => void;
   className: string;
   /** What the icon is for, e.g. "Step icon"; the current icon's name is added to it. */
   title: string;
@@ -114,7 +165,7 @@ export function LessonIconButton({ value, onChange, className, title }: {
     <StyleMenu
       width={340}
       triggerClassName={className}
-      triggerTitle={key ? `${title}: ${LESSON_ICONS[key].label}` : title}
+      triggerTitle={key ? `${title}: ${iconLabel(key)}` : title}
       trigger={key
         ? <LessonIcon name={key} size={15} className="lesson-icon-btn__icon" />
         : <Shapes weight="duotone" width={15} height={15} aria-hidden="true" />}

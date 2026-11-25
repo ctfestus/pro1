@@ -15,7 +15,8 @@
 // editor can both import it. The Gemini schema + prompt guide live in lib/lesson-blocks-ai.
 
 import type { LessonDoc } from '@/lib/lesson-doc';
-import { resolveLessonIconKey } from '@/lib/lesson-icons';
+import { resolveLessonIconKey, toolIconName } from '@/lib/lesson-icons';
+import { DEFAULT_TOOL_ICONS } from '@/lib/tool-icons';
 
 /** One section of a container block (a tab, a slide, a step, an accordion section, a card). */
 export interface AiBlockPart {
@@ -110,6 +111,14 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArray = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 const partArray = (v: unknown): AiBlockPart[] =>
   (Array.isArray(v) ? v.filter((p): p is AiBlockPart => !!p && typeof p === 'object') : []);
+
+// An icon the AI wrote: a key from the set, or a logo of a built-in tool. The model cannot see a
+// tenant's uploaded logos, so any other tool name is dropped rather than left as an empty badge.
+function aiIcon(raw: unknown) {
+  const value = resolveLessonIconKey(raw);
+  const tool = toolIconName(value);
+  return tool && !(tool in DEFAULT_TOOL_ICONS) ? '' : value;
+}
 
 const textNode = (t: string): LessonDoc => ({ type: 'text', text: t });
 const paragraph = (t: string): LessonDoc => (t ? { type: 'paragraph', content: [textNode(t)] } : { type: 'paragraph' });
@@ -217,7 +226,7 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
         if (!title && !text && !body.length) break;
         nodes.push({
           type: 'callout',
-          attrs: { variant, title, icon: resolveLessonIconKey(b.icon) },
+          attrs: { variant, title, icon: aiIcon(b.icon) },
           content: body.length ? body : [paragraph(text)],
         });
         break;
@@ -265,7 +274,7 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'flipCards': {
         const cards = parts
-          .map((p) => ({ front: str(p.front) || str(p.title), back: str(p.back) || str(p.body), icon: resolveLessonIconKey(p.icon) || 'none' }))
+          .map((p) => ({ front: str(p.front) || str(p.title), back: str(p.back) || str(p.body), icon: aiIcon(p.icon) || 'none' }))
           .filter((c) => c.front && c.back);
         if (cards.length) {
           nodes.push({
@@ -277,13 +286,13 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'accordion': {
         const node = container('accordion', 'accordionItem', parts,
-          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon), open: false }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: aiIcon(p.icon), open: false }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'tabs': {
         const node = container('tabs', 'tabPanel', parts,
-          (p, i) => ({ label: str(p.label) || str(p.title) || `Tab ${i + 1}`, icon: resolveLessonIconKey(p.icon) }), depth);
+          (p, i) => ({ label: str(p.label) || str(p.title) || `Tab ${i + 1}`, icon: aiIcon(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
@@ -295,25 +304,25 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'timeline': {
         const node = container('timeline', 'timelineEntry', parts,
-          (p) => ({ date: str(p.date), title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon) }), depth);
+          (p) => ({ date: str(p.date), title: str(p.title) || str(p.label), icon: aiIcon(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'stepCards': {
         const node = container('stepCards', 'stepCard', parts,
-          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon), highlightTitle: '', highlightBody: '' }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: aiIcon(p.icon), highlightTitle: '', highlightBody: '' }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'guidedSteps': {
         const node = container('stepper', 'step', parts,
-          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon) }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: aiIcon(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'iconGrid': {
         const items = parts
-          .map((p) => ({ icon: resolveLessonIconKey(p.icon), title: str(p.title) || str(p.label), text: str(p.body) }))
+          .map((p) => ({ icon: aiIcon(p.icon), title: str(p.title) || str(p.label), text: str(p.body) }))
           .filter((item) => item.title);
         const style = str(b.style) === 'compact' ? 'compact' : 'cards';
         if (items.length) {

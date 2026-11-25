@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LESSON_ICONS, LESSON_ICON_GROUPS, resolveLessonIconKey } from '@/lib/lesson-icons';
+import { LESSON_ICONS, LESSON_ICON_GROUPS, resolveLessonIconKey, suggestLessonIcon } from '@/lib/lesson-icons';
 
 describe('resolveLessonIconKey', () => {
   it('accepts every key in the set', () => {
@@ -45,5 +45,34 @@ describe('icons saved before the shared set', () => {
       expect(key, stored).not.toBe('');
       expect(map[key as keyof typeof map], stored).toBe(Icon);
     }
+  });
+});
+
+describe('tool logos as icons', () => {
+  it('keeps a tool logo value, normalising its name', () => {
+    expect(resolveLessonIconKey('tool:Power  BI')).toBe('tool:power bi');
+    expect(resolveLessonIconKey('tool:')).toBe('');
+  });
+});
+
+describe('suggestLessonIcon', () => {
+  it('picks an icon from the words of a course outcome', () => {
+    expect(suggestLessonIcon('Clean messy sales exports')).toBe('clean');
+    expect(suggestLessonIcon('Summarise with PivotTables')).toBe('table');
+    expect(suggestLessonIcon('Forecast revenue growth')).toBe('trend');
+    expect(suggestLessonIcon('Use ChatGPT to draft emails to customers')).toBe('email');
+    expect(suggestLessonIcon('Understand mobile money transactions')).toBe('mobile-money');
+    expect(suggestLessonIcon('Filter and sort large datasets')).toBe('filter');
+  });
+
+  it('falls back to the goal icon when nothing matches', () => {
+    expect(suggestLessonIcon('Xyz qwv')).toBe('target');
+  });
+});
+
+describe('suggestLessonIcon on AI outcomes', () => {
+  it('reads generative AI and prompting as AI', () => {
+    expect(suggestLessonIcon('Understand what Generative AI is and how foundation models work')).toBe('brain');
+    expect(suggestLessonIcon('Apply structured prompting frameworks including the 5-Step and RICE frameworks')).toBe('brain');
   });
 });
