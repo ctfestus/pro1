@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/react';
 import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, GridFour, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, MicrosoftExcelLogo, type Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { EXCEL_SHEET_STARTER } from '@/components/lesson/nodes/ExcelSheet';
 import { insertStepCards } from '@/lib/lesson-step-cards';
+import { insertBlock } from '@/lib/lesson-insert';
 
 type InsertCategory = 'Organize' | 'Engage' | 'Practice';
 
@@ -41,11 +42,6 @@ const CATEGORY_META: Record<InsertCategory, { label: string; Icon: typeof Cube }
   Engage: { label: 'Engage learners', Icon: BookOpenText },
   Practice: { label: 'Practice & apply', Icon: Question },
 };
-
-function insertAtSelectionOrEnd(editor: Editor, content: Record<string, unknown>) {
-  const inserted = editor.chain().focus().insertContent(content).run();
-  if (!inserted) editor.chain().focus().insertContentAt(editor.state.doc.content.size, content).run();
-}
 
 export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: Editor; dark: boolean; accentColor: string }) {
   const [open, setOpen] = useState(false);
@@ -120,7 +116,7 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
 
   const insert = (item: InsertItem) => {
     if (item.action) item.action(editor);
-    else if (item.content) insertAtSelectionOrEnd(editor, item.content);
+    else if (item.content) insertBlock(editor, item.content);
     setOpen(false);
   };
 
