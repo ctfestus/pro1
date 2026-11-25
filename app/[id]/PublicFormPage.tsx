@@ -48,6 +48,7 @@ import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
+import { OutcomeGrid } from './OutcomeGrid';
 import { MoreLikeThis } from './MoreLikeThis';
 import { ToolsAndTags } from './ToolsAndTags';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
@@ -1532,18 +1533,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
             {veOutcomes.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>What you&apos;ll learn</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
-                  {veOutcomes.map((o: string, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ width: 18, height: 18, borderRadius: 5, background: `${indColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-                          <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={indColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                      <span style={{ fontSize: 14, color: gp.body, lineHeight: 1.5 }}>{o}</span>
-                    </div>
-                  ))}
-                </div>
+                <OutcomeGrid outcomes={veOutcomes} accent={indColor} card={gp.card} body={gp.body} />
               </div>
             )}
 
@@ -1754,18 +1744,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
               {courseOutcomes.length > 0 && (
                 <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
                   <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px 24px' }}>
-                    {courseOutcomes.map((o: string, i: number) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 5, background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-                            <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke={accentColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                        <span style={{ fontSize: 14, color: cp.body, lineHeight: 1.5 }}>{o}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <OutcomeGrid outcomes={courseOutcomes} accent={accentColor} card={cp.card} body={cp.body} />
                 </div>
               )}
 

@@ -5,7 +5,12 @@
 // add new ones instead. The Phosphor component for each key lives in
 // components/lesson/lessonIconMap.tsx, typed against LessonIconKey so the two cannot drift.
 //
+// A stored icon can also be a tool logo from the tool-icon set (lib/tool-icons), written as
+// `tool:<name>`, e.g. `tool:excel`.
+//
 // DEPENDENCY-FREE (no React, no Phosphor) so the AI routes can read the key list.
+
+import { normalizeToolName } from '@/lib/tool-icons';
 
 type IconGroup = 'data' | 'tools' | 'business' | 'people' | 'learning' | 'status';
 
@@ -27,19 +32,19 @@ export const LESSON_ICON_GROUPS: { id: IconGroup; name: string }[] = [
 
 export const LESSON_ICONS = {
   // Data and analysis
-  table: { label: 'Table', group: 'data', words: 'sheet grid rows columns' },
-  'chart-bar': { label: 'Bar chart', group: 'data', words: 'graph visual compare' },
+  table: { label: 'Table', group: 'data', words: 'sheet grid rows columns pivot pivottable pivottables' },
+  'chart-bar': { label: 'Bar chart', group: 'data', words: 'graph visual compare chart charts analyse analyze analysis visualise visualize' },
   'chart-line': { label: 'Line chart', group: 'data', words: 'graph trend over time' },
   'chart-pie': { label: 'Pie chart', group: 'data', words: 'share proportion' },
   database: { label: 'Database', group: 'data', words: 'sql storage data warehouse' },
   filter: { label: 'Filter', group: 'data', words: 'funnel narrow where' },
   calculate: { label: 'Calculate', group: 'data', words: 'calculator formula maths sum total' },
   formula: { label: 'Formula', group: 'data', words: 'function fx excel' },
-  sum: { label: 'Sum', group: 'data', words: 'sigma total aggregate' },
+  sum: { label: 'Sum', group: 'data', words: 'sigma total aggregate summarise summarize' },
   percent: { label: 'Percent', group: 'data', words: 'rate ratio margin' },
   kpi: { label: 'KPI', group: 'data', words: 'gauge metric dashboard speed' },
   dashboard: { label: 'Dashboard', group: 'data', words: 'grid layout tiles' },
-  present: { label: 'Present', group: 'data', words: 'presentation report slide' },
+  present: { label: 'Present', group: 'data', words: 'presentation report slide findings stakeholders communicate story' },
   clean: { label: 'Clean data', group: 'data', words: 'broom tidy duplicates' },
   sort: { label: 'Sort', group: 'data', words: 'order ascending rank' },
   search: { label: 'Search', group: 'data', words: 'magnifying glass find explore' },
@@ -54,7 +59,7 @@ export const LESSON_ICONS = {
   python: { label: 'Python file', group: 'tools', words: 'py script notebook' },
   code: { label: 'Code', group: 'tools', words: 'programming developer' },
   terminal: { label: 'Terminal', group: 'tools', words: 'command line console' },
-  brain: { label: 'AI', group: 'tools', words: 'brain think model machine learning' },
+  brain: { label: 'AI', group: 'tools', words: 'brain think model machine learning chatgpt claude gemini prompt prompts prompting generative llm' },
   robot: { label: 'Bot', group: 'tools', words: 'robot automation agent' },
   magic: { label: 'Magic', group: 'tools', words: 'wand generate automate' },
   cloud: { label: 'Cloud', group: 'tools', words: 'online server hosting' },
@@ -100,8 +105,8 @@ export const LESSON_ICONS = {
   briefcase: { label: 'Work', group: 'business', words: 'briefcase job career' },
   deal: { label: 'Deal', group: 'business', words: 'handshake partnership agreement' },
   legal: { label: 'Legal', group: 'business', words: 'scales law compliance' },
-  trend: { label: 'Growth', group: 'business', words: 'trend up increase' },
-  decline: { label: 'Decline', group: 'business', words: 'trend down decrease drop' },
+  trend: { label: 'Growth', group: 'business', words: 'trend up increase forecast forecasting projection' },
+  decline: { label: 'Decline', group: 'business', words: 'trend down decrease drop churn loss' },
   rocket: { label: 'Launch', group: 'business', words: 'rocket start growth' },
   announce: { label: 'Announcement', group: 'business', words: 'megaphone marketing campaign' },
   africa: { label: 'Africa', group: 'business', words: 'globe world region market' },
@@ -184,6 +189,19 @@ export type LessonIconKey = keyof typeof LESSON_ICONS;
 
 export const LESSON_ICON_KEYS = Object.keys(LESSON_ICONS) as LessonIconKey[];
 
+/** What a block stores: a key from the set above, or a tool logo as `tool:<name>`. */
+export type LessonIconValue = LessonIconKey | `tool:${string}`;
+
+const TOOL_PREFIX = 'tool:';
+
+/** The tool name of a `tool:` value, or '' for a plain icon. */
+export function toolIconName(value: string): string {
+  return value.startsWith(TOOL_PREFIX) ? value.slice(TOOL_PREFIX.length) : '';
+}
+
+/** The stored value for a tool logo. */
+export const toolIconValue = (name: string): LessonIconValue => `tool:${normalizeToolName(name)}`;
+
 // Keys that older flip cards stored for an icon now held under another key.
 const ALIASES: Record<string, LessonIconKey> = {
   lightbulb: 'tip',
@@ -191,11 +209,48 @@ const ALIASES: Record<string, LessonIconKey> = {
   growth: 'trend',
 };
 
-/** A stored or AI-written icon value as a known key, or '' when it is empty or unknown. */
-export function resolveLessonIconKey(raw: unknown): LessonIconKey | '' {
+/**
+ * A stored or AI-written icon value as a known key or a tool logo, or '' when it is empty or
+ * unknown. A tool logo is only checked for a name here; whether that tool has a logo is known
+ * where the tool-icon set is loaded.
+ */
+export function resolveLessonIconKey(raw: unknown): LessonIconValue | '' {
   if (typeof raw !== 'string') return '';
   const value = raw.trim().toLowerCase();
   if (!value) return '';
+  if (value.startsWith(TOOL_PREFIX)) {
+    const name = normalizeToolName(value.slice(TOOL_PREFIX.length));
+    return name ? `tool:${name}` : '';
+  }
   if (value in LESSON_ICONS) return value as LessonIconKey;
   return ALIASES[value] ?? '';
+}
+
+// Words that say nothing about what an outcome is about.
+const STOP_WORDS = new Set(['and', 'the', 'with', 'for', 'your', 'you', 'from', 'into', 'that', 'this', 'how', 'use', 'using', 'will', 'their', 'them', 'own', 'one', 'can']);
+
+/**
+ * An icon for a line of text, picked from its words, e.g. a course outcome: "Clean messy sales
+ * exports" gets the broom. Each icon scores 3 for a word that is its key, 2 for one that matches
+ * its label or search words, and 1 for a shared stem ("cleaning" / "clean"); the highest score
+ * wins, and text that matches nothing gets the goal icon.
+ */
+export function suggestLessonIcon(text: string): LessonIconKey {
+  const words = (text.toLowerCase().match(/[a-z]+/g) ?? []).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+  let best: LessonIconKey = 'target';
+  let bestScore = 0;
+  for (const key of LESSON_ICON_KEYS) {
+    const { label, words: extra } = LESSON_ICONS[key];
+    const terms: string[] = `${key} ${label} ${extra}`.toLowerCase().match(/[a-z]+/g) ?? [];
+    let score = 0;
+    for (const raw of words) {
+      // "emails" counts as "email"; the key itself is the strongest match.
+      const word = raw.length > 4 && raw.endsWith('s') && !terms.includes(raw) ? raw.slice(0, -1) : raw;
+      if (word === key) score += 3;
+      else if (terms.includes(word)) score += 2;
+      else if (word.length >= 4 && terms.some((t) => t.length >= 4 && (word.startsWith(t) || t.startsWith(word)))) score += 1;
+    }
+    if (score > bestScore) { best = key; bestScore = score; }
+  }
+  return best;
 }

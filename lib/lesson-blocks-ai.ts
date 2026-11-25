@@ -9,6 +9,7 @@
 // The guide describes authoring intent while the shared AI layer validates the JSON contract.
 
 import { LESSON_ICON_KEYS } from '@/lib/lesson-icons';
+import { DEFAULT_TOOL_ICONS } from '@/lib/tool-icons';
 
 /**
  * Every interactive block the AI can author, with its exact JSON shape and when to use it.
@@ -51,6 +52,7 @@ Nest at most two levels deep, and never nest a block type inside itself.
 
 ICONS -- an optional "icon" on a callout, and on each part of flipCards, stepCards, guidedSteps, timeline, tabs and accordion. Every iconGrid part needs one. It shows the learner at a glance what the item is about (a step that filters data, a tab for Excel, a milestone that is a launch). Use exactly one of these keys, or leave "icon" out:
 ${LESSON_ICON_KEYS.join(', ')}
+For an item about one of these tools, its real logo is better than a generic icon: ${Object.keys(DEFAULT_TOOL_ICONS).map((name) => `tool:${name}`).join(', ')}
 Pick the key that fits each item's content; give every part of one block an icon or none of them; never invent a key.
 
 Choosing well: pick the block that fits the content, not the flashiest one. Terminology becomes flipCards, a procedure becomes stepCards or guidedSteps, alternatives become tabs, chronology becomes timeline, the outcomes or key ideas of a lesson become an iconGrid, optional detail becomes accordion, and anything the learner should try becomes runnableCode, promptBlock, or a knowledgeCheck. Plain paragraphs are still correct for explanation.`;

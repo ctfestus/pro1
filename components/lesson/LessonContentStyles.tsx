@@ -1893,6 +1893,16 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-icon-picker__icon[data-active="true"] { color: var(--lesson-accent-ink); background: var(--lb-tint); box-shadow: inset 0 0 0 2px var(--lesson-accent); }
 .lesson-content.dark .lesson-icon-picker__icon[data-active="true"] { color: var(--lesson-accent); }
 .lesson-content .lesson-icon-picker__icon:focus-visible, .lesson-content .lesson-icon-picker__none:focus-visible { outline: 2px solid var(--lesson-accent); outline-offset: 1px; }
+.lesson-content .lesson-icon-picker__tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px; }
+.lesson-content .lesson-icon-picker__tool { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 0; border-radius: 8px; color: #3f3f46; background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; text-align: left; }
+.lesson-content .lesson-icon-picker__tool > img { flex: 0 0 20px; object-fit: contain; }
+.lesson-content .lesson-icon-picker__tool > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lesson-content .lesson-icon-picker__tool:hover { background: #f4f4f5; }
+.lesson-content.dark .lesson-icon-picker__tool { color: #d4d4d8; }
+.lesson-content.dark .lesson-icon-picker__tool:hover { background: rgba(255,255,255,0.07); }
+.lesson-content .lesson-icon-picker__tool[data-active="true"] { color: #18181b; background: var(--lb-tint); box-shadow: inset 0 0 0 2px var(--lesson-accent); }
+.lesson-content.dark .lesson-icon-picker__tool[data-active="true"] { color: #fafafa; }
+.lesson-content .lesson-icon-picker__tool:focus-visible { outline: 2px solid var(--lesson-accent); outline-offset: 1px; }
 .lesson-content .lesson-icon-picker__empty { margin: 0; padding: 8px 0; color: #71717a; font-size: 13px; }
 .lesson-content .lesson-flip__icon-custom { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px dashed #d4d4d8; border-radius: 8px; color: #52525b; background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
 .lesson-content .lesson-flip__icon-custom[data-active="true"] { border-style: solid; color: #18181b; }
@@ -2001,6 +2011,22 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
   .lesson-content .lesson-icon-grid[data-style="cards"] { padding: 16px; }
   .lesson-content .lesson-icon-grid__items > [data-node-view-content-react] { grid-template-columns: minmax(0, 1fr); }
 }
+/* Tool logos (a "tool:" icon) keep their own colours, so wherever a plain icon sits on a fill of
+   the lesson colour, a logo gets a white tile with a thin line instead. */
+.lesson-content .lesson-tool-logo { display: block; flex: 0 0 auto; object-fit: contain; }
+.lesson-content .lesson-step-card[data-icon] .lesson-step-card__number:has(.lesson-tool-logo),
+.lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number:has(.lesson-tool-logo),
+.lesson-content .lesson-step__marker[data-icon]:has(.lesson-tool-logo),
+.lesson-content .lesson-accordion__icon:has(.lesson-tool-logo),
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__icon:has(.lesson-tool-logo),
+.lesson-content .lesson-icon-grid__icon:has(.lesson-tool-logo),
+.lesson-content.dark .lesson-icon-grid__icon:has(.lesson-tool-logo),
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__icon:has(.lesson-tool-logo),
+.lesson-content .lesson-flip__front-icon:has(.lesson-tool-logo),
+.lesson-content .lesson-flip__edit-icon:has(.lesson-tool-logo) { background: #ffffff; box-shadow: inset 0 0 0 1px var(--lb-line); }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card[data-icon] .lesson-step-card__number > .lesson-tool-logo { width: 26px; height: 26px; }
+.lesson-content .lesson-timeline__dot[data-icon] > .lesson-tool-logo { position: relative; z-index: 1; box-sizing: content-box; width: 22px; height: 22px; padding: 9px; border-radius: 999px; background: #ffffff; box-shadow: inset 0 0 0 1px var(--lb-line), 0 0 0 4px var(--lb-tint); }
+.lesson-content.dark .lesson-timeline__dot[data-icon] > .lesson-tool-logo { box-shadow: 0 0 0 4px color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
 `}</style>
   );
 }
