@@ -114,11 +114,11 @@ export function inlineGlossaryDefinitions<T extends LessonDoc | null | undefined
 
 // Node attrs that carry author-written prose. Most block bodies live in child `content`
 // (those nodes are `block+`), so the text walk already picks those up -- this list is for
-// text a node keeps on itself: a callout's title, and the two faces of a flip card, which
-// is an atom node with no child content at all.
+// text a node keeps on itself: a callout's title, the two faces of a flip card, and an icon
+// grid item's line -- both atom nodes with no child content at all.
 const TEXT_ATTRS = new Set([
   'title', 'label', 'prompt', 'question', 'date', 'alt', 'caption', 'name', 'summary',
-  'front', 'back',
+  'front', 'back', 'text',
 ]);
 
 // knowledgeCheck attrs the tutor must never see. A lesson knowledge check is formative,

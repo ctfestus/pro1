@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, MicrosoftExcelLogo, type Icon as PhosphorIcon } from '@phosphor-icons/react';
+import { BookOpenText, BracketsCurly, CaretDown, CaretUpDown, ChatTeardropText, ClockCounterClockwise, Cube, GridFour, Info, Layout, ListChecks, MagnifyingGlass, Question, Slideshow, SquaresFour, Stack, TerminalWindow, MicrosoftExcelLogo, type Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { EXCEL_SHEET_STARTER } from '@/components/lesson/nodes/ExcelSheet';
 import { insertStepCards } from '@/lib/lesson-step-cards';
 
@@ -24,6 +24,7 @@ const ITEMS: InsertItem[] = [
   { id: 'tabs', label: 'Tabs', description: 'Organize related content into focused views.', category: 'Organize', Icon: SquaresFour, content: { type: 'tabs', content: [{ type: 'tabPanel', attrs: { label: 'Tab 1' }, content: [{ type: 'paragraph' }] }, { type: 'tabPanel', attrs: { label: 'Tab 2' }, content: [{ type: 'paragraph' }] }] } },
   { id: 'carousel', label: 'Carousel', description: 'Guide learners through a sequence of slides.', category: 'Organize', Icon: Slideshow, content: { type: 'carousel', content: [{ type: 'carouselSlide', content: [{ type: 'paragraph' }] }, { type: 'carouselSlide', content: [{ type: 'paragraph' }] }] } },
   { id: 'step-cards', label: 'Step cards', description: 'Show scan-friendly numbered instructions.', category: 'Organize', Icon: Layout, action: insertStepCards },
+  { id: 'icon-grid', label: 'Icon grid', description: 'Show key ideas or outcomes as icons with a short line each.', category: 'Organize', Icon: GridFour, content: { type: 'iconGrid', attrs: { title: '', style: 'cards', columns: '3' }, content: [{ type: 'iconGridItem', attrs: { icon: '', title: '', text: '' } }, { type: 'iconGridItem', attrs: { icon: '', title: '', text: '' } }, { type: 'iconGridItem', attrs: { icon: '', title: '', text: '' } }] } },
   { id: 'guided-steps', label: 'Guided steps', description: 'Reveal a process one step at a time.', category: 'Organize', Icon: ListChecks, content: { type: 'stepper', content: [{ type: 'step', attrs: { title: '' }, content: [{ type: 'paragraph' }] }, { type: 'step', attrs: { title: '' }, content: [{ type: 'paragraph' }] }] } },
   { id: 'timeline', label: 'Timeline', description: 'Present milestones in chronological order.', category: 'Organize', Icon: ClockCounterClockwise, content: { type: 'timeline', content: [{ type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }, { type: 'timelineEntry', attrs: { date: '', title: '' }, content: [{ type: 'paragraph' }] }] } },
   { id: 'callout', label: 'Callout', description: 'Highlight a note, tip, warning, or insight.', category: 'Engage', Icon: Info, content: { type: 'callout', attrs: { variant: 'note' }, content: [{ type: 'paragraph' }] } },

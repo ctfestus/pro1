@@ -26,6 +26,7 @@ const SAMPLES: Record<string, { block: AiBlock; node: string }> = {
   timeline:       { block: { type: 'timeline', parts: [{ date: '2020', title: 'T', body: 'B' }] }, node: 'timeline' },
   stepCards:      { block: { type: 'stepCards', parts: [{ title: 'Step 1', body: 'B' }] }, node: 'stepCards' },
   guidedSteps:    { block: { type: 'guidedSteps', parts: [{ title: 'Step 1', body: 'B' }] }, node: 'stepper' },
+  iconGrid:       { block: { type: 'iconGrid', parts: [{ icon: 'table', title: 'Tables', body: 'B' }] }, node: 'iconGrid' },
 };
 
 describe('every advertised block type is buildable', () => {
@@ -174,5 +175,24 @@ describe('block icons', () => {
   it('lists every icon key in the guide', () => {
     expect(LESSON_BLOCK_GUIDE).toContain('chart-bar, chart-line');
     expect(LESSON_BLOCK_GUIDE).toContain('mobile-money');
+  });
+});
+
+describe('icon grid', () => {
+  it('builds items with icons, a heading and a style, and drops items with no title', () => {
+    const [grid] = buildLessonNodes([{
+      type: 'iconGrid', title: 'What you will learn', style: 'compact',
+      parts: [{ icon: 'table', title: 'Tables', body: 'Structure data' }, { icon: 'made-up', title: 'Charts' }, { icon: 'sum', body: 'no title' }],
+    }]);
+    expect(grid.attrs).toMatchObject({ title: 'What you will learn', style: 'compact', columns: '2' });
+    expect(grid.content?.map((item) => item.attrs)).toEqual([
+      { icon: 'table', title: 'Tables', text: 'Structure data' },
+      { icon: '', title: 'Charts', text: '' },
+    ]);
+  });
+
+  it('falls back to the cards style and skips a grid with no usable items', () => {
+    expect(buildLessonNodes([{ type: 'iconGrid', style: 'other', parts: [{ title: 'A' }] }])[0].attrs?.style).toBe('cards');
+    expect(buildLessonNodes([{ type: 'iconGrid', parts: [{ body: 'x' }] }])).toEqual([]);
   });
 });

@@ -32,6 +32,7 @@ import { FlipCard, FlipCardDeck } from '@/components/lesson/nodes/FlipCards';
 import { Stepper, Step } from '@/components/lesson/nodes/Stepper';
 import { StepCards, StepCard } from '@/components/lesson/nodes/StepCards';
 import { Timeline, TimelineEntry } from '@/components/lesson/nodes/Timeline';
+import { IconGrid, IconGridItem } from '@/components/lesson/nodes/IconGrid';
 import { GlossaryTerm } from '@/components/lesson/nodes/GlossaryTerm';
 import { PromptBlock } from '@/components/lesson/nodes/PromptBlock';
 import { ExcelSheet } from '@/components/lesson/nodes/ExcelSheet';
@@ -176,6 +177,8 @@ export const lessonExtensions: Extensions = [
   StepCard,
   Timeline,
   TimelineEntry,
+  IconGrid,
+  IconGridItem,
   GlossaryTerm,
   PromptBlock,
   ExcelSheet,
