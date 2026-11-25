@@ -160,6 +160,8 @@ describe('block icons', () => {
     expect(tabs.content?.[0]?.attrs?.icon).toBe('excel');
     const [accordion] = buildLessonNodes([{ type: 'accordion', parts: [{ title: 'S', icon: 'tip', body: 'B' }] }]);
     expect(accordion.content?.[0]?.attrs?.icon).toBe('tip');
+    const [guided] = buildLessonNodes([{ type: 'guidedSteps', parts: [{ title: 'Load', icon: 'excel', body: 'B' }] }]);
+    expect(guided.content?.[0]?.attrs?.icon).toBe('excel');
   });
 
   it('drops an invented key instead of storing it', () => {

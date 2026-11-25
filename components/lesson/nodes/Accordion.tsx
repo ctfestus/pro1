@@ -145,7 +145,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
         </div>
       ) : (
         <button type="button" className="lesson-accordion__head" aria-expanded={open} onClick={toggle}>
-          {logoImage ?? (icon && <span className="lesson-accordion__icon"><LessonIcon name={icon} size={16} /></span>)}
+          {logoImage ?? (icon && <span className="lesson-accordion__icon"><LessonIcon name={icon} size={18} /></span>)}
           <span className="lesson-accordion__heading">
             <span className="lesson-accordion__title">{title || 'Section'}</span>
             {subtitle && <span className="lesson-accordion__subtitle">{subtitle}</span>}

@@ -18,6 +18,9 @@ import { ArrowCounterClockwise, CaretDown, CaretUp, Check, Copy, Plus, Trash } f
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconButton } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 const MAX_STEPS = 12;
 
@@ -31,6 +34,7 @@ const REVEAL_OPTIONS: { value: RevealMode; label: string }[] = [
 function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const title = (node.attrs.title as string) || '';
+  const icon = resolveLessonIconKey(node.attrs.icon);
 
   // A ProseMirror node keeps its identity when moved, so ordinary node-view props
   // may not update after reordering. Subscribe to transactions so the displayed
@@ -82,8 +86,10 @@ function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="lesson-step" data-step-index={index}>
-      <div className="lesson-step__marker" contentEditable={false}>
-        <span className="lesson-step__num">{index + 1}</span>
+      <div className="lesson-step__marker" data-icon={icon ? 'true' : undefined} contentEditable={false}>
+        {/* An icon takes the number's place. A finished step keeps its icon, with the check as a
+            badge on the corner; a numbered step turns its number into the check. */}
+        <span className="lesson-step__num">{icon ? <LessonIcon name={icon} size={20} /> : index + 1}</span>
         <Check weight="bold" className="lesson-step__check" width={15} height={15} aria-hidden="true" />
       </div>
       <div className="lesson-step__main">
@@ -96,6 +102,7 @@ function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
             )}
             {editable && (
               <div className="lesson-step__controls" aria-label={`Step ${index + 1} controls`}>
+                <LessonIconButton className="lesson-step__control" value={icon} onChange={(key) => updateAttributes({ icon: key })} title={`Step ${index + 1} icon`} />
                 <button type="button" className="lesson-step__control" disabled={index === 0} aria-label={`Move step ${index + 1} up`} title="Move step up" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(-1)}><CaretUp weight="bold" width={14} height={14} /></button>
                 <button type="button" className="lesson-step__control" disabled={index >= siblingCount - 1} aria-label={`Move step ${index + 1} down`} title="Move step down" onMouseDown={(e) => e.preventDefault()} onClick={() => moveSelf(1)}><CaretDown weight="bold" width={14} height={14} /></button>
                 <button type="button" className="lesson-step__control" disabled={siblingCount >= MAX_STEPS} aria-label={`Duplicate step ${index + 1}`} title="Duplicate step" onMouseDown={(e) => e.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
@@ -118,11 +125,16 @@ function StepperView({ node, editor, getPos, updateAttributes }: NodeViewProps) 
   // line, the Continue button, and the completion icon.
   const accent = accentScope(node.attrs.accentColor as string);
   const [revealed, setRevealed] = useState(1);
+  // The last step opens as the current step like any other; the walkthrough is complete only once
+  // the learner clicks Finish on it. A single step has nothing to walk through, so it starts done.
+  const [finished, setFinished] = useState(false);
   // 'all' shows the whole rail at once (no Continue button, no completion line) -- the right
   // shape when the steps are reference instructions to scan rather than a walkthrough to work
   // through. The editor already shows every step regardless.
   const shown = editable || revealMode === 'all' ? count : Math.min(revealed, count);
   const sequential = !editable && revealMode === 'sequential';
+  const onLastStep = sequential && shown >= count;
+  const complete = onLastStep && (finished || count === 1);
 
   const addStep = () => {
     if (count >= MAX_STEPS) return;
@@ -136,27 +148,28 @@ function StepperView({ node, editor, getPos, updateAttributes }: NodeViewProps) 
     // data-reveal scopes the walkthrough-only CSS (the "current step" highlight and the
     // numbers-become-checks rules). In 'all' mode every step keeps its number, which is the
     // point: the rail is reference instructions, not progress.
-    <NodeViewWrapper className={`lesson-stepper ${accent.className}`.trim()} style={accent.style} data-revealed={shown} data-reveal={revealMode} data-complete={sequential && shown >= count ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
-      {/* One segment per step, filled up to the step the learner has reached. */}
-      {sequential && count > 1 && (
-        <div className="lesson-stepper__bar" aria-hidden="true">
-          {Array.from({ length: count }, (_, i) => <i key={i} data-on={i < shown ? 'true' : 'false'} />)}
-        </div>
-      )}
+    <NodeViewWrapper className={`lesson-stepper ${accent.className}`.trim()} style={accent.style} data-revealed={shown} data-reveal={revealMode} data-complete={complete ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
       <NodeViewContent className="lesson-stepper__steps" />
-      {sequential && shown < count && (
+      {sequential && !complete && (
         <div className="lesson-stepper__next-row">
-          <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
-            <span>Continue</span>
-            <CaretDown weight="bold" width={15} height={15} aria-hidden="true" />
-          </button>
+          {onLastStep ? (
+            <button type="button" className="lesson-stepper__next" onClick={() => setFinished(true)}>
+              <span>Finish</span>
+              <Check weight="bold" width={15} height={15} aria-hidden="true" />
+            </button>
+          ) : (
+            <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
+              <span>Continue</span>
+              <CaretDown weight="bold" width={15} height={15} aria-hidden="true" />
+            </button>
+          )}
           <span className="lesson-stepper__progress">Step {shown} of {count}</span>
         </div>
       )}
-      {sequential && shown >= count && count > 1 && (
+      {complete && count > 1 && (
         <div className="lesson-stepper__done">
           <span className="lesson-stepper__done-label" role="status"><span className="lesson-stepper__done-icon"><Check weight="bold" width={14} height={14} /></span> All steps complete</span>
-          <button type="button" className="lesson-stepper__restart" onClick={() => setRevealed(1)}><ArrowCounterClockwise weight="bold" width={13} height={13} aria-hidden="true" /> Restart</button>
+          <button type="button" className="lesson-stepper__restart" onClick={() => { setRevealed(1); setFinished(false); }}><ArrowCounterClockwise weight="bold" width={13} height={13} aria-hidden="true" /> Restart</button>
         </div>
       )}
       {editable && (
@@ -206,6 +219,8 @@ export const Step = Node.create({
         parseHTML: (el) => el.getAttribute('data-title') || '',
         renderHTML: (attrs) => ({ 'data-title': attrs.title }),
       },
+      // A key from lib/lesson-icons, shown in the marker instead of the number; empty = the number.
+      icon: { default: '' },
     };
   },
 

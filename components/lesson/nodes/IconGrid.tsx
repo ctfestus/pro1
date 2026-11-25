@@ -74,7 +74,7 @@ function IconGridItemView({ node, editor, getPos, updateAttributes }: NodeViewPr
 
   return (
     <NodeViewWrapper className="lesson-icon-grid__item">
-      {icon && <span className="lesson-icon-grid__icon"><LessonIcon name={icon} size={22} /></span>}
+      {icon && <span className="lesson-icon-grid__icon"><LessonIcon name={icon} size={24} /></span>}
       <span className="lesson-icon-grid__words">
         {title && <span className="lesson-icon-grid__title">{title}</span>}
         {text && <span className="lesson-icon-grid__text">{text}</span>}

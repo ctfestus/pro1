@@ -49,7 +49,7 @@ Every section in "parts" takes EITHER "body" (plain text) OR "children" (an arra
 ]}
 Nest at most two levels deep, and never nest a block type inside itself.
 
-ICONS -- an optional "icon" on a callout, and on each part of flipCards, stepCards, timeline, tabs and accordion. Every iconGrid part needs one. It shows the learner at a glance what the item is about (a step that filters data, a tab for Excel, a milestone that is a launch). Use exactly one of these keys, or leave "icon" out:
+ICONS -- an optional "icon" on a callout, and on each part of flipCards, stepCards, guidedSteps, timeline, tabs and accordion. Every iconGrid part needs one. It shows the learner at a glance what the item is about (a step that filters data, a tab for Excel, a milestone that is a launch). Use exactly one of these keys, or leave "icon" out:
 ${LESSON_ICON_KEYS.join(', ')}
 Pick the key that fits each item's content; give every part of one block an icon or none of them; never invent a key.
 
@@ -167,7 +167,7 @@ export function lessonBlockSchema(): Record<string, unknown> {
           items: { type: 'object', properties: { icon: ICON, title: STR, body: { type: 'string', description: 'one short line' } }, required: ['icon', 'title'] },
         },
       }, ['parts']),
-      containerBranch('guidedSteps', { title: STR, body: BODY }, ['title', 'body'], 'the steps in order'),
+      containerBranch('guidedSteps', { title: STR, body: BODY, icon: ICON }, ['title', 'body'], 'the steps in order'),
     ],
   };
 }

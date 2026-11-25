@@ -28,7 +28,7 @@ export interface AiBlockPart {
   /** flipCards */
   front?: string;
   back?: string;
-  /** A lib/lesson-icons key: flipCards, accordion, tabs, timeline, stepCards, iconGrid. */
+  /** A lib/lesson-icons key: flipCards, accordion, tabs, timeline, stepCards, guidedSteps, iconGrid. */
   icon?: string;
   /** Plain-text body, used when `children` is absent. */
   body?: string;
@@ -307,7 +307,7 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'guidedSteps': {
         const node = container('stepper', 'step', parts,
-          (p) => ({ title: str(p.title) || str(p.label) }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
