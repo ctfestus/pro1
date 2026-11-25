@@ -750,7 +750,6 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
   // had an overview to scroll. Never unset, so it cannot fire twice in one visit.
   const [courseHalfway, setCourseHalfway] = useState(false);
   const [retakeKey, setRetakeKey] = useState(0);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [prefilledName, setPrefilledName] = useState('');
   const [prefilledEmail, setPrefilledEmail] = useState('');
   const [calPopupOpen, setCalPopupOpen] = useState(false);
@@ -1541,7 +1540,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
             {modules.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
-                <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} divider={gp.divider} />
+                <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} itemWord="mission" />
               </div>
             )}
           </div>
@@ -1773,13 +1772,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
                 return (
                   <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
                     <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>Course outline</h2>
-                    <MissionOutline modules={outlineGroups} isDark={dark} text={cp.title} muted={cp.muted} divider={cp.divider}
-                      collapsed={collapsedSections}
-                      onToggle={groupId => setCollapsedSections(prev => {
-                        const next = new Set(prev);
-                        if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
-                        return next;
-                      })} />
+                    <MissionOutline modules={outlineGroups} isDark={dark} text={cp.title} muted={cp.muted} />
                   </div>
                 );
               })()}

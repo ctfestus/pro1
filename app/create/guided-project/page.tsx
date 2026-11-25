@@ -189,6 +189,13 @@ function VirtualExperienceCreatePageInner() {
   const [saveError,   setSaveError]   = useState('');
   const [saveWarning, setSaveWarning] = useState('');
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  // Milestones folded in the Content step, so a long experience can be read as its milestones.
+  const [foldedMilestones, setFoldedMilestones] = useState<Set<string>>(new Set());
+  const toggleMilestone = (id: string) => setFoldedMilestones(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
 
   const coverRef = useRef<HTMLInputElement>(null);
@@ -1814,11 +1821,18 @@ function VirtualExperienceCreatePageInner() {
                       return (
                       <SortableVEShell key={mod.id} id={mod.id}>
                         {({ dragHandle: moduleDragHandle }) => (
-                        <div className="group py-4" style={{ borderTop: mi > 0 ? `1px solid ${C.divider}` : 'none' }}>
+                        // Each milestone is its own outlined card, so milestones stay apart even with
+                        // every mission folded.
+                        <div className="group rounded-2xl p-3 sm:p-4" style={{ border: `1px solid ${C.divider}`, marginTop: mi > 0 ? 12 : 0 }}>
 
                           {/* Milestone heading */}
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className={`flex items-center gap-2 ${foldedMilestones.has(mod.id) ? '' : 'mb-2'}`}>
                             <div className="flex-shrink-0" title="Drag to reorder milestone">{moduleDragHandle}</div>
+                            <button type="button" onClick={() => toggleMilestone(mod.id)} aria-expanded={!foldedMilestones.has(mod.id)}
+                              aria-label={foldedMilestones.has(mod.id) ? `Open milestone ${mi + 1}` : `Fold milestone ${mi + 1}`}
+                              className="flex-shrink-0" style={{ color: C.muted }}>
+                              {foldedMilestones.has(mod.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
                             <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: C.faint }}>Milestone {mi + 1}</span>
                             <input
                               value={mod.title}
@@ -1828,11 +1842,17 @@ function VirtualExperienceCreatePageInner() {
                               style={{ color: C.text }}
                               placeholder="Milestone title"
                             />
+                            {foldedMilestones.has(mod.id) && (
+                              <span className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: C.muted }}>
+                                {(mod.lessons || []).length} mission{(mod.lessons || []).length === 1 ? '' : 's'}
+                              </span>
+                            )}
                             <RowMenu C={C} label={`Milestone ${mi + 1} options`} onDelete={() => removeModule(mod.id)} />
                           </div>
 
-                          {/* Missions */}
-                          <div className="space-y-1">
+                          {/* Missions: each a soft grey row, open or folded, so they read as separate items */}
+                          {!foldedMilestones.has(mod.id) && (
+                          <div className="space-y-2">
                             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd(mod.id)}>
                             <SortableContext items={(mod.lessons || []).map(l => l.id)} strategy={verticalListSortingStrategy}>
                             {(mod.lessons || []).map((les, li) => {
@@ -1841,7 +1861,7 @@ function VirtualExperienceCreatePageInner() {
                               return (
                               <SortableVEShell key={les.id} id={les.id}>
                                 {({ dragHandle: lessonDragHandle }) => (
-                                <div className="rounded-xl group" style={{ background: expandedModules.has(expandKey) ? C.page : 'transparent' }}>
+                                <div className="rounded-xl group" style={{ background: C.page }}>
 
                                   {/* Mission row: open it to edit the content and tasks */}
                                   <div className="flex items-center gap-2 px-2 py-2">
@@ -1983,7 +2003,7 @@ function VirtualExperienceCreatePageInner() {
                             </DndContext>
 
                             {/* Add mission, then the milestone's optional solution link */}
-                            <div className="space-y-2 pt-1">
+                            <div className="space-y-2 pt-2">
                               <div><button type="button" onClick={() => addLesson(mod.id)} className={btnSmClass} style={btnStyle('sec', C)}>
                                 <Plus className="w-3.5 h-3.5" /> Add mission
                               </button></div>
@@ -1999,6 +2019,7 @@ function VirtualExperienceCreatePageInner() {
                               </div>
                             </div>
                           </div>
+                          )}
                         </div>
                         )}
                       </SortableVEShell>
@@ -2007,7 +2028,7 @@ function VirtualExperienceCreatePageInner() {
                     </SortableContext>
                     </DndContext>
                   </div>
-                  <div className="pt-4" style={{ borderTop: `1px solid ${C.divider}` }}><button type="button" onClick={addModule} className={btnSmClass} style={btnStyle('sec', C)}>
+                  <div className="pt-4"><button type="button" onClick={addModule} className={btnSmClass} style={btnStyle('sec', C)}>
                     <Plus className="w-3.5 h-3.5" /> Add milestone
                   </button></div>
                 </div>
