@@ -18,13 +18,14 @@ import { resolveLessonIconKey } from '@/lib/lesson-icons';
 const MAX_ITEMS = 12;
 
 type GridStyle = 'cards' | 'compact';
-type GridColumns = '2' | '3' | '4';
+type GridColumns = '1' | '2' | '3' | '4';
 
 const STYLE_OPTIONS: { value: GridStyle; label: string }[] = [
   { value: 'cards', label: 'Cards' },
   { value: 'compact', label: 'Compact' },
 ];
 const COLUMN_OPTIONS: { value: GridColumns; label: string }[] = [
+  { value: '1', label: '1' },
   { value: '2', label: '2' },
   { value: '3', label: '3' },
   { value: '4', label: '4' },
@@ -88,7 +89,7 @@ function IconGridView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   const count = node.childCount;
   const title = (node.attrs.title as string) || '';
   const style: GridStyle = node.attrs.style === 'compact' ? 'compact' : 'cards';
-  const columns: GridColumns = (['2', '3', '4'] as const).includes(String(node.attrs.columns) as GridColumns) ? (String(node.attrs.columns) as GridColumns) : '3';
+  const columns: GridColumns = (['1', '2', '3', '4'] as const).includes(String(node.attrs.columns) as GridColumns) ? (String(node.attrs.columns) as GridColumns) : '3';
   const accentColor = (node.attrs.accentColor as string) || '';
   const accent = accentScope(accentColor);
 
@@ -103,6 +104,7 @@ function IconGridView({ node, editor, getPos, updateAttributes }: NodeViewProps)
     <NodeViewWrapper
       className={`lesson-icon-grid ${accent.className}`.trim()}
       data-style={style}
+      data-columns={columns}
       style={{ ...accent.style, '--icon-grid-cols': columns } as React.CSSProperties}
     >
       {editable ? (

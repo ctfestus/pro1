@@ -2006,6 +2006,11 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__words { flex: 1; }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__icon > svg { width: 22px; height: 22px; }
 .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__item[data-editing="true"] { padding-right: 36px; }
+/* One column: a list down the page, each item a row with the icon beside its title and line. */
+.lesson-content .lesson-icon-grid[data-columns="1"] .lesson-icon-grid__item { flex-direction: row; align-items: flex-start; gap: 14px; }
+.lesson-content .lesson-icon-grid[data-columns="1"][data-style="compact"] .lesson-icon-grid__item { align-items: center; }
+.lesson-content .lesson-icon-grid[data-columns="1"] .lesson-icon-grid__words { flex: 1; padding-top: 2px; }
+.lesson-content .lesson-icon-grid[data-columns="1"] .lesson-icon-grid__item[data-editing="true"] { padding-right: 36px; }
 .lesson-content .lesson-icon-grid__add { display: inline-flex; align-items: center; gap: 4px; padding: 8px; border: 0; border-radius: 8px; color: var(--lb-sub); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
 .lesson-content .lesson-icon-grid__add:hover { color: var(--lb-text); background: var(--lb-chip); }
 @media (max-width: 560px) {
