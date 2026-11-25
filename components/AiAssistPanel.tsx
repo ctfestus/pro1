@@ -15,7 +15,7 @@ import {
   Wand2, Expand, Minimize2, SpellCheck, Sparkles, Briefcase, PenLine,
   AlignLeft, HelpCircle, Send, Loader2, Check, X,
   Info, Layers, ListChecks, ChevronsUpDown, LayoutGrid, GalleryHorizontal, History,
-  PanelsTopLeft, MessageSquareCode, Terminal, Braces, Table,
+  PanelsTopLeft, MessageSquareCode, Terminal, Braces, Table, Grid2x2,
 } from 'lucide-react';
 import type { AiAction, AiActionDef, AiResult } from '@/lib/ai-assist';
 import { blockLabel, type AiBlock } from '@/lib/lesson-blocks';
@@ -59,6 +59,7 @@ const ACTION_ICONS: Record<AiAction, React.ComponentType<{ width?: number; heigh
   make_tabs: LayoutGrid,
   make_carousel: GalleryHorizontal,
   make_timeline: History,
+  make_iconGrid: Grid2x2,
   make_table: Table,
   make_promptBlock: MessageSquareCode,
   make_sql: Terminal,

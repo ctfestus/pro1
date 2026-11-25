@@ -230,26 +230,40 @@ export function resolveLessonIconKey(raw: unknown): LessonIconValue | '' {
 const STOP_WORDS = new Set(['and', 'the', 'with', 'for', 'your', 'you', 'from', 'into', 'that', 'this', 'how', 'use', 'using', 'will', 'their', 'them', 'own', 'one', 'can']);
 
 /**
+ * The icon that best fits a line of text, or '' when no icon matches any of its words. See
+ * suggestLessonIcon for the scoring.
+ */
+export function matchLessonIcon(text: string): LessonIconKey | '' {
+  const best = suggestLessonIcon(text);
+  return best === 'target' && !scoreLessonIcon(text, 'target') ? '' : best;
+}
+
+function scoreLessonIcon(text: string, key: LessonIconKey): number {
+  const words = (text.toLowerCase().match(/[a-z]+/g) ?? []).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+  const { label, words: extra } = LESSON_ICONS[key];
+  const terms: string[] = `${key} ${label} ${extra}`.toLowerCase().match(/[a-z]+/g) ?? [];
+  let score = 0;
+  for (const raw of words) {
+    // "emails" counts as "email"; the key itself is the strongest match.
+    const word = raw.length > 4 && raw.endsWith('s') && !terms.includes(raw) ? raw.slice(0, -1) : raw;
+    if (word === key) score += 3;
+    else if (terms.includes(word)) score += 2;
+    else if (word.length >= 4 && terms.some((t) => t.length >= 4 && (word.startsWith(t) || t.startsWith(word)))) score += 1;
+  }
+  return score;
+}
+
+/**
  * An icon for a line of text, picked from its words, e.g. a course outcome: "Clean messy sales
  * exports" gets the broom. Each icon scores 3 for a word that is its key, 2 for one that matches
  * its label or search words, and 1 for a shared stem ("cleaning" / "clean"); the highest score
  * wins, and text that matches nothing gets the goal icon.
  */
 export function suggestLessonIcon(text: string): LessonIconKey {
-  const words = (text.toLowerCase().match(/[a-z]+/g) ?? []).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
   let best: LessonIconKey = 'target';
   let bestScore = 0;
   for (const key of LESSON_ICON_KEYS) {
-    const { label, words: extra } = LESSON_ICONS[key];
-    const terms: string[] = `${key} ${label} ${extra}`.toLowerCase().match(/[a-z]+/g) ?? [];
-    let score = 0;
-    for (const raw of words) {
-      // "emails" counts as "email"; the key itself is the strongest match.
-      const word = raw.length > 4 && raw.endsWith('s') && !terms.includes(raw) ? raw.slice(0, -1) : raw;
-      if (word === key) score += 3;
-      else if (terms.includes(word)) score += 2;
-      else if (word.length >= 4 && terms.some((t) => t.length >= 4 && (word.startsWith(t) || t.startsWith(word)))) score += 1;
-    }
+    const score = scoreLessonIcon(text, key);
     if (score > bestScore) { best = key; bestScore = score; }
   }
   return best;
