@@ -28,8 +28,8 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
  * The mission list: missions grouped under their modules, each with a status marker. The mission
  * in progress says so, and locked missions say what unlocks them.
  *
- * Each module is its own soft panel with a header that folds it, so a long experience reads as a
- * stack of weeks. The week holding the current mission is open and the others start folded;
+ * Each module has a header that folds it, so a long experience reads as a stack of weeks. The
+ * week holding the current mission sits on a soft panel and is open; the others start folded;
  * moving to a mission in a folded week opens it.
  */
 export function ProjectPlan({
@@ -111,7 +111,9 @@ export function ProjectPlan({
           const doneCount = lessons.filter(l => lessonCompletionPct(l, progress) === 100).length;
           const open = !collapsed.has(mod.id);
           return (
-            <div key={mod.id} className="rounded-xl" style={{ background: panel }}>
+            // Only the week holding the current mission sits on the soft panel, marking where the
+            // learner is; the other weeks are plain headers.
+            <div key={mod.id} className="rounded-xl" style={{ background: mod.id === currentModule ? panel : 'transparent' }}>
               <button type="button" onClick={() => toggle(mod.id)} aria-expanded={open}
                 className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left">
                 <span className="text-[12.5px] font-semibold truncate" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>{mod.title}</span>
