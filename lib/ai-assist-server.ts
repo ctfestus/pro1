@@ -24,7 +24,7 @@ export const TEXT_ACTIONS = new Set([
  */
 export const BLOCK_KINDS = [
   'auto', 'callout', 'knowledgeCheck', 'flipCards', 'stepCards', 'guidedSteps',
-  'accordion', 'tabs', 'carousel', 'timeline', 'table', 'promptBlock', 'sql', 'python',
+  'accordion', 'tabs', 'carousel', 'timeline', 'iconGrid', 'table', 'promptBlock', 'sql', 'python',
 ] as const;
 export type BlockKind = typeof BLOCK_KINDS[number];
 
@@ -172,6 +172,7 @@ const KIND_DIRECTIVE: Record<BlockKind, string> = {
   tabs:           'Build ONE tabs block by dividing the selection into 2 to 5 tabs along the split the passage already makes (parallel topics, a comparison, alternative approaches). Each tab holds the selection\'s own sentences for that side.',
   carousel:       'Build ONE carousel by splitting the selection into 3 to 6 slides, one idea per slide, each slide holding the sentences that carry that idea.',
   timeline:       'Build ONE timeline from the events the selection describes, each entry with its date or period, a short title, and the selection\'s own description.',
+  iconGrid:       'Build ONE iconGrid from the items the selection lists (outcomes, key ideas, tools), 2 to 6 of them. Each item gets an icon from the ICONS list (a tool logo for a named tool), a short title, and the selection\'s own words for it as the one-line body. Use style "compact" when the items are just names; add a title only when the selection has a heading for the list.',
   table:          'Build ONE table from the values the selection compares. The first row is the header. Cells hold the selection\'s own terms, shortened to a few words.',
   promptBlock:    'Put the selection into ONE promptBlock, so the learner can copy it or open it straight in ChatGPT or Claude. Add a short title naming what the prompt does.',
   sql:            'Build ONE runnableCode block with language "sql". Use the query the selection already contains if there is one, otherwise write a query that demonstrates the concept. Always include setupSql with CREATE TABLE plus INSERT seeding 3-5 realistic rows so it runs.',

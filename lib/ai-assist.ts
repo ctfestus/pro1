@@ -15,7 +15,7 @@ export type AiAction =
   | 'make_auto' | 'make_callout' | 'make_knowledgeCheck' | 'make_flipCards'
   | 'make_stepCards' | 'make_guidedSteps' | 'make_accordion' | 'make_tabs'
   | 'make_carousel' | 'make_timeline' | 'make_table' | 'make_promptBlock'
-  | 'make_sql' | 'make_python';
+  | 'make_sql' | 'make_python' | 'make_iconGrid';
 
 export interface AiActionDef {
   action: AiAction;
@@ -50,6 +50,7 @@ export const INTERACTIVE_ACTIONS: AiActionDef[] = [
   { action: 'make_tabs',           label: 'Tabs', group: 'interactive' },
   { action: 'make_carousel',       label: 'Carousel', group: 'interactive' },
   { action: 'make_timeline',       label: 'Timeline', group: 'interactive' },
+  { action: 'make_iconGrid',       label: 'Icon grid', group: 'interactive' },
   { action: 'make_table',          label: 'Table', group: 'interactive' },
   { action: 'make_promptBlock',    label: 'AI prompt', group: 'interactive' },
   { action: 'make_sql',            label: 'SQL playground', group: 'interactive' },

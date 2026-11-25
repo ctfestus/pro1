@@ -682,6 +682,7 @@ export function LessonContentStyles() {
 .lesson-editor-toolbar__group { display: inline-flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(0,0,0,0.025); }
 .lesson-editor-toolbar[data-theme="dark"] .lesson-editor-toolbar__group { background: rgba(255,255,255,0.035); }
 .lesson-editor-toolbar__interactive { padding: 0; background: transparent !important; }
+.lesson-editor-toolbar__note { align-self: center; padding: 0 6px; color: #71717a; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .lesson-editor-toolbar__button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; color: #71717a; background: transparent; cursor: pointer; transition: color 0.14s ease, background-color 0.14s ease, transform 0.14s ease; }
 .lesson-editor-toolbar__button svg { width: 14px; height: 14px; stroke-width: 1.9; }
 .lesson-editor-toolbar__button:hover { color: #27272a; background: rgba(0,0,0,0.055); }

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { generateHTML, type JSONContent } from '@tiptap/core';
 import Placeholder from '@tiptap/extension-placeholder';
-import { BookBookmark, Code, DeviceMobile, DeviceTablet, Eye, FileCode, ImageSquare, LinkSimple, ListBullets, ListNumbers, Monitor, Paperclip, PencilSimple, Quotes, Table, TextB, TextHThree, TextHTwo, TextItalic, TextStrikethrough, TextUnderline, Waveform } from '@phosphor-icons/react';
+import { BookBookmark, Code, DeviceMobile, DeviceTablet, Eye, FileCode, ImageSquare, LinkSimple, ListBullets, ListNumbers, Monitor, Paperclip, PencilSimple, Quotes, Shapes, Table, TextB, TextHThree, TextHTwo, TextItalic, TextStrikethrough, TextUnderline, Waveform } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
 import { StyleMenu, MenuRow, Segmented, ColorField } from '@/components/lesson/nodes/StyleControls';
 import { LessonAiMenu } from '@/components/lesson/LessonAiMenu';
@@ -31,6 +31,7 @@ import { ImageLibrary } from '@/components/ImageLibrary';
 import { AudioPicker } from '@/components/lesson/AudioPicker';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
 import { InteractiveInsertMenu } from '@/components/lesson/InteractiveInsertMenu';
+import { suggestLessonIcons } from '@/lib/lesson-auto-icons';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { collectRunnableSetup, inlineGlossaryDefinitions, sameContent, type LessonDoc } from '@/lib/lesson-doc';
@@ -66,6 +67,13 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
   const lessonAccent = accentColor || primaryColor;
   const dark = isDark ?? theme === 'dark';
   const [showLibrary, setShowLibrary] = useState(false);
+  // Result of "Add icons", shown beside the button for a moment.
+  const [iconNote, setIconNote] = useState('');
+  useEffect(() => {
+    if (!iconNote) return;
+    const timer = setTimeout(() => setIconNote(''), 3000);
+    return () => clearTimeout(timer);
+  }, [iconNote]);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [glossaryEditor, setGlossaryEditor] = useState<GlossaryEditorState | null>(null);
@@ -234,6 +242,21 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
           <Btn dark={dark} title="Blockquote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quotes weight="duotone" /></Btn>
         </div>
         <div className="lesson-editor-toolbar__group lesson-editor-toolbar__interactive"><InteractiveInsertMenu editor={editor} dark={dark} accentColor={lessonAccent} /></div>
+        {/* Gives every step, event, tab, section and card without an icon one picked from its
+            words, in one undoable step (lib/lesson-auto-icons). */}
+        <div className="lesson-editor-toolbar__group" aria-label="Icons">
+          <Btn dark={dark} title="Add icons to this lesson" onClick={() => {
+            const changes = suggestLessonIcons(editor.state.doc);
+            if (!changes.length) { setIconNote('No new icons to add'); return; }
+            // One transaction, so a single undo removes them all; focus stays in the editor for it.
+            editor.chain().focus().command(({ tr }) => {
+              for (const { pos, icon } of changes) tr.setNodeAttribute(pos, 'icon', icon);
+              return true;
+            }).run();
+            setIconNote('Icons added');
+          }}><Shapes weight="duotone" /></Btn>
+          {iconNote && <span className="lesson-editor-toolbar__note" role="status">{iconNote}</span>}
+        </div>
         <div className="lesson-editor-toolbar__group lesson-editor-toolbar__media" aria-label="Insert media">
           <Btn dark={dark} title="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table weight="duotone" /></Btn>
           <Btn dark={dark} title="Insert image" onClick={() => setShowLibrary(true)}><ImageSquare weight="duotone" /></Btn>
