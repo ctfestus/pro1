@@ -76,6 +76,13 @@ export function LessonContentStyles() {
 /* Per-block accent override (see accentScope in StyleControls). The shades above are computed on
    .lesson-content, so a block that sets only --lesson-accent-base would keep inheriting the
    container's ink/ring. Re-declaring the set here re-derives all of them from the local base. */
+/* Text and icons drawn on a solid fill of the lesson colour: white, or near-black when the colour
+   is light (a yellow or pale green brand), worked out from its lightness. Browsers without
+   relative colours keep white. Re-declared in the accent scope, where the colour can change. */
+.lesson-content { --lesson-on-accent: #ffffff; }
+@supports (color: oklch(from red l c h)) {
+  .lesson-content, .lesson-content .lesson-accent-scope { --lesson-on-accent: oklch(from var(--lesson-accent) clamp(0.2, (0.78 - l) * 1000, 1) 0 0); }
+}
 .lesson-content .lesson-accent-scope { --lesson-accent: var(--lesson-accent-base); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 80%, #000); --lesson-accent-ring: color-mix(in oklab, var(--lesson-accent) 22%, transparent); --lesson-accent-strong: color-mix(in oklab, var(--lesson-accent) 85%, #000); }
 .lesson-content.dark .lesson-accent-scope { --lesson-accent: color-mix(in oklab, var(--lesson-accent-base) 85%, #fff); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 70%, #fff); }
 .lesson-content p { margin: 0 0 0.75rem; }
@@ -471,7 +478,7 @@ export function LessonContentStyles() {
 .lesson-content .lesson-check__answer-input:focus { border-color: var(--lesson-accent); box-shadow: 0 0 0 3px var(--lesson-accent-ring); }
 .lesson-content .lesson-check__answer-input::placeholder { color: #a1a1aa; }
 .lesson-content .lesson-check__answer-input:disabled { opacity: 0.75; cursor: default; }
-.lesson-content .lesson-check__submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 10px; color: #fff; background: var(--lesson-accent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 720; }
+.lesson-content .lesson-check__submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 10px; color: var(--lesson-on-accent); background: var(--lesson-accent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 720; }
 .lesson-content .lesson-check__submit:hover:not(:disabled) { opacity: 0.9; }
 .lesson-content .lesson-check__submit:disabled { opacity: 0.45; cursor: default; }
 .lesson-content .lesson-check__spin { animation: lesson-check-spin 0.9s linear infinite; }
@@ -521,7 +528,7 @@ export function LessonContentStyles() {
 .lesson-content.dark .lesson-code__btn:hover:not(:disabled) { color: #fafafa; background: rgba(255,255,255,0.11); }
 .lesson-content .lesson-code__btn:focus-visible { outline: 2px solid var(--lesson-accent) !important; outline-offset: 2px; }
 .lesson-content .lesson-code__btn:disabled { cursor: wait; opacity: 0.62; transform: none; }
-.lesson-content .lesson-code__btn[data-primary="true"] { color: #fff; background: var(--lesson-accent); box-shadow: 0 5px 14px var(--lesson-accent-ring); }
+.lesson-content .lesson-code__btn[data-primary="true"] { color: var(--lesson-on-accent); background: var(--lesson-accent); box-shadow: 0 5px 14px var(--lesson-accent-ring); }
 .lesson-content .lesson-code__btn[data-primary="true"]:hover:not(:disabled) { color: #fff; background: color-mix(in oklab, var(--lesson-accent) 88%, #000); }
 .lesson-content .lesson-code__btn[data-active="true"] { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
 .lesson-content.dark .lesson-code__btn[data-active="true"] { color: color-mix(in oklab, var(--lesson-accent) 58%, #fff); background: color-mix(in oklab, var(--lesson-accent) 18%, transparent); }
@@ -896,7 +903,7 @@ export function LessonContentStyles() {
 .lesson-content .lesson-carousel[data-active="18"] .lesson-carousel__slide[data-slide-index="18"],
 .lesson-content .lesson-carousel[data-active="19"] .lesson-carousel__slide[data-slide-index="19"] { display: block; animation: lesson-carousel-slide 0.28s ease; }
 @keyframes lesson-carousel-slide { from { opacity: 0; transform: translateX(7px); } to { opacity: 1; transform: translateX(0); } }
-.lesson-content .lesson-carousel__arrow { display: inline-flex; width: 38px; height: 38px; flex: 0 0 38px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; color: #fff; background: var(--lesson-accent); cursor: pointer; box-shadow: 0 5px 14px var(--lesson-accent-ring); transition: opacity 0.15s ease, transform 0.15s ease; }
+.lesson-content .lesson-carousel__arrow { display: inline-flex; width: 38px; height: 38px; flex: 0 0 38px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); cursor: pointer; box-shadow: 0 5px 14px var(--lesson-accent-ring); transition: opacity 0.15s ease, transform 0.15s ease; }
 .lesson-content .lesson-carousel__arrow:hover:not(:disabled) { transform: translateY(-1px); }
 .lesson-content .lesson-carousel__arrow:disabled { cursor: default; opacity: 0.28; box-shadow: none; transform: none; }
 .lesson-content .lesson-carousel__arrow:focus-visible { outline: 2px solid var(--lesson-accent) !important; outline-offset: 3px; }
@@ -990,7 +997,7 @@ export function LessonContentStyles() {
 .lesson-content .lesson-step-cards__items > [data-node-view-content-react] { display: flex; flex-direction: column; gap: 16px; }
 .lesson-content .lesson-step-card { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 16px 20px 16px 16px; border: 0; border-radius: 16px; background: #ffffff; box-shadow: 0 7px 22px rgba(15,23,42,0.05); }
 .lesson-content.dark .lesson-step-card { border: 0; background: rgba(255,255,255,0.035); box-shadow: none; }
-.lesson-content .lesson-step-card__number { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px; color: #fff; background: var(--lesson-accent); box-shadow: 0 5px 14px var(--lesson-accent-ring); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; user-select: none; }
+.lesson-content .lesson-step-card__number { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); box-shadow: 0 5px 14px var(--lesson-accent-ring); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; user-select: none; }
 .lesson-content .lesson-step-card__main { min-width: 0; }
 .lesson-content .lesson-step-card__header { display: flex; align-items: center; gap: 8px; min-height: 36px; margin-bottom: 4px; }
 .lesson-content .lesson-step-card__title { flex: 1; margin: 0; color: #18181b; font-size: 16px; font-weight: 750; letter-spacing: -0.01em; line-height: 1.35; }
@@ -1050,7 +1057,7 @@ export function LessonContentStyles() {
 @keyframes lesson-step-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .lesson-content .lesson-step { animation: none !important; } }
 ${stepReveal}
-.lesson-content .lesson-step__marker { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 11px; color: #fff; background: var(--lesson-accent); }
+.lesson-content .lesson-step__marker { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 11px; color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-step__num { display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 780; line-height: 1; }
 .lesson-content .lesson-step__check { display: none; }
 .lesson-content .lesson-step__main { flex: 1; min-width: 0; margin-top: -4px; padding: 12px 12px 12px; border-radius: 12px; transition: background 0.2s ease; }
@@ -1067,7 +1074,7 @@ ${stepReveal}
 .lesson-content .lesson-step__control:hover:not(:disabled) { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
 .lesson-content .lesson-step__control:disabled { opacity: 0.3; cursor: default; }
 .lesson-content .lesson-step__remove:hover:not(:disabled) { color: #ef4444; background: rgba(239,68,68,0.08); }
-.lesson-content .lesson-stepper__next { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0 0 48px; padding: 8px 12px 8px 16px; border: 0; border-radius: 11px; color: #fff; background: var(--lesson-accent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 720; transition: background 0.16s ease, transform 0.16s ease; }
+.lesson-content .lesson-stepper__next { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0 0 48px; padding: 8px 12px 8px 16px; border: 0; border-radius: 11px; color: var(--lesson-on-accent); background: var(--lesson-accent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 720; transition: background 0.16s ease, transform 0.16s ease; }
 .lesson-content .lesson-stepper__next:hover { background: var(--lesson-accent-strong); transform: translateY(-1px); }
 .lesson-content .lesson-stepper__next-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 0 rgba(255,255,255,0.28); animation: lesson-stepper-continue-pulse 1.65s ease-in-out infinite; }
 @keyframes lesson-stepper-continue-pulse {
@@ -1077,7 +1084,7 @@ ${stepReveal}
 .lesson-content .lesson-stepper__progress { padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.3); opacity: 0.82; font-size: 11px; font-weight: 620; }
 .lesson-content .lesson-stepper__done { display: flex; align-items: center; gap: 12px; margin: 16px 0 0 48px; }
 .lesson-content .lesson-stepper__done-label { display: inline-flex; align-items: center; gap: 8px; color: var(--lesson-accent-ink); font-size: 12px; font-weight: 680; }
-.lesson-content .lesson-stepper__done-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; color: #fff; background: var(--lesson-accent); }
+.lesson-content .lesson-stepper__done-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-stepper__restart { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 0; border-radius: 7px; color: #71717a; background: transparent; cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
 .lesson-content .lesson-stepper__restart:hover { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
 .lesson-content.dark .lesson-stepper__restart { color: #a1a1aa; }
@@ -1510,7 +1517,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content.dark .lesson-check__option[data-wrong="true"] .lesson-check__letter, .lesson-content.dark .lesson-check__miss, .lesson-content.dark .lesson-check__line[data-kind="incorrect"] { color: #f0935f; }
 .lesson-content .lesson-check__option[data-correct="true"] { color: #111111; background: color-mix(in oklab, var(--lesson-accent-base) 10%, transparent); font-weight: 400; }
 .lesson-content.dark .lesson-check__option[data-correct="true"] { color: #f0f0f0; background: color-mix(in oklab, var(--lesson-accent-base) 13%, transparent); }
-.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-check__option[data-correct="true"] .lesson-check__option-end { display: none; }
 .lesson-content .lesson-check__line[data-kind="correct"], .lesson-content.dark .lesson-check__line[data-kind="correct"] { color: var(--lesson-accent-ink); }
 .lesson-content.dark .lesson-check__line[data-kind="correct"] { color: var(--lesson-accent); }
@@ -1636,11 +1643,11 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-accordion__head { gap: 14px; padding: 14px 16px; font-size: 15px; font-weight: 700; }
 .lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item:not(:has(.lesson-accordion__logo, .lesson-accordion__icon)) .lesson-accordion__head::before {
   content: counter(lesson-acc); display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 13px; font-weight: 800; transition: color 0.25s ease, background 0.25s ease; }
-.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item[data-open="true"]:not(:has(.lesson-accordion__logo, .lesson-accordion__icon)) .lesson-accordion__head::before { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item[data-open="true"]:not(:has(.lesson-accordion__logo, .lesson-accordion__icon)) .lesson-accordion__head::before { color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-accordion__logo { width: 40px; height: 40px; padding: 7px; box-sizing: border-box; border-radius: 8px; background: #ffffff; box-shadow: inset 0 0 0 1px var(--lb-line); object-fit: contain; }
 .lesson-content .lesson-accordion__subtitle { color: var(--lb-sub); font-size: 13px; font-weight: 500; }
 .lesson-content .lesson-accordion__toggle-icon, .lesson-content .lesson-accordion__head:hover .lesson-accordion__toggle-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: auto; border-radius: 999px; color: var(--lb-sub); background: var(--lb-chip); }
-.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__toggle-icon { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__toggle-icon { color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-accordion__chevron, .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__chevron { transition: transform 0.3s ease; }
 .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__chevron { transform: rotate(45deg); }
 .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__body, .lesson-content.dark .lesson-accordion__item[data-open="true"] .lesson-accordion__body { margin: 0; padding: 0 16px 16px 58px; border-radius: 0; color: var(--lb-sub); background: transparent; }
@@ -1658,7 +1665,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-check__option:hover:not(:disabled):not([data-wrong="true"]) { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--lesson-accent) 55%, transparent); transform: translateX(3px); }
 .lesson-content .lesson-check__letter, .lesson-content.dark .lesson-check__letter { width: 26px; height: 26px; flex-basis: 26px; border-radius: 6px; color: var(--lb-sub); background: var(--lb-chip); }
 .lesson-content .lesson-check__option[data-correct="true"], .lesson-content.dark .lesson-check__option[data-correct="true"] { background: var(--lb-tint); box-shadow: inset 0 0 0 1.5px var(--lesson-accent); }
-.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: var(--lesson-on-accent); background: var(--lesson-accent); }
 .lesson-content .lesson-check__option[data-correct="true"] .lesson-check__option-end { display: inline-flex; margin-left: auto; color: var(--lesson-accent); animation: lesson-check-pop 0.35s cubic-bezier(0.3,1.6,0.5,1); }
 .lesson-content .lesson-check__option[data-wrong="true"], .lesson-content.dark .lesson-check__option[data-wrong="true"] { background: color-mix(in oklab, var(--lb-wrong) 9%, transparent); box-shadow: inset 0 0 0 1.5px var(--lb-wrong); animation: lesson-check-shake 0.4s; }
 .lesson-content .lesson-check__option[data-wrong="true"] .lesson-check__letter { color: #ffffff; background: var(--lb-wrong); }
@@ -1683,7 +1690,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 /* Step cards: each step a white card on a dashed rail, with a solid numbered node. */
 .lesson-content .lesson-step-card, .lesson-content.dark .lesson-step-card { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 0 0 12px; }
 .lesson-content .lesson-step-card::after { left: 19px; top: 44px; bottom: 0; }
-.lesson-content .lesson-step-card__number, .lesson-content.dark .lesson-step-card__number { position: relative; z-index: 1; width: 40px; height: 40px; margin-top: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); font-size: 14px; font-weight: 800; }
+.lesson-content .lesson-step-card__number, .lesson-content.dark .lesson-step-card__number { position: relative; z-index: 1; width: 40px; height: 40px; margin-top: 10px; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); font-size: 14px; font-weight: 800; }
 .lesson-content .lesson-step-card__main { padding: 14px 16px; border-radius: 10px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); transition: transform 0.2s ease; }
 .lesson-content .ProseMirror[contenteditable="false"] .lesson-step-card:hover .lesson-step-card__main { transform: translateX(4px); }
 
@@ -1742,7 +1749,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-attachment__tile[data-kind="sheet"] { background: #16a34a; } .lesson-content .lesson-attachment__tile[data-kind="pdf"] { background: #dc2626; }
 .lesson-content .lesson-attachment__tile[data-kind="doc"] { background: #2563eb; } .lesson-content .lesson-attachment__tile[data-kind="slides"] { background: #ea580c; }
 .lesson-content .lesson-attachment__tile[data-kind="other"], .lesson-content.dark .lesson-attachment__tile[data-kind="other"] { color: var(--lesson-accent-ink); background: var(--lb-tint); }
-.lesson-content .lesson-attachment__grab { padding: 8px 12px; border-radius: 8px; color: #ffffff; background: var(--lesson-accent); font-weight: 700; }
+.lesson-content .lesson-attachment__grab { padding: 8px 12px; border-radius: 8px; color: var(--lesson-on-accent); background: var(--lesson-accent); font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
   .lesson-content .lesson-tabs__pill, .lesson-content .lesson-accordion__chevron, .lesson-content .lesson-check__option { transition: none; }
@@ -1895,7 +1902,7 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 /* Step cards: the icon sits in a tinted tile on the rail; a small badge keeps the step number. */
 .lesson-content .lesson-step-card[data-icon] .lesson-step-card__number, .lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number { border-radius: 12px; color: var(--lesson-accent-ink); background: var(--lb-tint); }
 .lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number { color: var(--lesson-accent); background: color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
-.lesson-content .lesson-step-card__badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; font-size: 10px; font-weight: 800; line-height: 1; }
+.lesson-content .lesson-step-card__badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; font-size: 10px; font-weight: 800; line-height: 1; }
 .lesson-content.dark .lesson-step-card__badge { box-shadow: 0 0 0 2px #18191e; }
 
 /* Timeline: one vertical list. For learners it sits in a white card: date pill, dot on a dashed
@@ -1904,7 +1911,7 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline { padding: 24px 20px; border-radius: 16px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
 .lesson-content .lesson-timeline__dot[data-icon] { display: flex; justify-content: center; align-items: flex-start; }
 .lesson-content .lesson-timeline__dot[data-icon]::before, .lesson-content.dark .lesson-timeline__dot[data-icon]::before { display: none; }
-.lesson-content .lesson-timeline__dot[data-icon] > svg { position: relative; z-index: 1; flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 4px var(--lb-tint); }
+.lesson-content .lesson-timeline__dot[data-icon] > svg { position: relative; z-index: 1; flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); box-shadow: 0 0 0 4px var(--lb-tint); }
 .lesson-content.dark .lesson-timeline__dot[data-icon] > svg { box-shadow: 0 0 0 4px color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
 .lesson-content .lesson-timeline[data-icons] .lesson-timeline__dot::before { top: 14px; }
 .lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry::after { top: 48px; }
@@ -1927,7 +1934,7 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
    corner as a small badge. The generated reveal rules hide the number and show the check on
    finished steps; for an icon marker the icon stays (important, to beat those long selectors). */
 .lesson-content .lesson-step__marker[data-icon] .lesson-step__num { display: inline-flex !important; }
-.lesson-content .lesson-step__marker[data-icon] .lesson-step__check { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 3px; box-sizing: border-box; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; }
+.lesson-content .lesson-step__marker[data-icon] .lesson-step__check { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 3px; box-sizing: border-box; border-radius: 999px; color: var(--lesson-on-accent); background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; }
 .lesson-content.dark .lesson-step__marker[data-icon] .lesson-step__check { box-shadow: 0 0 0 2px #1d1e23; }
 
 /* Tabs: an icon before the label, in the label's colour. */
@@ -1939,7 +1946,7 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 /* Collapsible sections: the icon takes the number chip's place and colours. */
 .lesson-content .lesson-accordion__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); transition: color 0.25s ease, background 0.25s ease; }
 .lesson-content.dark .lesson-accordion__icon { color: var(--lesson-accent); }
-.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__icon { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__icon { color: var(--lesson-on-accent); background: var(--lesson-accent); }
 /* In the editor the icon button is the chip learners see; with no icon it is a faint shape. */
 .lesson-content .lesson-accordion__icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 7px; color: var(--lb-faint); background: transparent; cursor: pointer; }
 .lesson-content .lesson-accordion__icon-btn:hover, .lesson-content .lesson-accordion__icon-btn[data-open="true"] { color: var(--lb-text); background: var(--lb-chip); }
