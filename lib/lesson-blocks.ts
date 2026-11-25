@@ -15,6 +15,7 @@
 // editor can both import it. The Gemini schema + prompt guide live in lib/lesson-blocks-ai.
 
 import type { LessonDoc } from '@/lib/lesson-doc';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 /** One section of a container block (a tab, a slide, a step, an accordion section, a card). */
 export interface AiBlockPart {
@@ -27,6 +28,8 @@ export interface AiBlockPart {
   /** flipCards */
   front?: string;
   back?: string;
+  /** A lib/lesson-icons key: flipCards, accordion, tabs, timeline, stepCards, iconGrid. */
+  icon?: string;
   /** Plain-text body, used when `children` is absent. */
   body?: string;
   /** Nested blocks, so a section can hold any other block type. */
@@ -39,6 +42,10 @@ export interface AiBlock {
   level?: number;
   items?: string[];
   variant?: string;
+  /** callout: a lib/lesson-icons key. */
+  icon?: string;
+  /** iconGrid: "cards" or "compact". */
+  style?: string;
   title?: string;
   question?: string;
   format?: string;
@@ -61,7 +68,7 @@ export interface AiBlock {
 export const AI_BLOCK_TYPES = [
   'paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'table',
   'callout', 'knowledgeCheck', 'runnableCode', 'promptBlock',
-  'flipCards', 'accordion', 'tabs', 'carousel', 'timeline', 'stepCards', 'guidedSteps',
+  'flipCards', 'accordion', 'tabs', 'carousel', 'timeline', 'stepCards', 'guidedSteps', 'iconGrid',
 ] as const;
 
 export type AiBlockType = typeof AI_BLOCK_TYPES[number];
@@ -76,6 +83,7 @@ const TYPE_ALIASES: Record<string, AiBlockType> = {
   steps: 'guidedSteps',
   guidedsteps: 'guidedSteps',
   stepcards: 'stepCards',
+  icongrid: 'iconGrid',
   quiz: 'knowledgeCheck',
   knowledgecheck: 'knowledgeCheck',
   prompt: 'promptBlock',
@@ -209,7 +217,7 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
         if (!title && !text && !body.length) break;
         nodes.push({
           type: 'callout',
-          attrs: { variant, title },
+          attrs: { variant, title, icon: resolveLessonIconKey(b.icon) },
           content: body.length ? body : [paragraph(text)],
         });
         break;
@@ -257,25 +265,25 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'flipCards': {
         const cards = parts
-          .map((p) => ({ front: str(p.front) || str(p.title), back: str(p.back) || str(p.body) }))
+          .map((p) => ({ front: str(p.front) || str(p.title), back: str(p.back) || str(p.body), icon: resolveLessonIconKey(p.icon) || 'none' }))
           .filter((c) => c.front && c.back);
         if (cards.length) {
           nodes.push({
             type: 'flipCardDeck',
-            content: cards.map((c) => ({ type: 'flipCard', attrs: { front: c.front, back: c.back } })),
+            content: cards.map((c) => ({ type: 'flipCard', attrs: { front: c.front, back: c.back, icon: c.icon } })),
           });
         }
         break;
       }
       case 'accordion': {
         const node = container('accordion', 'accordionItem', parts,
-          (p) => ({ title: str(p.title) || str(p.label), open: false }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon), open: false }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'tabs': {
         const node = container('tabs', 'tabPanel', parts,
-          (p, i) => ({ label: str(p.label) || str(p.title) || `Tab ${i + 1}` }), depth);
+          (p, i) => ({ label: str(p.label) || str(p.title) || `Tab ${i + 1}`, icon: resolveLessonIconKey(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
@@ -287,13 +295,13 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
       }
       case 'timeline': {
         const node = container('timeline', 'timelineEntry', parts,
-          (p) => ({ date: str(p.date), title: str(p.title) || str(p.label) }), depth);
+          (p) => ({ date: str(p.date), title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon) }), depth);
         if (node) nodes.push(node);
         break;
       }
       case 'stepCards': {
         const node = container('stepCards', 'stepCard', parts,
-          (p) => ({ title: str(p.title) || str(p.label), highlightTitle: '', highlightBody: '' }), depth);
+          (p) => ({ title: str(p.title) || str(p.label), icon: resolveLessonIconKey(p.icon), highlightTitle: '', highlightBody: '' }), depth);
         if (node) nodes.push(node);
         break;
       }
@@ -301,6 +309,21 @@ export function buildLessonNodes(blocks: unknown, depth = 0): LessonDoc[] {
         const node = container('stepper', 'step', parts,
           (p) => ({ title: str(p.title) || str(p.label) }), depth);
         if (node) nodes.push(node);
+        break;
+      }
+      case 'iconGrid': {
+        const items = parts
+          .map((p) => ({ icon: resolveLessonIconKey(p.icon), title: str(p.title) || str(p.label), text: str(p.body) }))
+          .filter((item) => item.title);
+        const style = str(b.style) === 'compact' ? 'compact' : 'cards';
+        if (items.length) {
+          nodes.push({
+            type: 'iconGrid',
+            // Compact rows read best two across; cards fill three, or two for an even pair or four.
+            attrs: { title, style, columns: style === 'compact' || items.length === 2 || items.length === 4 ? '2' : '3' },
+            content: items.map((attrs) => ({ type: 'iconGridItem', attrs })),
+          });
+        }
         break;
       }
       default:
@@ -329,6 +352,7 @@ export function blockLabel(type: string | undefined): string {
     case 'carousel': return 'Carousel';
     case 'timeline': return 'Timeline';
     case 'stepCards': return 'Step cards';
+    case 'iconGrid': return 'Icon grid';
     case 'guidedSteps': case 'stepper': case 'steps': return 'Guided steps';
     case 'table': return 'Table';
     case 'heading': return 'Heading';

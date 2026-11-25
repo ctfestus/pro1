@@ -628,14 +628,6 @@ export function LessonContentStyles() {
 .lesson-content .lesson-style__color-reset:hover { background: rgba(0,0,0,0.06); color: #52525b; }
 .lesson-content.dark .lesson-style__color-reset:hover { background: rgba(255,255,255,0.08); }
 .lesson-content .lesson-style__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; }
-/* Icon grid: wraps to the popover width, so adding icons to a block's set needs no layout change. */
-.lesson-content .lesson-style__icons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; width: 100%; }
-.lesson-content .lesson-style__icons button { display: inline-flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 0; border: 1px solid transparent; border-radius: 6px; background: rgba(0,0,0,0.05); color: #52525b; cursor: pointer; }
-.lesson-content.dark .lesson-style__icons button { background: rgba(255,255,255,0.08); color: #a1a1aa; }
-.lesson-content .lesson-style__icons button:hover { background: rgba(0,0,0,0.1); color: #18181b; }
-.lesson-content.dark .lesson-style__icons button:hover { background: rgba(255,255,255,0.14); color: #fafafa; }
-.lesson-content .lesson-style__icons button[data-active="true"] { background: #10b981; color: #fff; }
-.lesson-content .lesson-style__icons button:focus-visible { outline: 2px solid var(--lesson-accent) !important; outline-offset: 1px; }
 
 .lesson-style-menu { display: inline-flex; }
 .lesson-style-menu__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 26px; height: 26px; padding: 0; border-radius: 7px; border: none; background: rgba(0,0,0,0.05); color: #52525b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
@@ -984,12 +976,6 @@ export function LessonContentStyles() {
 .lesson-content .lesson-flip__control:hover:not(:disabled) { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
 .lesson-content .lesson-flip__control:disabled { opacity: 0.3; cursor: default; }
 .lesson-content .lesson-flip__remove:hover:not(:disabled) { color: #ef4444; background: rgba(239,68,68,0.08); }
-.lesson-content .lesson-flip__icon-options { display: grid; grid-template-columns: repeat(4, 30px); gap: 4px; }
-.lesson-content .lesson-flip__icon-option { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: #71717a; background: rgba(0,0,0,0.035); cursor: pointer; }
-.lesson-content.dark .lesson-flip__icon-option { color: #a1a1aa; background: rgba(255,255,255,0.055); }
-.lesson-content .lesson-flip__icon-option:hover, .lesson-content .lesson-flip__icon-option[data-active="true"] { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
-.lesson-content .lesson-flip__icon-none { color: #a1a1aa; }
-.lesson-content .lesson-flip__icon-custom { border: 1px dashed color-mix(in oklab, var(--lesson-accent-base) 30%, #d4d4d8); }
 .lesson-content .lesson-flip-deck__add { display: inline-flex; align-items: center; gap: 4px; padding: 8px 8px; border: 0; border-radius: 8px; color: var(--lesson-accent-ink); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
 .lesson-content .lesson-flip-deck__add:hover { background: var(--lesson-accent-ring); }
 @media (hover: hover) {
@@ -1648,9 +1634,9 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-accordion__items > [data-node-view-content-react] > .node-accordionItem + .node-accordionItem { border-top: 0; }
 .lesson-content .lesson-accordion__item[data-open="true"] { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lesson-accent) 50%, transparent), var(--lb-shadow); }
 .lesson-content .lesson-accordion__head { gap: 14px; padding: 14px 16px; font-size: 15px; font-weight: 700; }
-.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item:not(:has(.lesson-accordion__logo)) .lesson-accordion__head::before {
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item:not(:has(.lesson-accordion__logo, .lesson-accordion__icon)) .lesson-accordion__head::before {
   content: counter(lesson-acc); display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 13px; font-weight: 800; transition: color 0.25s ease, background 0.25s ease; }
-.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item[data-open="true"]:not(:has(.lesson-accordion__logo)) .lesson-accordion__head::before { color: #ffffff; background: var(--lesson-accent); }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-accordion__item[data-open="true"]:not(:has(.lesson-accordion__logo, .lesson-accordion__icon)) .lesson-accordion__head::before { color: #ffffff; background: var(--lesson-accent); }
 .lesson-content .lesson-accordion__logo { width: 40px; height: 40px; padding: 7px; box-sizing: border-box; border-radius: 8px; background: #ffffff; box-shadow: inset 0 0 0 1px var(--lb-line); object-fit: contain; }
 .lesson-content .lesson-accordion__subtitle { color: var(--lb-sub); font-size: 13px; font-weight: 500; }
 .lesson-content .lesson-accordion__toggle-icon, .lesson-content .lesson-accordion__head:hover .lesson-accordion__toggle-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: auto; border-radius: 999px; color: var(--lb-sub); background: var(--lb-chip); }
@@ -1711,19 +1697,6 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 /* A deliverable's instructions show every step at once, so there is no progress to track. */
 .ve-task-instructions .lesson-content .lesson-stepper__bar { display: none; }
 
-/* Timeline: for learners on wider screens, events sit side by side as cards under a dashed line,
-   each with its dot and date pill. The editor and phones keep the vertical layout. */
-@media (min-width: 561px) {
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entries > [data-node-view-content-react] { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entry { display: block; margin-top: 30px; padding: 14px; border-radius: 10px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__entry::after, .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__entry::after { display: block; left: 0; right: -14px; top: -16px; bottom: auto; width: auto; height: 0; transform: none; border-left: 0; border-top: 2px dashed var(--lb-dash); }
-  .lesson-content .ProseMirror[contenteditable="false"] [data-node-view-content-react] > .node-timelineEntry:last-child .lesson-timeline__entry::after { display: block; right: 0; }
-  .lesson-content .ProseMirror[contenteditable="false"] [data-node-view-content-react] > .node-timelineEntry:last-child .lesson-timeline__entry { padding-bottom: 14px; }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot { position: absolute; top: -24px; left: 14px; width: 16px; height: 16px; }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before, .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before { left: 0; top: 0; width: 16px; height: 16px; box-sizing: border-box; transform: none; border: 3px solid var(--lesson-accent); background: var(--lb-card); box-shadow: none; }
-  .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot::before { background: #18191e; }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__date-col { margin-bottom: 8px; text-align: left; }
-}
 .lesson-content .lesson-timeline__date, .lesson-content.dark .lesson-timeline__date { padding: 3px 10px; border-radius: 999px; color: var(--lesson-accent-ink); background: var(--lb-tint); font-size: 12px; font-weight: 800; }
 .lesson-content.dark .lesson-timeline__date { color: var(--lesson-accent); }
 
@@ -1887,6 +1860,133 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-xl__modal-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
 .lesson-content .lesson-xl__modal-card textarea { width: 100%; height: 150px; margin-top: 12px; padding: 10px; box-sizing: border-box; border: 0; border-radius: 10px; outline: none; color: var(--lb-text); background: transparent; box-shadow: inset 0 0 0 1px var(--lb-line); font: 12.5px Consolas, ui-monospace, monospace; }
 .lesson-content .lesson-xl__modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+/* ---- Lesson icons (shared icon set, November 2026) ---------------------------------------------
+   The picker, and the icon on step cards, timeline events, tabs and collapsible sections. Each
+   is optional, so blocks without an icon keep the look above. */
+.lesson-content .lesson-icon-picker { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.lesson-content .lesson-icon-picker__top { display: flex; align-items: center; gap: 6px; }
+.lesson-content .lesson-icon-picker__search { display: flex; flex: 1; align-items: center; gap: 6px; min-width: 0; height: 34px; padding: 0 10px; border-radius: 9px; color: #71717a; background: #f4f4f5; }
+.lesson-content.dark .lesson-icon-picker__search { color: #a1a1aa; background: rgba(255,255,255,0.06); }
+.lesson-content .lesson-icon-picker__search input { flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; color: #18181b; background: transparent; font: inherit; font-size: 13px; }
+.lesson-content.dark .lesson-icon-picker__search input { color: #fafafa; }
+/* The field shows focus as a whole, so the global input outline is turned off inside it. */
+.lesson-content .lesson-icon-picker__search input:focus-visible { outline: none !important; }
+.lesson-content .lesson-icon-picker__search:focus-within { box-shadow: inset 0 0 0 1px var(--lesson-accent); }
+.lesson-content .lesson-icon-picker__none { flex: 0 0 auto; height: 34px; padding: 0 10px; border: 0; border-radius: 9px; color: #52525b; background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lesson-content .lesson-icon-picker__none:hover, .lesson-content .lesson-icon-picker__none[data-active="true"] { color: #18181b; background: #f4f4f5; }
+.lesson-content.dark .lesson-icon-picker__none { color: #a1a1aa; }
+.lesson-content.dark .lesson-icon-picker__none:hover, .lesson-content.dark .lesson-icon-picker__none[data-active="true"] { color: #fafafa; background: rgba(255,255,255,0.08); }
+.lesson-content .lesson-icon-picker__list { display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; }
+.lesson-content .lesson-icon-picker__group-name { margin: 0 0 6px; color: #71717a; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.lesson-content.dark .lesson-icon-picker__group-name { color: #a1a1aa; }
+.lesson-content .lesson-icon-picker__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px; }
+.lesson-content .lesson-icon-picker__icon { display: inline-flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 0; border: 0; border-radius: 8px; color: #3f3f46; background: transparent; cursor: pointer; }
+.lesson-content .lesson-icon-picker__icon:hover { background: #f4f4f5; }
+.lesson-content.dark .lesson-icon-picker__icon { color: #d4d4d8; }
+.lesson-content.dark .lesson-icon-picker__icon:hover { background: rgba(255,255,255,0.07); }
+.lesson-content .lesson-icon-picker__icon[data-active="true"] { color: var(--lesson-accent-ink); background: var(--lb-tint); box-shadow: inset 0 0 0 2px var(--lesson-accent); }
+.lesson-content.dark .lesson-icon-picker__icon[data-active="true"] { color: var(--lesson-accent); }
+.lesson-content .lesson-icon-picker__icon:focus-visible, .lesson-content .lesson-icon-picker__none:focus-visible { outline: 2px solid var(--lesson-accent); outline-offset: 1px; }
+.lesson-content .lesson-icon-picker__empty { margin: 0; padding: 8px 0; color: #71717a; font-size: 13px; }
+.lesson-content .lesson-flip__icon-custom { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px dashed #d4d4d8; border-radius: 8px; color: #52525b; background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
+.lesson-content .lesson-flip__icon-custom[data-active="true"] { border-style: solid; color: #18181b; }
+.lesson-content.dark .lesson-flip__icon-custom { border-color: #3f3f46; color: #a1a1aa; }
+.lesson-content.dark .lesson-flip__icon-custom[data-active="true"] { color: #fafafa; }
+
+/* Step cards: the icon sits in a tinted tile on the rail; a small badge keeps the step number. */
+.lesson-content .lesson-step-card[data-icon] .lesson-step-card__number, .lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number { border-radius: 12px; color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number { color: var(--lesson-accent); background: color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
+.lesson-content .lesson-step-card__badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 2px #ffffff; font-size: 10px; font-weight: 800; line-height: 1; }
+.lesson-content.dark .lesson-step-card__badge { box-shadow: 0 0 0 2px #18191e; }
+
+/* Timeline: one vertical list. For learners it sits in a white card: date pill, dot on a dashed
+   line, then the title and text. An icon replaces the dot with a solid badge with a light accent
+   ring; any icon widens the dot column on every event, so the line stays straight. */
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline { padding: 24px 20px; border-radius: 16px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-timeline__dot[data-icon] { display: flex; justify-content: center; align-items: flex-start; }
+.lesson-content .lesson-timeline__dot[data-icon]::before, .lesson-content.dark .lesson-timeline__dot[data-icon]::before { display: none; }
+.lesson-content .lesson-timeline__dot[data-icon] > svg { position: relative; z-index: 1; flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 999px; color: #ffffff; background: var(--lesson-accent); box-shadow: 0 0 0 4px var(--lb-tint); }
+.lesson-content.dark .lesson-timeline__dot[data-icon] > svg { box-shadow: 0 0 0 4px color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
+.lesson-content .lesson-timeline[data-icons] .lesson-timeline__dot::before { top: 14px; }
+.lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry::after { top: 48px; }
+.lesson-content .lesson-timeline[data-icons] .lesson-timeline__date-col, .lesson-content .lesson-timeline[data-icons] .lesson-timeline__content { padding-top: 9px; }
+.lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry { grid-template-columns: 40px minmax(0, 1fr); }
+.lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry::after { left: 20px; }
+@media (min-width: 561px) {
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__date-col { text-align: right; }
+  .lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry { grid-template-columns: var(--tl-date-w, 56px) 40px minmax(0, 1fr); }
+  .lesson-content .lesson-timeline[data-icons] .lesson-timeline__entry::after { left: calc(var(--tl-date-w, 56px) + 32px); }
+}
+@media (max-width: 560px) {
+  .lesson-content .lesson-timeline[data-icons] .lesson-timeline__date-col { padding-top: 0; }
+}
+
+/* Hover-only controls stay visible while their icon picker is open. */
+.lesson-content .lesson-step-card__controls:has([data-open="true"]), .lesson-content .lesson-timeline__controls:has([data-open="true"]) { opacity: 1; }
+
+/* Tabs: an icon before the label, in the label's colour. */
+.lesson-content .lesson-tabs__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.lesson-content .lesson-tabs__icon { flex: 0 0 auto; }
+.lesson-content .lesson-tabs__icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; margin-left: 4px; padding: 0; border: 0; border-radius: 6px; color: var(--lb-sub); background: transparent; cursor: pointer; }
+.lesson-content .lesson-tabs__icon-btn:hover, .lesson-content .lesson-tabs__icon-btn[data-open="true"] { color: var(--lb-text); background: var(--lb-chip); }
+
+/* Collapsible sections: the icon takes the number chip's place and colours. */
+.lesson-content .lesson-accordion__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); transition: color 0.25s ease, background 0.25s ease; }
+.lesson-content.dark .lesson-accordion__icon { color: var(--lesson-accent); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__icon { color: #ffffff; background: var(--lesson-accent); }
+/* In the editor the icon button is the chip learners see; with no icon it is a faint shape. */
+.lesson-content .lesson-accordion__icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 7px; color: var(--lb-faint); background: transparent; cursor: pointer; }
+.lesson-content .lesson-accordion__icon-btn:hover, .lesson-content .lesson-accordion__icon-btn[data-open="true"] { color: var(--lb-text); background: var(--lb-chip); }
+.lesson-content .lesson-accordion__icon-btn:has(.lesson-icon-btn__icon) { color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-accordion__icon-btn:has(.lesson-icon-btn__icon) { color: var(--lesson-accent); }
+/* Step cards, "Cards" layout: the number or icon sits inside each white card, and a short dashed
+   line joins one card to the next through the marker's centre. */
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-cards__items > [data-node-view-content-react] { gap: 14px; }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card, .lesson-content.dark .lesson-step-cards[data-layout="cards"] .lesson-step-card,
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-cards__items > [data-node-view-content-react] > :last-child .lesson-step-card { position: relative; grid-template-columns: 48px minmax(0, 1fr); gap: 16px; padding: 16px 20px 16px 16px; border-radius: 16px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card::after { left: 39px; top: 100%; bottom: auto; height: 14px; }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card__main { padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.lesson-content .ProseMirror[contenteditable="false"] .lesson-step-cards[data-layout="cards"] .lesson-step-card:hover .lesson-step-card__main { transform: none; }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card__number, .lesson-content.dark .lesson-step-cards[data-layout="cards"] .lesson-step-card__number { justify-self: center; margin-top: 0; }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card[data-icon] .lesson-step-card__number { width: 48px; height: 48px; border-radius: 14px; }
+.lesson-content .lesson-step-cards[data-layout="cards"] .lesson-step-card[data-icon] .lesson-step-card__number > svg { width: 26px; height: 26px; }
+
+/* Icon grid. "cards": tinted tiles inside one white panel, each with a white icon tile, a title
+   and one line. "compact": white rows with a round tinted icon and the title only. */
+.lesson-content .lesson-icon-grid { margin: 1rem 0; }
+.lesson-content .lesson-icon-grid[data-style="cards"] { padding: 24px; border-radius: 16px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-icon-grid__heading { margin: 0 0 16px; color: var(--lb-text); font-size: 18px; font-weight: 700; line-height: 1.35; }
+.lesson-content .lesson-icon-grid__heading-input { display: block; width: 100%; margin-bottom: 14px; padding: 2px 0; border: 0; border-bottom: 1px dashed #d4d4d8; outline: 0; color: var(--lb-text); background: transparent; font: inherit; font-size: 18px; font-weight: 700; }
+.lesson-content.dark .lesson-icon-grid__heading-input { border-bottom-color: #3f3f46; }
+.lesson-content .lesson-icon-grid__heading-input::placeholder { color: #a1a1aa; font-weight: 600; }
+.lesson-content .lesson-icon-grid__items > [data-node-view-content-react] { display: grid; grid-template-columns: repeat(var(--icon-grid-cols, 3), minmax(0, 1fr)); gap: 14px; }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__items > [data-node-view-content-react] { gap: 12px; }
+.lesson-content .lesson-icon-grid__item { position: relative; display: flex; flex-direction: column; gap: 12px; height: 100%; box-sizing: border-box; padding: 18px; border-radius: 14px; background: var(--lb-soft); }
+.lesson-content .lesson-icon-grid__icon { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; border: 0; border-radius: 12px; color: var(--lesson-accent-ink); background: #ffffff; }
+.lesson-content.dark .lesson-icon-grid__icon { color: var(--lesson-accent); background: rgba(255,255,255,0.07); }
+.lesson-content .lesson-icon-grid__icon-btn { cursor: pointer; }
+.lesson-content .lesson-icon-grid__icon-btn:not(:has(.lesson-icon-btn__icon)) { color: var(--lb-faint); }
+.lesson-content .lesson-icon-grid__words { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lesson-content .lesson-icon-grid__title { color: var(--lb-text); font-size: 15px; font-weight: 700; line-height: 1.35; }
+.lesson-content .lesson-icon-grid__text { color: var(--lb-sub); font-size: 14px; line-height: 1.5; }
+.lesson-content .lesson-icon-grid__title-input, .lesson-content .lesson-icon-grid__text-input { width: 100%; padding: 2px 0; border: 0; border-bottom: 1px dashed #d4d4d8; outline: 0; color: var(--lb-text); background: transparent; font: inherit; }
+.lesson-content.dark .lesson-icon-grid__title-input, .lesson-content.dark .lesson-icon-grid__text-input { border-bottom-color: #3f3f46; }
+.lesson-content .lesson-icon-grid__title-input { font-size: 15px; font-weight: 700; }
+.lesson-content .lesson-icon-grid__text-input { color: var(--lb-sub); font-size: 14px; line-height: 1.5; resize: none; }
+.lesson-content .lesson-icon-grid__title-input::placeholder, .lesson-content .lesson-icon-grid__text-input::placeholder { color: #a1a1aa; font-weight: 500; }
+.lesson-content .lesson-icon-grid__remove { position: absolute; top: 8px; right: 8px; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; color: #a1a1aa; background: transparent; cursor: pointer; }
+.lesson-content .lesson-icon-grid__remove:hover { color: #ef4444; background: rgba(239,68,68,0.08); }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__item { flex-direction: row; align-items: center; gap: 14px; padding: 12px 16px; background: var(--lb-card); box-shadow: inset 0 0 0 1px var(--lb-line), var(--lb-shadow); }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__icon { width: 40px; height: 40px; flex-basis: 40px; border-radius: 999px; background: var(--lb-soft); }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__text, .lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__text-input { display: none; }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__words { flex: 1; }
+.lesson-content .lesson-icon-grid[data-style="compact"] .lesson-icon-grid__item[data-editing="true"] { padding-right: 36px; }
+.lesson-content .lesson-icon-grid__add { display: inline-flex; align-items: center; gap: 4px; padding: 8px; border: 0; border-radius: 8px; color: var(--lb-sub); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
+.lesson-content .lesson-icon-grid__add:hover { color: var(--lb-text); background: var(--lb-chip); }
+@media (max-width: 560px) {
+  .lesson-content .lesson-icon-grid[data-style="cards"] { padding: 16px; }
+  .lesson-content .lesson-icon-grid__items > [data-node-view-content-react] { grid-template-columns: minmax(0, 1fr); }
+}
 `}</style>
   );
 }

@@ -9,56 +9,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, ArrowsClockwise, BookOpen, Brain, CalendarDots, ChatCircle, Clock, Code, Copy, Globe, ImageSquare, Lightbulb, Lightning, MagicWand, Plus, PuzzlePiece, Question, Rocket, ShieldCheck, Sparkle, Target, Trash, TrendUp, Users, X } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, ArrowsClockwise, Copy, ImageSquare, Plus, Trash } from '@phosphor-icons/react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import { ColorField, MenuRow, StyleMenu, accentScope } from '@/components/lesson/nodes/StyleControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconPanel } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 const MAX_CARDS = 24;
-
-type FlipIconName = 'none' | 'sparkles' | 'lightbulb' | 'target' | 'book' | 'brain' | 'question' | 'rocket' | 'zap' | 'globe' | 'users' | 'clock' | 'calendar' | 'message' | 'code' | 'shield' | 'growth' | 'puzzle' | 'magic';
-
-const FLIP_ICONS: Record<Exclude<FlipIconName, 'none'>, { label: string; Icon: typeof Sparkle }> = {
-  sparkles: { label: 'Sparkles', Icon: Sparkle },
-  lightbulb: { label: 'Idea', Icon: Lightbulb },
-  target: { label: 'Target', Icon: Target },
-  book: { label: 'Book', Icon: BookOpen },
-  brain: { label: 'Brain', Icon: Brain },
-  question: { label: 'Question', Icon: Question },
-  rocket: { label: 'Rocket', Icon: Rocket },
-  zap: { label: 'Energy', Icon: Lightning },
-  globe: { label: 'Globe', Icon: Globe },
-  users: { label: 'People', Icon: Users },
-  clock: { label: 'Time', Icon: Clock },
-  calendar: { label: 'Calendar', Icon: CalendarDots },
-  message: { label: 'Message', Icon: ChatCircle },
-  code: { label: 'Code', Icon: Code },
-  shield: { label: 'Shield', Icon: ShieldCheck },
-  growth: { label: 'Growth', Icon: TrendUp },
-  puzzle: { label: 'Puzzle', Icon: PuzzlePiece },
-  magic: { label: 'Magic', Icon: MagicWand },
-};
-
-function FlipIconPicker({ value, customUrl, onChange, onChooseCustom }: { value: FlipIconName; customUrl: string; onChange: (value: FlipIconName) => void; onChooseCustom: () => void }) {
-  return (
-    <div className="lesson-flip__icon-options">
-      <button type="button" className="lesson-flip__icon-option lesson-flip__icon-none" data-active={value === 'none' && !customUrl ? 'true' : 'false'} aria-label="No icon" title="No icon" onMouseDown={(event) => { event.preventDefault(); onChange('none'); }}><X weight="bold" width={13} height={13} /></button>
-      {(Object.entries(FLIP_ICONS) as [Exclude<FlipIconName, 'none'>, (typeof FLIP_ICONS)[Exclude<FlipIconName, 'none'>]][]).map(([name, { label, Icon }]) => (
-        <button key={name} type="button" className="lesson-flip__icon-option" data-active={value === name ? 'true' : 'false'} aria-label={`${label} icon`} title={label} onMouseDown={(event) => { event.preventDefault(); onChange(name); }}><Icon weight="duotone" width={14} height={14} /></button>
-      ))}
-      <button type="button" className="lesson-flip__icon-option lesson-flip__icon-custom" data-active={customUrl ? 'true' : 'false'} aria-label="Choose or upload a custom icon" title="Custom icon" onMouseDown={(event) => { event.preventDefault(); onChooseCustom(); }}><ImageSquare weight="duotone" width={14} height={14} /></button>
-    </div>
-  );
-}
 
 function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const front = (node.attrs.front as string) || '';
   const back = (node.attrs.back as string) || '';
   const iconUrl = (node.attrs.iconUrl as string) || '';
-  const iconName: FlipIconName = (node.attrs.icon as FlipIconName) in FLIP_ICONS ? (node.attrs.icon as FlipIconName) : 'none';
-  const FrontIcon = iconName === 'none' ? null : FLIP_ICONS[iconName].Icon;
+  // Cards saved before the shared icon set stored 'none' or an older key; both still resolve.
+  const iconKey = resolveLessonIconKey(node.attrs.icon);
+  const frontIcon = (size: number) => (iconUrl ? <img src={iconUrl} alt="" /> : <LessonIcon name={iconKey} size={size} />);
   const [flipped, setFlipped] = useState(false);
   const [showIconLibrary, setShowIconLibrary] = useState(false);
   const { index, siblingCount } = useEditorState({
@@ -116,11 +85,18 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
               <button type="button" className="lesson-flip__control" disabled={index === 0} aria-label={`Move card ${index + 1} up`} title="Move card up" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(-1)}><ArrowUp weight="bold" width={13} height={13} /></button>
               <button type="button" className="lesson-flip__control" disabled={index >= siblingCount - 1} aria-label={`Move card ${index + 1} down`} title="Move card down" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(1)}><ArrowDown weight="bold" width={13} height={13} /></button>
               <button type="button" className="lesson-flip__control" disabled={siblingCount >= MAX_CARDS} aria-label={`Duplicate card ${index + 1}`} title="Duplicate card" onMouseDown={(event) => event.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
-              <StyleMenu><MenuRow label="Front icon"><FlipIconPicker value={iconName} customUrl={iconUrl} onChange={(icon) => updateAttributes({ icon, iconUrl: '' })} onChooseCustom={() => setShowIconLibrary(true)} /></MenuRow></StyleMenu>
+              <StyleMenu width={340}>
+                <MenuRow label="Front icon">
+                  <LessonIconPanel value={iconKey} otherChoice={!!iconUrl} onChange={(icon) => updateAttributes({ icon: icon || 'none', iconUrl: '' })} />
+                  <button type="button" className="lesson-flip__icon-custom" data-active={iconUrl ? 'true' : 'false'} onMouseDown={(event) => { event.preventDefault(); setShowIconLibrary(true); }}>
+                    <ImageSquare weight="duotone" width={14} height={14} aria-hidden="true" /> Use your own image
+                  </button>
+                </MenuRow>
+              </StyleMenu>
               <button type="button" className="lesson-flip__control lesson-flip__remove" disabled={siblingCount <= 1} aria-label={`Delete card ${index + 1}`} title="Delete card" onMouseDown={(event) => event.preventDefault()} onClick={removeSelf}><Trash weight="duotone" width={13} height={13} /></button>
             </div>
           </div>
-          {(iconUrl || FrontIcon) && <span className="lesson-flip__edit-icon">{iconUrl ? <img src={iconUrl} alt="" /> : FrontIcon && <FrontIcon weight="duotone" width={16} height={16} aria-hidden="true" />}</span>}
+          {(iconUrl || iconKey) && <span className="lesson-flip__edit-icon">{frontIcon(16)}</span>}
           <NodeTextInput
             multiline
             className="lesson-flip__edit-input"
@@ -162,7 +138,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
         <span className="lesson-flip__inner">
           {/* Only the visible face is exposed to assistive tech, so the hidden side (often the answer) is not announced before the learner flips. */}
           <span className="lesson-flip__face lesson-flip__face--front" aria-hidden={flipped}>
-            {(iconUrl || FrontIcon) && <span className="lesson-flip__front-icon">{iconUrl ? <img src={iconUrl} alt="" /> : FrontIcon && <FrontIcon weight="duotone" width={21} height={21} aria-hidden="true" />}</span>}
+            {(iconUrl || iconKey) && <span className="lesson-flip__front-icon">{frontIcon(21)}</span>}
             <span className="lesson-flip__text">{front}</span>
             <span className="lesson-flip__hint"><ArrowsClockwise weight="bold" width={12} height={12} /> Tap to flip</span>
           </span>

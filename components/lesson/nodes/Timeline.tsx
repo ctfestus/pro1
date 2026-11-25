@@ -14,6 +14,9 @@ import { ArrowDown, ArrowUp, Copy, Plus, Trash } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconButton } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 const MAX_ENTRIES = 30;
 
@@ -21,6 +24,7 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
   const editable = editor.isEditable;
   const date = (node.attrs.date as string) || '';
   const title = (node.attrs.title as string) || '';
+  const icon = resolveLessonIconKey(node.attrs.icon);
   const { index, siblingCount } = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -78,7 +82,9 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
           <span className="lesson-timeline__date">{date}</span>
         ) : null}
       </div>
-      <div className="lesson-timeline__dot" contentEditable={false} />
+      <div className="lesson-timeline__dot" data-icon={icon ? 'true' : undefined} contentEditable={false}>
+        {icon && <LessonIcon name={icon} size={16} />}
+      </div>
       <div className="lesson-timeline__content">
         <div className="lesson-timeline__meta" contentEditable={false}>
           {editable ? (
@@ -88,6 +94,7 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
           ) : null}
           {editable && (
             <div className="lesson-timeline__controls" aria-label={`Event ${index + 1} controls`}>
+              <LessonIconButton className="lesson-timeline__control" value={icon} onChange={(key) => updateAttributes({ icon: key })} title={`Event ${index + 1} icon`} />
               <button type="button" className="lesson-timeline__control" disabled={index === 0} aria-label={`Move event ${index + 1} up`} title="Move event up" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(-1)}><ArrowUp weight="bold" width={13} height={13} /></button>
               <button type="button" className="lesson-timeline__control" disabled={index >= siblingCount - 1} aria-label={`Move event ${index + 1} down`} title="Move event down" onMouseDown={(event) => event.preventDefault()} onClick={() => moveSelf(1)}><ArrowDown weight="bold" width={13} height={13} /></button>
               <button type="button" className="lesson-timeline__control" disabled={siblingCount >= MAX_ENTRIES} aria-label={`Duplicate event ${index + 1}`} title="Duplicate event" onMouseDown={(event) => event.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
@@ -138,6 +145,9 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
     return () => { live = false; ro.disconnect(); };
   }, [node, editable]);
   const count = node.childCount;
+  // Any event with an icon makes room for the larger badges on every event, so the line stays straight.
+  let hasIcons = false;
+  node.forEach((child) => { if (resolveLessonIconKey(child.attrs.icon)) hasIcons = true; });
   const accentColor = (node.attrs.accentColor as string) || '';
   // Drives the connector rail, the milestone dots, and the date chips.
   const accent = accentScope(accentColor);
@@ -151,7 +161,7 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   };
 
   return (
-    <NodeViewWrapper ref={wrapRef} className={`lesson-timeline ${accent.className}`.trim()} style={accent.style}>
+    <NodeViewWrapper ref={wrapRef} className={`lesson-timeline ${accent.className}`.trim()} data-icons={hasIcons ? 'true' : undefined} style={accent.style}>
       <NodeViewContent className="lesson-timeline__entries" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
@@ -192,6 +202,8 @@ export const TimelineEntry = Node.create({
         parseHTML: (el) => el.getAttribute('data-title') || '',
         renderHTML: (attrs) => ({ 'data-title': attrs.title }),
       },
+      // A key from lib/lesson-icons; empty = the plain dot.
+      icon: { default: '' },
     };
   },
 

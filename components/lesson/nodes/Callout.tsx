@@ -16,10 +16,13 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import { ArrowCounterClockwise, ArrowUpRight, BookOpen, BookmarkSimple, CheckCircle, Clock, Copy, Eye, FileText, Flag, Info, Lightbulb, Lightning, ListChecks, Megaphone, Plus, Prohibit, Question, Quotes, ShieldCheck, Sparkle, Star, Target, TrendUp, Users, Warning, Wrench, X } from '@phosphor-icons/react';
+import { ArrowUpRight, CheckCircle, Copy, FileText, Info, Lightbulb, Plus, Warning, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
-import { ColorField, Segmented, IconPicker, StyleMenu, MenuRow, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
+import { ColorField, Segmented, StyleMenu, MenuRow, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { safeCalloutActionUrl } from '@/lib/lesson-callout';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconPanel } from '@/components/lesson/LessonIconPicker';
 
 export type CalloutVariant = 'note' | 'tip' | 'warning' | 'info' | 'success';
 
@@ -56,39 +59,6 @@ const VARIANT_OPTIONS: { value: CalloutVariant; label: string }[] = [
   { value: 'success', label: 'Success' },
 ];
 
-// Icons an author can put on a callout. Keys are stored in the doc, so renaming one would orphan
-// existing callouts -- add to this map, never rename. '' means "use the variant's icon".
-const CALLOUT_ICONS: Record<string, { label: string; Icon: typeof Info }> = {
-  note:      { label: 'Document',    Icon: FileText },
-  tip:       { label: 'Lightbulb',   Icon: Lightbulb },
-  warning:   { label: 'Warning',     Icon: Warning },
-  info:      { label: 'Info',        Icon: Info },
-  success:   { label: 'Check',       Icon: CheckCircle },
-  star:      { label: 'Star',        Icon: Star },
-  flag:      { label: 'Flag',        Icon: Flag },
-  quote:     { label: 'Quote',       Icon: Quotes },
-  book:      { label: 'Reading',     Icon: BookOpen },
-  target:    { label: 'Goal',        Icon: Target },
-  zap:       { label: 'Fast',        Icon: Lightning },
-  clock:     { label: 'Time',        Icon: Clock },
-  question:  { label: 'Question',    Icon: Question },
-  sparkles:  { label: 'Highlight',   Icon: Sparkle },
-  tool:      { label: 'Practice',    Icon: Wrench },
-  shield:    { label: 'Best practice', Icon: ShieldCheck },
-  bookmark:  { label: 'Remember',    Icon: BookmarkSimple },
-  announce:  { label: 'Announcement', Icon: Megaphone },
-  checklist: { label: 'Checklist',   Icon: ListChecks },
-  trend:     { label: 'Trend',       Icon: TrendUp },
-  people:    { label: 'People',      Icon: Users },
-  avoid:     { label: 'Avoid',       Icon: Prohibit },
-  watch:     { label: 'Watch for',   Icon: Eye },
-};
-
-const ICON_OPTIONS = [
-  { value: '', label: 'Match the style', Icon: ArrowCounterClockwise },
-  ...Object.entries(CALLOUT_ICONS).map(([value, { label, Icon }]) => ({ value, label, Icon })),
-];
-
 function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const editable = editor.isEditable;
   const variant: CalloutVariant = (node.attrs.variant as CalloutVariant) in VARIANTS
@@ -96,10 +66,11 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
     : 'note';
   const fallback = VARIANTS[variant];
   const customLabel = (node.attrs.label as string) || '';
-  const iconKey = (node.attrs.icon as string) || '';
+  // Any key from the shared lesson icon set; empty or unknown falls back to the variant's icon.
+  const iconKey = resolveLessonIconKey(node.attrs.icon);
   // Both fall back to the variant, so a callout authored before these existed looks identical.
   const label = customLabel.trim() || fallback.label;
-  const Icon = (iconKey && CALLOUT_ICONS[iconKey]?.Icon) || fallback.Icon;
+  const FallbackIcon = fallback.Icon;
   const title = (node.attrs.title as string) || '';
   const borderStyle = (node.attrs.borderStyle as BorderStyle) || 'solid';
   const borderColor = (node.attrs.borderColor as string) || '';
@@ -148,7 +119,9 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   return (
     <NodeViewWrapper className="lesson-callout" data-variant={variant} data-shape={shape} data-accent={accentPosition} data-custom-accent={accentColor ? '' : undefined} style={wrapperStyle}>
       <div className="lesson-callout__icon-wrap" contentEditable={false}>
-        <Icon weight="duotone" className="lesson-callout__icon" width={17} height={17} />
+        {iconKey
+          ? <LessonIcon name={iconKey} size={17} className="lesson-callout__icon" fallback={<FallbackIcon weight="duotone" className="lesson-callout__icon" width={17} height={17} />} />
+          : <FallbackIcon weight="duotone" className="lesson-callout__icon" width={17} height={17} />}
       </div>
       <div className="lesson-callout__main">
         <div className="lesson-callout__head" contentEditable={false}>
@@ -171,12 +144,12 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
           {editable && (
             <div className="lesson-callout__controls">
               <button type="button" className="lesson-callout__control" aria-label="Duplicate callout" title="Duplicate" onMouseDown={(event) => { event.preventDefault(); duplicateSelf(); }}><Copy weight="bold" width={13} height={13} /></button>
-              <StyleMenu width={288}>
+              <StyleMenu width={320}>
                 <MenuRow label="Style"><Segmented<CalloutVariant> value={variant} onChange={(v) => updateAttributes({ variant: v })} options={VARIANT_OPTIONS} /></MenuRow>
                 <MenuRow label="Shape"><Segmented<CalloutShape> value={shape} onChange={(v) => updateAttributes({ shape: v })} options={SHAPE_OPTIONS} /></MenuRow>
                 <MenuRow label="Accent bar"><Segmented<CalloutAccentPosition> value={accentPosition} onChange={(v) => updateAttributes({ accentPosition: v })} options={ACCENT_POSITION_OPTIONS} /></MenuRow>
                 <MenuRow label="Accent color"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Accent color" /></MenuRow>
-                <MenuRow label="Icon"><IconPicker value={iconKey} onChange={(v) => updateAttributes({ icon: v })} options={ICON_OPTIONS} /></MenuRow>
+                <MenuRow label="Icon"><LessonIconPanel value={iconKey} noneLabel="Match the style" onChange={(v) => updateAttributes({ icon: v })} /></MenuRow>
                 <MenuRow label="Border"><Segmented<BorderStyle> value={borderStyle} onChange={(v) => updateAttributes({ borderStyle: v })} options={BORDER_STYLE_OPTIONS} /></MenuRow>
                 {borderStyle !== 'none' && (
                   <MenuRow label="Border color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>

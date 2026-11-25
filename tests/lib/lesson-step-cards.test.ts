@@ -30,7 +30,8 @@ function mockEditor(options: { selectionRun: boolean; selectionChangesDoc: boole
     eq: () => !changed,
   };
   const editor = {
-    state: { doc },
+    // The caret sits in a paragraph, so insertion goes through the selection path.
+    state: { doc, selection: { $from: { parent: { isTextblock: true } } } },
     chain: () => chain,
   } as unknown as Editor;
 

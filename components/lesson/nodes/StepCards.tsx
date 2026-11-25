@@ -10,10 +10,21 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ArrowDown, ArrowUp, Copy, Plus, X } from '@phosphor-icons/react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
-import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
+import { ColorField, Segmented, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { LessonIcon } from '@/components/lesson/LessonIcon';
+import { LessonIconButton } from '@/components/lesson/LessonIconPicker';
+import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 const MAX_STEP_CARDS = 12;
+
+// "rail": numbered nodes on a dashed rail beside the cards (the original look). "cards": the
+// number or icon sits inside each card, and a short dashed line joins one card to the next.
+type StepLayout = 'rail' | 'cards';
+const LAYOUT_OPTIONS: { value: StepLayout; label: string }[] = [
+  { value: 'rail', label: 'Rail' },
+  { value: 'cards', label: 'Cards' },
+];
 
 function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
@@ -37,6 +48,7 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
   const title = (node.attrs.title as string) || '';
   const highlightTitle = (node.attrs.highlightTitle as string) || '';
   const highlightBody = (node.attrs.highlightBody as string) || '';
+  const icon = resolveLessonIconKey(node.attrs.icon);
   const hasHighlight = !!(highlightTitle.trim() || highlightBody.trim());
   const [guidanceOpen, setGuidanceOpen] = useState(hasHighlight);
   const showGuidance = hasHighlight || guidanceOpen;
@@ -82,8 +94,16 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
   };
 
   return (
-    <NodeViewWrapper className="lesson-step-card">
-      <div className="lesson-step-card__number" contentEditable={false}>{index + 1}</div>
+    <NodeViewWrapper className="lesson-step-card" data-icon={icon ? 'true' : undefined}>
+      {icon ? (
+        // The icon says what kind of step it is; the badge keeps the order.
+        <div className="lesson-step-card__number" contentEditable={false}>
+          <LessonIcon name={icon} size={22} />
+          <span className="lesson-step-card__badge">{index + 1}</span>
+        </div>
+      ) : (
+        <div className="lesson-step-card__number" contentEditable={false}>{index + 1}</div>
+      )}
       <div className="lesson-step-card__main">
         <div className="lesson-step-card__header" contentEditable={false}>
           {editable ? (
@@ -98,6 +118,7 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
           )}
           {editable && (
             <div className="lesson-step-card__controls">
+              <LessonIconButton className="lesson-step-card__action" value={icon} onChange={(key) => updateAttributes({ icon: key })} title="Step icon" />
               <button type="button" className="lesson-step-card__action" aria-label="Move step card up" title="Move up" disabled={!canMoveUp} onMouseDown={(event) => { event.preventDefault(); moveSelf(-1); }}>
                 <ArrowUp weight="bold" width={13} height={13} />
               </button>
@@ -160,6 +181,7 @@ function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps
   const editable = editor.isEditable;
   const count = node.childCount;
   const accentColor = (node.attrs.accentColor as string) || '';
+  const layout: StepLayout = node.attrs.layout === 'cards' ? 'cards' : 'rail';
   // Drives the numbered circles and the guidance panel on every card in the set.
   const accent = accentScope(accentColor);
 
@@ -176,7 +198,7 @@ function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps
   };
 
   return (
-    <NodeViewWrapper className={`lesson-step-cards ${accent.className}`.trim()} style={accent.style}>
+    <NodeViewWrapper className={`lesson-step-cards ${accent.className}`.trim()} data-layout={layout} style={accent.style}>
       <NodeViewContent className="lesson-step-cards__items" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
@@ -189,6 +211,7 @@ function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps
               space-between row, and a bare third child would sit stranded in the middle. */}
           <span className="lesson-block-actions">
             <StyleMenu width={210}>
+              <MenuRow label="Layout"><Segmented<StepLayout> value={layout} onChange={(v) => updateAttributes({ layout: v })} options={LAYOUT_OPTIONS} /></MenuRow>
               <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Step accent" /></MenuRow>
             </StyleMenu>
             <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="step cards" />
@@ -213,6 +236,8 @@ export const StepCard = Node.create({
         parseHTML: (element) => element.getAttribute('data-title') || '',
         renderHTML: (attrs) => ({ 'data-title': attrs.title }),
       },
+      // A key from lib/lesson-icons; empty = the plain numbered marker.
+      icon: { default: '' },
       highlightTitle: {
         default: '',
         parseHTML: (element) => element.getAttribute('data-highlight-title') || '',
@@ -265,6 +290,12 @@ export const StepCards = Node.create({
 
   addAttributes() {
     return {
+      // Existing step cards have no value and keep the rail.
+      layout: {
+        default: 'rail',
+        parseHTML: (el) => el.getAttribute('data-layout') || 'rail',
+        renderHTML: (attrs) => ({ 'data-layout': attrs.layout }),
+      },
       // Empty = follow the tenant accent, so untouched step cards are unchanged.
       accentColor: {
         default: '',

@@ -26,6 +26,7 @@ const SAMPLES: Record<string, { block: AiBlock; node: string }> = {
   timeline:       { block: { type: 'timeline', parts: [{ date: '2020', title: 'T', body: 'B' }] }, node: 'timeline' },
   stepCards:      { block: { type: 'stepCards', parts: [{ title: 'Step 1', body: 'B' }] }, node: 'stepCards' },
   guidedSteps:    { block: { type: 'guidedSteps', parts: [{ title: 'Step 1', body: 'B' }] }, node: 'stepper' },
+  iconGrid:       { block: { type: 'iconGrid', parts: [{ icon: 'table', title: 'Tables', body: 'B' }] }, node: 'iconGrid' },
 };
 
 describe('every advertised block type is buildable', () => {
@@ -144,5 +145,54 @@ describe('lessonBlockSchema (the generators cannot skip a response schema)', () 
     for (const type of Object.keys(byType)) {
       expect(buildLessonNodes([SAMPLES[type].block]).length, `${type} sample does not convert`).toBe(1);
     }
+  });
+});
+
+describe('block icons', () => {
+  it('keeps a known icon key on callouts and on each section', () => {
+    const [callout] = buildLessonNodes([{ type: 'callout', variant: 'tip', title: 'T', text: 'B', icon: 'warning' }]);
+    expect(callout.attrs?.icon).toBe('warning');
+    const [steps] = buildLessonNodes([{ type: 'stepCards', parts: [{ title: 'Clean', icon: 'clean', body: 'B' }] }]);
+    expect(steps.content?.[0]?.attrs?.icon).toBe('clean');
+    const [timeline] = buildLessonNodes([{ type: 'timeline', parts: [{ date: 'Week 1', title: 'T', icon: 'database', body: 'B' }] }]);
+    expect(timeline.content?.[0]?.attrs?.icon).toBe('database');
+    const [tabs] = buildLessonNodes([{ type: 'tabs', parts: [{ label: 'Excel', icon: 'excel', body: 'B' }] }]);
+    expect(tabs.content?.[0]?.attrs?.icon).toBe('excel');
+    const [accordion] = buildLessonNodes([{ type: 'accordion', parts: [{ title: 'S', icon: 'tip', body: 'B' }] }]);
+    expect(accordion.content?.[0]?.attrs?.icon).toBe('tip');
+  });
+
+  it('drops an invented key instead of storing it', () => {
+    const [steps] = buildLessonNodes([{ type: 'stepCards', parts: [{ title: 'S', icon: 'spreadsheet-magic', body: 'B' }] }]);
+    expect(steps.content?.[0]?.attrs?.icon).toBe('');
+  });
+
+  it('stores a flip card with no icon the way the editor does', () => {
+    const [deck] = buildLessonNodes([{ type: 'flipCards', parts: [{ front: 'F', back: 'B' }, { front: 'G', back: 'C', icon: 'brain' }] }]);
+    expect(deck.content?.map((card) => card.attrs?.icon)).toEqual(['none', 'brain']);
+  });
+
+  it('lists every icon key in the guide', () => {
+    expect(LESSON_BLOCK_GUIDE).toContain('chart-bar, chart-line');
+    expect(LESSON_BLOCK_GUIDE).toContain('mobile-money');
+  });
+});
+
+describe('icon grid', () => {
+  it('builds items with icons, a heading and a style, and drops items with no title', () => {
+    const [grid] = buildLessonNodes([{
+      type: 'iconGrid', title: 'What you will learn', style: 'compact',
+      parts: [{ icon: 'table', title: 'Tables', body: 'Structure data' }, { icon: 'made-up', title: 'Charts' }, { icon: 'sum', body: 'no title' }],
+    }]);
+    expect(grid.attrs).toMatchObject({ title: 'What you will learn', style: 'compact', columns: '2' });
+    expect(grid.content?.map((item) => item.attrs)).toEqual([
+      { icon: 'table', title: 'Tables', text: 'Structure data' },
+      { icon: '', title: 'Charts', text: '' },
+    ]);
+  });
+
+  it('falls back to the cards style and skips a grid with no usable items', () => {
+    expect(buildLessonNodes([{ type: 'iconGrid', style: 'other', parts: [{ title: 'A' }] }])[0].attrs?.style).toBe('cards');
+    expect(buildLessonNodes([{ type: 'iconGrid', parts: [{ body: 'x' }] }])).toEqual([]);
   });
 });
