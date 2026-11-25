@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, Lock, X } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { CaretDown, Check, Lock, X } from '@phosphor-icons/react';
 import { lessonCompletionPct } from '@/lib/ve-completion';
 import type { Module, Progress } from '@/components/ve/requirements/types';
 
@@ -26,6 +27,10 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
 /**
  * The mission list: missions grouped under their modules, each with a status marker. The mission
  * in progress says so, and locked missions say what unlocks them.
+ *
+ * Each module is its own soft panel with a header that folds it, so a long experience reads as a
+ * stack of weeks. The week holding the current mission is open and the others start folded;
+ * moving to a mission in a folded week opens it.
  */
 export function ProjectPlan({
   isDark, accentColor, text, muted, border, role, heading, modules, progress, currentLesId, isUnlocked, onOpen,
@@ -52,6 +57,28 @@ export function ProjectPlan({
   // it, which is the one a locked mission waits on.
   const allLessons = modules.flatMap(m => m.lessons || []);
   const positionOf = new Map(allLessons.map((l, i) => [l.id, i]));
+  const panel = isDark ? 'rgba(255,255,255,0.04)' : '#f5f6f8';
+  const moduleOf = (lessonId: string) => modules.find(m => (m.lessons || []).some(l => l.id === lessonId))?.id;
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => (
+    modules.length > 1 ? new Set(modules.map(m => m.id).filter(id => id !== moduleOf(currentLesId))) : new Set()
+  ));
+  // Moving into a folded week (Next, or a link) opens it. Adjusted while rendering, when the
+  // current week changes, rather than in an effect, so the folded week never flashes first.
+  const currentModule = moduleOf(currentLesId);
+  const [openedFor, setOpenedFor] = useState(currentModule);
+  if (openedFor !== currentModule) {
+    setOpenedFor(currentModule);
+    if (currentModule && collapsed.has(currentModule)) {
+      const next = new Set(collapsed);
+      next.delete(currentModule);
+      setCollapsed(next);
+    }
+  }
+  const toggle = (id: string) => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   return (
     <>
@@ -78,17 +105,22 @@ export function ProjectPlan({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2.5 pb-3">
+      <nav className="flex-1 overflow-y-auto px-2.5 pb-3 flex flex-col gap-2 pt-2">
         {modules.map(mod => {
           const lessons = mod.lessons || [];
           const doneCount = lessons.filter(l => lessonCompletionPct(l, progress) === 100).length;
+          const open = !collapsed.has(mod.id);
           return (
-            <div key={mod.id} className="mt-3">
-              <div className="flex items-baseline justify-between gap-2 px-2 mb-1">
-                <span className="text-[11.5px] font-bold truncate" style={{ color: muted }}>{mod.title}</span>
-                <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: faint }}>{doneCount} / {lessons.length}</span>
-              </div>
-              {lessons.map((lesson, li) => {
+            <div key={mod.id} className="rounded-xl" style={{ background: panel }}>
+              <button type="button" onClick={() => toggle(mod.id)} aria-expanded={open}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left">
+                <span className="text-[12.5px] font-semibold truncate" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>{mod.title}</span>
+                <span className="flex flex-shrink-0 items-center gap-1.5 text-[11px] tabular-nums" style={{ color: faint }}>
+                  {doneCount} / {lessons.length}
+                  <CaretDown weight="bold" className={`h-3 w-3 transition-transform ${open ? '' : '-rotate-90'}`} />
+                </span>
+              </button>
+              {open && <div className="px-1 pb-1.5">{lessons.map((lesson, li) => {
                 const idx = positionOf.get(lesson.id) ?? 0;
                 const pct = lessonCompletionPct(lesson, progress);
                 const isCurr = lesson.id === currentLesId;
@@ -135,7 +167,7 @@ export function ProjectPlan({
                     </span>
                   </button>
                 );
-              })}
+              })}</div>}
             </div>
           );
         })}
