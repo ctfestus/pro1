@@ -628,7 +628,6 @@ export function LessonContentStyles() {
 .lesson-content .lesson-style__color-reset:hover { background: rgba(0,0,0,0.06); color: #52525b; }
 .lesson-content.dark .lesson-style__color-reset:hover { background: rgba(255,255,255,0.08); }
 .lesson-content .lesson-style__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; }
-/* Icon grid: wraps to the popover width, so adding icons to a block's set needs no layout change. */
 
 .lesson-style-menu { display: inline-flex; }
 .lesson-style-menu__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 26px; height: 26px; padding: 0; border-radius: 7px; border: none; background: rgba(0,0,0,0.05); color: #52525b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
@@ -1924,9 +1923,13 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
   .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline[data-icons] .lesson-timeline__entry::after { top: -20px; }
   .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline[data-icons] .lesson-timeline__dot { top: -28px; }
   .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline[data-icons] .lesson-timeline__dot[data-icon] { top: -34px; left: 8px; width: 28px; height: 28px; }
-  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot[data-icon] > svg { width: 16px; height: 16px; margin-top: 0; padding: 6px; box-shadow: 0 0 0 4px var(--lb-card); }
-  .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot[data-icon] > svg { box-shadow: 0 0 0 4px #18191e; }
+  /* An opaque light accent ring, so it reads as the ring and still covers the dashed line. */
+  .lesson-content .ProseMirror[contenteditable="false"] .lesson-timeline__dot[data-icon] > svg { width: 16px; height: 16px; margin-top: 0; padding: 6px; box-shadow: 0 0 0 4px var(--lb-tint); }
+  .lesson-content.dark .ProseMirror[contenteditable="false"] .lesson-timeline__dot[data-icon] > svg { box-shadow: 0 0 0 4px color-mix(in oklab, var(--lesson-accent-base) 18%, #18191e); }
 }
+
+/* Hover-only controls stay visible while their icon picker is open. */
+.lesson-content .lesson-step-card__controls:has([data-open="true"]), .lesson-content .lesson-timeline__controls:has([data-open="true"]) { opacity: 1; }
 
 /* Tabs: an icon before the label, in the label's colour. */
 .lesson-content .lesson-tabs__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
@@ -1938,6 +1941,11 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 .lesson-content .lesson-accordion__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lb-tint); transition: color 0.25s ease, background 0.25s ease; }
 .lesson-content.dark .lesson-accordion__icon { color: var(--lesson-accent); }
 .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__icon { color: #ffffff; background: var(--lesson-accent); }
+/* In the editor the icon button is the chip learners see; with no icon it is a faint shape. */
+.lesson-content .lesson-accordion__icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border: 0; border-radius: 7px; color: var(--lb-faint); background: transparent; cursor: pointer; }
+.lesson-content .lesson-accordion__icon-btn:hover, .lesson-content .lesson-accordion__icon-btn[data-open="true"] { color: var(--lb-text); background: var(--lb-chip); }
+.lesson-content .lesson-accordion__icon-btn:has(.lesson-icon-btn__icon) { color: var(--lesson-accent-ink); background: var(--lb-tint); }
+.lesson-content.dark .lesson-accordion__icon-btn:has(.lesson-icon-btn__icon) { color: var(--lesson-accent); }
 `}</style>
   );
 }

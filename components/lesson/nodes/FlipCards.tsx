@@ -87,7 +87,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
               <button type="button" className="lesson-flip__control" disabled={siblingCount >= MAX_CARDS} aria-label={`Duplicate card ${index + 1}`} title="Duplicate card" onMouseDown={(event) => event.preventDefault()} onClick={duplicateSelf}><Copy weight="bold" width={13} height={13} /></button>
               <StyleMenu width={340}>
                 <MenuRow label="Front icon">
-                  <LessonIconPanel value={iconUrl ? '' : iconKey} onChange={(icon) => updateAttributes({ icon: icon || 'none', iconUrl: '' })} />
+                  <LessonIconPanel value={iconKey} otherChoice={!!iconUrl} onChange={(icon) => updateAttributes({ icon: icon || 'none', iconUrl: '' })} />
                   <button type="button" className="lesson-flip__icon-custom" data-active={iconUrl ? 'true' : 'false'} onMouseDown={(event) => { event.preventDefault(); setShowIconLibrary(true); }}>
                     <ImageSquare weight="duotone" width={14} height={14} aria-hidden="true" /> Use your own image
                   </button>

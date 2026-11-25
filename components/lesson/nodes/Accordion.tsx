@@ -23,7 +23,7 @@ import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 import { LessonIcon } from '@/components/lesson/LessonIcon';
-import { LessonIconPanel } from '@/components/lesson/LessonIconPicker';
+import { LessonIconButton } from '@/components/lesson/LessonIconPicker';
 import { resolveLessonIconKey } from '@/lib/lesson-icons';
 
 function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
@@ -88,6 +88,10 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
     <NodeViewWrapper className={`lesson-accordion__item ${accent.className}`.trim()} data-open={open ? 'true' : 'false'} style={accent.style}>
       {editable ? (
         <div className="lesson-accordion__head" contentEditable={false}>
+          {/* A logo wins over the icon, as it does for learners, so the icon is offered only without one. */}
+          {!logoUrl && (
+            <LessonIconButton className="lesson-accordion__icon-btn" value={icon} onChange={(key) => updateAttributes({ icon: key })} title="Section icon" />
+          )}
           <span className="lesson-accordion__logo-slot">
             <button
               type="button"
@@ -98,7 +102,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => (BRANDFETCH_CLIENT_ID ? setShowBrandPicker(true) : setShowLibrary(true))}
             >
-              {logoImage ?? (icon ? <LessonIcon name={icon} size={16} /> : <ImageSquare weight="duotone" width={15} height={15} aria-hidden="true" />)}
+              {logoImage ?? <ImageSquare weight="duotone" width={15} height={15} aria-hidden="true" />}
             </button>
             {logoUrl && (
               <button
@@ -127,9 +131,8 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               onCommit={(v) => updateAttributes({ subtitle: v })}
             />
           </span>
-          <StyleMenu width={340}>
+          <StyleMenu width={210}>
             <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Section accent" /></MenuRow>
-            <MenuRow label="Icon"><LessonIconPanel value={icon} noneLabel="Number" onChange={(key) => updateAttributes({ icon: key })} /></MenuRow>
           </StyleMenu>
           <button type="button" className="lesson-accordion__editor-toggle" aria-label={open ? 'Collapse section' : 'Expand section'} aria-expanded={open} onMouseDown={(event) => { event.preventDefault(); toggle(); }}>
             {toggleIcon}

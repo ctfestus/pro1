@@ -130,13 +130,23 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor, tr
   const dark = theme === 'dark';
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // The panel is portaled to <body>, outside the block, so it takes the block's accent from the
+  // trigger when it opens. An explicit accentColor still wins.
+  const [inheritedAccent, setInheritedAccent] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Under the trigger, right-aligned to it and kept on screen. False once the trigger is out of view.
+  // Under the trigger, right-aligned to it and kept on screen. False once the trigger is out of
+  // view: off the window, or scrolled out of a scrolling box it sits in (the editor's body).
   const place = useCallback((): boolean => {
-    const r = triggerRef.current?.getBoundingClientRect();
-    if (!r || r.bottom < 0 || r.top > window.innerHeight) return false;
+    const el = triggerRef.current;
+    const r = el?.getBoundingClientRect();
+    if (!el || !r || r.bottom < 0 || r.top > window.innerHeight) return false;
+    for (let box = el.parentElement; box; box = box.parentElement) {
+      if (!/(auto|scroll)/.test(getComputedStyle(box).overflowY)) continue;
+      const b = box.getBoundingClientRect();
+      if (r.bottom < b.top || r.top > b.bottom) return false;
+    }
     const panelWidth = Math.min(width, window.innerWidth - 16);
     setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8)) });
     return true;
@@ -145,6 +155,7 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor, tr
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     if (open) { setOpen(false); return; }
+    if (triggerRef.current) setInheritedAccent(getComputedStyle(triggerRef.current).getPropertyValue('--lesson-accent-base').trim());
     place();
     setOpen(true);
   };
@@ -156,7 +167,11 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor, tr
       if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      if (panelRef.current?.contains(document.activeElement)) triggerRef.current?.focus();
+    };
     // The panel follows its trigger when the page or the editor scrolls (the editor can scroll on
     // the very click that opens it), and closes once the trigger has scrolled out of view.
     // Scrolling a list inside the panel moves nothing.
@@ -187,6 +202,8 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor, tr
         data-open={open ? 'true' : 'false'}
         data-theme={dark ? 'dark' : 'light'}
         onMouseDown={toggle}
+        // Enter and Space fire click (detail 0) without a mousedown; a mouse click already toggled.
+        onClick={(e) => { if (e.detail === 0) toggle(e); }}
       >
         {trigger ?? (triggerLabel ? <><DotsThree weight="bold" width={15} height={15} /><span>{triggerLabel}</span></> : <DotsThreeVertical weight="bold" width={15} height={15} />)}
       </button>
@@ -194,7 +211,7 @@ export function StyleMenu({ children, width = 240, triggerLabel, accentColor, tr
         <div
           ref={panelRef}
           className={`lesson-content lesson-style-menu__panel ${dark ? 'dark' : ''}`}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width, maxWidth: 'calc(100vw - 16px)', ...(accentColor ? { '--lesson-accent-base': accentColor } : {}) } as React.CSSProperties}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width, maxWidth: 'calc(100vw - 16px)', ...((accentColor || inheritedAccent) ? { '--lesson-accent-base': accentColor || inheritedAccent } : {}) } as React.CSSProperties}
           onMouseDown={(e) => e.stopPropagation()}
         >
           {typeof children === 'function' ? children(() => setOpen(false)) : children}

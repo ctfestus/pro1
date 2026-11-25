@@ -120,7 +120,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
     <NodeViewWrapper className="lesson-callout" data-variant={variant} data-shape={shape} data-accent={accentPosition} data-custom-accent={accentColor ? '' : undefined} style={wrapperStyle}>
       <div className="lesson-callout__icon-wrap" contentEditable={false}>
         {iconKey
-          ? <LessonIcon name={iconKey} size={17} className="lesson-callout__icon" />
+          ? <LessonIcon name={iconKey} size={17} className="lesson-callout__icon" fallback={<FallbackIcon weight="duotone" className="lesson-callout__icon" width={17} height={17} />} />
           : <FallbackIcon weight="duotone" className="lesson-callout__icon" width={17} height={17} />}
       </div>
       <div className="lesson-callout__main">
