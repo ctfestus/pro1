@@ -2013,7 +2013,9 @@ input.lesson-xl__formula:focus { border-color: var(--x-sel); }
 }
 /* Tool logos (a "tool:" icon) keep their own colours, so wherever a plain icon sits on a fill of
    the lesson colour, a logo gets a white tile with a thin line instead. */
-.lesson-content .lesson-tool-logo { display: block; flex: 0 0 auto; object-fit: contain; }
+/* Logos are drawn as they are: the general lesson image rule (rounded corners and spacing, for
+   photos) would round a 20px logo into a circle. A square box keeps wide wordmarks centred. */
+.lesson-content .lesson-tool-logo, .lesson-content .lesson-icon-picker__tool > img { display: block; flex: 0 0 auto; height: auto; aspect-ratio: 1; margin: 0; border-radius: 0; object-fit: contain; }
 .lesson-content .lesson-step-card[data-icon] .lesson-step-card__number:has(.lesson-tool-logo),
 .lesson-content.dark .lesson-step-card[data-icon] .lesson-step-card__number:has(.lesson-tool-logo),
 .lesson-content .lesson-step__marker[data-icon]:has(.lesson-tool-logo),
