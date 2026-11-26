@@ -62,6 +62,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { DateField, TimeField } from '@/components/DatePicker';
+import { OutcomeIconButton } from '@/components/OutcomeIconButton';
+import { LessonContentStyles } from '@/components/lesson/LessonContentStyles';
+import { renameOutcomeIcon } from '@/lib/lesson-icons';
 
 // --- Types: the content contract is canonical in lib/course-schema (imported above) ---
 
@@ -694,7 +697,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     setIsLoading(true);
     (async () => {
       if (contentType === 'course') {
-        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, cover_video, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
+        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, learn_outcome_icons, points_enabled, points_base, points_system, post_submission, cover_image, cover_video, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled, difficulty, tags, tools').eq('id', formId).maybeSingle();
         if (course) {
           setFormConfig({
             isCourse: true,
@@ -711,6 +714,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
             enableAiTutor: course.ai_tutor_enabled ?? false,
             maxAttempts: course.max_attempts ?? undefined,
             learnOutcomes: course.learn_outcomes ?? [],
+            learnOutcomeIcons: course.learn_outcome_icons ?? {},
             pointsSystem: pointsSystemFromCourseRow(course),
             postSubmission: course.post_submission,
             deadline_days: course.deadline_days,
@@ -1855,8 +1859,12 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                       Write with AI
                     </button>
                   </div>
+                  {/* Styles for the outcome icon picker, which is otherwise only on the lesson step. */}
+                  <LessonContentStyles />
                   {(formConfig.learnOutcomes || []).map((outcome, idx) => (
                     <div key={idx} className="flex items-center gap-2">
+                      <OutcomeIconButton outcome={outcome} index={idx} icons={formConfig.learnOutcomeIcons}
+                        onChange={icons => updateConfig({ learnOutcomeIcons: icons })} />
                       <input
                         type="text"
                         value={outcome}
@@ -1864,7 +1872,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                         onChange={e => {
                           const next = [...(formConfig.learnOutcomes || [])];
                           next[idx] = e.target.value;
-                          updateConfig({ learnOutcomes: next });
+                          // A chosen icon follows its outcome through an edit.
+                          updateConfig({ learnOutcomes: next, learnOutcomeIcons: renameOutcomeIcon(formConfig.learnOutcomeIcons, outcome, e.target.value) });
                         }}
                         className={`${inputCls} flex-1`}
                         style={inputStyle}

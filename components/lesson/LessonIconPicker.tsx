@@ -151,26 +151,32 @@ export function LessonIconPanel({ value, onChange, noneLabel = 'No icon', otherC
 
 /**
  * A small button showing the current icon (or a faint shape when there is none) that opens the
- * picker in a popover, and closes it once an icon is chosen.
+ * picker in a popover, and closes it once an icon is chosen. With `fallback`, an empty value shows
+ * that icon instead -- the one used when nothing is chosen -- and the empty choice reads
+ * `noneLabel` ("Automatic" for a course outcome).
  */
-export function LessonIconButton({ value, onChange, className, title }: {
+export function LessonIconButton({ value, onChange, className, title, fallback, noneLabel, size = 15 }: {
   value: unknown;
   onChange: (key: LessonIconValue | '') => void;
   className: string;
   /** What the icon is for, e.g. "Step icon"; the current icon's name is added to it. */
   title: string;
+  fallback?: LessonIconValue;
+  noneLabel?: string;
+  size?: number;
 }) {
   const key = resolveLessonIconKey(value);
+  const shown = key || fallback || '';
   return (
     <StyleMenu
       width={340}
       triggerClassName={className}
-      triggerTitle={key ? `${title}: ${iconLabel(key)}` : title}
-      trigger={key
-        ? <LessonIcon name={key} size={15} className="lesson-icon-btn__icon" />
-        : <Shapes weight="duotone" width={15} height={15} aria-hidden="true" />}
+      triggerTitle={shown ? `${title}: ${iconLabel(shown)}${key ? '' : ' (automatic)'}` : title}
+      trigger={shown
+        ? <LessonIcon name={shown} size={size} className="lesson-icon-btn__icon" />
+        : <Shapes weight="duotone" width={size} height={size} aria-hidden="true" />}
     >
-      {(close) => <LessonIconPanel value={key} autoFocus onChange={(next) => { onChange(next); close(); }} />}
+      {(close) => <LessonIconPanel value={key} noneLabel={noneLabel} autoFocus onChange={(next) => { onChange(next); close(); }} />}
     </StyleMenu>
   );
 }

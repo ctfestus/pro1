@@ -6,6 +6,7 @@ import { sendAssignmentNotifications } from '@/lib/send-assignment-notification'
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
 import { ExperienceGuideResolutionError, resolveExperienceGuide } from '@/lib/experience-guide';
 import { normalizeExperienceReviewSheetNames } from '@/lib/excel-review-config';
+import { cleanOutcomeIcons } from '@/lib/lesson-icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
     background:     config.background    ?? null,
     // An outcome row left empty in the editor is not an outcome.
     learn_outcomes: (Array.isArray(config.learnOutcomes) ? config.learnOutcomes : []).filter((o: unknown) => typeof o === 'string' && o.trim()),
+    learn_outcome_icons: cleanOutcomeIcons(config.learnOutcomes, config.learnOutcomeIcons),
     manager_name:   config.managerName   ?? null,
     manager_title:  config.managerTitle  ?? 'Manager',
     guide_id:       verifiedGuide.guideId,

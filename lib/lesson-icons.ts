@@ -268,3 +268,31 @@ export function suggestLessonIcon(text: string): LessonIconKey {
   }
   return best;
 }
+
+/**
+ * The outcome icons worth keeping: one per outcome that still exists, and only a known icon or a
+ * tool logo. An outcome whose text changed drops its entry and goes back to the automatic icon.
+ */
+export function cleanOutcomeIcons(outcomes: unknown, icons: unknown): Record<string, string> {
+  if (!Array.isArray(outcomes) || !icons || typeof icons !== 'object') return {};
+  const kept: Record<string, string> = {};
+  for (const outcome of outcomes) {
+    if (typeof outcome !== 'string' || !outcome.trim()) continue;
+    const icon = resolveLessonIconKey((icons as Record<string, unknown>)[outcome]);
+    if (icon) kept[outcome] = icon;
+  }
+  return kept;
+}
+
+/** The icon an outcome shows: the one its author chose, or one picked from its words. */
+export function outcomeIcon(outcome: string, icons: Record<string, string> | null | undefined): LessonIconValue {
+  return resolveLessonIconKey(icons?.[outcome]) || suggestLessonIcon(outcome);
+}
+
+/** Outcome icons after an outcome's text is edited: its chosen icon moves to the new wording. */
+export function renameOutcomeIcon(icons: Record<string, string> | undefined, from: string, to: string): Record<string, string> | undefined {
+  if (!icons || !(from in icons) || from === to) return icons;
+  const next = { ...icons, [to]: icons[from] };
+  delete next[from];
+  return next;
+}

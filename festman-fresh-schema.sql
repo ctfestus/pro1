@@ -240,6 +240,8 @@ CREATE TABLE public.courses (
   passmark        integer     NOT NULL DEFAULT 50,
   course_timer    integer,
   learn_outcomes  text[]      DEFAULT '{}',
+  -- migration 255: an icon per outcome, keyed by the outcome's text.
+  learn_outcome_icons jsonb   NOT NULL DEFAULT '{}'::jsonb,
   points_enabled  boolean     NOT NULL DEFAULT false,
   points_base     integer     NOT NULL DEFAULT 100,
   points_system   jsonb       NOT NULL DEFAULT '{"enabled":false,"basePoints":100,"timeBonusEnabled":true,"timeBonusSeconds":10,"timeBonusMultiplier":1.5,"streakEnabled":true,"streakCount":3,"streakBonus":0,"hintPenalty":20,"solutionPenalty":30,"milestones":[]}'::jsonb,
@@ -364,6 +366,8 @@ CREATE TABLE public.virtual_experiences (
   tagline         text,
   background      text,
   learn_outcomes  text[]      DEFAULT '{}',
+  -- migration 255: an icon per outcome, keyed by the outcome's text.
+  learn_outcome_icons jsonb   NOT NULL DEFAULT '{}'::jsonb,
   manager_name    text,
   manager_title   text        DEFAULT 'Manager',
   guide_id        uuid        REFERENCES public.experience_guides(id) ON DELETE SET NULL,

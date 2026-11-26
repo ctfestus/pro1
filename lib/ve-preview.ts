@@ -37,6 +37,7 @@ export interface VePreviewFields {
   tags: string[];
   toolLogos: Record<string, string>;
   learnOutcomes: string[];
+  learnOutcomeIcons: Record<string, string>;
   managerName: string | null;
   managerTitle: string | null;
   guideId: string | null;
@@ -54,7 +55,7 @@ export interface VePreviewFields {
 /** The columns a preview needs. Pinned here so both routes select exactly the same set. */
 export const VE_PREVIEW_COLUMNS =
   'modules, industry, role, company, tagline, difficulty, duration, tools, tags, tool_logos, '
-  + 'learn_outcomes, manager_name, manager_title, guide_id, guide_snapshot, '
+  + 'learn_outcomes, learn_outcome_icons, manager_name, manager_title, guide_id, guide_snapshot, '
   + 'mode, theme, font, custom_accent, '
   // Two short strings, never the dataset column: an inline CSV lives inside it, and a preview only
   // needs to know one exists. Every stored dataset carries a filename, inline or linked.
@@ -73,6 +74,7 @@ export function vePreviewFields(row: any): VePreviewFields {
     tags:          Array.isArray(row?.tags) ? row.tags : [],
     toolLogos:     row?.tool_logos    ?? {},
     learnOutcomes: Array.isArray(row?.learn_outcomes) ? row.learn_outcomes : [],
+    learnOutcomeIcons: row?.learn_outcome_icons && typeof row.learn_outcome_icons === 'object' ? row.learn_outcome_icons : {},
     managerName:   row?.manager_name  ?? null,
     managerTitle:  row?.manager_title ?? null,
     guideId:       row?.guide_id      ?? null,
