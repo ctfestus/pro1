@@ -257,6 +257,8 @@ export interface FormConfig {
   isCourse?: boolean;
   questions?: CourseQuestion[];
   learnOutcomes?: string[];
+  /** An icon chosen for an outcome, keyed by its text (lib/lesson-icons value); others are picked from their words. */
+  learnOutcomeIcons?: Record<string, string>;
   showAnswers?: 'per_question' | 'after_quiz' | 'none';
   lessonTiming?: 'before' | 'after';
   enableAiTutor?: boolean;        // opt-in AI tutor on lesson slides (column: courses.ai_tutor_enabled)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LESSON_ICONS, LESSON_ICON_GROUPS, resolveLessonIconKey, suggestLessonIcon } from '@/lib/lesson-icons';
+import { LESSON_ICONS, LESSON_ICON_GROUPS, cleanOutcomeIcons, outcomeIcon, renameOutcomeIcon, resolveLessonIconKey, suggestLessonIcon } from '@/lib/lesson-icons';
 
 describe('resolveLessonIconKey', () => {
   it('accepts every key in the set', () => {
@@ -74,5 +74,27 @@ describe('suggestLessonIcon on AI outcomes', () => {
   it('reads generative AI and prompting as AI', () => {
     expect(suggestLessonIcon('Understand what Generative AI is and how foundation models work')).toBe('brain');
     expect(suggestLessonIcon('Apply structured prompting frameworks including the 5-Step and RICE frameworks')).toBe('brain');
+  });
+});
+
+describe('outcome icons', () => {
+  it('keeps a chosen icon only for an outcome that still exists, and only a known one', () => {
+    expect(cleanOutcomeIcons(['Clean data', 'Build a dashboard'], {
+      'Clean data': 'star', 'Build a dashboard': 'tool:power bi', 'Old outcome': 'flag', '': 'flag',
+    })).toEqual({ 'Clean data': 'star', 'Build a dashboard': 'tool:power bi' });
+    expect(cleanOutcomeIcons(['Clean data'], { 'Clean data': 'not-an-icon' })).toEqual({});
+    expect(cleanOutcomeIcons(undefined, { a: 'star' })).toEqual({});
+  });
+
+  it('shows the chosen icon, or one picked from the words', () => {
+    expect(outcomeIcon('Clean messy sales exports', { 'Clean messy sales exports': 'star' })).toBe('star');
+    expect(outcomeIcon('Clean messy sales exports', {})).toBe('clean');
+    expect(outcomeIcon('Clean messy sales exports', undefined)).toBe('clean');
+  });
+
+  it('moves a chosen icon to the new wording when an outcome is edited', () => {
+    expect(renameOutcomeIcon({ 'Clean data': 'star' }, 'Clean data', 'Clean the data')).toEqual({ 'Clean the data': 'star' });
+    const untouched = { 'Other': 'flag' };
+    expect(renameOutcomeIcon(untouched, 'Clean data', 'Clean the data')).toBe(untouched);
   });
 });

@@ -78,6 +78,8 @@ export interface ProjectConfig {
   coverImage: string;
   coverVideo?: CoverVideo | null;
   learnOutcomes: string[];
+  /** An icon chosen for an outcome, keyed by its text; others are picked from their words. */
+  learnOutcomeIcons?: Record<string, string>;
   modules: Module[];
   managerName?: string;
   managerTitle?: string;

@@ -645,6 +645,12 @@ export function LessonContentStyles() {
 .lesson-content .lesson-block-corner { position: absolute; top: 8px; right: 8px; z-index: 5; }
 .lesson-block-corner .lesson-style-menu__trigger { background: rgba(255,255,255,0.92); color: #3f3f46; box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
 .lesson-block-corner .lesson-style-menu__trigger[data-theme="dark"] { background: rgba(30,30,34,0.92); color: #e4e4e7; }
+/* The icon beside an outcome in the course and experience editors (components/OutcomeIconButton). */
+.outcome-icon-btn { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; padding: 0; border: 0; border-radius: 10px; color: #3f3f46; background: rgba(15,23,42,0.05); cursor: pointer; }
+.outcome-icon-btn:hover, .outcome-icon-btn[data-open="true"] { background: rgba(15,23,42,0.1); }
+.outcome-icon-btn[data-theme="dark"] { color: #e4e4e7; background: rgba(255,255,255,0.08); }
+.outcome-icon-btn[data-theme="dark"]:hover, .outcome-icon-btn[data-theme="dark"][data-open="true"] { background: rgba(255,255,255,0.14); }
+.outcome-icon-btn img.lesson-tool-logo { display: block; margin: 0; border-radius: 0; object-fit: contain; aspect-ratio: 1; height: auto; }
 .lesson-style-menu__panel { z-index: 1000; min-width: 220px; max-width: 280px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: #ffffff; border: 1px solid #e4e4e7; box-shadow: 0 10px 30px rgba(0,0,0,0.16); font-size: 14px; }
 .lesson-style-menu__panel.dark { background: #1c1c20; border-color: #2e2e33; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .lesson-style-menu__row { display: flex; flex-direction: column; gap: 4px; }

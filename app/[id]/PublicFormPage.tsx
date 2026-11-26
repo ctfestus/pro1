@@ -256,6 +256,7 @@ function lockedCoursePreviewToForm(item: any) {
       coverImage: item.coverImage,
       coverVideo: normalizeCoverVideo(item.coverVideo),
       learnOutcomes: Array.isArray(item.learnOutcomes) ? item.learnOutcomes : [],
+      learnOutcomeIcons: item.learnOutcomeIcons ?? {},
       difficulty: item.difficulty ?? undefined,
       tags: item.tags ?? [],
       tools: item.tools ?? [],
@@ -307,6 +308,7 @@ function vePreviewToForm(item: any) {
       tags: item.tags ?? [],
       toolLogos: item.toolLogos ?? {},
       learnOutcomes: item.learnOutcomes ?? [],
+      learnOutcomeIcons: item.learnOutcomeIcons ?? {},
       managerName: item.managerName ?? undefined,
       managerTitle: item.managerTitle ?? undefined,
       guideId: item.guideId ?? undefined,
@@ -821,6 +823,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
           isCourse: true, questions: stripExerciseSecrets(course.questions ?? []), fields: course.fields ?? [],
           passmark: course.passmark, courseTimer: course.course_timer,
           learnOutcomes: course.learn_outcomes,
+          learnOutcomeIcons: course.learn_outcome_icons ?? {},
           difficulty: course.difficulty ?? undefined, tags: course.tags ?? [], tools: course.tools ?? [],
           pointsSystem: pointsSystemFromCourseRow(course),
           postSubmission: course.post_submission,
@@ -849,7 +852,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
           isVirtualExperience: true, modules: ve.modules ?? [],
           industry: ve.industry, difficulty: ve.difficulty, role: ve.role, company: ve.company,
           duration: ve.duration, tools: ve.tools, tags: ve.tags ?? [], toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
-          learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
+          learnOutcomes: ve.learn_outcomes, learnOutcomeIcons: ve.learn_outcome_icons ?? {}, managerName: ve.manager_name, managerTitle: ve.manager_title,
           guideId: ve.guide_id, guideSnapshot: ve.guide_snapshot,
           dataset: ve.dataset, coverImage: ve.cover_image, coverVideo: normalizeCoverVideo(ve.cover_video), deadline_days: ve.deadline_days,
           theme: ve.theme, mode: ve.mode, font: ve.font, customAccent: ve.custom_accent,
@@ -1532,7 +1535,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
             {veOutcomes.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: 24, boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>What you&apos;ll learn</h2>
-                <OutcomeGrid outcomes={veOutcomes} accent={indColor} card={gp.card} body={gp.body} />
+                <OutcomeGrid outcomes={veOutcomes} icons={(config as any).learnOutcomeIcons} accent={indColor} card={gp.card} body={gp.body} />
               </div>
             )}
 
@@ -1743,7 +1746,7 @@ function PublicFormPageView({ promotions = [], publicEventPath = null, paystackE
               {courseOutcomes.length > 0 && (
                 <div style={{ background: cp.card, borderRadius: 14, padding: 24, boxShadow: courseCardShadow }}>
                   <h2 style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: cp.title, marginBottom: 16, fontFamily: courseDisplayFont }}>What you&apos;ll learn</h2>
-                  <OutcomeGrid outcomes={courseOutcomes} accent={accentColor} card={cp.card} body={cp.body} />
+                  <OutcomeGrid outcomes={courseOutcomes} icons={(config as any).learnOutcomeIcons} accent={accentColor} card={cp.card} body={cp.body} />
                 </div>
               )}
 

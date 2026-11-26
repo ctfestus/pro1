@@ -5,6 +5,7 @@ import { adminClient } from '@/lib/admin-client';
 import { requireRole, requireUser, isAuthError } from '@/lib/api-auth';
 import { normalizeFormConfig, validateFormConfig, normalizeQuestions, normalizePointsSystem, LEGACY_RUNTIME_POINTS_SYSTEM } from '@/lib/course-schema';
 import { extractDocImageUrls } from '@/lib/lesson-doc';
+import { cleanOutcomeIcons } from '@/lib/lesson-icons';
 import { sendAssignmentNotifications } from '@/lib/send-assignment-notification';
 import { refreshEventsStore } from '@/lib/events/store-cache';
 import { autoRegisterEventCohorts } from '@/lib/auto-register-event-cohorts';
@@ -171,6 +172,7 @@ export async function POST(req: NextRequest) {
           passmark:       config.passmark        ?? 50,
           course_timer:   config.courseTimer     ?? null,
           learn_outcomes: config.learnOutcomes   ?? [],
+          learn_outcome_icons: cleanOutcomeIcons(config.learnOutcomes, config.learnOutcomeIcons),
           points_enabled: config.pointsSystem?.enabled   ?? true,
           points_base:    config.pointsSystem?.basePoints ?? 50,
           points_system:  normalizePointsSystem(config.pointsSystem ?? { enabled: true, basePoints: 50 }, LEGACY_RUNTIME_POINTS_SYSTEM),
@@ -319,6 +321,7 @@ export async function PUT(req: NextRequest) {
       passmark:       config.passmark        ?? 50,
       course_timer:   config.courseTimer     ?? null,
       learn_outcomes: config.learnOutcomes   ?? [],
+          learn_outcome_icons: cleanOutcomeIcons(config.learnOutcomes, config.learnOutcomeIcons),
       points_enabled: config.pointsSystem?.enabled   ?? true,
       points_base:    config.pointsSystem?.basePoints ?? 50,
       points_system:  normalizePointsSystem(config.pointsSystem ?? { enabled: true, basePoints: 50 }, LEGACY_RUNTIME_POINTS_SYSTEM),

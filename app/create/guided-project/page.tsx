@@ -34,6 +34,9 @@ import { SortableVEShell, RowMenu } from '@/components/create/ve/parts';
 import { TaskEditor } from '@/components/create/ve/TaskEditor';
 import { BunnyPicker } from '@/components/create/ve/BunnyPicker';
 import { PublishStep } from '@/components/create/ve/PublishStep';
+import { OutcomeIconButton } from '@/components/OutcomeIconButton';
+import { LessonContentStyles } from '@/components/lesson/LessonContentStyles';
+import { renameOutcomeIcon } from '@/lib/lesson-icons';
 
 const TEXT_DATASET_EXTENSIONS = new Set(['.csv', '.tsv', '.txt']);
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -267,7 +270,7 @@ function VirtualExperienceCreatePageInner() {
             isVirtualExperience: true, modules: ve.modules ?? [], industry: ve.industry,
             difficulty: ve.difficulty, role: ve.role, company: ve.company, duration: ve.duration,
             tools: ve.tools, tags: ve.tags ?? [], toolLogos: ve.tool_logos ?? {}, tagline: ve.tagline, background: ve.background,
-            learnOutcomes: ve.learn_outcomes, managerName: ve.manager_name, managerTitle: ve.manager_title,
+            learnOutcomes: ve.learn_outcomes, learnOutcomeIcons: ve.learn_outcome_icons ?? {}, managerName: ve.manager_name, managerTitle: ve.manager_title,
             guideId: ve.guide_id || (ve.guide_snapshot?.linkedUserId ? `instructor:${ve.guide_snapshot.linkedUserId}` : null), guideSnapshot: ve.guide_snapshot,
             dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
             coverVideo: normalizeCoverVideo(ve.cover_video),
@@ -1789,10 +1792,15 @@ function VirtualExperienceCreatePageInner() {
                 {/* Learning outcomes card */}
                 <div style={card} className="p-5 space-y-3">
                     <div className="flex items-center justify-between gap-2"><h3 className="text-base font-semibold" style={{ color: C.text }}>Learning outcomes</h3><span className="text-xs" style={{ color: C.muted }}>{(config.learnOutcomes || []).length} outcomes</span></div>
+                    {/* Styles for the outcome icon picker, which is otherwise only on the Content step. */}
+                    <LessonContentStyles />
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-3" style={{ background: C.input }}>
-                          <input value={o} onChange={e => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.map((x, j) => j === i ? e.target.value : x) } : c)}
+                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ background: C.input }}>
+                          <OutcomeIconButton outcome={o} index={i} icons={config.learnOutcomeIcons}
+                            onChange={icons => setConfig(c => c ? { ...c, learnOutcomeIcons: icons } : c)} />
+                          {/* A chosen icon follows its outcome through an edit. */}
+                          <input value={o} onChange={e => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.map((x, j) => j === i ? e.target.value : x), learnOutcomeIcons: renameOutcomeIcon(c.learnOutcomeIcons, o, e.target.value) } : c)}
                             ref={el => { if (el && focusOutcome === i) { el.focus(); setFocusOutcome(null); } }}
                             aria-label={`Learning outcome ${i + 1}`} placeholder="Describe what the learner will be able to do (empty rows are not saved)"
                             className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.text }} />
